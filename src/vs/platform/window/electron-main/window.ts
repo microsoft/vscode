@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Rectangle } from 'electron';
+import { BrowserWindow, OpenDevToolsOptions, Rectangle, WebContents } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
@@ -163,4 +164,34 @@ export const enum WindowError {
 	 * Maps to the `did-fail-load` event on a `WebContents`.
 	 */
 	LOAD = 3
+}
+
+/**
+ * A helper to open devtools in a window web contents respecting the settings
+ * around where to open the devtools.
+ */
+export function openDevTools(webContents: WebContents, configurationService: IConfigurationService, toggle: boolean): void {
+	const configuredLocation = configurationService.getValue<'default' | 'left' | 'right' | 'bottom' | 'undocked' | undefined>('window.developerToolsLocation');
+
+	let devtoolsOptions: OpenDevToolsOptions | undefined = undefined;
+	switch (configuredLocation) {
+		case 'left':
+			devtoolsOptions = { mode: 'left' };
+			break;
+		case 'right':
+			devtoolsOptions = { mode: 'right' };
+			break;
+		case 'bottom':
+			devtoolsOptions = { mode: 'bottom' };
+			break;
+		case 'undocked':
+			devtoolsOptions = { mode: 'undocked' };
+			break;
+	}
+
+	if (toggle && webContents.isDevToolsOpened()) {
+		webContents.closeDevTools();
+	} else {
+		webContents.openDevTools(devtoolsOptions);
+	}
 }

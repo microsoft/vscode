@@ -89,7 +89,7 @@ import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManage
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { ICodeWindow, openDevTools } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
@@ -476,8 +476,8 @@ export class CodeApplication extends Disposable {
 			return (await this.fileService.readFile(uri)).value.toString();
 		});
 
-		validatedIpcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
-		validatedIpcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
+		validatedIpcMain.on('vscode:toggleDevTools', event => openDevTools(event.sender, this.configurationService, true));
+		validatedIpcMain.on('vscode:openDevTools', event => openDevTools(event.sender, this.configurationService, false));
 
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
 

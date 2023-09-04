@@ -135,7 +135,7 @@ export class TestNativeHostService implements INativeHostService {
 	async closeWindowById(): Promise<void> { }
 	async quit(): Promise<void> { }
 	async exit(code: number): Promise<void> { }
-	async openDevTools(options?: Electron.OpenDevToolsOptions | undefined): Promise<void> { }
+	async openDevTools(): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number> { return -1; }

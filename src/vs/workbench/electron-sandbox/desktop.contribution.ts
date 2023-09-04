@@ -27,6 +27,7 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
@@ -255,6 +256,21 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
+			},
+			'window.developerToolsLocation': {
+				'type': 'string',
+				'enum': ['default', 'left', 'right', 'bottom', 'undocked'],
+				'enumDescriptions': [
+					localize('window.developerToolsLocation.default', "Developer tools window opens where it was last opened."),
+					localize('window.developerToolsLocation.left', "Developer tools window opens inside the window on the left hand side."),
+					localize('window.developerToolsLocation.right', "Developer tools window opens inside the window on the right hand side."),
+					localize('window.developerToolsLocation.bottom', "Developer tools window opens inside the window on the bottom."),
+					localize('window.developerToolsLocation.undocked', "Developer tools window opens as a separate window outside.")
+				],
+				'default': 'default',
+				'included': product.quality !== 'stable',
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('developerToolsLocation', "Controls the location of the developer tools window when visible.")
 			}
 		}
 	});

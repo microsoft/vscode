@@ -36,7 +36,7 @@ import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowCon
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, openDevTools } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -396,7 +396,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Open devtools if instructed from command line args
 		if (this.environmentMainService.args['open-devtools'] === true) {
-			this._win.webContents.openDevTools();
+			openDevTools(this._win.webContents, this.configurationService, false);
 		}
 
 		// respect configured menu bar visibility
@@ -888,7 +888,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this.focus({ force: true });
-					this._win.webContents.openDevTools();
+					openDevTools(this._win.webContents, this.configurationService, false);
 				}
 			}, 10000)).schedule();
 		}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
@@ -32,7 +32,7 @@ import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platf
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { ICodeWindow, openDevTools } from 'vs/platform/window/electron-main/window';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -41,6 +41,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -58,7 +59,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -729,18 +731,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Development
 
-	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
+	async openDevTools(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
-			window.win.webContents.openDevTools(options);
+			openDevTools(window.win.webContents, this.configurationService, false);
 		}
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window?.win) {
-			const contents = window.win.webContents;
-			contents.toggleDevTools();
+			openDevTools(window.win.webContents, this.configurationService, true);
 		}
 	}
 
