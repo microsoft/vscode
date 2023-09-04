@@ -27,6 +27,7 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
@@ -107,7 +108,9 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 	registerAction2(ConfigureRuntimeArgumentsAction);
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
-	registerAction2(RemoveLargeStorageEntriesAction);
+	if (product.quality !== 'stable') {
+		registerAction2(RemoveLargeStorageEntriesAction);
+	}
 })();
 
 // Menu

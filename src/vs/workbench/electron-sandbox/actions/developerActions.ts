@@ -205,7 +205,7 @@ export class RemoveLargeStorageEntriesAction extends Action2 {
 		const { confirmed } = await dialogService.confirm({
 			type: 'warning',
 			message: localize('confirmRemove', "Do you want to remove the selected storage entries from the database?"),
-			detail: localize('confirmRemoveDetail', "This action is irreversible!"),
+			detail: localize('confirmRemoveDetail', "{0}\n\nThis action is irreversible!", selectedItems.map(item => item.key).join('\n')),
 			primaryButton: localize({ key: 'removeButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Remove")
 		});
 
