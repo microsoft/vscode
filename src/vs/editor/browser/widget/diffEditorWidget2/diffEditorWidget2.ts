@@ -66,13 +66,13 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
-	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
+	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>(this, undefined);
 
 	private unchangedRangesFeature!: HideUnchangedRegionsFeature;
 
-	private _accessibleDiffViewerShouldBeVisible = observableValue('accessibleDiffViewerShouldBeVisible', false);
-	private _accessibleDiffViewerVisible = derived(reader =>
-		/** @description accessibleDiffViewerVisible */ this._options.onlyShowAccessibleDiffViewer.read(reader)
+	private _accessibleDiffViewerShouldBeVisible = observableValue(this, false);
+	private _accessibleDiffViewerVisible = derived(this, reader =>
+		this._options.onlyShowAccessibleDiffViewer.read(reader)
 			? true
 			: this._accessibleDiffViewerShouldBeVisible.read(reader)
 	);
@@ -80,7 +80,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
 
-	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>('MovedBlocksLinesPart', undefined);
+	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>(this, undefined);
 
 	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
 
@@ -136,7 +136,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			(i, c, o, o2) => this._createInnerEditor(i, c, o, o2)
 		));
 
-		this._sash = derivedWithStore('sash', (reader, store) => {
+		this._sash = derivedWithStore(this, (reader, store) => {
 			const showSash = this._options.renderSideBySide.read(reader);
 			this.elements.root.classList.toggle('side-by-side', showSash);
 			if (!showSash) { return undefined; }
@@ -289,8 +289,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		return editor;
 	}
 
-	private readonly _layoutInfo = derived(reader => {
-		/** @description modifiedEditorLayoutInfo */
+	private readonly _layoutInfo = derived(this, reader => {
 		const width = this._rootSizeObserver.width.read(reader);
 		const height = this._rootSizeObserver.height.read(reader);
 		const sashLeft = this._sash.read(reader)?.sashLeft.read(reader);

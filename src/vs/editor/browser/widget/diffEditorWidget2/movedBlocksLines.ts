@@ -29,7 +29,7 @@ export class MovedBlocksLinesPart extends Disposable {
 	private readonly _modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 	private readonly _viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
-	public readonly width = observableValue('width', 0);
+	public readonly width = observableValue(this, 0);
 
 	constructor(
 		private readonly _rootElement: HTMLElement,
@@ -136,8 +136,8 @@ export class MovedBlocksLinesPart extends Disposable {
 	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
 
-	private readonly _state = derivedWithStore('state', (reader, store) => {
-		/** @description update moved blocks lines */
+	private readonly _state = derivedWithStore((reader, store) => {
+		/** @description state */
 
 		this._element.replaceChildren();
 		const model = this._diffModel.read(reader);

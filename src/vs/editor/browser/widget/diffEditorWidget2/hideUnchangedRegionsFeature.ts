@@ -33,7 +33,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 	private _isUpdatingViewZones = false;
 	public get isUpdatingViewZones(): boolean { return this._isUpdatingViewZones; }
 
-	private readonly _modifiedOutlineSource = derivedWithStore('modified outline source', (reader, store) => {
+	private readonly _modifiedOutlineSource = derivedWithStore(this, (reader, store) => {
 		const m = this._editors.modifiedModel.read(reader);
 		if (!m) { return undefined; }
 		return store.add(new OutlineSource(this._languageFeaturesService, m));
@@ -73,7 +73,8 @@ export class HideUnchangedRegionsFeature extends Disposable {
 
 		const unchangedRegions = this._diffModel.map((m, reader) => m?.diff.read(reader)?.mappings.length === 0 ? [] : m?.unchangedRegions.read(reader) ?? []);
 
-		const viewZones = derivedWithStore('view zones', (reader, store) => {
+		const viewZones = derivedWithStore(this, (reader, store) => {
+			/** @description view Zones */
 			const modifiedOutlineSource = this._modifiedOutlineSource.read(reader);
 			if (!modifiedOutlineSource) { return { origViewZones: [], modViewZones: [] }; }
 
@@ -210,7 +211,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 }
 
 class OutlineSource extends Disposable {
-	private readonly _currentModel = observableValue<OutlineModel | undefined>('current model', undefined);
+	private readonly _currentModel = observableValue<OutlineModel | undefined>(this, undefined);
 
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
