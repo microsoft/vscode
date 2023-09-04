@@ -1012,19 +1012,14 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		// Ignore path that is inside a merge group
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
-			return undefined;
-		}
-
-		// Ignore path that is inside a submodule
-		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
-			return undefined;
-		}
-
 		// Ignore path that is not inside the current repository
 		const repository = this.model.getRepository(uri);
 		if (repository && !pathEquals(repository.root, this.repository.root)) {
+			return undefined;
+		}
+
+		// Ignore path that is inside a merge group
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
 			return undefined;
 		}
 
