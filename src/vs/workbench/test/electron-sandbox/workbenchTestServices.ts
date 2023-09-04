@@ -8,7 +8,7 @@ import { workbenchInstantiationService as browserWorkbenchInstantiationService, 
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
@@ -178,7 +178,7 @@ export function workbenchInstantiationService(overrides?: {
 	textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 }, disposables = new DisposableStore()): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
-		workingCopyBackupService: (instantiationService: IInstantiationService) => new TestNativeWorkingCopyBackupService(),
+		workingCopyBackupService: (instantiationService: IInstantiationService) => disposables.add(new TestNativeWorkingCopyBackupService()),
 		...overrides
 	}, disposables);
 
@@ -216,13 +216,15 @@ export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFi
 	}
 }
 
-export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService {
+export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService implements IDisposable {
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 	discardedBackups: IWorkingCopyIdentifier[];
 	discardedAllBackups: boolean;
 	private pendingBackupsArr: Promise<void>[];
+
+	private readonly disposables = new DisposableStore();
 
 	constructor() {
 		const environmentService = TestEnvironmentService;
@@ -240,6 +242,8 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		this.discardedBackups = [];
 		this.pendingBackupsArr = [];
 		this.discardedAllBackups = false;
+
+		this.disposables.add(fileService);
 	}
 
 	testGetFileService(): IFileService {
@@ -294,5 +298,9 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const fileContents = await this.fileService.readFile(backupResource);
 
 		return fileContents.value.toString();
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
 	}
 }

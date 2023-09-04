@@ -16,7 +16,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -155,8 +155,8 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
-			new UriIdentityService(new TestFileService()),
-			new TestFileService()
+			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
+			disposables.add(new TestFileService())
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -761,4 +761,6 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			await cleanup();
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

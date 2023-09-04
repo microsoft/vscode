@@ -48,7 +48,7 @@ suite('EditorAutoSave', () => {
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
-			new UriIdentityService(new TestFileService()),
+			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
 			new TestFileService()
 		));
 

@@ -129,7 +129,7 @@ suite('WorkingCopyHistoryTracker', () => {
 		return new WorkingCopyHistoryTracker(
 			workingCopyService,
 			workingCopyHistoryService,
-			new UriIdentityService(new TestFileService()),
+			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
 			new TestPathService(undefined, Schemas.file),
 			configurationService,
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
