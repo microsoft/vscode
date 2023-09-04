@@ -14,7 +14,7 @@ import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authe
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -171,17 +171,19 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async initialize(): Promise<void> {
-		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
-		if (this.currentSessionId === undefined && authenticationSession?.id) {
-			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider && this.environmentService.options.settingsSyncOptions.enabled) {
-				this.currentSessionId = authenticationSession.id;
-			}
+		if (isWeb) {
+			const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
+			if (this.currentSessionId === undefined && authenticationSession?.id) {
+				if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider && this.environmentService.options.settingsSyncOptions.enabled) {
+					this.currentSessionId = authenticationSession.id;
+				}
 
-			// Backward compatibility
-			else if (this.useWorkbenchSessionId) {
-				this.currentSessionId = authenticationSession.id;
+				// Backward compatibility
+				else if (this.useWorkbenchSessionId) {
+					this.currentSessionId = authenticationSession.id;
+				}
+				this.useWorkbenchSessionId = false;
 			}
-			this.useWorkbenchSessionId = false;
 		}
 
 		await this.update();
@@ -199,7 +201,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				(() => this.update()));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, bailout => bailout)(() => this.onDidAuthFailure()));
 		this.hasConflicts.set(this.userDataSyncService.conflicts.length > 0);
 		this._register(this.userDataSyncService.onDidChangeConflicts(conflicts => {
@@ -611,9 +613,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.update();
 	}
 
-	private onDidChangeStorage(e: IStorageValueChangeEvent): void {
-		if (e.key === UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY && e.scope === StorageScope.APPLICATION
-			&& this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
+	private onDidChangeStorage(): void {
+		if (this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
 			this._cachedCurrentSessionId = null;
 			this.update();
 		}

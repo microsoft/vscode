@@ -60,6 +60,7 @@ export const Codicon = {
 	tag: register('tag', 0xea66),
 	tagAdd: register('tag-add', 0xea66),
 	tagRemove: register('tag-remove', 0xea66),
+	gitPullRequestLabel: register('git-pull-request-label', 0xea66),
 	person: register('person', 0xea67),
 	personFollow: register('person-follow', 0xea67),
 	personOutline: register('person-outline', 0xea67),
@@ -314,6 +315,7 @@ export const Codicon = {
 	megaphone: register('megaphone', 0xeb1e),
 	mention: register('mention', 0xeb1f),
 	milestone: register('milestone', 0xeb20),
+	gitPullRequestMilestone: register('git-pull-request-milestone', 0xeb20),
 	mortarBoard: register('mortar-board', 0xeb21),
 	move: register('move', 0xeb22),
 	multipleWindows: register('multiple-windows', 0xeb23),
@@ -438,9 +440,11 @@ export const Codicon = {
 	menu: register('menu', 0xeb94),
 	expandAll: register('expand-all', 0xeb95),
 	feedback: register('feedback', 0xeb96),
+	gitPullRequestReviewer: register('git-pull-request-reviewer', 0xeb96),
 	groupByRefType: register('group-by-ref-type', 0xeb97),
 	ungroupByRefType: register('ungroup-by-ref-type', 0xeb98),
 	account: register('account', 0xeb99),
+	gitPullRequestAssignee: register('git-pull-request-assignee', 0xeb99),
 	bellDot: register('bell-dot', 0xeb9a),
 	debugConsole: register('debug-console', 0xeb9b),
 	library: register('library', 0xeb9c),
@@ -563,6 +567,7 @@ export const Codicon = {
 	send: register('send', 0xec0f),
 	sparkle: register('sparkle', 0xec10),
 	insert: register('insert', 0xec11),
+	mic: register('mic', 0xec12),
 
 
 	// derived icons, that could become separate icons

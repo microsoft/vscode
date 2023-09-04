@@ -82,10 +82,6 @@
 	display: none;
 }
 
-.monaco-workbench .part > .title > .title-actions .action-label.codicon {
-	color: inherit;
-}
-
 .monaco-workbench .part > .content {
 	font-size: 13px;
 }

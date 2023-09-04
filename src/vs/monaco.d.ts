@@ -2374,7 +2374,7 @@ declare namespace monaco.editor {
 		/**
 		 * Computes the diff between the text models `original` and `modified`.
 		 */
-		computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff>;
+		computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff>;
 		/**
 		 * Is fired when settings of the diff algorithm change that could alter the result of the diffing computation.
 		 * Any user of this provider should recompute the diff when this event is fired.
@@ -2415,7 +2415,7 @@ declare namespace monaco.editor {
 		/**
 		 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 		 */
-		readonly changes: readonly LineRangeMapping[];
+		readonly changes: readonly DetailedLineRangeMapping[];
 		/**
 		 * Sorted by original line ranges.
 		 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
@@ -2433,11 +2433,6 @@ declare namespace monaco.editor {
 		 * @param lineRanges An array of sorted line ranges.
 		 */
 		static joinMany(lineRanges: readonly (readonly LineRange[])[]): readonly LineRange[];
-		/**
-		 * @param lineRanges1 Must be sorted.
-		 * @param lineRanges2 Must be sorted.
-		 */
-		static join(lineRanges1: readonly LineRange[], lineRanges2: readonly LineRange[]): readonly LineRange[];
 		static ofLength(startLineNumber: number, length: number): LineRange;
 		/**
 		 * The start line number.
@@ -2460,6 +2455,7 @@ declare namespace monaco.editor {
 		 * Moves this line range by the given offset of line numbers.
 		 */
 		delta(offset: number): LineRange;
+		deltaLength(offset: number): LineRange;
 		/**
 		 * The number of lines this line range spans.
 		 */
@@ -2480,22 +2476,26 @@ declare namespace monaco.editor {
 		toInclusiveRange(): Range | null;
 		toExclusiveRange(): Range;
 		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
+		forEach(f: (lineNumber: number) => void): void;
 		includes(lineNumber: number): boolean;
+	}
+
+	export class MovedText {
+		readonly lineRangeMapping: LineRangeMapping;
+		/**
+		 * The diff from the original text to the moved text.
+		 * Must be contained in the original/modified line range.
+		 * Can be empty if the text didn't change (only moved).
+		 */
+		readonly changes: readonly DetailedLineRangeMapping[];
+		constructor(lineRangeMapping: LineRangeMapping, changes: readonly DetailedLineRangeMapping[]);
+		flip(): MovedText;
 	}
 
 	/**
 	 * Maps a line range in the original text model to a line range in the modified text model.
 	 */
-	export class LineRangeMapping {
-		static inverse(mapping: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[];
-		/**
-		 * The line range in the original text model.
-		 */
-		readonly originalRange: LineRange;
-		/**
-		 * The line range in the modified text model.
-		 */
-		readonly modifiedRange: LineRange;
+	export class DetailedLineRangeMapping extends LineRangeMapping {
 		/**
 		 * If inner changes have not been computed, this is set to undefined.
 		 * Otherwise, it represents the character-level diff in this line range.
@@ -2504,9 +2504,7 @@ declare namespace monaco.editor {
 		 */
 		readonly innerChanges: RangeMapping[] | undefined;
 		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
-		toString(): string;
-		get changedLineCount(): any;
-		flip(): LineRangeMapping;
+		flip(): DetailedLineRangeMapping;
 	}
 
 	/**
@@ -2526,24 +2524,21 @@ declare namespace monaco.editor {
 		flip(): RangeMapping;
 	}
 
-	export class MovedText {
-		readonly lineRangeMapping: SimpleLineRangeMapping;
+	export class LineRangeMapping {
+		static inverse(mapping: readonly DetailedLineRangeMapping[], originalLineCount: number, modifiedLineCount: number): DetailedLineRangeMapping[];
 		/**
-		 * The diff from the original text to the moved text.
-		 * Must be contained in the original/modified line range.
-		 * Can be empty if the text didn't change (only moved).
+		 * The line range in the original text model.
 		 */
-		readonly changes: readonly LineRangeMapping[];
-		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
-		flip(): MovedText;
-	}
-
-	export class SimpleLineRangeMapping {
-		readonly originalRange: LineRange;
-		readonly modifiedRange: LineRange;
+		readonly original: LineRange;
+		/**
+		 * The line range in the modified text model.
+		 */
+		readonly modified: LineRange;
 		constructor(originalRange: LineRange, modifiedRange: LineRange);
 		toString(): string;
-		flip(): SimpleLineRangeMapping;
+		flip(): LineRangeMapping;
+		join(other: LineRangeMapping): LineRangeMapping;
+		get changedLineCount(): any;
 	}
 	export interface IDimension {
 		width: number;
@@ -3887,6 +3882,10 @@ declare namespace monaco.editor {
 		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
 		 */
 		tabFocusMode?: boolean;
+		/**
+		 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+		 */
+		inlineCompletionsAccessibilityVerbose?: boolean;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3906,6 +3905,16 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		renderSideBySide?: boolean;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		renderSideBySideInlineBreakpoint?: number | undefined;
+		/**
+		 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+		 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+		 */
+		useInlineViewWhenSpaceIsLimited?: boolean;
 		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
@@ -3962,10 +3971,6 @@ declare namespace monaco.editor {
 			/**
 			 * Defaults to false.
 			 */
-			collapseUnchangedRegions?: boolean;
-			/**
-			 * Defaults to false.
-			 */
 			showMoves?: boolean;
 			showEmptyDecorations?: boolean;
 		};
@@ -3974,6 +3979,16 @@ declare namespace monaco.editor {
 		 * Defaults to false
 		 */
 		isInEmbeddedEditor?: boolean;
+		/**
+		 * If the diff editor should only show the difference review mode.
+		 */
+		onlyShowAccessibleDiffViewer?: boolean;
+		hideUnchangedRegions?: {
+			enabled?: boolean;
+			revealLineCount?: number;
+			minimumLineCount?: number;
+			contextLineCount?: number;
+		};
 	}
 
 	/**
@@ -4298,6 +4313,10 @@ declare namespace monaco.editor {
 		 * Model to choose for sticky scroll by default
 		 */
 		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+		/**
+		 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+		 */
+		scrollWithEditor?: boolean;
 	}
 
 	/**
@@ -5005,7 +5024,8 @@ declare namespace monaco.editor {
 		layoutInfo = 142,
 		wrappingInfo = 143,
 		defaultColorDecorators = 144,
-		colorDecoratorsActivatedOn = 145
+		colorDecoratorsActivatedOn = 145,
+		inlineCompletionsAccessibilityVerbose = 146
 	}
 
 	export const EditorOptions: {
@@ -5129,6 +5149,7 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
+		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
@@ -5407,6 +5428,10 @@ declare namespace monaco.editor {
 		 * If null is returned, the overlay widget is responsible to place itself.
 		 */
 		getPosition(): IOverlayWidgetPosition | null;
+		/**
+		 * The editor will ensure that the scroll width is >= than this value.
+		 */
+		getMinContentWidthInPx?(): number;
 	}
 
 	/**
@@ -5512,7 +5537,7 @@ declare namespace monaco.editor {
 		/**
 		 * The target element
 		 */
-		readonly element: Element | null;
+		readonly element: HTMLElement | null;
 		/**
 		 * The 'approximate' editor position
 		 */
@@ -5967,7 +5992,7 @@ declare namespace monaco.editor {
 		/**
 		 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 		 */
-		getTopForLineNumber(lineNumber: number): number;
+		getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 		/**
 		 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
 		 */
@@ -6065,6 +6090,11 @@ declare namespace monaco.editor {
 		 */
 		applyFontInfo(target: HTMLElement): void;
 		setBanner(bannerDomNode: HTMLElement | null, height: number): void;
+		/**
+		 * Is called when the model has been set, view state was restored and options are updated.
+		 * This is the best place to compute data for the viewport (such as tokens).
+		 */
+		handleInitialized?(): void;
 	}
 
 	/**
@@ -6123,8 +6153,8 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
-		diffReviewNext(): void;
-		diffReviewPrev(): void;
+		accessibleDiffViewerNext(): void;
+		accessibleDiffViewerPrev(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -6221,7 +6251,7 @@ declare namespace monaco.languages {
 
 	/**
 	 * An event emitted when a language is associated for the first time with a text model or
-	 * whena language is encountered during the tokenization of another language.
+	 * when a language is encountered during the tokenization of another language.
 	 * @event
 	 */
 	export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable;
@@ -7855,6 +7885,30 @@ declare namespace monaco.languages {
 	export interface DocumentRangeSemanticTokensProvider {
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+	}
+
+	export interface RelatedContextItem {
+		readonly uri: Uri;
+		readonly range: IRange;
+	}
+
+	export interface MappedEditsContext {
+		selections: ISelection[];
+		related: RelatedContextItem[];
+	}
+
+	export interface MappedEditsProvider {
+		/**
+		 * Provider maps code blocks from the chat into a workspace edit.
+		 *
+		 * @param document The document to provide mapped edits for.
+		 * @param codeBlocks Code blocks that come from an LLM's reply.
+		 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+		 * @param context The context for providing mapped edits.
+		 * @param token A cancellation token.
+		 * @returns A provider result of text edits.
+		 */
+		provideMappedEdits(document: editor.ITextModel, codeBlocks: string[], context: MappedEditsContext, token: CancellationToken): Promise<WorkspaceEdit | null>;
 	}
 
 	export interface ILanguageExtensionPoint {

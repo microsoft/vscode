@@ -11,14 +11,12 @@ import Severity from 'vs/base/common/severity';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeColor, ThemeIcon } from 'vs/base/common/themables';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -26,7 +24,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -83,7 +81,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
+		_storageService.onDidChangeValue(StorageScope.PROFILE, EditorStatusContribution._keyDedicatedItems, this._disposables)(this._handleStorageChange, this, this._disposables);
 		this._restoreState();
 		this._interactionCounter = new StoredCounter(_storageService, 'languageStatus.interactCount');
 
@@ -110,10 +108,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	// --- persisting dedicated items
 
-	private _handleStorageChange(e: IStorageValueChangeEvent) {
-		if (e.key !== EditorStatusContribution._keyDedicatedItems) {
-			return;
-		}
+	private _handleStorageChange() {
 		this._restoreState();
 		this._update();
 	}
@@ -370,14 +365,11 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
 
-		let color: ThemeColor | undefined;
-		let backgroundColor: ThemeColor | undefined;
+		let kind: StatusbarEntryKind | undefined;
 		if (item.severity === Severity.Warning) {
-			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
-			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
+			kind = 'warning';
 		} else if (item.severity === Severity.Error) {
-			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
-			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
+			kind = 'error';
 		}
 
 		return {
@@ -386,8 +378,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
 			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
-			color,
-			backgroundColor,
+			kind,
 			command: item.command
 		};
 	}

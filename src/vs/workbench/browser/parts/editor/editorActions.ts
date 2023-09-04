@@ -2263,8 +2263,27 @@ abstract class AbstractCreateEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		editorGroupService.addGroup(editorGroupService.activeGroup, this.direction, { activate: true });
+		// We are about to create a new empty editor group. We make an opiniated
+		// decision here whether to focus that new editor group or not based
+		// on what is currently focused. If focus is outside the editor area not
+		// in the <body>, we do not focus, with the rationale that a user might
+		// have focus on a tree/list with the intention to pick an element to
+		// open in the new group from that tree/list.
+		//
+		// If focus is inside the editor area, we want to prevent the situation
+		// of an editor having keyboard focus in an inactive editor group
+		// (see https://github.com/microsoft/vscode/issues/189256)
+
+		const focusNewGroup = layoutService.hasFocus(Parts.EDITOR_PART) || document.activeElement === document.body;
+
+		const group = editorGroupService.addGroup(editorGroupService.activeGroup, this.direction);
+		editorGroupService.activateGroup(group);
+
+		if (focusNewGroup) {
+			group.focus();
+		}
 	}
 }
 

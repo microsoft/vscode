@@ -20,6 +20,7 @@ import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IStorageMainOptions {
 
@@ -275,7 +276,7 @@ class BaseProfileAwareStorageMain extends BaseStorageMain {
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.profile.globalStorageHome.fsPath, BaseProfileAwareStorageMain.STORAGE_NAME);
+			return join(this.profile.globalStorageHome.with({ scheme: Schemas.file }).fsPath, BaseProfileAwareStorageMain.STORAGE_NAME);
 		}
 
 		return undefined;
@@ -352,7 +353,7 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 
 	get path(): string | undefined {
 		if (!this.options.useInMemoryStorage) {
-			return join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
+			return join(this.environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, this.workspace.id, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 		}
 
 		return undefined;
@@ -384,7 +385,7 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 		}
 
 		// Otherwise, ensure the storage folder exists on disk
-		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
+		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath, this.workspace.id);
 		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 
 		const storageExists = await Promises.exists(workspaceStorageFolderPath);

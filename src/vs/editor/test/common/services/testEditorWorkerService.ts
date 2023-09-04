@@ -8,7 +8,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
 

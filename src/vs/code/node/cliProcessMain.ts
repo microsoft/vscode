@@ -121,7 +121,7 @@ class CliMain extends Disposable {
 
 		// Init folders
 		await Promise.all([
-			environmentService.appSettingsHome.fsPath,
+			environmentService.appSettingsHome.with({ scheme: Schemas.file }).fsPath,
 			environmentService.extensionsPath
 		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 
@@ -192,7 +192,8 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
+		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		services.set(IRequestService, requestService);
 
 		// Download Service
 		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
@@ -212,7 +213,7 @@ class CliMain extends Disposable {
 		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.ariaKey) {
-				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
+				appenders.push(new OneDataSystemAppender(requestService, isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
 			const config: ITelemetryServiceConfig = {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { autorunHandleChanges } from 'vs/base/common/observableImpl/autorun';
+import { IObservable, IReader, autorunHandleChanges, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -14,8 +14,9 @@ import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOpt
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DiffEditorOptions } from './diffEditorOptions';
-import { IObservable, IReader } from 'vs/base/common/observable';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;
@@ -24,21 +25,25 @@ export class DiffEditorEditors extends Disposable {
 	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
 
+	public readonly modifiedModel: IObservable<ITextModel | null>;
+
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
 		private readonly modifiedEditorElement: HTMLElement,
 		private readonly _options: DiffEditorOptions,
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		private readonly _createInnerEditor: (instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorOptions>, editorWidgetOptions: ICodeEditorWidgetOptions) => CodeEditorWidget,
-		private readonly _modifiedReadOnlyOverride: IObservable<boolean>,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
-		this.original = this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {});
-		this.modified = this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {});
+		this.original = this._register(this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {}));
+		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
 
-		this._register(autorunHandleChanges('update editor options', {
+		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => this.modified.getModel());
+
+		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
 			handleChange: (ctx, changeSummary) => {
 				if (ctx.didChange(_options.editorOptions)) {
@@ -47,7 +52,10 @@ export class DiffEditorEditors extends Disposable {
 				return true;
 			}
 		}, (reader, changeSummary) => {
+			/** @description update editor options */
 			_options.editorOptions.read(reader);
+
+			this._options.renderSideBySide.read(reader);
 
 			this.modified.updateOptions(this._adjustOptionsForRightHandSide(reader, changeSummary));
 			this.original.updateOptions(this._adjustOptionsForLeftHandSide(reader, changeSummary));
@@ -92,7 +100,11 @@ export class DiffEditorEditors extends Disposable {
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
 			result.stickyScroll = { enabled: false };
+
+			// Disable unicode highlighting for the original side in inline mode, as they are not shown anyway.
+			result.unicodeHighlight = { nonBasicASCII: false, ambiguousCharacters: false, invisibleCharacters: false };
 		} else {
+			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight || {};
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
 		}
 		if (changedOptions.originalAriaLabel) {
@@ -115,7 +127,6 @@ export class DiffEditorEditors extends Disposable {
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
-		result.readOnly = this._modifiedReadOnlyOverride.read(reader) || this._options.editorOptions.get().readOnly;
 		return result;
 	}
 
@@ -141,7 +152,7 @@ export class DiffEditorEditors extends Disposable {
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
 
-		if (this._options.collapseUnchangedRegions.get()) {
+		if (this._options.hideUnchangedRegions.get()) {
 			clonedOptions.stickyScroll = { enabled: false };
 		} else {
 			clonedOptions.stickyScroll = this._options.editorOptions.get().stickyScroll;
@@ -150,12 +161,15 @@ export class DiffEditorEditors extends Disposable {
 	}
 
 	private _updateAriaLabel(ariaLabel: string | undefined): string | undefined {
-		const ariaNavigationTip = localize('diff-aria-navigation-tip', ' use Shift + F7 to navigate changes');
+		if (!ariaLabel) {
+			ariaLabel = '';
+		}
+		const ariaNavigationTip = localize('diff-aria-navigation-tip', ' use {0} to open the accessibility help.', this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel());
 		if (this._options.accessibilityVerbose.get()) {
 			return ariaLabel + ariaNavigationTip;
 		} else if (ariaLabel) {
 			return ariaLabel.replaceAll(ariaNavigationTip, '');
 		}
-		return undefined;
+		return '';
 	}
 }

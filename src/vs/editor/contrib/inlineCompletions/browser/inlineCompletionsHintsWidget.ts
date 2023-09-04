@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, observableFromEvent } from 'vs/base/common/observable';
-import { autorunWithStore2 } from 'vs/base/common/observableImpl/autorun';
+import { IObservable, autorun, autorunWithStore, derived, observableFromEvent } from 'vs/base/common/observable';
 import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineCompletionsHintsWidget';
@@ -21,10 +20,10 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Command, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { showPreviousInlineSuggestionActionId, showNextInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
+import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -40,7 +39,8 @@ export class InlineCompletionsHintsWidget extends Disposable {
 
 	private sessionPosition: Position | undefined = undefined;
 
-	private readonly position = derived('position', reader => {
+	private readonly position = derived(reader => {
+		/** @description position */
 		const ghostText = this.model.read(reader)?.ghostText.read(reader);
 
 		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
@@ -65,7 +65,8 @@ export class InlineCompletionsHintsWidget extends Disposable {
 	) {
 		super();
 
-		this._register(autorunWithStore2('setup content widget', (reader, store) => {
+		this._register(autorunWithStore((reader, store) => {
+			/** @description setup content widget */
 			const model = this.model.read(reader);
 			if (!model || !this.alwaysShowToolbar.read(reader)) {
 				return;
@@ -83,7 +84,8 @@ export class InlineCompletionsHintsWidget extends Disposable {
 			editor.addContentWidget(contentWidget);
 			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
 
-			store.add(autorun('request explicit', reader => {
+			store.add(autorun(reader => {
+				/** @description request explicit */
 				const position = this.position.read(reader);
 				if (!position) {
 					return;
@@ -110,10 +112,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	public readonly suppressMouseDown = false;
 
 	private readonly nodes = h('div.inlineSuggestionsHints', { className: this.withBorder ? '.withBorder' : '' }, [
-		h('div', { style: { display: 'flex' } }, [
-			h('div@actionBar', { className: 'custom-actions' }),
-			h('div@toolBar'),
-		])
+		h('div@toolBar'),
 	]);
 
 	private createCommandAction(commandId: string, label: string, iconClassName: string): Action {
@@ -171,31 +170,41 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	) {
 		super();
 
-		const actionBar = this._register(new ActionBar(this.nodes.actionBar));
-
-		actionBar.push(this.previousAction, { icon: true, label: false });
-		actionBar.push(this.availableSuggestionCountAction);
-		actionBar.push(this.nextAction, { icon: true, label: false });
-
 		this.toolBar = this._register(instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this.nodes.toolBar, MenuId.InlineSuggestionToolbar, {
 			menuOptions: { renderShortTitle: true },
 			toolbarOptions: { primaryGroup: g => g.startsWith('primary') },
 			actionViewItemProvider: (action, options) => {
-				return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
+				if (action instanceof MenuItemAction) {
+					return instantiationService.createInstance(StatusBarViewItem, action, undefined);
+				}
+				if (action === this.availableSuggestionCountAction) {
+					const a = new ActionViewItemWithClassName(undefined, action, { label: true, icon: false });
+					a.setClass('availableSuggestionCount');
+					return a;
+				}
+				return undefined;
 			},
 			telemetrySource: 'InlineSuggestionToolbar',
 		}));
+
+		this.toolBar.setPrependedPrimaryActions([
+			this.previousAction,
+			this.availableSuggestionCountAction,
+			this.nextAction,
+		]);
 
 		this._register(this.toolBar.onDidChangeDropdownVisibility(e => {
 			InlineSuggestionHintsContentWidget._dropDownVisible = e;
 		}));
 
-		this._register(autorun('update position', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update position */
 			this._position.read(reader);
 			this.editor.layoutContentWidget(this);
 		}));
 
-		this._register(autorun('counts', (reader) => {
+		this._register(autorun(reader => {
+			/** @description counts */
 			const suggestionCount = this._suggestionCount.read(reader);
 			const currentSuggestionIdx = this._currentSuggestionIdx.read(reader);
 
@@ -214,7 +223,8 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			}
 		}));
 
-		this._register(autorun('extra commands', (reader) => {
+		this._register(autorun(reader => {
+			/** @description extra commands */
 			const extraCommands = this._extraCommands.read(reader);
 			if (equals(this.lastCommands, extraCommands)) {
 				// nothing to update
@@ -265,6 +275,21 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	}
 }
 
+class ActionViewItemWithClassName extends ActionViewItem {
+	private _className: string | undefined = undefined;
+
+	setClass(className: string | undefined): void {
+		this._className = className;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		if (this._className) {
+			container.classList.add(this._className);
+		}
+	}
+}
+
 class StatusBarViewItem extends MenuEntryActionViewItem {
 	protected override updateLabel() {
 		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
@@ -286,6 +311,7 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 	private readonly menu = this._store.add(this.menuService.createMenu(this.menuId, this.contextKeyService, { emitEventsForSubmenuChanges: true }));
 	private additionalActions: IAction[] = [];
+	private prependedPrimaryActions: IAction[] = [];
 
 	constructor(
 		container: HTMLElement,
@@ -314,12 +340,21 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		);
 
 		secondary.push(...this.additionalActions);
+		primary.unshift(...this.prependedPrimaryActions);
 		this.setActions(primary, secondary);
+	}
+
+	setPrependedPrimaryActions(actions: IAction[]): void {
+		if (equals(this.prependedPrimaryActions, actions, (a, b) => a === b)) {
+			return;
+		}
+
+		this.prependedPrimaryActions = actions;
+		this.updateToolbar();
 	}
 
 	setAdditionalSecondaryActions(actions: IAction[]): void {
 		if (equals(this.additionalActions, actions, (a, b) => a === b)) {
-			// don't update if the actions are the same
 			return;
 		}
 

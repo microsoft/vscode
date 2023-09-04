@@ -102,6 +102,7 @@ export class TestId {
 
 	/**
 	 * Gets whether maybeChild is a child of maybeParent.
+	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
 	 */
 	public static isChild(maybeParent: string, maybeChild: string) {
 		return maybeChild.startsWith(maybeParent) && maybeChild[maybeParent.length] === TestIdPathParts.Delimiter;
@@ -109,6 +110,7 @@ export class TestId {
 
 	/**
 	 * Compares the position of the two ID strings.
+	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
 	 */
 	public static compare(a: string, b: string) {
 		if (a === b) {

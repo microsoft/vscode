@@ -232,6 +232,9 @@ export class CodeLensContribution implements IEditorContribution {
 		this._localToDispose.add(this._editor.onDidFocusEditorWidget(() => {
 			scheduler.schedule();
 		}));
+		this._localToDispose.add(this._editor.onDidBlurEditorText(() => {
+			scheduler.cancel();
+		}));
 		this._localToDispose.add(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged && this._lenses.length > 0) {
 				this._resolveCodeLensesInViewportSoon();
@@ -444,8 +447,12 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 	}
 
-	getModel(): CodeLensModel | undefined {
-		return this._currentCodeLensModel;
+	async getModel(): Promise<CodeLensModel | undefined> {
+		await this._getCodeLensModelPromise;
+		await this._resolveCodeLensesPromise;
+		return !this._currentCodeLensModel?.isDisposed
+			? this._currentCodeLensModel
+			: undefined;
 	}
 }
 
@@ -478,7 +485,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			return;
 		}
 
-		const model = codelensController.getModel();
+		const model = await codelensController.getModel();
 		if (!model) {
 			// nothing
 			return;
@@ -499,19 +506,31 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			return;
 		}
 
-		const item = await quickInputService.pick(items, { canPickMany: false });
+		const item = await quickInputService.pick(items, {
+			canPickMany: false,
+			placeHolder: localize('placeHolder', "Select a command")
+		});
 		if (!item) {
 			// Nothing picked
 			return;
 		}
 
+		let command = item.command;
+
 		if (model.isDisposed) {
-			// retry whenever the model has been disposed
-			return await commandService.executeCommand(this.id);
+			// try to find the same command again in-case the model has been re-created in the meantime
+			// this is a best attempt approach which shouldn't be needed because eager model re-creates
+			// shouldn't happen due to focus in/out anymore
+			const newModel = await codelensController.getModel();
+			const newLens = newModel?.lenses.find(lens => lens.symbol.range.startLineNumber === lineNumber && lens.symbol.command?.title === command.title);
+			if (!newLens || !newLens.symbol.command) {
+				return;
+			}
+			command = newLens.symbol.command;
 		}
 
 		try {
-			await commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
+			await commandService.executeCommand(command.id, ...(command.arguments || []));
 		} catch (err) {
 			notificationService.error(err);
 		}
