@@ -635,12 +635,6 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (!ctx.leadingLineContent.startsWith(this._context.leadingLineContent) && !this._context.leadingLineContent.startsWith(ctx.leadingLineContent)) {
-			// e.g. happens when line prefix changes, e.g delete while suggest is showing
-			this.cancel();
-			return;
-		}
-
 		if (getLeadingWhitespace(ctx.leadingLineContent) !== getLeadingWhitespace(this._context.leadingLineContent)) {
 			// cancel IntelliSense when line start changes
 			// happens when the current word gets outdented

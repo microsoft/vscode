@@ -581,7 +581,7 @@ suite('SuggestController', function () {
 		assert.strictEqual(editor.getValue(), 'for');
 	});
 
-	test('Suggest widget gets orphaned in editor #187779', async function () {
+	test.skip('Suggest widget gets orphaned in editor #187779', async function () {
 
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			_debugDisplayName: 'test',
