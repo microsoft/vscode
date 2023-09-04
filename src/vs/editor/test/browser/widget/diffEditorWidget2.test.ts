@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
