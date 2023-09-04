@@ -227,7 +227,7 @@ export class BulkTextEdits {
 		const tasks: ModelEditTask[] = [];
 		const promises: Promise<any>[] = [];
 
-		for (const [key, value] of this._edits) {
+		for (const [key, edits] of this._edits) {
 			const promise = this._textModelResolverService.createModelReference(key).then(async ref => {
 				let task: ModelEditTask;
 				let makeMinimal = false;
@@ -237,23 +237,37 @@ export class BulkTextEdits {
 				} else {
 					task = new ModelEditTask(ref);
 				}
+				tasks.push(task);
 
-				for (const edit of value) {
-					if (makeMinimal && !edit.textEdit.insertAsSnippet) {
-						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, [edit.textEdit]);
-						if (!newEdits) {
-							task.addEdit(edit);
-						} else {
-							for (const moreMinialEdit of newEdits) {
-								task.addEdit(new ResourceTextEdit(edit.resource, moreMinialEdit, edit.versionId, edit.metadata));
-							}
-						}
-					} else {
-						task.addEdit(edit);
-					}
+
+				if (!makeMinimal) {
+					edits.forEach(task.addEdit, task);
+					return;
 				}
 
-				tasks.push(task);
+				// group edits by type (snippet, metadata, or simple) and make simple groups more minimal
+
+				const makeGroupMoreMinimal = async (start: number, end: number) => {
+					const oldEdits = edits.slice(start, end);
+					const newEdits = await this._editorWorker.computeMoreMinimalEdits(ref.object.textEditorModel.uri, oldEdits.map(e => e.textEdit), false);
+					if (!newEdits) {
+						oldEdits.forEach(task.addEdit, task);
+					} else {
+						newEdits.forEach(edit => task.addEdit(new ResourceTextEdit(ref.object.textEditorModel.uri, edit, undefined, undefined)));
+					}
+				};
+
+				let start = 0;
+				let i = 0;
+				for (; i < edits.length; i++) {
+					if (edits[i].textEdit.insertAsSnippet || edits[i].metadata) {
+						await makeGroupMoreMinimal(start, i); // grouped edits until now
+						task.addEdit(edits[i]); // this edit
+						start = i + 1;
+					}
+				}
+				await makeGroupMoreMinimal(start, i);
+
 			});
 			promises.push(promise);
 		}
