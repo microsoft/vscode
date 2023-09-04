@@ -323,6 +323,7 @@ async function getGitBashPaths(): Promise<string[]> {
 	}
 
 	// Add special installs that don't follow the standard directory structure
+	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git\\current\\bin\\bash.exe`);
 	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`);
 
 	return gitBashPaths;

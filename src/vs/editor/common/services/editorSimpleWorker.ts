@@ -511,6 +511,19 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return aRng - bRng;
 		});
 
+		// merge adjacent edits
+		let writeIndex = 0;
+		for (let readIndex = 1; readIndex < edits.length; readIndex++) {
+			if (Range.getEndPosition(edits[writeIndex].range).equals(Range.getStartPosition(edits[readIndex].range))) {
+				edits[writeIndex].range = Range.fromPositions(Range.getStartPosition(edits[writeIndex].range), Range.getEndPosition(edits[readIndex].range));
+				edits[writeIndex].text += edits[readIndex].text;
+			} else {
+				writeIndex++;
+				edits[writeIndex] = edits[readIndex];
+			}
+		}
+		edits.length = writeIndex + 1;
+
 		for (let { range, text, eol } of edits) {
 
 			if (typeof eol === 'number') {

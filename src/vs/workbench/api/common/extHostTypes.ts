@@ -30,15 +30,19 @@ import type * as vscode from 'vscode';
  * */
 function es5ClassCompat(target: Function): any {
 	const interceptFunctions = {
-		apply: function () {
-			const args = arguments.length === 1 ? [] : arguments[1];
-			return Reflect.construct(target, args, arguments[0].constructor);
-		},
-		call: function () {
-			if (arguments.length === 0) {
+		apply: function (...args: any[]): any {
+			if (args.length === 0) {
 				return Reflect.construct(target, []);
 			} else {
-				const [thisArg, ...restArgs] = arguments;
+				const argsList = args.length === 1 ? [] : args[1];
+				return Reflect.construct(target, argsList, args[0].constructor);
+			}
+		},
+		call: function (...args: any[]): any {
+			if (args.length === 0) {
+				return Reflect.construct(target, []);
+			} else {
+				const [thisArg, ...restArgs] = args;
 				return Reflect.construct(target, restArgs, thisArg.constructor);
 			}
 		}

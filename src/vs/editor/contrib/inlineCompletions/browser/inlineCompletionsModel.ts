@@ -6,7 +6,7 @@
 import { mapFind } from 'vs/base/common/arrays';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, keepAlive, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -59,7 +59,7 @@ export class InlineCompletionsModel extends Disposable {
 	) {
 		super();
 
-		this._register(keepAlive(this._fetchInlineCompletions, true));
+		this._register(recomputeInitiallyAndOnChange(this._fetchInlineCompletions));
 
 		let lastItem: InlineCompletionWithUpdatedRange | undefined = undefined;
 		this._register(autorun(reader => {

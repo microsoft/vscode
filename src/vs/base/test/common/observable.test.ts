@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepAlive } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved } from 'vs/base/common/observable';
 import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
 
 suite('observables', () => {
@@ -205,7 +205,7 @@ suite('observables', () => {
 				'value: 5',
 			]);
 
-			const disposable = keepAlive(computedSum); // Use keepAlive to keep the cache
+			const disposable = keepObserved(computedSum); // Use keepAlive to keep the cache
 			log.log(`value: ${computedSum.get()}`);
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				'recompute1: 1 % 3 = 1',

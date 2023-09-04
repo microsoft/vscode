@@ -12,8 +12,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { DateTimeout, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
-import { computeMoves } from 'vs/editor/common/diff/defaultLinesDiffComputer/computeMoves';
-import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeRandomLineMatches, removeRandomMatches, smoothenSequenceDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
+import { computeMovedLines } from 'vs/editor/common/diff/defaultLinesDiffComputer/computeMovedLines';
+import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeVeryShortMatchingLinesBetweenDiffs, removeVeryShortMatchingTextBetweenLongDiffs, removeShortMatches } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { DetailedLineRangeMapping, RangeMapping } from '../rangeMapping';
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
@@ -87,7 +87,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 		let lineAlignments = lineAlignmentResult.diffs;
 		let hitTimeout = lineAlignmentResult.hitTimeout;
 		lineAlignments = optimizeSequenceDiffs(sequence1, sequence2, lineAlignments);
-		lineAlignments = removeRandomLineMatches(sequence1, sequence2, lineAlignments);
+		lineAlignments = removeVeryShortMatchingLinesBetweenDiffs(sequence1, sequence2, lineAlignments);
 
 		const alignments: RangeMapping[] = [];
 
@@ -187,7 +187,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 		timeout: ITimeout,
 		considerWhitespaceChanges: boolean,
 	): MovedText[] {
-		const moves = computeMoves(
+		const moves = computeMovedLines(
 			changes,
 			originalLines,
 			modifiedLines,
@@ -217,8 +217,8 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 		let diffs = diffResult.diffs;
 		diffs = optimizeSequenceDiffs(slice1, slice2, diffs);
 		diffs = extendDiffsToEntireWordIfAppropriate(slice1, slice2, diffs);
-		diffs = smoothenSequenceDiffs(slice1, slice2, diffs);
-		diffs = removeRandomMatches(slice1, slice2, diffs);
+		diffs = removeShortMatches(slice1, slice2, diffs);
+		diffs = removeVeryShortMatchingTextBetweenLongDiffs(slice1, slice2, diffs);
 
 		const result = diffs.map(
 			(d) =>
