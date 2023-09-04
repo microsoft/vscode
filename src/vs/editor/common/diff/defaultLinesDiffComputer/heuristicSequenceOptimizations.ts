@@ -196,7 +196,7 @@ function shiftDiffToBetterPosition(diff: SequenceDiff, sequence1: ISequence, seq
 	return diff.delta(bestDelta);
 }
 
-export function smoothenSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+export function removeShortMatches(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	const result: SequenceDiff[] = [];
 	for (const s of sequenceDiffs) {
 		const last = result[result.length - 1];
@@ -310,7 +310,7 @@ function mergeSequenceDiffs(sequenceDiffs1: SequenceDiff[], sequenceDiffs2: Sequ
 	return result;
 }
 
-export function removeRandomLineMatches(sequence1: LineSequence, _sequence2: LineSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+export function removeVeryShortMatchingLinesBetweenDiffs(sequence1: LineSequence, _sequence2: LineSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let diffs = sequenceDiffs;
 	if (diffs.length === 0) {
 		return diffs;
@@ -357,7 +357,7 @@ export function removeRandomLineMatches(sequence1: LineSequence, _sequence2: Lin
 	return diffs;
 }
 
-export function removeRandomMatches(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+export function removeVeryShortMatchingTextBetweenLongDiffs(sequence1: LinesSliceCharSequence, sequence2: LinesSliceCharSequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let diffs = sequenceDiffs;
 	if (diffs.length === 0) {
 		return diffs;
