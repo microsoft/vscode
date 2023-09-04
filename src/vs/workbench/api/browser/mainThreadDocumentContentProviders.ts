@@ -16,6 +16,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, MainThreadDocumentContentProvidersShape } from '../common/extHost.protocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { splitLines } from 'vs/base/common/strings';
+import { equals } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadDocumentContentProviders)
 export class MainThreadDocumentContentProviders implements MainThreadDocumentContentProvidersShape {
@@ -68,6 +70,14 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		// cancel and dispose an existing update
 		const pending = this._pendingUpdate.get(model.id);
 		pending?.cancel();
+
+		// create lines and compare
+		const currentLines = model.getLinesContent();
+		const newLines = splitLines(value);
+		if (equals(currentLines, newLines)) {
+			this._pendingUpdate.delete(model.id);
+			return;
+		}
 
 		// create and keep update token
 		const myToken = new CancellationTokenSource();
