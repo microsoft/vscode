@@ -97,8 +97,6 @@ export class TabsTitleControl extends TitleControl {
 		fit: 120
 	};
 
-	private static readonly TAB_HEIGHT = 35;
-
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
 	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
@@ -182,6 +180,7 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabSizingFixedDisposables = this._register(new DisposableStore());
 		this.updateTabSizing(false);
+		this.updateTabHeight();
 
 		// Tabs Scrollbar
 		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
@@ -267,6 +266,11 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.removeProperty('--tab-sizing-current-width');
 			}
 		});
+	}
+
+	private updateTabHeight(): void {
+		const tabsContainer = assertIsDefined(this.tabsContainer);
+		tabsContainer.style.setProperty('--tab-height', `${this.getTabHeight()}px`);
 	}
 
 	private getTabsScrollbarSizing(): number {
@@ -729,6 +733,11 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
 			this.updateTabSizing(true);
+		}
+
+		// Update tab height
+		if (oldOptions.tabHeight !== newOptions.tabHeight) {
+			this.updateTabHeight();
 		}
 
 		// Redraw tabs when other options change
@@ -1549,7 +1558,7 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			total = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			total = TabsTitleControl.TAB_HEIGHT;
+			total = this.getTabHeight();
 		}
 
 		const offset = total;
@@ -1560,6 +1569,10 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		return { total, offset };
+	}
+
+	getTabHeight() {
+		return this.accessor.partOptions.tabHeight !== 'small' ? 35 : 22;
 	}
 
 	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): Dimension {
@@ -1707,7 +1720,7 @@ export class TabsTitleControl extends TitleControl {
 			if (tabsWrapMultiLine) {
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.getTabHeight()) ||	// if wrapping is not needed anymore
 					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);
