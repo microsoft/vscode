@@ -63,6 +63,20 @@ export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, ch
 export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
 
 export interface ISharedProcessService extends IRemoteService {
+
+	/**
+	 * Allows to create a `MessagePort` connection between the
+	 * shared process and the renderer process.
+	 *
+	 * Use this only when you need raw IPC to the shared process
+	 * via `postMessage` and `on('message')` of special data structures
+	 * like typed arrays.
+	 *
+	 * Callers have to call `port.start()` after having installed
+	 * listeners to enable the data flow.
+	 */
+	createRawConnection(): Promise<MessagePort>;
+
 	notifyRestored(): void;
 }
 

@@ -64,7 +64,8 @@
 			"scope": [
 				"meta.embedded",
 				"source.groovy.embedded",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#d3af86"

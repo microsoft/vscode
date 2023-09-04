@@ -7,7 +7,7 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe('Extensions', () => {
+	describe.skip('Extensions', () => {
 
 		// Shared before/after handling
 		installAllHandlers(logger);

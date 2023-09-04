@@ -7,7 +7,7 @@ import { ReplacePreviewContentProvider } from 'vs/workbench/contrib/search/brows
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
+import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { NotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearchService';
 
 export function registerContributions(): void {

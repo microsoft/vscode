@@ -121,7 +121,7 @@ class CliMain extends Disposable {
 
 		// Init folders
 		await Promise.all([
-			environmentService.appSettingsHome.fsPath,
+			environmentService.appSettingsHome.with({ scheme: Schemas.file }).fsPath,
 			environmentService.extensionsPath
 		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 

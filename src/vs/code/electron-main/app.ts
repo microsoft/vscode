@@ -162,22 +162,34 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
+		const allowedPermissionsInMainFrame = new Set(
+			this.productService.quality === 'stable' ? [] : ['media']
+		);
+
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
 		]);
 
-		session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
+		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
+			}
+
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+				return callback(allowedPermissionsInMainFrame.has(permission));
 			}
 
 			return callback(false);
 		});
 
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
+		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
+			}
+
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+				return allowedPermissionsInMainFrame.has(permission);
 			}
 
 			return false;
@@ -762,7 +774,17 @@ export class CodeApplication extends Disposable {
 			if (secondSlash !== -1) {
 				const authority = uri.path.substring(1, secondSlash);
 				const path = uri.path.substring(secondSlash);
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+
+				let query = uri.query;
+				const params = new URLSearchParams(uri.query);
+				if (params.get('windowId') === '_blank') {
+					// Make sure to unset any `windowId=_blank` here
+					// https://github.com/microsoft/vscode/issues/191902
+					params.delete('windowId');
+					query = params.toString();
+				}
+
+				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
 
 				if (hasWorkspaceFileExtension(path)) {
 					return { workspaceUri: remoteUri };

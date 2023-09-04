@@ -161,9 +161,9 @@ export class PtyService extends Disposable implements IPtyService {
 				resolve(stdout);
 			});
 		});
-		const processesForPort = stdout.split('\n');
+		const processesForPort = stdout.split(/\r?\n/).filter(s => !!s.trim());
 		if (processesForPort.length >= 1) {
-			const capturePid = /\s+(\d+)\s+/;
+			const capturePid = /\s+(\d+)(?:\s+|$)/;
 			const processId = processesForPort[0].match(capturePid)?.[1];
 			if (processId) {
 				try {

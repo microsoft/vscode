@@ -613,7 +613,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 			// Pass Focus to Viewer
 			this.tree.domFocus();
-		} else if (this.tree) {
+		} else if (this.tree && this.treeContainer && !this.treeContainer.classList.contains('hide')) {
 			this.tree.domFocus();
 		} else {
 			this.domNode.focus();
@@ -1017,6 +1017,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.domNode.setAttribute('tabindex', '0');
 		} else if (this.treeContainer) {
 			this.treeContainer.classList.remove('hide');
+			if (this.domNode === DOM.getActiveElement()) {
+				this.focus();
+			}
 			this.domNode.removeAttribute('tabindex');
 		}
 	}
@@ -1217,7 +1220,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough,
 				disabledCommand: !commandEnabled,
-				labelEscapeNewLines: true
+				labelEscapeNewLines: true,
+				forceLabel: !!node.label
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {

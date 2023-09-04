@@ -325,14 +325,14 @@
   optionalDependencies:
     global-agent "^3.0.0"
 
-"@es-joy/jsdoccomment@~0.31.0":
-  version "0.31.0"
-  resolved "https://registry.yarnpkg.com/@es-joy/jsdoccomment/-/jsdoccomment-0.31.0.tgz#dbc342cc38eb6878c12727985e693eaef34302bc"
-  integrity sha512-tc1/iuQcnaiSIUVad72PBierDFpsxdUHtEF/OrfqvM1CBAsIoMP51j52jTMb3dXriwhieTo289InzZj72jL3EQ==
+"@es-joy/jsdoccomment@~0.40.1":
+  version "0.40.1"
+  resolved "https://registry.yarnpkg.com/@es-joy/jsdoccomment/-/jsdoccomment-0.40.1.tgz#13acd77fb372ed1c83b7355edd865a3b370c9ec4"
+  integrity sha512-YORCdZSusAlBrFpZ77pJjc5r1bQs5caPWtAu+WWmiSo+8XaUzseapVrfAtiRFbQWnrBxxLLEwF6f6ZG/UgCQCg==
   dependencies:
-    comment-parser "1.3.1"
-    esquery "^1.4.0"
-    jsdoc-type-pratt-parser "~3.1.0"
+    comment-parser "1.4.0"
+    esquery "^1.5.0"
+    jsdoc-type-pratt-parser "~4.0.0"
 
 "@eslint-community/eslint-utils@^4.2.0":
   version "4.4.0"
@@ -1841,6 +1841,11 @@ archy@^1.0.0:
   resolved "https://registry.yarnpkg.com/archy/-/archy-1.0.0.tgz#f9c8c13757cc1dd7bc379ac77b2c62a5c2868c40"
   integrity sha1-+cjBN1fMHde8N5rHeyxipcKGjEA=
 
+are-docs-informative@^0.0.2:
+  version "0.0.2"
+  resolved "https://registry.yarnpkg.com/are-docs-informative/-/are-docs-informative-0.0.2.tgz#387f0e93f5d45280373d387a59d34c96db321963"
+  integrity sha512-ixiS0nLNNG5jNQzgZJNoUpBKdo9yTYZMGJ+QgT2jmjR7G7+QHRCc4v6LQ3NgE7EBJq+o0ams3waJwkrlBom8Ig==
+
 are-we-there-yet@~1.1.2:
   version "1.1.5"
   resolved "https://registry.yarnpkg.com/are-we-there-yet/-/are-we-there-yet-1.1.5.tgz#4b35c2944f062a8bfcda66410760350fe9ddfc21"
@@ -2288,6 +2293,11 @@ buffer@^5.2.1, buffer@^5.5.0:
   dependencies:
     base64-js "^1.3.1"
     ieee754 "^1.1.13"
+
+builtin-modules@^3.3.0:
+  version "3.3.0"
+  resolved "https://registry.yarnpkg.com/builtin-modules/-/builtin-modules-3.3.0.tgz#cae62812b89801e9656336e46223e030386be7b6"
+  integrity sha512-zhaCDicdLuWN5UbN5IMnFqNMhNfo919sH85y2/ea+5Yg9TsTkeZxpL+JLbp6cgYFS4sRLp3YV4S6yDuqVWHYOw==
 
 bytes@^3.0.0:
   version "3.1.0"
@@ -2797,10 +2807,10 @@ commandpost@^1.0.0:
   resolved "https://registry.yarnpkg.com/commandpost/-/commandpost-1.2.1.tgz#2e9c4c7508b9dc704afefaa91cab92ee6054cc68"
   integrity sha512-V1wzc+DTFsO96te2W/U+fKNRSOWtOwXhkkZH2WRLLbucrY+YrDNsRr4vtfSf83MUZVF3E6B4nwT30fqaTpzipQ==
 
-comment-parser@1.3.1:
-  version "1.3.1"
-  resolved "https://registry.yarnpkg.com/comment-parser/-/comment-parser-1.3.1.tgz#3d7ea3adaf9345594aedee6563f422348f165c1b"
-  integrity sha512-B52sN2VNghyq5ofvUsqZjmk6YkihBX5vMSChmSK9v4ShjKf3Vk5Xcmgpw4o+iIgtrnM/u5FiMpz9VKb8lpBveA==
+comment-parser@1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/comment-parser/-/comment-parser-1.4.0.tgz#0f8c560f59698193854f12884c20c0e39a26d32c"
+  integrity sha512-QLyTNiZ2KDOibvFPlZ6ZngVsZ/0gYnE6uTXi5aoDg8ed3AkJAz4sEje3Y8a29hQ1s6A99MZXe47fLAXQ1rTqaw==
 
 component-emitter@^1.2.1:
   version "1.3.0"
@@ -3587,10 +3597,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@25.5.0:
-  version "25.5.0"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-25.5.0.tgz#6465d49c0731424e3e48776628c35771697caf11"
-  integrity sha512-w1DNj1LuAk0Vaas1rQ0pAkTe2gZ5YG75J27mC2m88y0G6Do5b5YoFDaF84fOGQHeQ4j8tC5LngSgWhbwmqDlrw==
+electron@25.8.0:
+  version "25.8.0"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-25.8.0.tgz#60c84f1f256924ac5a0aff13276b901b0c43767a"
+  integrity sha512-T3kC1a/3ntSaYMCVVfUUc9v7myPzi6J2GP0Ad/CyfWKDPp054dGyKxb2EEjKnxQQ7wfjsT1JTEdBG04x6ekVBw==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^18.11.18"
@@ -3822,17 +3832,19 @@ eslint-plugin-header@3.1.1:
   resolved "https://registry.yarnpkg.com/eslint-plugin-header/-/eslint-plugin-header-3.1.1.tgz#6ce512432d57675265fac47292b50d1eff11acd6"
   integrity sha512-9vlKxuJ4qf793CmeeSrZUvVClw6amtpghq3CuWcB5cUNnWHQhgcqy5eF8oVKFk1G3Y/CbchGfEaw3wiIJaNmVg==
 
-eslint-plugin-jsdoc@^39.3.2:
-  version "39.3.2"
-  resolved "https://registry.yarnpkg.com/eslint-plugin-jsdoc/-/eslint-plugin-jsdoc-39.3.2.tgz#b9c3becdbd860a75b8bd07bd04a0eaaad7c79403"
-  integrity sha512-RSGN94RYzIJS/WfW3l6cXzRLfJWxvJgNQZ4w0WCaxJWDJMigtwTsILEAfKqmmPkT2rwMH/s3C7G5ChDE6cwPJg==
+eslint-plugin-jsdoc@^46.5.0:
+  version "46.5.0"
+  resolved "https://registry.yarnpkg.com/eslint-plugin-jsdoc/-/eslint-plugin-jsdoc-46.5.0.tgz#02e7945701a01fab76e7ced850d4d1eea63c23c0"
+  integrity sha512-aulXdA4I1dyWpzyS1Nh/GNoS6PavzeucxEapnMR4JUERowWvaEk2Y4A5irpHAcdXtBBHLVe8WIhdXNjoAlGQgA==
   dependencies:
-    "@es-joy/jsdoccomment" "~0.31.0"
-    comment-parser "1.3.1"
+    "@es-joy/jsdoccomment" "~0.40.1"
+    are-docs-informative "^0.0.2"
+    comment-parser "1.4.0"
     debug "^4.3.4"
     escape-string-regexp "^4.0.0"
-    esquery "^1.4.0"
-    semver "^7.3.7"
+    esquery "^1.5.0"
+    is-builtin-module "^3.2.1"
+    semver "^7.5.4"
     spdx-expression-parse "^3.0.1"
 
 eslint-plugin-local@^1.0.0:
@@ -3999,14 +4011,7 @@ esquery@^1.0.1:
   dependencies:
     estraverse "^5.1.0"
 
-esquery@^1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/esquery/-/esquery-1.4.0.tgz#2148ffc38b82e8c7057dfed48425b3e61f0f24a5"
-  integrity sha512-cCDispWt5vHHtwMY2YrAQ4ibFkAL8RbH5YGBnZBc90MolvvfkkQcJro/aZiAQUlQ3qgrYS6D6v8Gc5G5CQsc9w==
-  dependencies:
-    estraverse "^5.1.0"
-
-esquery@^1.4.2:
+esquery@^1.4.2, esquery@^1.5.0:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/esquery/-/esquery-1.5.0.tgz#6ce17738de8577694edd7361c57182ac8cb0db0b"
   integrity sha512-YQLXUplAwJgCydQ78IMJywZCceoqk1oH01OERdSAJc/7U2AylwjhSCLDEtqwg811idIS/9fIU5GjG73IgjKMVg==
@@ -5683,6 +5688,13 @@ is-buffer@^1.1.5, is-buffer@~1.1.1:
   resolved "https://registry.yarnpkg.com/is-buffer/-/is-buffer-1.1.6.tgz#efaa2ea9daa0d7ab2ea13a97b2b8ad51fefbe8be"
   integrity sha512-NcdALwpXkTm5Zvvbk7owOUSvVvBKDgKP5/ewfXEznmQFfs4ZRmanOeKBTjRVjka3QFoN6XJ+9F3USqfHqTaU5w==
 
+is-builtin-module@^3.2.1:
+  version "3.2.1"
+  resolved "https://registry.yarnpkg.com/is-builtin-module/-/is-builtin-module-3.2.1.tgz#f03271717d8654cfcaf07ab0463faa3571581169"
+  integrity sha512-BSLE3HnV2syZ0FK0iMA/yUGplUeMmNz4AW5fnTunbCIqZi4vG3WjJT9FHMy5D69xmAYBHXQhJdALdpwVxV501A==
+  dependencies:
+    builtin-modules "^3.3.0"
+
 is-callable@^1.1.4, is-callable@^1.2.2:
   version "1.2.2"
   resolved "https://registry.yarnpkg.com/is-callable/-/is-callable-1.2.2.tgz#c7c6715cd22d4ddb48d3e19970223aceabb080d9"
@@ -6143,10 +6155,10 @@ jschardet@3.0.0:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.0.0.tgz#898d2332e45ebabbdb6bf2feece9feea9a99e882"
   integrity sha512-lJH6tJ77V8Nzd5QWRkFYCLc13a3vADkh3r/Fi8HupZGWk2OVVDfnZP8V/VgQgZ+lzW0kG2UGb5hFgt3V3ndotQ==
 
-jsdoc-type-pratt-parser@~3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/jsdoc-type-pratt-parser/-/jsdoc-type-pratt-parser-3.1.0.tgz#a4a56bdc6e82e5865ffd9febc5b1a227ff28e67e"
-  integrity sha512-MgtD0ZiCDk9B+eI73BextfRrVQl0oyzRG8B2BjORts6jbunj4ScKPcyXGTbB6eXL4y9TzxCm6hyeLq/2ASzNdw==
+jsdoc-type-pratt-parser@~4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/jsdoc-type-pratt-parser/-/jsdoc-type-pratt-parser-4.0.0.tgz#136f0571a99c184d84ec84662c45c29ceff71114"
+  integrity sha512-YtOli5Cmzy3q4dP26GraSOeAhqecewG04hoO8DY56CH4KJ9Fvv5qKWUCCo3HZob7esJQHCv6/+bnTy72xZZaVQ==
 
 jsesc@^2.5.1:
   version "2.5.2"
@@ -8895,7 +8907,7 @@ semver@^6.0.0, semver@^6.2.0, semver@^6.3.0:
   resolved "https://registry.yarnpkg.com/semver/-/semver-6.3.1.tgz#556d2ef8689146e46dcea4bfdd095f3434dffcb4"
   integrity sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==
 
-semver@^7.3.2, semver@^7.3.4, semver@^7.3.5, semver@^7.3.7, semver@^7.3.8:
+semver@^7.3.2, semver@^7.3.4, semver@^7.3.5, semver@^7.3.7, semver@^7.3.8, semver@^7.5.4:
   version "7.5.4"
   resolved "https://registry.yarnpkg.com/semver/-/semver-7.5.4.tgz#483986ec4ed38e1c6c48c34894a9182dbff68a6e"
   integrity sha512-1bCSESV6Pv+i21Hvpxp3Dx+pSD8lIPt8uVjRrxAUt/nbswYc+tK6Y2btiULjd4+fnq15PX+nqQDC7Oft7WkwcA==
@@ -10075,10 +10087,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.3.0-dev.20230816:
-  version "5.3.0-dev.20230816"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.0-dev.20230816.tgz#409982c629164811db1eb62b365ed2e1b526458d"
-  integrity sha512-iEOudrx61DsbJn+z2bVX+/FldF7ILAuGwQYO2EvF4F33Q8DUV0KSkiikxUB83VVH8ExkwQHVNdtkr16wd2V71w==
+typescript@^5.3.0-dev.20230824:
+  version "5.3.0-dev.20230824"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.0-dev.20230824.tgz#14fc65c14c588363c0d290dbbbda8ae0968fd95b"
+  integrity sha512-iiUWxGibzrRHEBLDJfVymsvpPKflf3cMrw0oQTMQoguFS2ikNlVlfQWAsYeHqGpRQc77nSQkzsE9rAHNHqvIjw==
 
 typical@^4.0.0:
   version "4.0.0"
@@ -10759,45 +10771,45 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-canvas@0.5.0-beta.9:
-  version "0.5.0-beta.9"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.5.0-beta.9.tgz#d4a9536cf586f78a54527751e03abf6445613886"
-  integrity sha512-AMyFctHbIWx0aLcACINuZqFFNoz4ndGtIAb4pQguIl9t8r+2otiV11MY4FJmPM0kUzEzoLWzVFJaGxOzykCWuw==
+xterm-addon-canvas@0.5.0-beta.22:
+  version "0.5.0-beta.22"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.5.0-beta.22.tgz#513f0c2b7cf96073f47627b27e8965c1b1a22431"
+  integrity sha512-9F6ZI0DMRgffVfHkLkDwl5n8VscvCaV10tWI3skXOX7Y7Aws6OEeglkOPoU3IllofCU792kHKM4pPoToUxTltg==
 
-xterm-addon-image@0.6.0-beta.2:
-  version "0.6.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.6.0-beta.2.tgz#04c5ea11c89032b01b577b37f891109168ed0b09"
-  integrity sha512-58d1mqIpJwq8Zy/a/QM8JVuA1g5SceG8UvLoj9T6r+2XIktka6GK2oS66Fmo+0MP0s0HDPy+yJtl8lHY6UyzHw==
+xterm-addon-image@0.6.0-beta.14:
+  version "0.6.0-beta.14"
+  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.6.0-beta.14.tgz#75fc3f824123183a4bbb5306e22f8b2c6966b0a6"
+  integrity sha512-D5Gh5JTKhHaPt1KwQNf6diF37KA4eToJw3XId1wy62tWmSqfq+QflhOGTfd+SnSQYCktU05ETzM+0tncIU62pQ==
 
-xterm-addon-search@0.13.0-beta.8:
-  version "0.13.0-beta.8"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.13.0-beta.8.tgz#90bc70bff87cd7e4f540cce51d9f968f04d5c0ef"
-  integrity sha512-Hlocg6gGvKAs4eRTW78wTtVqaOEurweJjdyPDjr7KrzwlEEsASsUXJaB2+vgsyTFKuYnCuLrp5u369jck993GQ==
+xterm-addon-search@0.13.0-beta.20:
+  version "0.13.0-beta.20"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.13.0-beta.20.tgz#8ddd0513e2a70fcefa325722100d2e1bfaf3b9cb"
+  integrity sha512-wrx6187cJ1UenGL6ZeYv3jFvRPhhENTfbC+Hv1Fnww8LmsKhcj+0+Pm6yInNjX/9hNVsNzdqKyqNeEMoykyoyA==
 
-xterm-addon-serialize@0.11.0-beta.8:
-  version "0.11.0-beta.8"
-  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.11.0-beta.8.tgz#343357aad7c549a37aacac2fb19692b1c2fd69cd"
-  integrity sha512-1jNrX+Y8dorWtjMvz02mRUP+ahqQ4STO0lYlKe8m06p+NYuFk24CylnPZFuBgk91OUU3RAdl4glaKh5M4f0/Zw==
+xterm-addon-serialize@0.11.0-beta.20:
+  version "0.11.0-beta.20"
+  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.11.0-beta.20.tgz#e879b34d214761403f1081833f9221c6903bf0c3"
+  integrity sha512-OXnC1SATaz7kEFjFWhyv9MJaXi8yHdPjazpGLNi11h33CRTKtCQiqqPBHU87dztnXmpEX6Jw0/jr3zlyXuAmnw==
 
-xterm-addon-unicode11@0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.5.0.tgz#41c0d96acc1e3bb6c6596eee64e163b6bca74be7"
-  integrity sha512-Jm4/g4QiTxiKiTbYICQgC791ubhIZyoIwxAIgOW8z8HWFNY+lwk+dwaKEaEeGBfM48Vk8fklsUW9u/PlenYEBg==
+xterm-addon-unicode11@0.6.0-beta.12:
+  version "0.6.0-beta.12"
+  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.6.0-beta.12.tgz#ac6df9d635325dc692e4c602e74a2fc27a09405c"
+  integrity sha512-9wWWf/5nFafYgq0pn9EgAWnXaXGleVxfjNOqavpLRYFv0nw42QbaYyGvnGcxyYHM5Aqx/8rYE/DDVWZBqQZdYA==
 
-xterm-addon-webgl@0.16.0-beta.14:
-  version "0.16.0-beta.14"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.16.0-beta.14.tgz#de5bf6c97e31f62d13907a875ffc6be154bc4a02"
-  integrity sha512-cj+rQWqOeZYJ6JMjMuTTKu3OnP+1D+sqSZPuwZAd6s4NkY4dFXFQlKxJ2yvDHOU/jrgpIYR1c3Cnu0AOWZpS3w==
+xterm-addon-webgl@0.16.0-beta.30:
+  version "0.16.0-beta.30"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.16.0-beta.30.tgz#820d5c65f868b14ec4177bfb8a294931a53616bf"
+  integrity sha512-39qPHPFmNENxcHf8/CzGHS6wzKMMegoRkHB1+scqtBhSxFaD8tX5Ye33HZIEdQ9nXe9xtr4FWVp77T+n9hdrew==
 
-xterm-headless@5.3.0-beta.42:
-  version "5.3.0-beta.42"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.3.0-beta.42.tgz#714d167dc0af010067420956ffca80149dddeca9"
-  integrity sha512-3xhyy9DaPpadd1iiuKjOn4Zvntnx8WSBMEXPJbrORmy3ZbIwmLf/HYvg7iZfVreSDH+UFlm06uq3ictXpv7YvA==
+xterm-headless@5.3.0-beta.61:
+  version "5.3.0-beta.61"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.3.0-beta.61.tgz#28654550cb572709b99ea3eb8672d4568ae141c9"
+  integrity sha512-yfkbPLUtKjE4K7DsZ204A1BuOKpu6Usqi6rIYWT4XRMi+LjnkTbBjGr2BSjyJ3Gmtm+cSgBD0SvRN+V3xNxbxA==
 
-xterm@5.3.0-beta.42:
-  version "5.3.0-beta.42"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.3.0-beta.42.tgz#f0806ebe9b033530c54ac5b03955827fb729c38f"
-  integrity sha512-3OLXTfwtSy9UKo8Uzm3/kd7qBg0JD/qFpotg8iKJ2aB9zx0fkJnysl4aIuNleUJzgvuxzBUHkcRZUmEw1XCKdw==
+xterm@5.3.0-beta.61:
+  version "5.3.0-beta.61"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.3.0-beta.61.tgz#a6c27d90a5314da51d80deeb32f3bd77f1e1c8f6"
+  integrity sha512-rJHpCc48GSpHnu0SSERynQ80D5ikvFVsqhv6JdmeONTrnAFRr134OglJRIpbi2YK8UPbV6F6Dfqm/AQh+9GZzA==
 
 y18n@^3.2.1:
   version "3.2.2"

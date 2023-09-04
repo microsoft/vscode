@@ -74,10 +74,10 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IDetachedXtermTerminal, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
+import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
@@ -1352,7 +1352,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private readonly xtermLayoutDelayer = this._register(new Delayer(50));
 
 	/** Active terminal instance. */
-	private readonly terminal = this._register(new MutableDisposable<IDetachedXtermTerminal>());
+	private readonly terminal = this._register(new MutableDisposable<IDetachedTerminalInstance>());
 	/** Listener for streaming result data */
 	private readonly outputDataListener = this._register(new MutableDisposable());
 
@@ -1369,11 +1369,11 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private async makeTerminal() {
 		const prev = this.terminal.value;
 		if (prev) {
-			prev.clearBuffer();
-			prev.clearSearchDecorations();
+			prev.xterm.clearBuffer();
+			prev.xterm.clearSearchDecorations();
 			// clearBuffer tries to retain the prompt line, but this doesn't exist for tests.
 			// So clear the screen (J) and move to home (H) to ensure previous data is cleaned up.
-			prev.write(`\x1b[2J\x1b[0;0H`);
+			prev.xterm.write(`\x1b[2J\x1b[0;0H`);
 			return prev;
 		}
 
@@ -1387,11 +1387,12 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 			updateCwd: () => { },
 		});
 
-		return this.terminal.value = await this.terminalService.createDetachedXterm({
+		return this.terminal.value = await this.terminalService.createDetachedTerminal({
 			rows: 10,
 			cols: 80,
 			readonly: true,
 			capabilities,
+			processInfo: new DetachedProcessInfo({ initialCwd: cwd.value }),
 			colorProvider: {
 				getBackgroundColor: theme => {
 					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
@@ -1440,17 +1441,17 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 					}
 				}
 			},
-			doListenForMoreData: (output, result, terminal) => result.onChange(e => {
+			doListenForMoreData: (output, result, { xterm }) => result.onChange(e => {
 				if (e.reason === TestResultItemChangeReason.NewMessage && e.item.item.extId === testItem.extId && e.message.type === TestMessageType.Output) {
 					for (const chunk of output.getRangeIter(e.message.offset, e.message.length)) {
-						terminal.write(chunk.buffer);
+						xterm.write(chunk.buffer);
 					}
 				}
 			}),
 		});
 
 		if (subject instanceof MessageSubject && subject.message.type === TestMessageType.Output && subject.message.marker !== undefined) {
-			terminal?.selectMarkedRange(getMarkId(subject.message.marker, true), getMarkId(subject.message.marker, false), /* scrollIntoView= */ true);
+			terminal?.xterm.selectMarkedRange(getMarkId(subject.message.marker, true), getMarkId(subject.message.marker, false), /* scrollIntoView= */ true);
 		}
 	}
 
@@ -1464,7 +1465,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
 				return task.output.buffers;
 			},
-			doListenForMoreData: (task, _result, terminal) => task.output.onDidWriteData(e => terminal.write(e.buffer)),
+			doListenForMoreData: (task, _result, { xterm }) => task.output.onDidWriteData(e => xterm.write(e.buffer)),
 		});
 	}
 
@@ -1472,7 +1473,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		subject: InspectSubject;
 		getTarget: (result: ITestResult) => T | undefined;
 		doInitialWrite: (target: T, result: LiveTestResult) => Iterable<VSBuffer>;
-		doListenForMoreData: (target: T, result: LiveTestResult, terminal: IDetachedXtermTerminal) => IDisposable | undefined;
+		doListenForMoreData: (target: T, result: LiveTestResult, terminal: IDetachedTerminalInstance) => IDisposable | undefined;
 	}) {
 		const result = opts.subject.result;
 		const target = opts.getTarget(result);
@@ -1488,7 +1489,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 			for (const chunk of opts.doInitialWrite(target, result)) {
 				didWriteData ||= chunk.byteLength > 0;
 				pendingWrites.value++;
-				terminal.write(chunk.buffer, () => pendingWrites.value--);
+				terminal.xterm.write(chunk.buffer, () => pendingWrites.value--);
 			}
 		} else {
 			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
@@ -1525,12 +1526,12 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		}
 	}
 
-	private writeNotice(terminal: IDetachedXtermTerminal, str: string) {
-		terminal.write(`\x1b[2m${str}\x1b[0m`);
+	private writeNotice(terminal: IDetachedTerminalInstance, str: string) {
+		terminal.xterm.write(`\x1b[2m${str}\x1b[0m`);
 	}
 
-	private attachTerminalToDom(terminal: IDetachedXtermTerminal) {
-		terminal.write('\x1b[?25l'); // hide cursor
+	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
+		terminal.xterm.write('\x1b[?25l'); // hide cursor
 		requestAnimationFrame(() => this.layoutTerminal(terminal));
 		terminal.attachToElement(this.container, { enableGpu: false });
 	}
@@ -1549,7 +1550,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 
 	private layoutTerminal(
-		xterm: IDetachedXtermTerminal,
+		{ xterm }: IDetachedTerminalInstance,
 		width = this.dimensions?.width ?? this.container.clientWidth,
 		height = this.dimensions?.height ?? this.container.clientHeight
 	) {
@@ -1702,15 +1703,7 @@ class TestCaseElement implements ITreeElement {
 		private readonly task: ITestRunTask,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
-	) {
-		for (const parent of resultItemParents(results, test)) {
-			if (parent !== test) {
-				this.description = this.description
-					? parent.item.label + flatTestItemDelimiter + this.description
-					: parent.item.label;
-			}
-		}
-	}
+	) { }
 }
 
 class TaskElement implements ITreeElement {
@@ -1869,7 +1862,7 @@ class OutputPeekTree extends Disposable {
 			return test.tasks[taskIndex].messages
 				.map((m, messageIndex) =>
 					m.type === TestMessageType.Error
-						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: true }
+						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: false }
 						: undefined
 				)
 				.filter(isDefined);
@@ -2101,8 +2094,8 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ITreeElement>, FuzzyScore>, _index: number, templateData: TemplateData): void {
 		const chain = node.element.elements;
 		const lastElement = chain[chain.length - 1];
-		if (lastElement instanceof TaskElement && chain.length >= 2) {
-			this.doRender(chain[chain.length - 2], templateData);
+		if ((lastElement instanceof TaskElement || lastElement instanceof TestMessageElement) && chain.length >= 2) {
+			this.doRender(chain[chain.length - 2], templateData, lastElement);
 		} else {
 			this.doRender(lastElement, templateData);
 		}
@@ -2146,20 +2139,26 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	}
 
 	/** Called to render a new element */
-	private doRender(element: ITreeElement, templateData: TemplateData) {
+	private doRender(element: ITreeElement, templateData: TemplateData, subjectElement?: ITreeElement) {
 		templateData.elementDisposable.clear();
-		templateData.elementDisposable.add(element.onDidChange(() => this.doRender(element, templateData)));
-		this.doRenderInner(element, templateData);
+		templateData.elementDisposable.add(
+			element.onDidChange(() => this.doRender(element, templateData, subjectElement)),
+		);
+		this.doRenderInner(element, templateData, subjectElement);
 	}
 
 	/** Called, and may be re-called, to render or re-render an element */
-	private doRenderInner(element: ITreeElement, templateData: TemplateData) {
-		if (element.labelWithIcons) {
-			dom.reset(templateData.label, ...element.labelWithIcons);
-		} else if (element.description) {
-			dom.reset(templateData.label, element.label, dom.$('span.test-label-description', {}, element.description));
+	private doRenderInner(element: ITreeElement, templateData: TemplateData, subjectElement: ITreeElement | undefined) {
+		let { label, labelWithIcons, description } = element;
+		if (subjectElement instanceof TestMessageElement) {
+			description = subjectElement.label;
+		}
+
+		const descriptionElement = description ? dom.$('span.test-label-description', {}, description) : '';
+		if (labelWithIcons) {
+			dom.reset(templateData.label, ...labelWithIcons, descriptionElement);
 		} else {
-			dom.reset(templateData.label, element.label);
+			dom.reset(templateData.label, label, descriptionElement);
 		}
 
 		const icon = element.icon;
