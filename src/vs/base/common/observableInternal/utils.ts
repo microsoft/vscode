@@ -294,22 +294,24 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 	return observable;
 }
 
-// TODO@hediet: Have `keepCacheAlive` and `recomputeOnChange` instead of forceRecompute
 /**
- * This ensures the observable is being observed.
- * Observed observables (such as {@link derived}s) can maintain a cache, as they receive invalidation events.
- * Unobserved observables are forced to recompute their value from scratch every time they are read.
- *
- * @param observable the observable to keep alive
- * @param forceRecompute if true, the observable will be eagerly recomputed after it changed.
- * Use this if recomputing the observables causes side-effects.
-*/
-export function keepAlive(observable: IObservable<any>, forceRecompute?: boolean): IDisposable {
-	const o = new KeepAliveObserver(forceRecompute ?? false);
+ * This makes sure the observable is being observed and keeps its cache alive.
+ */
+export function keepObserved<T>(observable: IObservable<T>): IDisposable {
+	const o = new KeepAliveObserver(false);
 	observable.addObserver(o);
-	if (forceRecompute) {
-		observable.reportChanges();
-	}
+	return toDisposable(() => {
+		observable.removeObserver(o);
+	});
+}
+
+/**
+ * This converts the given observable into an autorun.
+ */
+export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>): IDisposable {
+	const o = new KeepAliveObserver(true);
+	observable.addObserver(o);
+	observable.reportChanges();
 
 	return toDisposable(() => {
 		observable.removeObserver(o);
