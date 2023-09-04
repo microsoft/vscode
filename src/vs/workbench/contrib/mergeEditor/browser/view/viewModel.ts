@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedObservableWithWritableCache, IObservable, IReader, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { Range } from 'vs/editor/common/core/range';

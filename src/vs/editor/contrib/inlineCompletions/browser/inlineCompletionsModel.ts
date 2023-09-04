@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapFind } from 'vs/base/common/arrays';
+import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
@@ -244,7 +244,7 @@ export class InlineCompletionsModel extends Disposable {
 			? suggestWidgetInlineCompletions.inlineCompletions
 			: [this.selectedInlineCompletion.read(reader)].filter(isDefined);
 
-		const augmentedCompletion = mapFind(candidateInlineCompletions, completion => {
+		const augmentedCompletion = mapFindFirst(candidateInlineCompletions, completion => {
 			let r = completion.toSingleTextEdit(reader);
 			r = r.removeCommonPrefix(model, Range.fromPositions(r.range.getStartPosition(), suggestCompletion.range.getEndPosition()));
 			return r.augments(suggestCompletion) ? { edit: r, completion } : undefined;
