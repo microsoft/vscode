@@ -2494,6 +2494,7 @@ declare namespace monaco.editor {
 
 	/**
 	 * Maps a line range in the original text model to a line range in the modified text model.
+	 * Also contains inner range mappings.
 	 */
 	export class DetailedLineRangeMapping extends LineRangeMapping {
 		/**
@@ -2524,6 +2525,9 @@ declare namespace monaco.editor {
 		flip(): RangeMapping;
 	}
 
+	/**
+	 * Maps a line range in the original text model to a line range in the modified text model.
+	 */
 	export class LineRangeMapping {
 		static inverse(mapping: readonly DetailedLineRangeMapping[], originalLineCount: number, modifiedLineCount: number): DetailedLineRangeMapping[];
 		/**

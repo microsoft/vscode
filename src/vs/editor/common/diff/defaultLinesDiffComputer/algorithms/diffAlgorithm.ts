@@ -56,7 +56,7 @@ export class SequenceDiff {
 		public readonly seq2Range: OffsetRange,
 	) { }
 
-	public reverse(): SequenceDiff {
+	public swap(): SequenceDiff {
 		return new SequenceDiff(this.seq2Range, this.seq1Range);
 	}
 
