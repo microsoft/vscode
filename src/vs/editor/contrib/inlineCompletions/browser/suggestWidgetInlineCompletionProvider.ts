@@ -24,7 +24,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 	private _isActive = false;
 	private _currentSuggestItemInfo: SuggestItemInfo | undefined = undefined;
 
-	private readonly _selectedItem = observableValue('suggestWidgetInlineCompletionProvider.selectedItem', undefined as SuggestItemInfo | undefined);
+	private readonly _selectedItem = observableValue(this, undefined as SuggestItemInfo | undefined);
 
 	public get selectedItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedItem;

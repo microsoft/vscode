@@ -54,7 +54,7 @@ export class AccessibleDiffViewer extends Disposable {
 		this._register(keepAlive(this.model, true));
 	}
 
-	private readonly model = derivedWithStore('model', (reader, store) => {
+	private readonly model = derivedWithStore(this, (reader, store) => {
 		const visible = this._visible.read(reader);
 		this._parentNode.style.visibility = visible ? 'visible' : 'hidden';
 		if (!visible) {
@@ -93,9 +93,9 @@ export class AccessibleDiffViewer extends Disposable {
 }
 
 class ViewModel extends Disposable {
-	private readonly _groups = observableValue<ViewElementGroup[]>('groups', []);
-	private readonly _currentGroupIdx = observableValue('currentGroupIdx', 0);
-	private readonly _currentElementIdx = observableValue('currentElementIdx', 0);
+	private readonly _groups = observableValue<ViewElementGroup[]>(this, []);
+	private readonly _currentGroupIdx = observableValue(this, 0);
+	private readonly _currentElementIdx = observableValue(this, 0);
 
 	public readonly groups: IObservable<ViewElementGroup[]> = this._groups;
 	public readonly currentGroup: IObservable<ViewElementGroup | undefined>

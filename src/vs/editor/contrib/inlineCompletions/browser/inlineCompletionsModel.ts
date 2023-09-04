@@ -34,11 +34,11 @@ export enum VersionIdChangeReason {
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this.textModelVersionId, this._debounceValue));
-	private readonly _isActive = observableValue<boolean, InlineCompletionTriggerKind | void>('isActive', false);
+	private readonly _isActive = observableValue<boolean, InlineCompletionTriggerKind | void>(this, false);
 	private readonly _forceUpdate = observableSignal<InlineCompletionTriggerKind>('forceUpdate');
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
-	private readonly _selectedInlineCompletionId = observableValue<string | undefined>('selectedInlineCompletionId', undefined);
+	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
 
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
@@ -82,12 +82,14 @@ export class InlineCompletionsModel extends Disposable {
 		VersionIdChangeReason.Undo,
 		VersionIdChangeReason.AcceptWord,
 	]);
-	private readonly _fetchInlineCompletions = derivedHandleChanges('fetch inline completions', {
+	private readonly _fetchInlineCompletions = derivedHandleChanges({
+		owner: this,
 		createEmptyChangeSummary: () => ({
 			preserveCurrentCompletion: false,
 			inlineCompletionTriggerKind: InlineCompletionTriggerKind.Automatic
 		}),
 		handleChange: (ctx, changeSummary) => {
+			/** @description fetch inline completions */
 			if (ctx.didChange(this.textModelVersionId) && this._preserveCurrentCompletionReasons.has(ctx.change)) {
 				changeSummary.preserveCurrentCompletion = true;
 			} else if (ctx.didChange(this._forceUpdate)) {
@@ -150,8 +152,7 @@ export class InlineCompletionsModel extends Disposable {
 		});
 	}
 
-	private readonly _filteredInlineCompletionItems = derived(reader => {
-		/** @description _filteredInlineCompletionItems */
+	private readonly _filteredInlineCompletionItems = derived(this, reader => {
 		const c = this._source.inlineCompletions.read(reader);
 		if (!c) { return []; }
 		const cursorPosition = this.cursorPosition.read(reader);
@@ -159,8 +160,7 @@ export class InlineCompletionsModel extends Disposable {
 		return filteredCompletions;
 	});
 
-	public readonly selectedInlineCompletionIndex = derived<number>((reader) => {
-		/** @description selectedInlineCompletionIndex */
+	public readonly selectedInlineCompletionIndex = derived<number>(this, (reader) => {
 		const selectedInlineCompletionId = this._selectedInlineCompletionId.read(reader);
 		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
 		const idx = this._selectedInlineCompletionId === undefined ? -1
@@ -173,8 +173,7 @@ export class InlineCompletionsModel extends Disposable {
 		return idx;
 	});
 
-	public readonly selectedInlineCompletion = derived<InlineCompletionWithUpdatedRange | undefined>((reader) => {
-		/** @description selectedCachedCompletion */
+	public readonly selectedInlineCompletion = derived<InlineCompletionWithUpdatedRange | undefined>(this, (reader) => {
 		const filteredCompletions = this._filteredInlineCompletionItems.read(reader);
 		const idx = this.selectedInlineCompletionIndex.read(reader);
 		return filteredCompletions[idx];
@@ -184,8 +183,7 @@ export class InlineCompletionsModel extends Disposable {
 		v => /** @description lastTriggerKind */ v?.request.context.triggerKind
 	);
 
-	public readonly inlineCompletionsCount = derived<number | undefined>(reader => {
-		/** @description inlineCompletionsCount */
+	public readonly inlineCompletionsCount = derived<number | undefined>(this, reader => {
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {
 			return this._filteredInlineCompletionItems.read(reader).length;
 		} else {
@@ -198,6 +196,7 @@ export class InlineCompletionsModel extends Disposable {
 		inlineCompletion: InlineCompletionWithUpdatedRange | undefined;
 		ghostText: GhostTextOrReplacement;
 	} | undefined>({
+		owner: this,
 		equalityComparer: (a, b) => {
 			if (!a || !b) { return a === b; }
 			return ghostTextOrReplacementEquals(a.ghostText, b.ghostText)
@@ -205,7 +204,6 @@ export class InlineCompletionsModel extends Disposable {
 				&& a.suggestItem === b.suggestItem;
 		}
 	}, (reader) => {
-		/** @description ghostTextAndCompletion */
 		const model = this.textModel;
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
@@ -256,9 +254,9 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public readonly ghostText = derivedOpts({
+		owner: this,
 		equalityComparer: ghostTextOrReplacementEquals
 	}, reader => {
-		/** @description ghostText */
 		const v = this.state.read(reader);
 		if (!v) { return undefined; }
 		return v.ghostText;

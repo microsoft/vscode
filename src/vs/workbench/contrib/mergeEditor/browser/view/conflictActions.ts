@@ -211,8 +211,7 @@ export class ActionsSource {
 	public readonly itemsInput1 = this.getItemsInput(1);
 	public readonly itemsInput2 = this.getItemsInput(2);
 
-	public readonly resultItems = derived(reader => {
-		/** @description resultItems */
+	public readonly resultItems = derived(this, reader => {
 		const viewModel = this.viewModel;
 		const modifiedBaseRange = this.modifiedBaseRange;
 
@@ -321,13 +320,11 @@ export class ActionsSource {
 		return result;
 	});
 
-	public readonly isEmpty = derived(reader => {
-		/** @description isEmpty */
+	public readonly isEmpty = derived(this, reader => {
 		return this.itemsInput1.read(reader).length + this.itemsInput2.read(reader).length + this.resultItems.read(reader).length === 0;
 	});
 
-	public readonly inputIsEmpty = derived(reader => {
-		/** @description inputIsEmpty */
+	public readonly inputIsEmpty = derived(this, reader => {
 		return this.itemsInput1.read(reader).length + this.itemsInput2.read(reader).length === 0;
 	});
 }
