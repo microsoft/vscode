@@ -132,6 +132,10 @@ suite('XtermTerminal', () => {
 		TestWebglAddon.isEnabled = false;
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
@@ -252,7 +256,9 @@ suite('XtermTerminal', () => {
 	});
 
 	suite('renderers', () => {
-		test('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
+		// This is skipped until the webgl renderer bug is fixed in Chromium
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=1476475
+		test.skip('should re-evaluate gpu acceleration auto when the setting is changed', async () => {
 			// Check initial state
 			strictEqual(TestWebglAddon.isEnabled, false);
 

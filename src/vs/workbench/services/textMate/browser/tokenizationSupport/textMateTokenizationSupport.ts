@@ -20,9 +20,10 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		private readonly _grammar: IGrammar,
 		private readonly _initialState: StateStack,
 		private readonly _containsEmbeddedLanguages: boolean,
-		private readonly _createBackgroundTokenizer?: (textModel: ITextModel, tokenStore: IBackgroundTokenizationStore) => IBackgroundTokenizer | undefined,
-		private readonly _backgroundTokenizerShouldOnlyVerifyTokens: () => boolean = () => false,
-		private readonly _reportTokenizationTime?: (timeMs: number, lineLength: number) => void,
+		private readonly _createBackgroundTokenizer: ((textModel: ITextModel, tokenStore: IBackgroundTokenizationStore) => IBackgroundTokenizer | undefined) | undefined,
+		private readonly _backgroundTokenizerShouldOnlyVerifyTokens: () => boolean,
+		private readonly _reportTokenizationTime: (timeMs: number, lineLength: number, isRandomSample: boolean) => void,
+		private readonly _reportSlowTokenization: boolean,
 	) {
 		super();
 	}
@@ -47,12 +48,15 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 	}
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: StateStack): EncodedTokenizationResult {
-		const shouldMeasure = this._reportTokenizationTime && (Math.random() * 10_000 < 1);
+		const isRandomSample = Math.random() * 10_000 < 1;
+		const shouldMeasure = this._reportSlowTokenization || isRandomSample;
 		const sw = shouldMeasure ? new StopWatch(true) : undefined;
 		const textMateResult = this._grammar.tokenizeLine2(line, state, 500);
 		if (shouldMeasure) {
 			const timeMS = sw!.elapsed();
-			this._reportTokenizationTime!(timeMS, line.length);
+			if (isRandomSample || timeMS > 32) {
+				this._reportTokenizationTime!(timeMS, line.length, isRandomSample);
+			}
 		}
 
 		if (textMateResult.stoppedEarly) {

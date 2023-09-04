@@ -38,7 +38,7 @@ export interface IEditSessionsStorageService {
 	lastReadResources: Map<SyncResource, { ref: string; content: string }>;
 	lastWrittenResources: Map<SyncResource, { ref: string; content: string }>;
 
-	initialize(silent?: boolean): Promise<boolean>;
+	initialize(reason: 'read' | 'write', silent?: boolean): Promise<boolean>;
 	read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined>;
 	write(resource: SyncResource, content: string | EditSession): Promise<string>;
 	delete(resource: SyncResource, ref: string | null): Promise<void>;
@@ -98,6 +98,7 @@ export const EDIT_SESSIONS_PENDING = new RawContextKey<boolean>(EDIT_SESSIONS_PE
 
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
 export const EDIT_SESSIONS_DATA_VIEW_ID = 'workbench.views.editSessions.data';
+export const EDIT_SESSIONS_ORIGINAL_TITLE = 'Cloud Changes';
 export const EDIT_SESSIONS_TITLE = localize('cloud changes', 'Cloud Changes');
 
 export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the cloud changes view.'));

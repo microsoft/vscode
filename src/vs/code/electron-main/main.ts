@@ -70,6 +70,7 @@ import { ILoggerMainService, LoggerMainService } from 'vs/platform/log/electron-
 import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 /**
  * The main VS Code entry point.
@@ -178,6 +179,10 @@ class CodeMain {
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, logService));
+
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		services.set(IUriIdentityService, uriIdentityService);
@@ -246,10 +251,10 @@ class CodeMain {
 			Promise.all<string | undefined>([
 				environmentMainService.extensionsPath,
 				environmentMainService.codeCachePath,
-				environmentMainService.logsHome.fsPath,
-				userDataProfilesMainService.defaultProfile.globalStorageHome.fsPath,
-				environmentMainService.workspaceStorageHome.fsPath,
-				environmentMainService.localHistoryHome.fsPath,
+				environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				userDataProfilesMainService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath,
+				environmentMainService.localHistoryHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.backupHome
 			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 

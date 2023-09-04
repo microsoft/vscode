@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { COI } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
@@ -93,11 +94,13 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  */
 class WebWorker implements IWorker {
 
-	private id: number;
+	private readonly id: number;
+	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
 	constructor(workerMainLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
+		this.label = label;
 		const workerOrPromise = getWorker(workerMainLocation, label);
 		if (isPromiseLike(workerOrPromise)) {
 			this.worker = workerOrPromise;
@@ -121,7 +124,14 @@ class WebWorker implements IWorker {
 	}
 
 	public postMessage(message: any, transfer: Transferable[]): void {
-		this.worker?.then(w => w.postMessage(message, transfer));
+		this.worker?.then(w => {
+			try {
+				w.postMessage(message, transfer);
+			} catch (err) {
+				onUnexpectedError(err);
+				onUnexpectedError(new Error(`FAILED to post message to '${this.label}'-worker`, { cause: err }));
+			}
+		});
 	}
 
 	public dispose(): void {

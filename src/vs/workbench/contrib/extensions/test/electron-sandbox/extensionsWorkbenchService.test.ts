@@ -48,11 +48,14 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: IExtensionsWorkbenchService;
+	const suiteDisposables = new DisposableStore();
+	let testDisposables: DisposableStore = new DisposableStore();
 
 	let installEvent: Emitter<InstallExtensionEvent>,
 		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
@@ -60,12 +63,13 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	suiteSetup(() => {
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<UninstallExtensionEvent>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+		suiteDisposables.add(toDisposable(() => sinon.restore()));
+		installEvent = suiteDisposables.add(new Emitter<InstallExtensionEvent>());
+		didInstallEvent = suiteDisposables.add(new Emitter<readonly InstallExtensionResult[]>());
+		uninstallEvent = suiteDisposables.add(new Emitter<UninstallExtensionEvent>());
+		didUninstallEvent = suiteDisposables.add(new Emitter<DidUninstallExtensionEvent>());
 
-		instantiationService = new TestInstantiationService();
+		instantiationService = suiteDisposables.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IProgressService, ProgressService);
@@ -126,7 +130,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 	});
 
+	suiteTeardown(() => suiteDisposables.dispose());
+
 	setup(async () => {
+		testDisposables = new DisposableStore();
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
@@ -135,9 +142,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 	});
 
-	teardown(() => {
-		(<ExtensionsWorkbenchService>testObject).dispose();
-	});
+	teardown(() => testDisposables.dispose());
 
 	test('test gallery extension', async () => {
 		const expected = aGalleryExtension('expectedName', {
@@ -1412,7 +1417,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	});
 
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
-		const workbenchService: ExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: ExtensionsWorkbenchService = testDisposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		await workbenchService.queryLocal();
 		return workbenchService;
 	}

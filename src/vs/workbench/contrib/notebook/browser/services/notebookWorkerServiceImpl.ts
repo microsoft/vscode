@@ -36,6 +36,12 @@ export class NotebookEditorWorkerServiceImpl extends Disposable implements INote
 			return client.computeDiff(original, modified);
 		});
 	}
+
+	canPromptRecommendation(model: URI): Promise<boolean> {
+		return this._workerManager.withWorker().then(client => {
+			return client.canPromptRecommendation(model);
+		});
+	}
 }
 
 class WorkerManager extends Disposable {
@@ -216,6 +222,12 @@ class NotebookWorkerClient extends Disposable {
 	computeDiff(original: URI, modified: URI) {
 		return this._withSyncedResources([original, modified]).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString());
+		});
+	}
+
+	canPromptRecommendation(modelUri: URI) {
+		return this._withSyncedResources([modelUri]).then(proxy => {
+			return proxy.canPromptRecommendation(modelUri.toString());
 		});
 	}
 

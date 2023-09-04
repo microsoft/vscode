@@ -9,9 +9,9 @@ import { IObservable, IReader, autorun, derived, observableValue } from 'vs/base
 import { DiffEditorOptions } from './diffEditorOptions';
 
 export class DiffEditorSash extends Disposable {
-	private readonly _sashRatio = observableValue<number | undefined>('sashRatio', undefined);
+	private readonly _sashRatio = observableValue<number | undefined>(this, undefined);
 
-	public readonly sashLeft = derived('sashLeft', reader => {
+	public readonly sashLeft = derived(this, reader => {
 		const ratio = this._sashRatio.read(reader) ?? this._options.splitViewDefaultRatio.read(reader);
 		return this._computeSashLeft(ratio, reader);
 	});
@@ -42,7 +42,8 @@ export class DiffEditorSash extends Disposable {
 		this._register(this._sash.onDidEnd(() => this._sash.layout()));
 		this._register(this._sash.onDidReset(() => this._sashRatio.set(undefined, undefined)));
 
-		this._register(autorun('update sash layout', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update sash layout */
 			const enabled = this._options.enableSplitViewResizing.read(reader);
 			this._sash.state = enabled ? SashState.Enabled : SashState.Disabled;
 			this.sashLeft.read(reader);

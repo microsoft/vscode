@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
 
@@ -176,7 +177,7 @@ export interface ITreeMouseEvent<T> {
 export interface ITreeContextMenuEvent<T> {
 	readonly browserEvent: UIEvent;
 	readonly element: T | null;
-	readonly anchor: HTMLElement | { readonly x: number; readonly y: number };
+	readonly anchor: HTMLElement | IMouseEvent;
 }
 
 export interface ITreeNavigator<T> {

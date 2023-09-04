@@ -44,26 +44,12 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 					source.mightContainNonBasicASCII,
 					source.mightContainRTL,
 					options,
-					sb,
-					//marginDomNode
+					sb
 				));
 				renderedLineCount++;
 				lastBreakOffset = breakOffset;
 			}
 			viewLineCounts.push(lineBreakData.breakOffsets.length);
-
-
-			/*
-			const marginDomNode2 = document.createElement('div');
-			marginDomNode2.className = 'gutter-delete';
-			result.original.push({
-				afterLineNumber: lineNumber,
-				afterColumn: 0,
-				heightInLines: lineBreakData.breakOffsets.length - 1,
-				domNode: createFakeLinesDiv(),
-				marginDomNode: marginDomNode2
-			});
-			*/
 		} else {
 			viewLineCounts.push(1);
 			maxCharsPerLine = Math.max(maxCharsPerLine, renderOriginalLine(
@@ -197,4 +183,3 @@ function renderOriginalLine(
 
 	return output.characterMapping.getHorizontalOffset(output.characterMapping.length);
 }
-

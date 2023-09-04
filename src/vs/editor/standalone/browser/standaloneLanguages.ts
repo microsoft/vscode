@@ -54,34 +54,38 @@ export function getEncodedLanguageId(languageId: string): number {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	const languageService = StandaloneServices.get(ILanguageService);
-	const disposable = languageService.onDidRequestRichLanguageFeatures((encounteredLanguageId) => {
-		if (encounteredLanguageId === languageId) {
-			// stop listening
-			disposable.dispose();
-			// invoke actual listener
-			callback();
-		}
+	return StandaloneServices.withServices(() => {
+		const languageService = StandaloneServices.get(ILanguageService);
+		const disposable = languageService.onDidRequestRichLanguageFeatures((encounteredLanguageId) => {
+			if (encounteredLanguageId === languageId) {
+				// stop listening
+				disposable.dispose();
+				// invoke actual listener
+				callback();
+			}
+		});
+		return disposable;
 	});
-	return disposable;
 }
 
 /**
  * An event emitted when a language is associated for the first time with a text model or
- * whena language is encountered during the tokenization of another language.
+ * when a language is encountered during the tokenization of another language.
  * @event
  */
 export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable {
-	const languageService = StandaloneServices.get(ILanguageService);
-	const disposable = languageService.onDidRequestBasicLanguageFeatures((encounteredLanguageId) => {
-		if (encounteredLanguageId === languageId) {
-			// stop listening
-			disposable.dispose();
-			// invoke actual listener
-			callback();
-		}
+	return StandaloneServices.withServices(() => {
+		const languageService = StandaloneServices.get(ILanguageService);
+		const disposable = languageService.onDidRequestBasicLanguageFeatures((encounteredLanguageId) => {
+			if (encounteredLanguageId === languageId) {
+				// stop listening
+				disposable.dispose();
+				// invoke actual listener
+				callback();
+			}
+		});
+		return disposable;
 	});
-	return disposable;
 }
 
 /**

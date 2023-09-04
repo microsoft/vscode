@@ -6,7 +6,7 @@
 	// Placeholders with the same ids are connected.
 	// Example:
 	"MSFT Copyright Header": {
-		"scope": "javascript,typescript,css",
+		"scope": "javascript,typescript,css,rust",
 		"prefix": [
 			"header",
 			"stub",

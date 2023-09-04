@@ -20,8 +20,9 @@ import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from '../diff/rangeMapping';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
@@ -415,7 +416,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getAdvanced() : linesDiffComputers.getLegacy();
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -424,8 +425,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
-		function getLineChanges(changes: readonly LineRangeMapping[]): ILineChange[] {
-			return changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
+		function getLineChanges(changes: readonly DetailedLineRangeMapping[]): ILineChange[] {
+			return changes.map(m => ([m.original.startLineNumber, m.original.endLineNumberExclusive, m.modified.startLineNumber, m.modified.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,
 				m.originalRange.endLineNumber,
@@ -442,10 +443,10 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			quitEarly: result.hitTimeout,
 			changes: getLineChanges(result.changes),
 			moves: result.moves.map(m => ([
-				m.lineRangeMapping.originalRange.startLineNumber,
-				m.lineRangeMapping.originalRange.endLineNumberExclusive,
-				m.lineRangeMapping.modifiedRange.startLineNumber,
-				m.lineRangeMapping.modifiedRange.endLineNumberExclusive,
+				m.lineRangeMapping.original.startLineNumber,
+				m.lineRangeMapping.original.endLineNumberExclusive,
+				m.lineRangeMapping.modified.startLineNumber,
+				m.lineRangeMapping.modified.endLineNumberExclusive,
 				getLineChanges(m.changes)
 			])),
 		};
@@ -611,7 +612,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const originalLines = original.split(/\r\n|\n|\r/);
 			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-			const diff = linesDiffComputers.getAdvanced().computeDiff(originalLines, modifiedLines, options);
+			const diff = linesDiffComputers.getDefault().computeDiff(originalLines, modifiedLines, options);
 
 			const start = Range.lift(range).getStartPosition();
 

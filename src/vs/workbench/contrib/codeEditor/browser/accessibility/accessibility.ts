@@ -9,9 +9,12 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { accessibilityHelpIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+
 class ToggleScreenReaderMode extends Action2 {
 
 	constructor() {
@@ -19,18 +22,25 @@ class ToggleScreenReaderMode extends Action2 {
 			id: 'editor.action.toggleScreenReaderAccessibilityMode',
 			title: { value: nls.localize('toggleScreenReaderMode', "Toggle Screen Reader Accessibility Mode"), original: 'Toggle Screen Reader Accessibility Mode' },
 			f1: true,
-			keybinding: {
+			keybinding: [{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyE,
 				weight: KeybindingWeight.WorkbenchContrib + 10,
 				when: accessibilityHelpIsShown
-			}
+			},
+			{
+				primary: KeyMod.Alt | KeyCode.F1 | KeyMod.Shift,
+				linux: { primary: KeyMod.Alt | KeyCode.F4 | KeyMod.Shift },
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+			}]
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const accessibiiltyService = accessor.get(IAccessibilityService);
 		const configurationService = accessor.get(IConfigurationService);
-		configurationService.updateValue('editor.accessibilitySupport', accessibiiltyService.isScreenReaderOptimized() ? 'off' : 'on', ConfigurationTarget.USER);
+		const isScreenReaderOptimized = accessibiiltyService.isScreenReaderOptimized();
+		configurationService.updateValue('editor.accessibilitySupport', isScreenReaderOptimized ? 'off' : 'on', ConfigurationTarget.USER);
+		alert(isScreenReaderOptimized ? AccessibilityHelpNLS.screenReaderModeDisabled : AccessibilityHelpNLS.screenReaderModeEnabled);
 	}
 }
 

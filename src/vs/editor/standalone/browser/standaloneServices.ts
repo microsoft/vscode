@@ -86,7 +86,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, AudioCueGroupId, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LogService } from 'vs/platform/log/common/logService';
@@ -1052,7 +1052,7 @@ class StandaloneEditorWorkerService extends EditorWorkerService {
 
 class StandaloneAudioService implements IAudioCueService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
 	}
 
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
@@ -1070,8 +1070,6 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 	playAudioCueLoop(cue: AudioCue): IDisposable {
 		return toDisposable(() => { });
-	}
-	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
 	}
 }
 
@@ -1129,6 +1127,9 @@ export module StandaloneServices {
 	serviceCollection.set(IInstantiationService, instantiationService);
 
 	export function get<T>(serviceId: ServiceIdentifier<T>): T {
+		if (!initialized) {
+			initialize({});
+		}
 		const r = serviceCollection.get(serviceId);
 		if (!r) {
 			throw new Error('Missing service ' + serviceId);
@@ -1141,6 +1142,7 @@ export module StandaloneServices {
 	}
 
 	let initialized = false;
+	const onDidInitialize = new Emitter<void>();
 	export function initialize(overrides: IEditorOverrideServices): IInstantiationService {
 		if (initialized) {
 			return instantiationService;
@@ -1176,6 +1178,27 @@ export module StandaloneServices {
 			}
 		}
 
+		onDidInitialize.fire();
+
 		return instantiationService;
 	}
+
+	/**
+	 * Executes callback once services are initialized.
+	 */
+	export function withServices(callback: () => IDisposable): IDisposable {
+		if (initialized) {
+			return callback();
+		}
+
+		const disposable = new DisposableStore();
+
+		const listener = disposable.add(onDidInitialize.event(() => {
+			listener.dispose();
+			disposable.add(callback());
+		}));
+
+		return disposable;
+	}
+
 }

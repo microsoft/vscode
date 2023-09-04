@@ -132,7 +132,7 @@ export class ExtHostCell {
 					const compressed = notebookCommon.compressOutputItemStreams(mimeOutputs.get(mime)!);
 					output.items.push({
 						mime,
-						data: compressed.buffer
+						data: compressed.data.buffer
 					});
 				});
 			}

@@ -139,6 +139,10 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 
 		// when test states change, reflect in the tree
 		this._register(results.onTestChanged(ev => {
+			if (ev.reason === TestResultItemChangeReason.NewMessage) {
+				return; // no effect in the tree
+			}
+
 			let result = ev.item;
 			// if the state is unset, or the latest run is not making the change,
 			// double check that it's valid. Retire calls might cause previous
@@ -220,7 +224,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 					}
 
 					// The first element will cause the root to be hidden
-					const affectsRootElement = toRemove.parent?.children.size === 1;
+					const affectsRootElement = toRemove.depth === 1 && toRemove.parent?.children.size === 1;
 					this.changedParents.add(affectsRootElement ? null : toRemove.parent);
 
 					const queue: Iterable<TestExplorerTreeElement>[] = [[toRemove]];
@@ -298,7 +302,7 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 		this.items.set(treeElement.test.item.extId, treeElement);
 
 		// The first element will cause the root to be shown
-		const affectsRootElement = treeElement.parent?.children.size === 1;
+		const affectsRootElement = treeElement.depth === 1 && treeElement.parent?.children.size === 1;
 		this.changedParents.add(affectsRootElement ? null : treeElement.parent);
 
 		if (treeElement.depth === 0 || isCollapsedInSerializedTestTree(this.lastState, treeElement.test.item.extId) === false) {

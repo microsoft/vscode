@@ -70,7 +70,8 @@
 				"meta.embedded",
 				"source.groovy.embedded",
 				"meta.jsx.children",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				//"background": "#002451",
@@ -78,11 +79,8 @@
 			}
 		},
 		{
-			"name": "Comments",
-			"scope": [
-				"comment",
-				"string.quoted.docstring"
-			],
+			"name": "Comment",
+			"scope": "comment",
 			"settings": {
 				"foreground": "#7285B7"
 			}

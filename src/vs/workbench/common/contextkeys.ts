@@ -12,6 +12,9 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { Schemas } from 'vs/base/common/network';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 //#region < --- Workbench --- >
 
@@ -266,3 +269,21 @@ export class ResourceContextKey {
 }
 
 //#endregion
+
+export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {
+	if (!editor) {
+		contextKey.set('');
+		return;
+	}
+
+	const editorResource = editor.resource;
+	const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
+
+	if (editorResource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+		// Non text editor untitled files cannot be easily serialized between extensions
+		// so instead we disable this context key to prevent common commands that act on the active editor
+		contextKey.set('');
+	} else {
+		contextKey.set(editors.join(','));
+	}
+}

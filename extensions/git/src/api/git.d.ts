@@ -79,6 +79,7 @@ export const enum Status {
 	IGNORED,
 	INTENT_TO_ADD,
 	INTENT_TO_RENAME,
+	TYPE_CHANGED,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,
@@ -128,6 +129,8 @@ export interface LogOptions {
 	/** Max number of log entries to retrieve. If not specified, the default is 32. */
 	readonly maxEntries?: number;
 	readonly path?: string;
+	/** A commit range, such as "0a47c67f0fb52dd11562af48658bc1dff1d75a38..0bb4bdea78e1db44d728fd6894720071e303304f" */
+	readonly range?: string;
 }
 
 export interface CommitOptions {

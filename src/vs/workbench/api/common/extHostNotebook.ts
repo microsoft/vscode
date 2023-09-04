@@ -328,11 +328,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		// validate write
-		const statBeforeWrite = await this._validateWriteFile(uri, options);
-
-		if (!statBeforeWrite) {
-			await this._mkdirp(uri);
-		}
+		await this._validateWriteFile(uri, options);
 
 		const data: vscode.NotebookData = {
 			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
@@ -377,20 +373,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	private async _validateWriteFile(uri: URI, options: files.IWriteFileOptions) {
-		// File system provider registered in Extension Host doesn't have unlock or atomic support
-		// Validate via file stat meta data
 		const stat = await this._extHostFileSystem.value.stat(uri);
-
-		// File cannot be directory
-		if ((stat.type & files.FileType.Directory) !== 0) {
-			throw new files.FileOperationError(localize('fileIsDirectoryWriteError', "Unable to write file '{0}' that is actually a directory", this._resourceForError(uri)), files.FileOperationResult.FILE_IS_DIRECTORY, options);
-		}
-
-		// File cannot be readonly
-		if ((stat.permissions ?? 0) & files.FilePermission.Readonly) {
-			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
-		}
-
 		// Dirty write prevention
 		if (
 			typeof options?.mtime === 'number' && typeof options.etag === 'string' && options.etag !== files.ETAG_DISABLED &&
@@ -400,58 +383,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new files.FileOperationError(localize('fileModifiedError', "File Modified Since"), files.FileOperationResult.FILE_MODIFIED_SINCE, options);
 		}
 
-		return stat;
-	}
-
-	private async _mkdirp(uri: URI) {
-		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
-		let directory = providerExtUri.dirname(uri);
-
-		const directoriesToCreate: string[] = [];
-
-		while (!providerExtUri.isEqual(directory, providerExtUri.dirname(directory))) {
-			try {
-				const stat = await this._extHostFileSystem.value.stat(directory);
-				if ((stat.type & files.FileType.Directory) === 0) {
-					throw new Error(localize('mkdirExistsError', "Unable to create folder '{0}' that already exists but is not a directory", this._resourceForError(directory)));
-				}
-
-				break; // we have hit a directory that exists -> good
-			} catch (error) {
-
-				// Bubble up any other error that is not file not found
-				if (files.toFileSystemProviderErrorCode(error) !== files.FileSystemProviderErrorCode.FileNotFound) {
-					throw error;
-				}
-
-				// Upon error, remember directories that need to be created
-				directoriesToCreate.push(providerExtUri.basename(directory));
-
-				// Continue up
-				directory = providerExtUri.dirname(directory);
-			}
-		}
-
-		// Create directories as needed
-		for (let i = directoriesToCreate.length - 1; i >= 0; i--) {
-			directory = providerExtUri.joinPath(directory, directoriesToCreate[i]);
-
-			try {
-				await this._extHostFileSystem.value.createDirectory(directory);
-			} catch (error) {
-				if (files.toFileSystemProviderErrorCode(error) !== files.FileSystemProviderErrorCode.FileExists) {
-					// For mkdirp() we tolerate that the mkdir() call fails
-					// in case the folder already exists. This follows node.js
-					// own implementation of fs.mkdir({ recursive: true }) and
-					// reduces the chances of race conditions leading to errors
-					// if multiple calls try to create the same folders
-					// As such, we only throw an error here if it is other than
-					// the fact that the file already exists.
-					// (see also https://github.com/microsoft/vscode/issues/89834)
-					throw error;
-				}
-			}
-		}
+		return;
 	}
 
 	private _resourceForError(uri: URI): string {

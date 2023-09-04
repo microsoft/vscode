@@ -26,6 +26,7 @@ suite('CommandDetectionCapability', () => {
 	let xterm: Terminal;
 	let capability: TestCommandDetectionCapability;
 	let addEvents: ITerminalCommand[];
+	let instantiationService: TestInstantiationService;
 
 	function assertCommands(expectedCommands: TestTerminalCommandMatch[]) {
 		deepStrictEqual(capability.commands.map(e => e.command), expectedCommands.map(e => e.command));
@@ -59,12 +60,16 @@ suite('CommandDetectionCapability', () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 });
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IContextMenuService, { showContextMenu(delegate: IContextMenuDelegate): void { } } as Partial<IContextMenuService>);
 		capability = new TestCommandDetectionCapability(xterm, new NullLogService());
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 		assertCommands([]);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('should not add commands when no capability methods are triggered', async () => {

@@ -15,7 +15,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
@@ -250,6 +250,10 @@ export interface IOverlayWidget {
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
 	getPosition(): IOverlayWidgetPosition | null;
+	/**
+	 * The editor will ensure that the scroll width is >= than this value.
+	 */
+	getMinContentWidthInPx?(): number;
 }
 
 /**
@@ -354,7 +358,7 @@ export interface IBaseMouseTarget {
 	/**
 	 * The target element
 	 */
-	readonly element: Element | null;
+	readonly element: HTMLElement | null;
 	/**
 	 * The 'approximate' editor position
 	 */
@@ -953,7 +957,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 	 */
-	getTopForLineNumber(lineNumber: number): number;
+	getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 
 	/**
 	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
@@ -1086,6 +1090,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	hasModel(): this is IActiveCodeEditor;
 
 	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
+
+	/**
+	 * Is called when the model has been set, view state was restored and options are updated.
+	 * This is the best place to compute data for the viewport (such as tokens).
+	 */
+	handleInitialized?(): void;
 }
 
 /**
@@ -1257,9 +1267,9 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	revealFirstDiff(): unknown;
 
-	diffReviewNext(): void;
+	accessibleDiffViewerNext(): void;
 
-	diffReviewPrev(): void;
+	accessibleDiffViewerPrev(): void;
 }
 
 /**

@@ -10,7 +10,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import type { IDecoration, IDecorationOptions } from 'xterm';
+import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from 'xterm';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -21,24 +21,24 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { importAMDNodeModule } from 'vs/amdX';
 
-suite('DecorationAddon', async () => {
-
-	const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-	class TestTerminal extends TerminalCtor {
-		override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
-			if (decorationOptions.marker.isDisposed) {
-				return undefined;
-			}
-			const element = document.createElement('div');
-			return { marker: decorationOptions.marker, element, onDispose: () => { }, isDisposed: false, dispose: () => { }, onRender: (element: HTMLElement) => { return element; } } as unknown as IDecoration;
-		}
-	}
-
+suite('DecorationAddon', () => {
 	let decorationAddon: DecorationAddon;
-	let xterm: TestTerminal;
+	let xterm: RawXtermTerminal;
+	let instantiationService: TestInstantiationService;
 
-	setup(() => {
-		const instantiationService = new TestInstantiationService();
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		class TestTerminal extends TerminalCtor {
+			override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
+				if (decorationOptions.marker.isDisposed) {
+					return undefined;
+				}
+				const element = document.createElement('div');
+				return { marker: decorationOptions.marker, element, onDispose: () => { }, isDisposed: false, dispose: () => { }, onRender: (element: HTMLElement) => { return element; } } as unknown as IDecoration;
+			}
+		}
+
+		instantiationService = new TestInstantiationService();
 		const configurationService = new TestConfigurationService({
 			workbench: {
 				hover: { delay: 5 },
@@ -67,7 +67,11 @@ suite('DecorationAddon', async () => {
 		xterm.loadAddon(decorationAddon);
 	});
 
-	suite('registerDecoration', async () => {
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
+	suite('registerDecoration', () => {
 		test('should throw when command has no marker', async () => {
 			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});

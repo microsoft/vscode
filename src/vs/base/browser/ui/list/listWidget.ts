@@ -16,7 +16,7 @@ import { timeout } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { matchesPrefix } from 'vs/base/common/filters';
+import { matchesFuzzy2, matchesPrefix } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -27,6 +27,7 @@ import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -526,11 +527,30 @@ class TypeNavigationController<T> implements IDisposable {
 			const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(this.view.element(index));
 			const labelStr = label && label.toString();
 
-			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
-				this.previouslyFocused = start;
-				this.list.setFocus([index]);
-				this.list.reveal(index);
-				return;
+			if (this.list.options.typeNavigationEnabled) {
+				if (typeof labelStr !== 'undefined') {
+					const prefix = matchesPrefix(word, labelStr);
+					const fuzzy = matchesFuzzy2(word, labelStr);
+
+					if (fuzzy) {
+						const fuzzyScore = fuzzy[0].end - fuzzy[0].start;
+
+						// ensures that when fuzzy matching, doesn't clash with prefix matching (1 input vs 1+ should be prefix and fuzzy respecitvely). Also makes sure that exact matches are prioritized.
+						if (prefix || (fuzzyScore > 1 && fuzzy.length === 1)) {
+							this.previouslyFocused = start;
+							this.list.setFocus([index]);
+							this.list.reveal(index);
+							return;
+						}
+					}
+				}
+			} else {
+				if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+					this.previouslyFocused = start;
+					this.list.setFocus([index]);
+					this.list.reveal(index);
+					return;
+				}
 			}
 		}
 	}
@@ -710,10 +730,6 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([], e.browserEvent);
 			this.list.setAnchor(undefined);
 			return;
-		}
-
-		if (this.isSelectionRangeChangeEvent(e)) {
-			return this.changeSelection(e);
 		}
 
 		if (this.isSelectionChangeEvent(e)) {
@@ -977,6 +993,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
 	readonly keyboardSupport?: boolean;
+	readonly keyboardNavigationEnabled?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
 	readonly styleController?: (suffix: string) => IStyleController;
 	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
@@ -991,12 +1008,13 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
-	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly paddingTop?: number;
+	readonly paddingBottom?: number;
 }
 
 export interface IListStyles {
@@ -1353,7 +1371,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const fromMouse = this.disposables.add(Event.chain(this.view.onContextMenu))
 			.filter(_ => !didJustPressContextMenuKey)
-			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.pageX + 1, y: browserEvent.pageY }, browserEvent }))
+			.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
 			.event;
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);

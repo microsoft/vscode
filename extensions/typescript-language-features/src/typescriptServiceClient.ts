@@ -29,6 +29,7 @@ import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
 import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
 import Tracer from './logging/tracer';
 import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
+import { Schemes } from './configuration/schemes';
 
 
 export interface TsDiagnostics {
@@ -175,7 +176,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds, onCaseInsenitiveFileSystem);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });
 
-		this.diagnosticsManager = new DiagnosticsManager('typescript', onCaseInsenitiveFileSystem);
 		this.bufferSyncSupport.onDelete(resource => {
 			this.cancelInflightRequestsForResource(resource);
 			this.diagnosticsManager.deleteAllDiagnosticsInFile(resource);
@@ -212,7 +212,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 			return this.apiVersion.fullVersionString;
 		});
-
+		this.diagnosticsManager = new DiagnosticsManager('typescript', this._configuration, this.telemetryReporter, onCaseInsenitiveFileSystem);
 		this.typescriptServerSpawner = new TypeScriptServerSpawner(this.versionProvider, this._versionManager, this.logDirectoryProvider, this.pluginPathsProvider, this.logger, this.telemetryReporter, this.tracer, this.processFactory);
 
 		this._register(this.pluginManager.onDidUpdateConfig(update => {
@@ -762,6 +762,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
+		// For notebook cells, we need to use the notebook document to look up the workspace
+		if (resource.scheme === Schemes.notebookCell) {
+			for (const notebook of vscode.workspace.notebookDocuments) {
+				for (const cell of notebook.getCells()) {
+					if (cell.document.uri.toString() === resource.toString()) {
+						resource = notebook.uri;
+						break;
+					}
+				}
+			}
+		}
+
 		for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 			if (root.uri.scheme === resource.scheme && root.uri.authority === resource.authority) {
 				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
@@ -770,7 +782,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		}
 
-		return undefined;
+		return vscode.workspace.getWorkspaceFolder(resource)?.uri;
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {

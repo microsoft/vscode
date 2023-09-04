@@ -36,6 +36,7 @@
 	"files.readonlyInclude": {
 		"**/node_modules/**": true,
 		"**/yarn.lock": true,
+		"**/Cargo.lock": true,
 		"src/vs/workbench/workbench.web.main.css": true,
 		"src/vs/workbench/workbench.desktop.main.css": true,
 		"src/vs/workbench/workbench.desktop.main.nls.js": true,
@@ -135,6 +136,7 @@
 		"git",
 		"sash"
 	],
+	"githubPullRequests.experimental.createView": true,
 	"debug.javascript.terminalOptions": {
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",

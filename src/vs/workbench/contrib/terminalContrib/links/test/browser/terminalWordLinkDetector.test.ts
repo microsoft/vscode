@@ -18,9 +18,10 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 	let configurationService: TestConfigurationService;
 	let detector: TerminalWordLinkDetector;
 	let xterm: Terminal;
+	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		const instantiationService = new TestInstantiationService();
+		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: '' } });
 
@@ -30,6 +31,10 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	async function assertLink(
@@ -65,6 +70,14 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 			await assertLink(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
 			await assertLink(' [aabbccdd.txt] ', [{ range: [[3, 1], [14, 1]], text: 'aabbccdd.txt' }]);
 		});
+	});
+
+	suite('should ignore powerline symbols', () => {
+		for (let i = 0xe0b0; i <= 0xe0bf; i++) {
+			test(`\\u${i.toString(16)}`, async () => {
+				await assertLink(`${String.fromCharCode(i)}foo${String.fromCharCode(i)}`, [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+			});
+		}
 	});
 
 	// These are failing - the link's start x is 1 px too far to the right bc it starts

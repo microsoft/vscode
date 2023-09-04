@@ -23,7 +23,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { raceCancellation } from 'vs/base/common/async';
 
@@ -112,7 +112,7 @@ export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
-	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
+	private _lastTextModelChanges: readonly DetailedLineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -191,7 +191,7 @@ export class Session {
 		return this._lastTextModelChanges ?? [];
 	}
 
-	set lastTextModelChanges(changes: readonly LineRangeMapping[]) {
+	set lastTextModelChanges(changes: readonly DetailedLineRangeMapping[]) {
 		this._lastTextModelChanges = changes;
 	}
 
@@ -207,8 +207,8 @@ export class Session {
 		let startLine = Number.MAX_VALUE;
 		let endLine = Number.MIN_VALUE;
 		for (const change of this._lastTextModelChanges) {
-			startLine = Math.min(startLine, change.modifiedRange.startLineNumber);
-			endLine = Math.max(endLine, change.modifiedRange.endLineNumberExclusive);
+			startLine = Math.min(startLine, change.modified.startLineNumber);
+			endLine = Math.max(endLine, change.modified.endLineNumberExclusive);
 		}
 
 		return this.textModelN.getValueInRange(new Range(startLine, 1, endLine, Number.MAX_VALUE));
@@ -296,7 +296,7 @@ export class MarkdownResponse {
 
 export class EditResponse {
 
-	readonly localEdits: TextEdit[] = [];
+	readonly allLocalEdits: TextEdit[][] = [];
 	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
@@ -304,11 +304,15 @@ export class EditResponse {
 	constructor(
 		localUri: URI,
 		readonly modelAltVersionId: number,
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
+		progressEdits: TextEdit[][],
 	) {
+
+		this.allLocalEdits.push(...progressEdits);
+
 		if (raw.type === 'editorEdit') {
 			//
-			this.localEdits = raw.edits;
+			this.allLocalEdits.push(raw.edits);
 			this.singleCreateFileEdit = undefined;
 			this.workspaceEdits = undefined;
 
@@ -318,6 +322,7 @@ export class EditResponse {
 			this.workspaceEdits = edits;
 
 			let isComplexEdit = false;
+			const localEdits: TextEdit[] = [];
 
 			for (const edit of edits) {
 				if (edit instanceof ResourceFileEdit) {
@@ -336,7 +341,7 @@ export class EditResponse {
 				} else if (edit instanceof ResourceTextEdit) {
 					//
 					if (isEqual(edit.resource, localUri)) {
-						this.localEdits.push(edit.textEdit);
+						localEdits.push(edit.textEdit);
 						this.workspaceEditsIncludeLocalEdits = true;
 
 					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
@@ -346,7 +351,9 @@ export class EditResponse {
 					}
 				}
 			}
-
+			if (localEdits.length > 0) {
+				this.allLocalEdits.push(localEdits);
+			}
 			if (isComplexEdit) {
 				this.singleCreateFileEdit = undefined;
 			}
@@ -365,6 +372,8 @@ export interface IInlineChatSessionService {
 
 	onWillStartSession: Event<IActiveCodeEditor>;
 
+	onDidEndSession: Event<ICodeEditor>;
+
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
@@ -376,6 +385,8 @@ export interface IInlineChatSessionService {
 	//
 
 	recordings(): readonly Recording[];
+
+	dispose(): void;
 }
 
 type SessionData = {
@@ -389,6 +400,9 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
+
+	private readonly _onDidEndSession = new Emitter<ICodeEditor>();
+	readonly onDidEndSession: Event<ICodeEditor> = this._onDidEndSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
@@ -404,6 +418,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	dispose() {
 		this._onWillStartSession.dispose();
+		this._onDidEndSession.dispose();
 		this._sessions.forEach(x => x.store.dispose());
 		this._sessions.clear();
 	}
@@ -498,6 +513,8 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 		// send telemetry
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
+
+		this._onDidEndSession.fire(editor);
 	}
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined {

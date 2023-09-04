@@ -60,6 +60,7 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
+			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
 			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
 			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module
@@ -138,11 +139,15 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 						},
 					},
 				]
+			}, {
+				test: /\.wasm$/,
+				type: 'asset/inline'
 			}]
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
+			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use
 			'@opentelemetry/tracing': 'commonjs @opentelemetry/tracing', // ignored because we don't ship this module
 			'@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation', // ignored because we don't ship this module
 			'@azure/opentelemetry-instrumentation-azure-sdk': 'commonjs @azure/opentelemetry-instrumentation-azure-sdk', // ignored because we don't ship this module

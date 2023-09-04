@@ -71,18 +71,16 @@
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"source.groovy.embedded",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#C5C8C6"
 			}
 		},
 		{
-			"name": "Comments",
-			"scope": [
-				"comment",
-				"string.quoted.docstring"
-			],
+			"name": "Comment",
+			"scope": "comment",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#9A9B99"

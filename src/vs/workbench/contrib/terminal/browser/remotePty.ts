@@ -10,7 +10,7 @@ import { mark } from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
 import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
@@ -208,9 +208,5 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 	handleOrphanQuestion() {
 		this._remoteTerminalChannel.orphanQuestionReply(this.id);
-	}
-
-	async getLatency(): Promise<number> {
-		return 0;
 	}
 }

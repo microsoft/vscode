@@ -521,6 +521,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 		window.close();
 	}
 
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		const previousShutdownReason = this.shutdownReason;
+		try {
+			this.shutdownReason = HostShutdownReason.Api;
+			return await expectedShutdownTask();
+		} finally {
+			this.shutdownReason = previousShutdownReason;
+		}
+	}
+
 	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {
 
 		// Update shutdown reason in a way that we do

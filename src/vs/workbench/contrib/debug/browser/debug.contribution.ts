@@ -77,7 +77,11 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	prefix: DEBUG_QUICK_ACCESS_PREFIX,
 	contextKey: 'inLaunchConfigurationsPicker',
 	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
-	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), commandId: SELECT_AND_START_ID }]
+	helpEntries: [{
+		description: nls.localize('startDebuggingHelp', "Start Debugging"),
+		commandId: SELECT_AND_START_ID,
+		commandCenterOrder: 50
+	}]
 });
 
 // Register quick access for debug console
@@ -361,7 +365,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: DEBUG_PANEL_ID,
-	title: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"),
+	title: { value: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"), original: 'Debug Console' },
 	icon: icons.debugConsoleViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: DEBUG_PANEL_ID,

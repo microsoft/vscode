@@ -96,7 +96,8 @@ export class ActionsSource {
 	}
 
 	private getItemsInput(inputNumber: 1 | 2): IObservable<IContentWidgetAction[]> {
-		return derived('items', reader => {
+		return derived(reader => {
+			/** @description items */
 			const viewModel = this.viewModel;
 			const modifiedBaseRange = this.modifiedBaseRange;
 
@@ -210,7 +211,7 @@ export class ActionsSource {
 	public readonly itemsInput1 = this.getItemsInput(1);
 	public readonly itemsInput2 = this.getItemsInput(2);
 
-	public readonly resultItems = derived('items', reader => {
+	public readonly resultItems = derived(this, reader => {
 		const viewModel = this.viewModel;
 		const modifiedBaseRange = this.modifiedBaseRange;
 
@@ -319,11 +320,11 @@ export class ActionsSource {
 		return result;
 	});
 
-	public readonly isEmpty = derived('isEmpty', reader => {
+	public readonly isEmpty = derived(this, reader => {
 		return this.itemsInput1.read(reader).length + this.itemsInput2.read(reader).length + this.resultItems.read(reader).length === 0;
 	});
 
-	public readonly inputIsEmpty = derived('inputIsEmpty', reader => {
+	public readonly inputIsEmpty = derived(this, reader => {
 		return this.itemsInput1.read(reader).length + this.itemsInput2.read(reader).length === 0;
 	});
 }
@@ -361,7 +362,8 @@ class ActionsContentWidget extends FixedZoneWidget {
 
 		this._domNode.classList.add(className);
 
-		this._register(autorun('update commands', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update commands */
 			const i = items.read(reader);
 			this.setState(i);
 		}));
