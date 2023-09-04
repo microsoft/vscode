@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -43,19 +43,19 @@ suite('EditorAutoSave', () => {
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
 			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
-			new TestFileService()
-		));
+			disposables.add(new TestFileService())
+		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -79,6 +79,7 @@ suite('EditorAutoSave', () => {
 		await awaitModelSaved(model);
 
 		assert.ok(!model.isDirty());
+		(model as IResolvedTextFileEditorModel).dispose();
 	});
 
 	test('editor auto saves on focus change if configured', async function () {
@@ -97,9 +98,12 @@ suite('EditorAutoSave', () => {
 		await awaitModelSaved(model);
 
 		assert.ok(!model.isDirty());
+		(model as IResolvedTextFileEditorModel).dispose();
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {
 		return Event.toPromise(Event.once(model.onDidChangeDirty));
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
