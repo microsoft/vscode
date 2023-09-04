@@ -5,7 +5,7 @@
 
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -259,9 +259,14 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.CursorStyle]: {
-			description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor."),
-			enum: [TerminalCursorStyle.BLOCK, TerminalCursorStyle.LINE, TerminalCursorStyle.UNDERLINE],
-			default: TerminalCursorStyle.BLOCK
+			description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor when the terminal is focused."),
+			enum: ['block', 'line', 'underline'],
+			default: 'block'
+		},
+		[TerminalSettingId.CursorStyleInactive]: {
+			description: localize('terminal.integrated.cursorStyleInactive', "Controls the style of terminal cursor when the terminal is not focused."),
+			enum: ['outline', 'block', 'line', 'underline', 'none'],
+			default: 'outline'
 		},
 		[TerminalSettingId.CursorWidth]: {
 			markdownDescription: localize('terminal.integrated.cursorWidth', "Controls the width of the cursor when {0} is set to {1}.", '`#terminal.integrated.cursorStyle#`', '`line`'),
@@ -602,8 +607,19 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
-			default: true
+			default: false
 		},
+		[TerminalSettingId.FocusAfterRun]: {
+			markdownDescription: localize('terminal.integrated.focusAfterRun', "Controls whether the terminal, accessible buffer, or neither will be focused after `Terminal: Run Selected Text In Active Terminal` has been run."),
+			enum: ['terminal', 'accessible-buffer', 'none'],
+			default: 'none',
+			tags: ['accessibility'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.focusAfterRun.terminal', "Always focus the terminal."),
+				localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
+				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
+			]
+		}
 	}
 };
 

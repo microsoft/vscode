@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { format } from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -24,9 +23,10 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
 		content.push(openAccessibleViewKeybinding ? localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view via {0}', openAccessibleViewKeybinding) : localize('chat.inspectResponseNoKb', 'With the input box focused, inspect the last response in the accessible view via the Open Accessible View command, which is currently not triggerable by a keybinding.'));
 		content.push(localize('chat.announcement', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
-		content.push(descriptionForCommand('chat.action.focus', localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke The Focus Chat command ({0}).',), localize('workbench.action.chat.focusNoKb', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke The Focus Chat List command, which is currently not triggerable by a keybinding.'), keybindingService));
+		content.push(descriptionForCommand('chat.action.focus', localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command ({0}).',), localize('workbench.action.chat.focusNoKb', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke The Focus Chat List command, which is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.focusInput', localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command ({0})'), localize('workbench.action.interactiveSession.focusInputNoKb', 'To focus the input box for chat requests, invoke the Focus Chat Input command, which is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.nextCodeBlock', localize('workbench.action.chat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command ({0}).'), localize('workbench.action.chat.nextCodeBlockNoKb', 'To focus the next code block within a response, invoke the Chat: Next Code Block command, which is currently not triggerable by a keybinding.'), keybindingService));
+		content.push(descriptionForCommand('workbench.action.chat.nextFileTree', localize('workbench.action.chat.nextFileTree', 'To focus the next file tree within a response, invoke the Chat: Next File Tree command ({0}).'), localize('workbench.action.chat.nextFileTreeNoKb', 'To focus the next file tree within a response, invoke the Chat: Next File Tree command, which is currently not triggerable by a keybinding.'), keybindingService));
 		content.push(descriptionForCommand('workbench.action.chat.clear', localize('workbench.action.chat.clear', 'To clear the request/response list, invoke the Chat Clear command ({0}).'), localize('workbench.action.chat.clearNoKb', 'To clear the request/response list, invoke the Chat Clear command, which is currently not triggerable by a keybinding.'), keybindingService));
 	} else {
 		const startChatKeybinding = keybindingService.lookupKeybinding('inlineChat.start')?.getAriaLabel();
@@ -45,7 +45,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 		content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	}
 	content.push(localize('chat.audioCues', "Audio cues can be changed via settings with a prefix of audioCues.chat. By default, if a request takes more than 4 seconds, you will hear an audio cue indicating that progress is still occurring."));
-	return content.join('\n');
+	return content.join('\n\n');
 }
 
 function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
@@ -65,7 +65,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	if (!inputEditor || !editorUri) {
 		return;
 	}
-	const domNode = withNullAsUndefined(inputEditor.getDomNode());
+	const domNode = inputEditor.getDomNode() ?? undefined;
 	if (!domNode) {
 		return;
 	}
@@ -84,6 +84,6 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 				InlineChatController.get(editor)?.focus();
 			}
 		},
-		options: { type: AccessibleViewType.Help, ariaLabel: type === 'panelChat' ? localize('chat-help-label', "Chat accessibility help") : localize('inline-chat-label', "Inline chat accessibility help") }
+		options: { type: AccessibleViewType.Help }
 	});
 }

@@ -100,7 +100,10 @@ export class InlineChatController implements IEditorContribution {
 
 	private _messages = this._store.add(new Emitter<Message>());
 
-	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
+	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
+
+	private readonly _sessionStore: DisposableStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession: MutableDisposable<StashedSession> = this._store.add(new MutableDisposable());
 	private _activeSession?: Session;
 	private _strategy?: EditModeStrategy;
@@ -146,6 +149,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._strategy?.dispose();
 		this._stashedSession.clear();
 		this.finishExistingSession();
 		this._store.dispose();
@@ -316,7 +320,7 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
-		this._zone.value.widget.onDidChangeInput(_ => {
+		this._sessionStore.add(this._zone.value.widget.onDidChangeInput(_ => {
 			const start = this._zone.value.position;
 			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
 				return;
@@ -327,7 +331,7 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 			this._editor.revealLine(nextLine, ScrollType.Smooth);
-		});
+		}));
 
 		this._showWidget(true, options.position);
 
@@ -394,8 +398,7 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.placeholder = this._getPlaceholderText();
 
 		if (options.message) {
-			this._zone.value.widget.value = options.message;
-			this._zone.value.widget.selectAll();
+			this.updateInput(options.message);
 			aria.alert(options.message);
 			delete options.message;
 		}
@@ -416,7 +419,7 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 		}
 
-		this._zone.value.widget.selectAll();
+		this._zone.value.widget.selectAll(false);
 
 		if (message & (Message.CANCEL_INPUT | Message.CANCEL_SESSION)) {
 			return State.CANCEL;
@@ -757,6 +760,11 @@ export class InlineChatController implements IEditorContribution {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
+	updateInput(text: string): void {
+		this._zone.value.widget.value = text;
+		this._zone.value.widget.selectAll();
+	}
+
 	regenerate(): void {
 		this._messages.fire(Message.RERUN_INPUT);
 	}
@@ -777,6 +785,10 @@ export class InlineChatController implements IEditorContribution {
 
 	focus(): void {
 		this._zone.value.widget.focus();
+	}
+
+	hasFocus(): boolean {
+		return this._zone.value.widget.hasFocus();
 	}
 
 	populateHistory(up: boolean) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, doesNotThrow, equal, ok, strictEqual, throws } from 'assert';
-import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableCollection, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EnvironmentVariableScope, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
+import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
@@ -912,11 +912,10 @@ import { assertNoRpc, poll } from '../utils';
 			});
 
 			test('get and forEach should work (scope)', () => {
-				// TODO: Remove cast once `envCollectionWorkspace` API is finalized.
-				const collection = extensionContext.environmentVariableCollection as (EnvironmentVariableCollection & { getScopedEnvironmentVariableCollection(scope: EnvironmentVariableScope): EnvironmentVariableCollection });
+				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
 				const scope = { workspaceFolder: { uri: Uri.file('workspace1'), name: 'workspace1', index: 0 } };
-				const scopedCollection = collection.getScopedEnvironmentVariableCollection(scope);
+				const scopedCollection = collection.getScoped(scope);
 				scopedCollection.replace('A', 'scoped~a2~');
 				scopedCollection.append('B', 'scoped~b2~');
 				scopedCollection.prepend('C', 'scoped~c2~');
@@ -928,7 +927,7 @@ import { assertNoRpc, poll } from '../utils';
 					applyAtProcessCreation: true,
 					applyAtShellIntegration: false
 				};
-				const expectedScopedCollection = collection.getScopedEnvironmentVariableCollection(scope);
+				const expectedScopedCollection = collection.getScoped(scope);
 				deepStrictEqual(expectedScopedCollection.get('A'), { value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions });
 				deepStrictEqual(expectedScopedCollection.get('B'), { value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions });
 				deepStrictEqual(expectedScopedCollection.get('C'), { value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions });

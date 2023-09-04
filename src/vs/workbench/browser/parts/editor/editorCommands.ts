@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
+import { isObject, isString, isUndefined, isNumber } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, IVisibleEditorPane, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, isEditorInputWithOptionsAndGroup, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
@@ -361,12 +361,26 @@ function registerDiffEditorCommands(): void {
 		handler: accessor => navigateInDiffEditor(accessor, true)
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: GOTO_NEXT_CHANGE,
+			title: { value: localize('compare.nextChange', "Go to Next Change"), original: 'Go to Next Change' },
+		}
+	});
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: GOTO_PREVIOUS_CHANGE,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: TextCompareEditorVisibleContext,
 		primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F5,
 		handler: accessor => navigateInDiffEditor(accessor, false)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: GOTO_PREVIOUS_CHANGE,
+			title: { value: localize('compare.previousChange', "Go to Previous Change"), original: 'Go to Previous Change' },
+		}
 	});
 
 	function getActiveTextDiffEditor(accessor: ServicesAccessor): TextDiffEditor | undefined {
@@ -597,14 +611,14 @@ function registerOpenEditorAPICommands(): void {
 		}, columnToEditorGroup(editorGroupService, configurationService, column));
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?]) => {
+	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, async (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?]) => {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
-		return editorService.openEditor({ resource: URI.from(resource, true), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
+		await editorService.openEditor({ resource: URI.from(resource, true), options: { ...optionsArg, pinned: true, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 }
 
@@ -749,7 +763,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
 	} else {
-		editorToCopy = withNullAsUndefined(sourceGroup.activeEditor);
+		editorToCopy = sourceGroup.activeEditor ?? undefined;
 	}
 
 	// Copy the editor to the new group, else create an empty group
@@ -1461,7 +1475,7 @@ function resolveCommandsContext(editorGroupService: IEditorGroupsService, contex
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
-	let editor = group && context && typeof context.editorIndex === 'number' ? withNullAsUndefined(group.getEditorByIndex(context.editorIndex)) : undefined;
+	let editor = group && context && typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) ?? undefined : undefined;
 
 	// Fallback to active group as needed
 	if (!group) {
@@ -1470,7 +1484,7 @@ function resolveCommandsContext(editorGroupService: IEditorGroupsService, contex
 
 	// Fallback to active editor as needed
 	if (!editor) {
-		editor = withNullAsUndefined(group.activeEditor);
+		editor = group.activeEditor ?? undefined;
 	}
 
 	return { group, editor };

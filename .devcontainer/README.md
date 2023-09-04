@@ -19,13 +19,14 @@ This dev container includes configuration for a development container for workin
     > **Note:** The Dev Containers extension requires the Visual Studio Code distribution of Code - OSS. See the [FAQ](https://aka.ms/vscode-remote/faq/license) for details.
 
 4. Due to the size of the repository we strongly recommend cloning it on a Linux filesystem for better bind mount performance. On macOS we recommend using a Docker volume (press <kbd>F1</kbd> and select **Dev Containers: Clone Repository in Container Volume...**) and on Windows we recommend using a WSL folder:
+
 - Make sure you are running a recent WSL version to get X11 and Wayland support.
 - Use the WSL extension for VS Code to open the cloned folder in WSL.
 - Press <kbd>F1</kbd> and select **Dev Containers: Reopen in Container**.
 
 Next: **[Try it out!](#try-it)**
 
-## Try it!
+## Try it
 
 To start working with Code - OSS, follow these steps:
 
@@ -50,6 +51,6 @@ Next, let's try debugging.
 
 Enjoy!
 
-# Notes
+## Notes
 
 The container comes with VS Code Insiders installed. To run it from an Integrated Terminal use `VSCODE_IPC_HOOK_CLI= /usr/bin/code-insiders .`.

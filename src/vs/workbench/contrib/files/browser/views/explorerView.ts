@@ -450,7 +450,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return false;
 			},
-			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
+			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
 			}
@@ -659,7 +659,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, false, {
+		return this.tree.updateChildren(toRefresh, recursive, !!item, {
 			diffIdentityProvider: identityProvider
 		});
 	}

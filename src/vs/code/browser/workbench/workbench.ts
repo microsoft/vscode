@@ -4,31 +4,197 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from 'vs/base/browser/browser';
-import { parse } from 'vs/base/common/marshalling';
+import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
+import { posix } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
+import { ltrim } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import product from 'vs/platform/product/common/product';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
-import { create } from 'vs/workbench/workbench.web.main';
-import { posix } from 'vs/base/common/path';
-import { ltrim } from 'vs/base/common/strings';
-import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
-import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
-import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
+import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { AuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
+import { create } from 'vs/workbench/workbench.web.main';
 
-class LocalStorageSecretStorageProvider implements ISecretStorageProvider {
-	private static readonly STORAGE_KEY = 'secrets.provider';
+interface ISecretStorageCrypto {
+	seal(data: string): Promise<string>;
+	unseal(data: string): Promise<string>;
+}
 
-	private _secrets: Record<string, string> | undefined;
+class TransparentCrypto implements ISecretStorageCrypto {
+	async seal(data: string): Promise<string> {
+		return data;
+	}
+
+	async unseal(data: string): Promise<string> {
+		return data;
+	}
+}
+
+const enum AESConstants {
+	ALGORITHM = 'AES-GCM',
+	KEY_LENGTH = 256,
+	IV_LENGTH = 12,
+}
+
+class ServerKeyedAESCrypto implements ISecretStorageCrypto {
+	private _serverKey: Uint8Array | undefined;
+
+	/** Gets whether the algorithm is supported; requires a secure context */
+	public static supported() {
+		return !!crypto.subtle;
+	}
+
+	constructor(private readonly authEndpoint: string) { }
+
+	async seal(data: string): Promise<string> {
+		// Get a new key and IV on every change, to avoid the risk of reusing the same key and IV pair with AES-GCM
+		// (see also: https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams#properties)
+		const iv = window.crypto.getRandomValues(new Uint8Array(AESConstants.IV_LENGTH));
+		// crypto.getRandomValues isn't a good-enough PRNG to generate crypto keys, so we need to use crypto.subtle.generateKey and export the key instead
+		const clientKeyObj = await window.crypto.subtle.generateKey(
+			{ name: AESConstants.ALGORITHM as const, length: AESConstants.KEY_LENGTH as const },
+			true,
+			['encrypt', 'decrypt']
+		);
+
+		const clientKey = new Uint8Array(await window.crypto.subtle.exportKey('raw', clientKeyObj));
+		const key = await this.getKey(clientKey);
+		const dataUint8Array = new TextEncoder().encode(data);
+		const cipherText: ArrayBuffer = await window.crypto.subtle.encrypt(
+			{ name: AESConstants.ALGORITHM as const, iv },
+			key,
+			dataUint8Array
+		);
+
+		// Base64 encode the result and store the ciphertext, the key, and the IV in localStorage
+		// Note that the clientKey and IV don't need to be secret
+		const result = new Uint8Array([...clientKey, ...iv, ...new Uint8Array(cipherText)]);
+		return encodeBase64(VSBuffer.wrap(result));
+	}
+
+	async unseal(data: string): Promise<string> {
+		// encrypted should contain, in order: the key (32-byte), the IV for AES-GCM (12-byte) and the ciphertext (which has the GCM auth tag at the end)
+		// Minimum length must be 44 (key+IV length) + 16 bytes (1 block encrypted with AES - regardless of key size)
+		const dataUint8Array = decodeBase64(data);
+
+		if (dataUint8Array.byteLength < 60) {
+			throw Error('Invalid length for the value for credentials.crypto');
+		}
+
+		const keyLength = AESConstants.KEY_LENGTH / 8;
+		const clientKey = dataUint8Array.slice(0, keyLength);
+		const iv = dataUint8Array.slice(keyLength, keyLength + AESConstants.IV_LENGTH);
+		const cipherText = dataUint8Array.slice(keyLength + AESConstants.IV_LENGTH);
+
+		// Do the decryption and parse the result as JSON
+		const key = await this.getKey(clientKey.buffer);
+		const decrypted = await window.crypto.subtle.decrypt(
+			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer },
+			key,
+			cipherText.buffer
+		);
+
+		return new TextDecoder().decode(new Uint8Array(decrypted));
+	}
+
+	/**
+	 * Given a clientKey, returns the CryptoKey object that is used to encrypt/decrypt the data.
+	 * The actual key is (clientKey XOR serverKey)
+	 */
+	private async getKey(clientKey: Uint8Array): Promise<CryptoKey> {
+		if (!clientKey || clientKey.byteLength !== AESConstants.KEY_LENGTH / 8) {
+			throw Error('Invalid length for clientKey');
+		}
+
+		const serverKey = await this.getServerKeyPart();
+		const keyData = new Uint8Array(AESConstants.KEY_LENGTH / 8);
+
+		for (let i = 0; i < keyData.byteLength; i++) {
+			keyData[i] = clientKey[i]! ^ serverKey[i]!;
+		}
+
+		return window.crypto.subtle.importKey(
+			'raw',
+			keyData,
+			{
+				name: AESConstants.ALGORITHM as const,
+				length: AESConstants.KEY_LENGTH as const,
+			},
+			true,
+			['encrypt', 'decrypt']
+		);
+	}
+
+	private async getServerKeyPart(): Promise<Uint8Array> {
+		if (this._serverKey) {
+			return this._serverKey;
+		}
+
+		let attempt = 0;
+		let lastError: unknown | undefined;
+
+		while (attempt <= 3) {
+			try {
+				const res = await fetch(this.authEndpoint, { credentials: 'include', method: 'POST' });
+				if (!res.ok) {
+					throw new Error(res.statusText);
+				}
+				const serverKey = new Uint8Array(await await res.arrayBuffer());
+				if (serverKey.byteLength !== AESConstants.KEY_LENGTH / 8) {
+					throw Error(`The key retrieved by the server is not ${AESConstants.KEY_LENGTH} bit long.`);
+				}
+				this._serverKey = serverKey;
+				return this._serverKey;
+			} catch (e) {
+				lastError = e;
+				attempt++;
+
+				// exponential backoff
+				await new Promise(resolve => setTimeout(resolve, attempt * attempt * 100));
+			}
+		}
+
+		throw lastError;
+	}
+}
+
+export class LocalStorageSecretStorageProvider implements ISecretStorageProvider {
+	private readonly _storageKey = 'secrets.provider';
+
+	private _secretsPromise: Promise<Record<string, string>> = this.load();
 
 	type: 'in-memory' | 'persisted' | 'unknown' = 'persisted';
 
-	constructor() {
+	constructor(
+		private readonly crypto: ISecretStorageCrypto,
+	) { }
+
+	private async load(): Promise<Record<string, string>> {
+		const record = this.loadAuthSessionFromElement();
+		// Get the secrets from localStorage
+		const encrypted = window.localStorage.getItem(this._storageKey);
+		if (encrypted) {
+			try {
+				const decrypted = JSON.parse(await this.crypto.unseal(encrypted));
+				return { ...record, ...decrypted };
+			} catch (err) {
+				// TODO: send telemetry
+				console.error('Failed to decrypt secrets from localStorage', err);
+				window.localStorage.removeItem(this._storageKey);
+			}
+		}
+
+		return record;
+	}
+
+	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
 		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
@@ -38,64 +204,58 @@ class LocalStorageSecretStorageProvider implements ISecretStorageProvider {
 			} catch (error) { /* Invalid session is passed. Ignore. */ }
 		}
 
-		if (authSessionInfo) {
-			// Settings Sync Entry
-			this.set(`${product.urlProtocol}.loginAccount`, JSON.stringify(authSessionInfo));
-
-			// Auth extension Entry
-			if (authSessionInfo.providerId !== 'github') {
-				console.error(`Unexpected auth provider: ${authSessionInfo.providerId}. Expected 'github'.`);
-				return;
-			}
-			const authAccount = JSON.stringify({ extensionId: 'vscode.github-authentication', key: 'github.auth' });
-			this.set(authAccount, JSON.stringify(authSessionInfo.scopes.map(scopes => ({
-				id: authSessionInfo!.id,
-				scopes,
-				accessToken: authSessionInfo!.accessToken
-			}))));
+		if (!authSessionInfo) {
+			return {};
 		}
+
+		const record: Record<string, string> = {};
+
+		// Settings Sync Entry
+		record[`${product.urlProtocol}.loginAccount`] = JSON.stringify(authSessionInfo);
+
+		// Auth extension Entry
+		if (authSessionInfo.providerId !== 'github') {
+			console.error(`Unexpected auth provider: ${authSessionInfo.providerId}. Expected 'github'.`);
+			return record;
+		}
+
+		const authAccount = JSON.stringify({ extensionId: 'vscode.github-authentication', key: 'github.auth' });
+		record[authAccount] = JSON.stringify(authSessionInfo.scopes.map(scopes => ({
+			id: authSessionInfo!.id,
+			scopes,
+			accessToken: authSessionInfo!.accessToken
+		})));
+
+		return record;
 	}
 
-	get(key: string): Promise<string | undefined> {
-		return Promise.resolve(this.secrets[key]);
+	async get(key: string): Promise<string | undefined> {
+		const secrets = await this._secretsPromise;
+		return secrets[key];
 	}
-	set(key: string, value: string): Promise<void> {
-		this.secrets[key] = value;
+	async set(key: string, value: string): Promise<void> {
+		const secrets = await this._secretsPromise;
+		secrets[key] = value;
+		this._secretsPromise = Promise.resolve(secrets);
 		this.save();
-
-		return Promise.resolve();
 	}
 	async delete(key: string): Promise<void> {
-		delete this.secrets[key];
-
+		const secrets = await this._secretsPromise;
+		delete secrets[key];
+		this._secretsPromise = Promise.resolve(secrets);
 		this.save();
-
-		return Promise.resolve();
 	}
 
-	private get secrets(): Record<string, string> {
-		if (!this._secrets) {
-			try {
-				const serializedCredentials = window.localStorage.getItem(LocalStorageSecretStorageProvider.STORAGE_KEY);
-				if (serializedCredentials) {
-					this._secrets = JSON.parse(serializedCredentials);
-				}
-			} catch (error) {
-				// ignore
-			}
-
-			if (!(this._secrets instanceof Object)) {
-				this._secrets = {};
-			}
+	private async save(): Promise<void> {
+		try {
+			const encrypted = await this.crypto.seal(JSON.stringify(await this._secretsPromise));
+			window.localStorage.setItem(this._storageKey, encrypted);
+		} catch (err) {
+			console.error(err);
 		}
-
-		return this._secrets;
-	}
-
-	private save(): void {
-		window.localStorage.setItem(LocalStorageSecretStorageProvider.STORAGE_KEY, JSON.stringify(this.secrets));
 	}
 }
+
 
 class LocalStorageURLCallbackProvider extends Disposable implements IURLCallbackProvider {
 
@@ -390,6 +550,17 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
+function readCookie(name: string): string | undefined {
+	const cookies = document.cookie.split('; ');
+	for (const cookie of cookies) {
+		if (cookie.startsWith(name + '=')) {
+			return cookie.substring(name.length + 1);
+		}
+	}
+
+	return undefined;
+}
+
 (function () {
 
 	// Find config by checking for DOM
@@ -399,6 +570,9 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		throw new Error('Missing web configuration element');
 	}
 	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents; workspaceUri?: UriComponents; callbackRoute: string } = JSON.parse(configElementAttribute);
+	const secretStorageKeyPath = readCookie('vscode-secret-key-path');
+	const secretStorageCrypto = secretStorageKeyPath && ServerKeyedAESCrypto.supported()
+		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
 	create(document.body, {
@@ -407,6 +581,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
 		workspaceProvider: WorkspaceProvider.create(config),
 		urlCallbackProvider: new LocalStorageURLCallbackProvider(config.callbackRoute),
-		secretStorageProvider: config.remoteAuthority ? undefined /* with a remote, we don't use a local secret storage provider */ : new LocalStorageSecretStorageProvider()
+		secretStorageProvider: config.remoteAuthority && !secretStorageKeyPath
+			? undefined /* with a remote without embedder-preferred storage, store on the remote */
+			: new LocalStorageSecretStorageProvider(secretStorageCrypto),
 	});
 })();

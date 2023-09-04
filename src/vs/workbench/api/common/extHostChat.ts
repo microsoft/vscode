@@ -9,7 +9,6 @@ import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -34,7 +33,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	private static _nextId = 0;
 
 	private readonly _chatProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSessionProvider>>();
-	private readonly _slashCommandProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSlashCommandProvider>>();
+
 	private readonly _chatSessions = new Map<number, vscode.InteractiveSession>();
 	// private readonly _providerResponsesByRequestId = new Map<number, { response: vscode.ProviderResult<vscode.InteractiveResponse | vscode.InteractiveResponseForProgress>; sessionId: number }>();
 
@@ -201,7 +200,14 @@ export class ExtHostChat implements ExtHostChatShape {
 		const requestObj: vscode.InteractiveRequest = {
 			session: realSession,
 			message: typeof request.message === 'string' ? request.message : typeConvert.ChatReplyFollowup.to(request.message),
+			variables: {}
 		};
+
+		if (request.variables) {
+			for (const key of Object.keys(request.variables)) {
+				requestObj.variables[key] = request.variables[key].map(typeConvert.ChatVariable.to);
+			}
+		}
 
 		const stopWatch = StopWatch.create(false);
 		let firstProgress: number | undefined;
@@ -225,6 +231,10 @@ export class ExtHostChat implements ExtHostChatShape {
 						}
 						const [progressHandle, progressContent] = res;
 						this._proxy.$acceptResponseProgress(handle, sessionId, progressContent, progressHandle ?? undefined);
+					});
+				} else if ('content' in progress) {
+					this._proxy.$acceptResponseProgress(handle, sessionId, {
+						content: typeof progress.content === 'string' ? progress.content : typeConvert.MarkdownString.from(progress.content)
 					});
 				} else {
 					this._proxy.$acceptResponseProgress(handle, sessionId, progress);
@@ -287,37 +297,4 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	//#endregion
-
-	registerSlashCommandProvider(extension: Readonly<IRelaxedExtensionDescription>, chatProviderId: string, provider: vscode.InteractiveSlashCommandProvider): vscode.Disposable {
-		const wrapper = new ChatProviderWrapper(extension, provider);
-		this._slashCommandProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerSlashCommandProvider(wrapper.handle, chatProviderId);
-		return toDisposable(() => {
-			this._proxy.$unregisterSlashCommandProvider(wrapper.handle);
-			this._slashCommandProvider.delete(wrapper.handle);
-		});
-	}
-
-	async $provideProviderSlashCommands(handle: number, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
-		const entry = this._slashCommandProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const slashCommands = await entry.provider.provideSlashCommands(token);
-		return slashCommands?.map(c => (<ISlashCommand>{
-			...c,
-			kind: typeConvert.CompletionItemKind.from(c.kind)
-		}));
-	}
-
-	async $resolveSlashCommand(handle: number, command: string, token: CancellationToken): Promise<string | undefined> {
-		const entry = this._slashCommandProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const resolved = await entry.provider.resolveSlashCommand(command, token);
-		return withNullAsUndefined(resolved);
-	}
 }

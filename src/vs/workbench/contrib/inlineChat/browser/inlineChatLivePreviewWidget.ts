@@ -18,7 +18,7 @@ import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INLINE_CHAT_ID, inlineChatDiffInserted, inlineChatDiffRemoved, inlineChatRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { LineRange } from 'vs/editor/common/core/lineRange';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -163,7 +163,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		this._isDiffLocked = true;
 	}
 
-	private _updateFromChanges(range: Range, changes: readonly LineRangeMapping[]): void {
+	private _updateFromChanges(range: Range, changes: readonly DetailedLineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 
 		if (this._isDiffLocked) {
@@ -177,7 +177,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	// --- full diff
 
-	private _renderChangesWithFullDiff(changes: readonly LineRangeMapping[], range: Range) {
+	private _renderChangesWithFullDiff(changes: readonly DetailedLineRangeMapping[], range: Range) {
 
 		const modified = this.editor.getModel()!;
 		const ranges = this._computeHiddenRanges(modified, range, changes);
@@ -206,16 +206,16 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		super.hide();
 	}
 
-	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly LineRangeMapping[]) {
+	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly DetailedLineRangeMapping[]) {
 		if (changes.length === 0) {
-			changes = [new LineRangeMapping(LineRange.fromRange(range), LineRange.fromRange(range), undefined)];
+			changes = [new DetailedLineRangeMapping(LineRange.fromRange(range), LineRange.fromRange(range), undefined)];
 		}
 
-		let originalLineRange = changes[0].originalRange;
-		let modifiedLineRange = changes[0].modifiedRange;
+		let originalLineRange = changes[0].original;
+		let modifiedLineRange = changes[0].modified;
 		for (let i = 1; i < changes.length; i++) {
-			originalLineRange = originalLineRange.join(changes[i].originalRange);
-			modifiedLineRange = modifiedLineRange.join(changes[i].modifiedRange);
+			originalLineRange = originalLineRange.join(changes[i].original);
+			modifiedLineRange = modifiedLineRange.join(changes[i].modified);
 		}
 
 		const startDelta = modifiedLineRange.startLineNumber - range.startLineNumber;

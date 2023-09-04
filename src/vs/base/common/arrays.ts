@@ -177,6 +177,30 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 	return result;
 }
 
+/**
+ * Splits the given items into a list of (non-empty) groups.
+ * `shouldBeGrouped` is used to decide if two consecutive items should be in the same group.
+ * The order of the items is preserved.
+ */
+export function* groupAdjacentBy<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => boolean): Iterable<T[]> {
+	let currentGroup: T[] | undefined;
+	let last: T | undefined;
+	for (const item of items) {
+		if (last !== undefined && shouldBeGrouped(last, item)) {
+			currentGroup!.push(item);
+		} else {
+			if (currentGroup) {
+				yield currentGroup;
+			}
+			currentGroup = [item];
+		}
+		last = item;
+	}
+	if (currentGroup) {
+		yield currentGroup;
+	}
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
 	readonly toInsert: T[];
 	deleteCount: number;
@@ -666,6 +690,10 @@ export namespace CompareResult {
 		return result < 0;
 	}
 
+	export function isLessThanOrEqual(result: CompareResult): boolean {
+		return result <= 0;
+	}
+
 	export function isGreaterThan(result: CompareResult): boolean {
 		return result > 0;
 	}
@@ -706,6 +734,8 @@ export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]):
  * The natural order on numbers.
 */
 export const numberComparator: Comparator<number> = (a, b) => a - b;
+
+export const booleanComparator: Comparator<boolean> = (a, b) => numberComparator(a ? 1 : 0, b ? 1 : 0);
 
 export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
 	return (a, b) => -comparator(a, b);
@@ -752,6 +782,21 @@ export function findLastMaxBy<T>(items: readonly T[], comparator: Comparator<T>)
 */
 export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
 	return findMaxBy(items, (a, b) => -comparator(a, b));
+}
+
+export function findMaxIdxBy<T>(items: readonly T[], comparator: Comparator<T>): number {
+	if (items.length === 0) {
+		return -1;
+	}
+
+	let maxIdx = 0;
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (comparator(item, items[maxIdx]) > 0) {
+			maxIdx = i;
+		}
+	}
+	return maxIdx;
 }
 
 export class ArrayQueue<T> {

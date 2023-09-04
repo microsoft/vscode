@@ -851,16 +851,11 @@ export class GettingStartedPage extends EditorPane {
 			if (!this.currentWalkthrough) {
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
-			}
-
-			if (!this.currentWalkthrough) {
-				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
-				this.editorInput.selectedCategory = undefined;
-				this.editorInput.selectedStep = undefined;
-			} else {
-				this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
-				this.setSlide('details');
-				return;
+				if (this.currentWalkthrough) {
+					this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
+					this.setSlide('details');
+					return;
+				}
 			}
 		}
 
@@ -1234,7 +1229,8 @@ export class GettingStartedPage extends EditorPane {
 
 		if (toSide && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
-				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT, { activate: true });
+				const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
+				this.groupsService.activateGroup(sideGroup);
 
 				const gettingStartedSize = Math.floor(fullSize.width / 2);
 

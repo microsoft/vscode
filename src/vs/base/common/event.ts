@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -555,6 +555,24 @@ export namespace Event {
 	 */
 	export function toPromise<T>(event: Event<T>): Promise<T> {
 		return new Promise(resolve => once(event)(resolve));
+	}
+
+	/**
+	 * Creates an event out of a promise that fires once when the promise is
+	 * resolved with the result of the promise or `undefined`.
+	 */
+	export function fromPromise<T>(promise: Promise<T>): Event<T | undefined> {
+		const result = new Emitter<T | undefined>();
+
+		promise.then(res => {
+			result.fire(res);
+		}, () => {
+			result.fire(undefined);
+		}).finally(() => {
+			result.dispose();
+		});
+
+		return result.event;
 	}
 
 	/**
@@ -1343,6 +1361,29 @@ export class MicrotaskEmitter<T> extends Emitter<T> {
 	}
 }
 
+/**
+ * An event emitter that multiplexes many events into a single event.
+ *
+ * @example Listen to the `onData` event of all `Thing`s, dynamically adding and removing `Thing`s
+ * to the multiplexer as needed.
+ *
+ * ```typescript
+ * const anythingDataMultiplexer = new EventMultiplexer<{ data: string }>();
+ *
+ * const thingListeners = DisposableMap<Thing, IDisposable>();
+ *
+ * thingService.onDidAddThing(thing => {
+ *   thingListeners.set(thing, anythingDataMultiplexer.add(thing.onData);
+ * });
+ * thingService.onDidRemoveThing(thing => {
+ *   thingListeners.deleteAndDispose(thing);
+ * });
+ *
+ * anythingDataMultiplexer.event(e => {
+ *   console.log('Something fired data ' + e.data)
+ * });
+ * ```
+ */
 export class EventMultiplexer<T> implements IDisposable {
 
 	private readonly emitter: Emitter<T>;
@@ -1403,6 +1444,50 @@ export class EventMultiplexer<T> implements IDisposable {
 
 	dispose(): void {
 		this.emitter.dispose();
+	}
+}
+
+export interface IDynamicListEventMultiplexer<TEventType> extends IDisposable {
+	readonly event: Event<TEventType>;
+}
+export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicListEventMultiplexer<TEventType> {
+	private readonly _store = new DisposableStore();
+
+	readonly event: Event<TEventType>;
+
+	constructor(
+		items: TItem[],
+		onAddItem: Event<TItem>,
+		onRemoveItem: Event<TItem>,
+		getEvent: (item: TItem) => Event<TEventType>
+	) {
+		const multiplexer = this._store.add(new EventMultiplexer<TEventType>());
+		const itemListeners = this._store.add(new DisposableMap<TItem, IDisposable>());
+
+		function addItem(instance: TItem) {
+			itemListeners.set(instance, multiplexer.add(getEvent(instance)));
+		}
+
+		// Existing items
+		for (const instance of items) {
+			addItem(instance);
+		}
+
+		// Added items
+		this._store.add(onAddItem(instance => {
+			addItem(instance);
+		}));
+
+		// Removed items
+		this._store.add(onRemoveItem(instance => {
+			itemListeners.deleteAndDispose(instance);
+		}));
+
+		this.event = multiplexer.event;
+	}
+
+	dispose() {
+		this._store.dispose();
 	}
 }
 

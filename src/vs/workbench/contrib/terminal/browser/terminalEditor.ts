@@ -62,7 +62,7 @@ export class TerminalEditor extends EditorPane {
 	) {
 		super(terminalEditorId, telemetryService, themeService, storageService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
