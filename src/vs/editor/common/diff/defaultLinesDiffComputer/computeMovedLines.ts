@@ -14,7 +14,7 @@ import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffCo
 import { LineRangeFragment, isSpace } from 'vs/editor/common/diff/defaultLinesDiffComputer/utils';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
 
-export function computeMoves(
+export function computeMovedLines(
 	changes: DetailedLineRangeMapping[],
 	originalLines: string[],
 	modifiedLines: string[],
