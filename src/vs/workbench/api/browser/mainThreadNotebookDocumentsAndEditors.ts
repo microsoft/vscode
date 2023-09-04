@@ -7,6 +7,7 @@ import { diffMaps, diffSets } from 'vs/base/common/collections';
 import { combinedDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
@@ -99,6 +100,7 @@ export class MainThreadNotebooksAndEditors {
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 
@@ -156,6 +158,7 @@ export class MainThreadNotebooksAndEditors {
 			activeEditor = focusedEditor.getId();
 		}
 		if (activeEditor && !editors.has(activeEditor)) {
+			this._logService.trace('MainThreadNotebooksAndEditors#_updateState: active editor is not in editors list', activeEditor, editors.keys());
 			activeEditor = null;
 		}
 

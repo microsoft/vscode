@@ -27,8 +27,10 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
-	const serverMain = vscode.Uri.joinPath(context.extensionUri, 'server/dist/browser/main.js');
+	const serverMain = vscode.Uri.joinPath(context.extensionUri, 'server/dist/browser/workerMain.js');
+
 	const worker = new Worker(serverMain.toString());
+	worker.postMessage({ i10lLocation: vscode.l10n.uri?.toString() ?? '' });
 
 	return startClient((id: string, name: string, clientOptions: LanguageClientOptions) => {
 		return new LanguageClient(id, name, clientOptions, worker);

@@ -8,11 +8,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 
 /**
  * Mime type used by the output editor.
@@ -49,17 +44,13 @@ export const LOG_MODE_ID = 'log';
  */
 export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
-export const OUTPUT_SERVICE_ID = 'outputService';
-
-export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
-
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
 export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
 
 export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
 
-export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
+export const IOutputService = createDecorator<IOutputService>('outputService');
 
 /**
  * The output service to manage output from the various processes running.
@@ -226,36 +217,5 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
-
-export function registerLogChannel(id: string, label: string, file: URI, fileService: IFileService, logService: ILogService): CancelablePromise<void> {
-	return createCancelablePromise(async token => {
-		await whenProviderRegistered(file, fileService);
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		try {
-			await whenFileExists(file, 1, fileService, logService, token);
-			outputChannelRegistry.registerChannel({ id, label, file, log: true });
-		} catch (error) {
-			if (!isCancellationError(error)) {
-				logService.error('Error while registering log channel', file.toString(), getErrorMessage(error));
-			}
-		}
-	});
-}
-
-async function whenFileExists(file: URI, trial: number, fileService: IFileService, logService: ILogService, token: CancellationToken): Promise<void> {
-	const exists = await fileService.exists(file);
-	if (exists) {
-		return;
-	}
-	if (token.isCancellationRequested) {
-		throw new CancellationError();
-	}
-	if (trial > 10) {
-		throw new Error(`Timed out while waiting for file to be created`);
-	}
-	logService.debug(`[Registering Log Channel] File does not exist. Waiting for 1s to retry.`, file.toString());
-	await timeout(1000, token);
-	await whenFileExists(file, trial + 1, fileService, logService, token);
-}
 
 export const ACTIVE_OUTPUT_CHANNEL_CONTEXT = new RawContextKey<string>('activeOutputChannel', '');

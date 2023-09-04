@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -22,6 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isEqualAuthority } from 'vs/base/common/resources';
 import { isWeb } from 'vs/base/common/platform';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
@@ -118,7 +119,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService
+		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -164,6 +166,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority)
 				.then(async result => {
 					this._remoteAuthority = result;
+					await this.fileService.activateProvider(Schemas.vscodeRemote);
 					await this.updateWorkspaceTrust();
 				})
 				.finally(() => {
@@ -187,9 +190,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
-		this._register(this.storageService.onDidChangeValue(async changeEvent => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, this.storageKey, this._register(new DisposableStore()))(async () => {
 			/* This will only execute if storage was changed by a user action in a separate window */
-			if (changeEvent.key === this.storageKey && JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
+			if (JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
 				this._trustStateInfo = this.loadTrustInfo();
 				this._onDidChangeTrustedFolders.fire();
 

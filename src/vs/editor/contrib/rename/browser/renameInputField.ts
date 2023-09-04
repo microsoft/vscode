@@ -8,13 +8,14 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, localize('renameInputVisible', "Whether the rename input widget is visible"));
@@ -79,13 +80,6 @@ export class RenameInputField implements IContentWidget {
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
 			this._domNode.appendChild(this._label);
-			const updateLabel = () => {
-				const [accept, preview] = this._acceptKeybindings;
-				this._keybindingService.lookupKeybinding(accept);
-				this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
-			};
-			updateLabel();
-			this._disposables.add(this._keybindingService.onDidUpdateKeybindings(updateLabel));
 
 			this._updateFont();
 			this._updateStyles(this._themeService.getColorTheme());
@@ -99,8 +93,10 @@ export class RenameInputField implements IContentWidget {
 		}
 
 		const widgetShadowColor = theme.getColor(widgetShadow);
+		const widgetBorderColor = theme.getColor(widgetBorder);
 		this._domNode.style.backgroundColor = String(theme.getColor(editorWidgetBackground) ?? '');
 		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 0 8px 2px ${widgetShadowColor}` : '';
+		this._domNode.style.border = widgetBorderColor ? `1px solid ${widgetBorderColor}` : '';
 		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
 
 		this._input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
@@ -132,6 +128,12 @@ export class RenameInputField implements IContentWidget {
 			position: this._position!,
 			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
+	}
+
+	beforeRender(): IDimension | null {
+		const [accept, preview] = this._acceptKeybindings;
+		this._label!.innerText = localize({ key: 'label', comment: ['placeholders are keybindings, e.g "F2 to Rename, Shift+F2 to Preview"'] }, "{0} to Rename, {1} to Preview", this._keybindingService.lookupKeybinding(accept)?.getLabel(), this._keybindingService.lookupKeybinding(preview)?.getLabel());
+		return null;
 	}
 
 	afterRender(position: ContentWidgetPositionPreference | null): void {
@@ -190,7 +192,7 @@ export class RenameInputField implements IContentWidget {
 			};
 
 			disposeOnDone.add(token.onCancellationRequested(() => this.cancelInput(true)));
-			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!document.hasFocus())));
 
 			this._show();
 

@@ -11,8 +11,10 @@ import { flakySuite } from 'vs/base/test/node/testUtils';
 flakySuite('ID', () => {
 
 	test('getMachineId', async function () {
-		const id = await getMachineId();
+		const errors = [];
+		const id = await getMachineId(err => errors.push(err));
 		assert.ok(id);
+		assert.strictEqual(errors.length, 0);
 	});
 
 	test('getMac', async () => {

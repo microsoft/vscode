@@ -7,7 +7,7 @@ import { addDisposableListener, Dimension, DragAndDropObserver, EventType, isAnc
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IPaneViewOptions, PaneView } from 'vs/base/browser/ui/splitview/paneview';
 import { IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -26,8 +26,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
+import { activeContrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
@@ -48,14 +47,6 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
 	order: 1,
 	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
 });
-
-export interface IPaneColors extends IColorMapping {
-	dropBackground?: ColorIdentifier;
-	headerForeground?: ColorIdentifier;
-	headerBackground?: ColorIdentifier;
-	headerBorder?: ColorIdentifier;
-	leftBorder?: ColorIdentifier;
-}
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
 	mergeViewWithContainerWhenSingleView: boolean;
@@ -136,7 +127,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.updateStyles();
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 
 		// Overlay drop background
 		this.overlay.style.backgroundColor = this.getColor(this.location === ViewContainerLocation.Panel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND) || '';
@@ -328,6 +319,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	private didLayout = false;
 	private dimension: Dimension | undefined;
+	private _boundarySashes: IBoundarySashes | undefined;
 
 	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
@@ -410,6 +402,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const options = this.options as IPaneViewOptions;
 		options.orientation = this.orientation;
 		this.paneview = this._register(new PaneView(parent, this.options));
+
+		if (this._boundarySashes) {
+			this.paneview.setBoundarySashes(this._boundarySashes);
+		}
+
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(this.paneview.onDidScroll(_ => this.onDidScrollPane()));
 		this._register(this.paneview.onDidSashReset((index) => this.onDidSashReset(index)));
@@ -580,9 +577,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		event.stopPropagation();
 		event.preventDefault();
 
-		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => event,
 			getActions: () => this.menuActions?.getContextMenuActions() ?? []
 		});
 	}
@@ -639,6 +635,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.didLayout = true;
 			this.restoreViewSizes();
 		}
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this._boundarySashes = sashes;
+		this.paneview?.setBoundarySashes(sashes);
 	}
 
 	getOptimalWidth(): number {
@@ -730,9 +731,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return sizes;
 	}
 
-	override saveState(): void {
+	protected override saveState(): void {
 		this.panes.forEach((view) => view.saveState());
-		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(this.visibleViewsStorageId, this.length, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewPane: ViewPane): void {
@@ -741,9 +742,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		const actions: IAction[] = viewPane.menuActions.getContextMenuActions();
 
-		const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => event,
 			getActions: () => actions
 		});
 	}
@@ -844,14 +844,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 
 		const isPanel = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
-		const paneStyler = attachStyler<IPaneColors>(this.themeService, {
-			headerForeground: isPanel ? PANEL_SECTION_HEADER_FOREGROUND : SIDE_BAR_SECTION_HEADER_FOREGROUND,
-			headerBackground: isPanel ? PANEL_SECTION_HEADER_BACKGROUND : SIDE_BAR_SECTION_HEADER_BACKGROUND,
-			headerBorder: isPanel ? PANEL_SECTION_HEADER_BORDER : SIDE_BAR_SECTION_HEADER_BORDER,
-			dropBackground: isPanel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND,
-			leftBorder: isPanel ? PANEL_SECTION_BORDER : undefined
-		}, pane);
-		const disposable = combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
+		pane.style({
+			headerForeground: asCssVariable(isPanel ? PANEL_SECTION_HEADER_FOREGROUND : SIDE_BAR_SECTION_HEADER_FOREGROUND),
+			headerBackground: asCssVariable(isPanel ? PANEL_SECTION_HEADER_BACKGROUND : SIDE_BAR_SECTION_HEADER_BACKGROUND),
+			headerBorder: asCssVariable(isPanel ? PANEL_SECTION_HEADER_BORDER : SIDE_BAR_SECTION_HEADER_BORDER),
+			dropBackground: asCssVariable(isPanel ? PANEL_SECTION_DRAG_AND_DROP_BACKGROUND : SIDE_BAR_DRAG_AND_DROP_BACKGROUND),
+			leftBorder: isPanel ? asCssVariable(PANEL_SECTION_BORDER) : undefined
+		});
+
+		const disposable = combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, onDidChange, onDidChangeVisibility);
 		const paneItem: IViewPaneItem = { pane, disposable };
 
 		this.paneItems.splice(index, 0, paneItem);
@@ -1072,8 +1073,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 		if (!this.areExtensionsReady) {
 			if (this.visibleViewsCountFromCache === undefined) {
-				// TODO @sbatten fix hack for #91367
-				return this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
+				return this.paneItems[0].pane.isExpanded();
 			}
 			// Check in cache so that view do not jump. See #29609
 			return this.visibleViewsCountFromCache === 1;

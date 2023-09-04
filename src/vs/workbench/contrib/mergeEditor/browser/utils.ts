@@ -3,52 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompareResult, ArrayQueue } from 'vs/base/common/arrays';
+import { ArrayQueue, CompareResult } from 'vs/base/common/arrays';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun } from 'vs/base/common/observable';
+import { IObservable, autorunOpts, observableFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class ReentrancyBarrier {
-	private isActive = false;
+	private _isActive = false;
+
+	public get isActive() {
+		return this._isActive;
+	}
 
 	public makeExclusive<TFunction extends Function>(fn: TFunction): TFunction {
 		return ((...args: any[]) => {
-			if (this.isActive) {
+			if (this._isActive) {
 				return;
 			}
-			this.isActive = true;
+			this._isActive = true;
 			try {
 				return fn(...args);
 			} finally {
-				this.isActive = false;
+				this._isActive = false;
 			}
 		}) as any;
 	}
 
 	public runExclusively(fn: () => void): void {
-		if (this.isActive) {
+		if (this._isActive) {
 			return;
 		}
-		this.isActive = true;
+		this._isActive = true;
 		try {
 			fn();
 		} finally {
-			this.isActive = false;
+			this._isActive = false;
 		}
 	}
 
 	public runExclusivelyOrThrow(fn: () => void): void {
-		if (this.isActive) {
+		if (this._isActive) {
 			throw new BugIndicatingError();
 		}
-		this.isActive = true;
+		this._isActive = true;
 		try {
 			fn();
 		} finally {
-			this.isActive = false;
+			this._isActive = false;
 		}
 	}
 }
@@ -74,7 +79,7 @@ function toSize(value: number | string): string {
 export function applyObservableDecorations(editor: CodeEditorWidget, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
 	let decorationIds: string[] = [];
-	d.add(autorun(`Apply decorations from ${decorations.debugName}`, reader => {
+	d.add(autorunOpts({ debugName: () => `Apply decorations from ${decorations.debugName}` }, reader => {
 		const d = decorations.read(reader);
 		editor.changeDecorations(a => {
 			decorationIds = a.deltaDecorations(decorationIds, d);
@@ -195,4 +200,15 @@ export class PersistentStore<T> {
 			StorageTarget.USER
 		);
 	}
+}
+
+export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
+	return observableFromEvent(
+		(handleChange) => configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key)) {
+				handleChange(e);
+			}
+		}),
+		() => configurationService.getValue<T>(key) ?? defaultValue,
+	);
 }

@@ -24,7 +24,7 @@ import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 

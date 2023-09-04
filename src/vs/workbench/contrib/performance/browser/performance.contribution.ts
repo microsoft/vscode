@@ -15,6 +15,7 @@ import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
 import { EventProfiling } from 'vs/base/common/event';
+import { InputLatencyContrib } from 'vs/workbench/contrib/performance/browser/inputLatencyContrib';
 
 // -- startup performance view
 
@@ -123,7 +124,14 @@ registerAction2(class PrintEventProfiling extends Action2 {
 			return;
 		}
 		for (const item of EventProfiling.all) {
-			console.log(`${item.name}: ${item.invocationCount}invocations COST ${item.elapsedOverall}ms, ${item.listenerCount} listeners, avg cost is ${item.durations.reduce((a, b) => a + b, 0) / item.durations.length}ms`);
+			console.log(`${item.name}: ${item.invocationCount} invocations COST ${item.elapsedOverall}ms, ${item.listenerCount} listeners, avg cost is ${item.durations.reduce((a, b) => a + b, 0) / item.durations.length}ms`);
 		}
 	}
 });
+
+// -- input latency
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
+	InputLatencyContrib,
+	LifecyclePhase.Eventually
+);

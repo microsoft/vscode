@@ -7,15 +7,16 @@ import * as assert from 'assert';
 import { realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
-import { dirname, join, sep } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IParcelWatcherInstance, ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
+import { IDiskFileChange, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
+import { FileAccess } from 'vs/base/common/network';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -46,14 +47,6 @@ import { ltrim } from 'vs/base/common/strings';
 				await watcher.ready;
 			}
 		}
-
-		override toExcludePaths(path: string, excludes: string[] | undefined): string[] | undefined {
-			return super.toExcludePaths(path, excludes);
-		}
-
-		override  restartWatching(watcher: IParcelWatcherInstance, delay = 10): void {
-			return super.restartWatching(watcher, delay);
-		}
 	}
 
 	let testDir: string;
@@ -70,6 +63,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 	setup(async () => {
 		watcher = new TestParcelWatcher();
+		watcher.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
 			if (loggingEnabled) {
@@ -85,7 +79,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});
@@ -109,13 +103,13 @@ import { ltrim } from 'vs/base/common/strings';
 		}
 	}
 
-	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<void> {
+	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<IDiskFileChange[]> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
-		await new Promise<void>((resolve, reject) => {
+		const res = await new Promise<IDiskFileChange[]>((resolve, reject) => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
 					if (event.path === path && event.type === type) {
@@ -123,7 +117,7 @@ import { ltrim } from 'vs/base/common/strings';
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
 						} else {
-							setImmediate(() => resolve()); // copied from parcel watcher tests, seems to drop unrelated events on macOS
+							setImmediate(() => resolve(events)); // copied from parcel watcher tests, seems to drop unrelated events on macOS
 						}
 						break;
 					}
@@ -136,6 +130,8 @@ import { ltrim } from 'vs/base/common/strings';
 		// change event
 		// Refs: https://github.com/microsoft/vscode/issues/137430
 		await timeout(1);
+
+		return res;
 	}
 
 	function awaitMessage(service: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
@@ -248,26 +244,20 @@ import { ltrim } from 'vs/base/common/strings';
 		await Promises.writeFile(anotherNewFilePath, 'Hello Another World');
 		await changeFuture;
 
-		// Skip following asserts on macOS where the fs-events service
-		// does not really give a full guarantee about the correlation
-		// of an event to a change.
-		if (!isMacintosh) {
+		// Read file does not emit event
+		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
+		await Promises.readFile(anotherNewFilePath);
+		await Promise.race([timeout(100), changeFuture]);
 
-			// Read file does not emit event
-			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
-			await Promises.readFile(anotherNewFilePath);
-			await Promise.race([timeout(100), changeFuture]);
+		// Stat file does not emit event
+		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(anotherNewFilePath);
+		await Promise.race([timeout(100), changeFuture]);
 
-			// Stat file does not emit event
-			changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-			await Promises.stat(anotherNewFilePath);
-			await Promise.race([timeout(100), changeFuture]);
-
-			// Stat folder does not emit event
-			changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-			await Promises.stat(copiedFolderpath);
-			await Promise.race([timeout(100), changeFuture]);
-		}
+		// Stat folder does not emit event
+		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
+		await Promises.stat(copiedFolderpath);
+		await Promise.race([timeout(100), changeFuture]);
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
@@ -285,7 +275,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
-		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -300,7 +290,7 @@ import { ltrim } from 'vs/base/common/strings';
 	async function basicCrudTest(filePath: string): Promise<void> {
 
 		// New file
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED);
 		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
@@ -328,12 +318,12 @@ import { ltrim } from 'vs/base/common/strings';
 		const newFilePath5 = join(testDir, 'deep-multiple', 'newFile-2.txt');
 		const newFilePath6 = join(testDir, 'deep-multiple', 'newFile-3.txt');
 
-		const addedFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.ADDED);
-		const addedFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.ADDED);
-		const addedFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.ADDED);
-		const addedFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.ADDED);
-		const addedFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.ADDED);
-		const addedFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.ADDED);
+		const addedFuture1 = awaitEvent(watcher, newFilePath1, FileChangeType.ADDED);
+		const addedFuture2 = awaitEvent(watcher, newFilePath2, FileChangeType.ADDED);
+		const addedFuture3 = awaitEvent(watcher, newFilePath3, FileChangeType.ADDED);
+		const addedFuture4 = awaitEvent(watcher, newFilePath4, FileChangeType.ADDED);
+		const addedFuture5 = awaitEvent(watcher, newFilePath5, FileChangeType.ADDED);
+		const addedFuture6 = awaitEvent(watcher, newFilePath6, FileChangeType.ADDED);
 
 		await Promise.all([
 			await Promises.writeFile(newFilePath1, 'Hello World 1'),
@@ -348,12 +338,12 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// multiple change
 
-		const changeFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.UPDATED);
-		const changeFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.UPDATED);
-		const changeFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.UPDATED);
-		const changeFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.UPDATED);
-		const changeFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.UPDATED);
-		const changeFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.UPDATED);
+		const changeFuture1 = awaitEvent(watcher, newFilePath1, FileChangeType.UPDATED);
+		const changeFuture2 = awaitEvent(watcher, newFilePath2, FileChangeType.UPDATED);
+		const changeFuture3 = awaitEvent(watcher, newFilePath3, FileChangeType.UPDATED);
+		const changeFuture4 = awaitEvent(watcher, newFilePath4, FileChangeType.UPDATED);
+		const changeFuture5 = awaitEvent(watcher, newFilePath5, FileChangeType.UPDATED);
+		const changeFuture6 = awaitEvent(watcher, newFilePath6, FileChangeType.UPDATED);
 
 		await Promise.all([
 			await Promises.writeFile(newFilePath1, 'Hello Update 1'),
@@ -368,10 +358,10 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// copy with multiple files
 
-		const copyFuture1: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-1.txt'), FileChangeType.ADDED);
-		const copyFuture2: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-2.txt'), FileChangeType.ADDED);
-		const copyFuture3: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-3.txt'), FileChangeType.ADDED);
-		const copyFuture4: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.ADDED);
+		const copyFuture1 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-1.txt'), FileChangeType.ADDED);
+		const copyFuture2 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-2.txt'), FileChangeType.ADDED);
+		const copyFuture3 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy', 'newFile-3.txt'), FileChangeType.ADDED);
+		const copyFuture4 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.ADDED);
 
 		await Promises.copy(join(testDir, 'deep-multiple'), join(testDir, 'deep-multiple-copy'), { preserveSymlinks: false });
 
@@ -379,12 +369,12 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// multiple delete (single files)
 
-		const deleteFuture1: Promise<unknown> = awaitEvent(watcher, newFilePath1, FileChangeType.DELETED);
-		const deleteFuture2: Promise<unknown> = awaitEvent(watcher, newFilePath2, FileChangeType.DELETED);
-		const deleteFuture3: Promise<unknown> = awaitEvent(watcher, newFilePath3, FileChangeType.DELETED);
-		const deleteFuture4: Promise<unknown> = awaitEvent(watcher, newFilePath4, FileChangeType.DELETED);
-		const deleteFuture5: Promise<unknown> = awaitEvent(watcher, newFilePath5, FileChangeType.DELETED);
-		const deleteFuture6: Promise<unknown> = awaitEvent(watcher, newFilePath6, FileChangeType.DELETED);
+		const deleteFuture1 = awaitEvent(watcher, newFilePath1, FileChangeType.DELETED);
+		const deleteFuture2 = awaitEvent(watcher, newFilePath2, FileChangeType.DELETED);
+		const deleteFuture3 = awaitEvent(watcher, newFilePath3, FileChangeType.DELETED);
+		const deleteFuture4 = awaitEvent(watcher, newFilePath4, FileChangeType.DELETED);
+		const deleteFuture5 = awaitEvent(watcher, newFilePath5, FileChangeType.DELETED);
+		const deleteFuture6 = awaitEvent(watcher, newFilePath6, FileChangeType.DELETED);
 
 		await Promise.all([
 			await Promises.unlink(newFilePath1),
@@ -399,8 +389,8 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// multiple delete (folder)
 
-		const deleteFolderFuture1: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple'), FileChangeType.DELETED);
-		const deleteFolderFuture2: Promise<unknown> = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.DELETED);
+		const deleteFolderFuture1 = awaitEvent(watcher, join(testDir, 'deep-multiple'), FileChangeType.DELETED);
+		const deleteFolderFuture2 = awaitEvent(watcher, join(testDir, 'deep-multiple-copy'), FileChangeType.DELETED);
 
 		await Promise.all([Promises.rm(join(testDir, 'deep-multiple'), RimRafMode.UNLINK), Promises.rm(join(testDir, 'deep-multiple-copy'), RimRafMode.UNLINK)]);
 
@@ -412,7 +402,7 @@ import { ltrim } from 'vs/base/common/strings';
 
 		// New file (*.txt)
 		let newTextFilePath = join(testDir, 'deep', 'newFile.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		let changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newTextFilePath, 'Hello World');
 		await changeFuture;
 
@@ -434,7 +424,7 @@ import { ltrim } from 'vs/base/common/strings';
 		await watcher.watch([
 			{ path: testDir, excludes: [], recursive: true },
 			{ path: join(testDir, 'invalid-folder'), excludes: [], recursive: true },
-			{ path: __filename, excludes: [], recursive: true }
+			{ path: FileAccess.asFileUri('').fsPath, excludes: [], recursive: true }
 		]);
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
@@ -471,6 +461,32 @@ import { ltrim } from 'vs/base/common/strings';
 
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
+
+	test('excludes are supported (path)', async function () {
+		return testExcludes([join(realpathSync(testDir), 'deep')]);
+	});
+
+	test('excludes are supported (glob)', function () {
+		return testExcludes(['deep/**']);
+	});
+
+	async function testExcludes(excludes: string[]) {
+		await watcher.watch([{ path: testDir, excludes, recursive: true }]);
+
+		// New file (*.txt)
+		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newTextFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	}
 
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
 		const link = join(testDir, 'deep-linked');
@@ -567,116 +583,5 @@ import { ltrim } from 'vs/base/common/strings';
 
 	test('should ignore when everything excluded', () => {
 		assert.deepStrictEqual(watcher.testNormalizePaths(['/foo/bar', '/bar'], ['**', 'something']), []);
-	});
-
-	test('excludes are converted to absolute paths', () => {
-
-		// undefined / empty
-
-		assert.strictEqual(watcher.toExcludePaths(testDir, undefined), undefined);
-		assert.strictEqual(watcher.toExcludePaths(testDir, []), undefined);
-
-		// absolute paths
-
-		let excludes = watcher.toExcludePaths(testDir, [testDir]);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.toExcludePaths(testDir, [`${testDir}${sep}`, join(testDir, 'foo', 'bar'), `${join(testDir, 'other', 'deep')}${sep}`]);
-		assert.strictEqual(excludes?.length, 3);
-		assert.strictEqual(excludes[0], testDir);
-		assert.strictEqual(excludes[1], join(testDir, 'foo', 'bar'));
-		assert.strictEqual(excludes[2], join(testDir, 'other', 'deep'));
-
-		// wrong casing is normalized for root
-		if (!isLinux) {
-			excludes = watcher.toExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
-			assert.strictEqual(excludes?.length, 1);
-			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-		}
-
-		// exclude ignored if not parent of watched dir
-		excludes = watcher.toExcludePaths(testDir, [join(dirname(testDir), 'node_modules', '**')]);
-		assert.strictEqual(excludes, undefined);
-
-		// relative paths
-
-		excludes = watcher.toExcludePaths(testDir, ['.']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.toExcludePaths(testDir, ['foo', `bar${sep}`, join('foo', 'bar'), `${join('other', 'deep')}${sep}`]);
-		assert.strictEqual(excludes?.length, 4);
-		assert.strictEqual(excludes[0], join(testDir, 'foo'));
-		assert.strictEqual(excludes[1], join(testDir, 'bar'));
-		assert.strictEqual(excludes[2], join(testDir, 'foo', 'bar'));
-		assert.strictEqual(excludes[3], join(testDir, 'other', 'deep'));
-
-		// simple globs (relative)
-
-		excludes = watcher.toExcludePaths(testDir, ['**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.toExcludePaths(testDir, ['**/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.toExcludePaths(testDir, ['**\\**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], testDir);
-
-		excludes = watcher.toExcludePaths(testDir, ['**/node_modules/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		excludes = watcher.toExcludePaths(testDir, ['**/.git/objects/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
-
-		excludes = watcher.toExcludePaths(testDir, ['**/node_modules']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		excludes = watcher.toExcludePaths(testDir, ['**/.git/objects']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
-
-		excludes = watcher.toExcludePaths(testDir, ['node_modules/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		excludes = watcher.toExcludePaths(testDir, ['.git/objects/**']);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, '.git', 'objects'));
-
-		// simple globs (absolute)
-
-		excludes = watcher.toExcludePaths(testDir, [join(testDir, 'node_modules', '**')]);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-
-		// Linux: more restrictive glob treatment
-		if (isLinux) {
-			excludes = watcher.toExcludePaths(testDir, ['**/node_modules/*/**']);
-			assert.strictEqual(excludes?.length, 1);
-			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
-		}
-
-		// unsupported globs
-
-		else {
-			excludes = watcher.toExcludePaths(testDir, ['**/node_modules/*/**']);
-			assert.strictEqual(excludes, undefined);
-		}
-
-		excludes = watcher.toExcludePaths(testDir, ['**/*.js']);
-		assert.strictEqual(excludes, undefined);
-
-		excludes = watcher.toExcludePaths(testDir, ['*.js']);
-		assert.strictEqual(excludes, undefined);
-
-		excludes = watcher.toExcludePaths(testDir, ['*']);
-		assert.strictEqual(excludes, undefined);
 	});
 });

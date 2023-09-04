@@ -26,8 +26,9 @@ export class ToggleMinimapAction extends Action2 {
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.editor.minimap.enabled', true),
 			menu: {
-				id: MenuId.MenubarEditorFeaturesMenu,
-				order: 2
+				id: MenuId.MenubarAppearanceMenu,
+				group: '4_editor',
+				order: 1
 			}
 		});
 	}

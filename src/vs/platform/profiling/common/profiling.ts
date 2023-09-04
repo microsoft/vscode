@@ -45,6 +45,10 @@ export interface IV8InspectProfilingService {
 
 export namespace Utils {
 
+	export function isValidProfile(profile: IV8Profile): profile is Required<IV8Profile> {
+		return Boolean(profile.samples && profile.timeDeltas);
+	}
+
 	export function rewriteAbsolutePaths(profile: IV8Profile, replace: string = 'noAbsolutePaths') {
 		for (const node of profile.nodes) {
 			if (node.callFrame && node.callFrame.url) {

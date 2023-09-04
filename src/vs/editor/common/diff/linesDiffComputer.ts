@@ -3,74 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Range } from 'vs/editor/common/core/range';
+import { DetailedLineRangeMapping, LineRangeMapping } from './rangeMapping';
 
 export interface ILinesDiffComputer {
-	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff;
+	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff;
 }
 
 export interface ILinesDiffComputerOptions {
-	ignoreTrimWhitespace: boolean;
-	maxComputationTime: number;
+	readonly ignoreTrimWhitespace: boolean;
+	readonly maxComputationTimeMs: number;
+	readonly computeMoves: boolean;
 }
 
-export interface ILinesDiff {
-	readonly quitEarly: boolean;
-	readonly changes: LineRangeMapping[];
-}
-
-export class LineRangeMapping {
+export class LinesDiff {
 	constructor(
-		readonly originalRange: LineRange,
-		readonly modifiedRange: LineRange,
+		readonly changes: readonly DetailedLineRangeMapping[],
+
 		/**
-		 * Meaning of `undefined` unclear.
-		*/
-		readonly innerChanges: RangeMapping[] | undefined,
-	) { }
+		 * Sorted by original line ranges.
+		 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
+		 */
+		readonly moves: readonly MovedText[],
 
-	toString(): string {
-		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
+		/**
+		 * Indicates if the time out was reached.
+		 * In that case, the diffs might be an approximation and the user should be asked to rerun the diff with more time.
+		 */
+		readonly hitTimeout: boolean,
+	) {
 	}
 }
 
-export class RangeMapping {
+export class MovedText {
+	public readonly lineRangeMapping: LineRangeMapping;
+
+	/**
+	 * The diff from the original text to the moved text.
+	 * Must be contained in the original/modified line range.
+	 * Can be empty if the text didn't change (only moved).
+	 */
+	public readonly changes: readonly DetailedLineRangeMapping[];
+
 	constructor(
-		readonly originalRange: Range,
-		readonly modifiedRange: Range,
-	) { }
-
-	toString(): string {
-		return `{${this.originalRange.toString()}->${this.modifiedRange.toString()}}`;
-	}
-}
-
-/**
- * 1-based.
-*/
-export class LineRange {
-	constructor(public readonly startLineNumber: number, public readonly endLineNumberExclusive: number) { }
-
-	get isEmpty(): boolean {
-		return this.startLineNumber === this.endLineNumberExclusive;
+		lineRangeMapping: LineRangeMapping,
+		changes: readonly DetailedLineRangeMapping[],
+	) {
+		this.lineRangeMapping = lineRangeMapping;
+		this.changes = changes;
 	}
 
-	public delta(offset: number): LineRange {
-		return new LineRange(this.startLineNumber + offset, this.endLineNumberExclusive + offset);
-	}
-
-	public get length(): number {
-		return this.endLineNumberExclusive - this.startLineNumber;
-	}
-
-	toString(): string {
-		return `[${this.startLineNumber},${this.endLineNumberExclusive})`;
-	}
-
-	public join(other: LineRange): LineRange {
-		return new LineRange(
-			Math.min(this.startLineNumber, other.startLineNumber),
-			Math.max(this.endLineNumberExclusive, other.endLineNumberExclusive)
-		);
+	public flip(): MovedText {
+		return new MovedText(this.lineRangeMapping.flip(), this.changes.map(c => c.flip()));
 	}
 }

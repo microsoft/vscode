@@ -34,9 +34,7 @@ const getRootTempDir = (() => {
 export const getInstanceTempDir = (() => {
 	let dir: string | undefined;
 	return () => {
-		if (!dir) {
-			dir = path.join(getRootTempDir(), makeRandomHexString(20));
-		}
+		dir ??= path.join(getRootTempDir(), makeRandomHexString(20));
 		if (!fs.existsSync(dir)) {
 			fs.mkdirSync(dir);
 		}

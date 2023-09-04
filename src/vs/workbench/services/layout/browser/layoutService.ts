@@ -56,7 +56,7 @@ export function positionFromString(str: string): Position {
 	return positionsByString[str];
 }
 
-export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
+function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
 	switch (setting) {
 		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
 		case PanelOpensMaximizedOptions.NEVER: return 'never';

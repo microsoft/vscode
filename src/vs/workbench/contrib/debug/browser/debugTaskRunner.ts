@@ -12,7 +12,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ITaskEvent, TaskEventKind, ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -92,18 +91,38 @@ export class DebugTaskRunner {
 						? nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode)
 						: nls.localize('preLaunchTaskTerminated', "The preLaunchTask '{0}' terminated.", taskLabel);
 
-			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('abort', "Abort")], {
+			enum DebugChoice {
+				DebugAnyway = 1,
+				ShowErrors = 2,
+				Cancel = 0
+			}
+			const { result, checkboxChecked } = await this.dialogService.prompt<DebugChoice>({
+				type: severity.Warning,
+				message,
+				buttons: [
+					{
+						label: nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"),
+						run: () => DebugChoice.DebugAnyway
+					},
+					{
+						label: nls.localize({ key: 'showErrors', comment: ['&& denotes a mnemonic'] }, "&&Show Errors"),
+						run: () => DebugChoice.ShowErrors
+					}
+				],
+				cancelButton: {
+					label: nls.localize('abort', "Abort"),
+					run: () => DebugChoice.Cancel
+				},
 				checkbox: {
 					label: nls.localize('remember', "Remember my choice in user settings"),
-				},
-				cancelId: 2
+				}
 			});
 
 
-			const debugAnyway = result.choice === 0;
-			const abort = result.choice === 2;
-			if (result.checkboxChecked) {
-				this.configurationService.updateValue('debug.onTaskErrors', result.choice === 0 ? 'debugAnyway' : abort ? 'abort' : 'showErrors');
+			const debugAnyway = result === DebugChoice.DebugAnyway;
+			const abort = result === DebugChoice.Cancel;
+			if (checkboxChecked) {
+				this.configurationService.updateValue('debug.onTaskErrors', result === DebugChoice.DebugAnyway ? 'debugAnyway' : abort ? 'abort' : 'showErrors');
 			}
 
 			if (abort) {
@@ -120,32 +139,46 @@ export class DebugTaskRunner {
 			const choiceMap: { [key: string]: number } = JSON.parse(this.storageService.get(DEBUG_TASK_ERROR_CHOICE_KEY, StorageScope.WORKSPACE, '{}'));
 
 			let choice = -1;
+			enum DebugChoice {
+				DebugAnyway = 0,
+				ConfigureTask = 1,
+				Cancel = 2
+			}
 			if (choiceMap[err.message] !== undefined) {
 				choice = choiceMap[err.message];
 			} else {
-				const showResult = await this.dialogService.show(
-					severity.Error,
-					err.message,
-					[nls.localize('debugAnyway', "Debug Anyway"), taskConfigureAction.label, nls.localize('cancel', "Cancel")],
-					{
-						cancelId: 2,
-						checkbox: {
-							label: nls.localize('rememberTask', "Remember my choice for this task")
+				const { result, checkboxChecked } = await this.dialogService.prompt<DebugChoice>({
+					type: severity.Error,
+					message: err.message,
+					buttons: [
+						{
+							label: nls.localize({ key: 'debugAnyway', comment: ['&& denotes a mnemonic'] }, "&&Debug Anyway"),
+							run: () => DebugChoice.DebugAnyway
+						},
+						{
+							label: taskConfigureAction.label,
+							run: () => DebugChoice.ConfigureTask
 						}
+					],
+					cancelButton: {
+						run: () => DebugChoice.Cancel
+					},
+					checkbox: {
+						label: nls.localize('rememberTask', "Remember my choice for this task")
 					}
-				);
-				choice = showResult.choice;
-				if (showResult.checkboxChecked) {
+				});
+				choice = result;
+				if (checkboxChecked) {
 					choiceMap[err.message] = choice;
-					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.USER);
+					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				}
 			}
 
-			if (choice === 1) {
+			if (choice === DebugChoice.ConfigureTask) {
 				await taskConfigureAction.run();
 			}
 
-			return choice === 0 ? TaskRunResult.Success : TaskRunResult.Failure;
+			return choice === DebugChoice.DebugAnyway ? TaskRunResult.Success : TaskRunResult.Failure;
 		}
 	}
 
@@ -201,7 +234,7 @@ export class DebugTaskRunner {
 				return inactivePromise;
 			}
 
-			return taskPromise.then(withUndefinedAsNull);
+			return taskPromise.then(x => x ?? null);
 		});
 
 		return new Promise((c, e) => {

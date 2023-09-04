@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "import { assertIsDefined } from 'vs/base/common/types';\nimport { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';\nimport { MenuId, Action2, IAction2Options, IMenuService, SubmenuItemAction } from 'vs/platform/actions/common/actions';\nimport { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';\nimport { parseLinkedText } from 'vs/base/common/linkedText';\nimport { IOpenerService } from 'vs/platform/opener/common/opener';",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { assertIsDefined } from 'vs/base/common/types';\nimport { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';\nimport { MenuId, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';\nimport { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';\nimport { parseLinkedText } from 'vs/base/common/linkedText';\nimport { IOpenerService } from 'vs/platform/opener/common/opener';",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,4)",
+			"modifiedRange": "[3,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,43 -> 3,57]",
+					"modifiedRange": "[3,43 -> 3,43]"
+				}
+			]
+		}
+	]
+}

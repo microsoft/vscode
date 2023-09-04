@@ -102,7 +102,10 @@ export class StringBuilder {
 		}
 	}
 
-	public write1(charCode: number): void {
+	/**
+	 * Append a char code (<2^16)
+	 */
+	public appendCharCode(charCode: number): void {
 		const remainingSpace = this._capacity - this._bufferLength;
 
 		if (remainingSpace <= 1) {
@@ -114,7 +117,10 @@ export class StringBuilder {
 		this._buffer[this._bufferLength++] = charCode;
 	}
 
-	public appendASCII(charCode: number): void {
+	/**
+	 * Append an ASCII char code (<2^8)
+	 */
+	public appendASCIICharCode(charCode: number): void {
 		if (this._bufferLength === this._capacity) {
 			// buffer is full
 			this._flushBuffer();
@@ -122,7 +128,7 @@ export class StringBuilder {
 		this._buffer[this._bufferLength++] = charCode;
 	}
 
-	public appendASCIIString(str: string): void {
+	public appendString(str: string): void {
 		const strLen = str.length;
 
 		if (this._bufferLength + strLen >= this._capacity) {

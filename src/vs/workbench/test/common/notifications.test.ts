@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { NotificationsModel, NotificationViewItem, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, IStatusMessageChangeEvent, StatusMessageChangeType } from 'vs/workbench/common/notifications';
 import { Action } from 'vs/base/common/actions';
-import { INotification, Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { INotification, Severity, NotificationsFilter, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -132,16 +132,16 @@ suite('Notifications', () => {
 
 		// Filter
 		const item8 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.SILENT)!;
-		assert.strictEqual(item8.silent, true);
+		assert.strictEqual(item8.priority, NotificationPriority.SILENT);
 
 		const item9 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.OFF)!;
-		assert.strictEqual(item9.silent, false);
+		assert.strictEqual(item9.priority, NotificationPriority.DEFAULT);
 
 		const item10 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' }, NotificationsFilter.ERROR)!;
-		assert.strictEqual(item10.silent, false);
+		assert.strictEqual(item10.priority, NotificationPriority.DEFAULT);
 
 		const item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, NotificationsFilter.ERROR)!;
-		assert.strictEqual(item11.silent, true);
+		assert.strictEqual(item11.priority, NotificationPriority.SILENT);
 	});
 
 	test('Items - does not fire changed when message did not change (content, severity)', async () => {
@@ -280,7 +280,7 @@ suite('Notifications', () => {
 		service.info('hello there');
 		assert.strictEqual(addNotificationCount, 1);
 		assert.strictEqual(notification.message, 'hello there');
-		assert.strictEqual(notification.silent, false);
+		assert.strictEqual(notification.priority, NotificationPriority.DEFAULT);
 		assert.strictEqual(notification.source, undefined);
 
 		let notificationHandle = service.notify({ message: 'important message', severity: Severity.Warning });
@@ -297,10 +297,10 @@ suite('Notifications', () => {
 		assert.strictEqual(removeNotificationCount, 1);
 		assert.strictEqual(notification.message, 'important message');
 
-		notificationHandle = service.notify({ silent: true, message: 'test', severity: Severity.Ignore });
+		notificationHandle = service.notify({ priority: NotificationPriority.SILENT, message: 'test', severity: Severity.Ignore });
 		assert.strictEqual(addNotificationCount, 3);
 		assert.strictEqual(notification.message, 'test');
-		assert.strictEqual(notification.silent, true);
+		assert.strictEqual(notification.priority, NotificationPriority.SILENT);
 		notificationHandle.close();
 		assert.strictEqual(removeNotificationCount, 2);
 	});

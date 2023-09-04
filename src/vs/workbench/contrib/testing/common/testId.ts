@@ -93,18 +93,35 @@ export class TestId {
 	}
 
 	/**
+	 * Cheaply gets the local ID of a test identified with the string.
+	 */
+	public static localId(idString: string) {
+		const idx = idString.lastIndexOf(TestIdPathParts.Delimiter);
+		return idx === -1 ? idString : idString.slice(idx + TestIdPathParts.Delimiter.length);
+	}
+
+	/**
+	 * Gets whether maybeChild is a child of maybeParent.
+	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
+	 */
+	public static isChild(maybeParent: string, maybeChild: string) {
+		return maybeChild.startsWith(maybeParent) && maybeChild[maybeParent.length] === TestIdPathParts.Delimiter;
+	}
+
+	/**
 	 * Compares the position of the two ID strings.
+	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
 	 */
 	public static compare(a: string, b: string) {
 		if (a === b) {
 			return TestPosition.IsSame;
 		}
 
-		if (b.startsWith(a + TestIdPathParts.Delimiter)) {
+		if (TestId.isChild(a, b)) {
 			return TestPosition.IsChild;
 		}
 
-		if (a.startsWith(b + TestIdPathParts.Delimiter)) {
+		if (TestId.isChild(b, a)) {
 			return TestPosition.IsParent;
 		}
 
@@ -118,6 +135,13 @@ export class TestId {
 		if (path.length === 0 || viewEnd < 1) {
 			throw new Error('cannot create test with empty path');
 		}
+	}
+
+	/**
+	 * Gets the ID of the parent test.
+	 */
+	public get rootId(): TestId {
+		return new TestId(this.path, 1);
 	}
 
 	/**

@@ -5,20 +5,18 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
+import * as fileSchemes from '../configuration/fileSchemes';
+import { doesResourceLookLikeATypeScriptFile } from '../configuration/languageDescription';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
-import * as fileSchemes from '../utils/fileSchemes';
-import { doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
-import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
-const localize = nls.loadMessageBundle();
 
 const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
 
@@ -59,12 +57,12 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		this._register(vscode.workspace.onDidRenameFiles(async (e) => {
 			const [{ newUri, oldUri }] = e.files;
-			const newFilePath = this.client.toPath(newUri);
+			const newFilePath = this.client.toTsFilePath(newUri);
 			if (!newFilePath) {
 				return;
 			}
 
-			const oldFilePath = this.client.toPath(oldUri);
+			const oldFilePath = this.client.toTsFilePath(oldUri);
 			if (!oldFilePath) {
 				return;
 			}
@@ -78,7 +76,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			// Try to get a js/ts file that is being moved
 			// For directory moves, this returns a js/ts file under the directory.
 			const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
-			if (!jsTsFileThatIsBeingMoved || !this.client.toPath(jsTsFileThatIsBeingMoved)) {
+			if (!jsTsFileThatIsBeingMoved || !this.client.toTsFilePath(jsTsFileThatIsBeingMoved)) {
 				return;
 			}
 
@@ -87,7 +85,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			this._delayer.trigger(() => {
 				vscode.window.withProgress({
 					location: vscode.ProgressLocation.Window,
-					title: localize('renameProgress.title', "Checking for update of JS/TS imports")
+					title: vscode.l10n.t("Checking for update of JS/TS imports")
 				}, () => this.flushRenames());
 			});
 		}));
@@ -148,26 +146,26 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 		}
 
 		const rejectItem: vscode.MessageItem = {
-			title: localize('reject.title', "No"),
+			title: vscode.l10n.t("No"),
 			isCloseAffordance: true,
 		};
 
 		const acceptItem: vscode.MessageItem = {
-			title: localize('accept.title', "Yes"),
+			title: vscode.l10n.t("Yes"),
 		};
 
 		const alwaysItem: vscode.MessageItem = {
-			title: localize('always.title', "Always automatically update imports"),
+			title: vscode.l10n.t("Always"),
 		};
 
 		const neverItem: vscode.MessageItem = {
-			title: localize('never.title', "Never automatically update imports"),
+			title: vscode.l10n.t("Never"),
 		};
 
 		const response = await vscode.window.showInformationMessage(
 			newResources.length === 1
-				? localize('prompt', "Update imports for '{0}'?", path.basename(newResources[0].fsPath))
-				: this.getConfirmMessage(localize('promptMoreThanOne', "Update imports for the following {0} files?", newResources.length), newResources), {
+				? vscode.l10n.t("Update imports for '{0}'?", path.basename(newResources[0].fsPath))
+				: this.getConfirmMessage(vscode.l10n.t("Update imports for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, rejectItem, acceptItem, alwaysItem, neverItem);
 
@@ -187,15 +185,14 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 					this.getConfigTargetScope(config, updateImportsOnFileMoveName));
 				return true;
 			}
-			case neverItem:
-				{
-					const config = this.getConfiguration(newResources[0]);
-					config.update(
-						updateImportsOnFileMoveName,
-						UpdateImportsOnFileMoveSetting.Never,
-						this.getConfigTargetScope(config, updateImportsOnFileMoveName));
-					return false;
-				}
+			case neverItem: {
+				const config = this.getConfiguration(newResources[0]);
+				config.update(
+					updateImportsOnFileMoveName,
+					UpdateImportsOnFileMoveSetting.Never,
+					this.getConfigTargetScope(config, updateImportsOnFileMoveName));
+				return false;
+			}
 			default: {
 				return false;
 			}
@@ -242,7 +239,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		for (const rename of renames) {
 			// Group renames by type (js/ts) and by workspace.
-			const key = `${this.client.getWorkspaceRootForResource(rename.jsTsFileThatIsBeingMoved)}@@@${doesResourceLookLikeATypeScriptFile(rename.jsTsFileThatIsBeingMoved)}`;
+			const key = `${this.client.getWorkspaceRootForResource(rename.jsTsFileThatIsBeingMoved)?.fsPath}@@@${doesResourceLookLikeATypeScriptFile(rename.jsTsFileThatIsBeingMoved)}`;
 			if (!groups.has(key)) {
 				groups.set(key, new Set());
 			}
@@ -261,9 +258,9 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 
 		if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
 			if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
-				paths.push(localize('moreFile', "...1 additional file not shown"));
+				paths.push(vscode.l10n.t("...1 additional file not shown"));
 			} else {
-				paths.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+				paths.push(vscode.l10n.t("...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
 			}
 		}
 

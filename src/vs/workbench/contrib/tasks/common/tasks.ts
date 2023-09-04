@@ -701,7 +701,7 @@ export abstract class CommonTask {
  */
 export class CustomTask extends CommonTask {
 
-	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
+	declare type: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	instance: number | undefined;
 
@@ -903,7 +903,7 @@ export class ContributedTask extends CommonTask {
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 * Set in the super constructor
 	 */
-	override _source!: IExtensionTaskSource;
+	declare _source: IExtensionTaskSource;
 
 	instance: number | undefined;
 
@@ -997,7 +997,7 @@ export class InMemoryTask extends CommonTask {
 
 	instance: number | undefined;
 
-	override type!: 'inMemory';
+	declare type: 'inMemory';
 
 	public constructor(id: string, source: IInMemoryTaskSource, label: string, type: string,
 		runOptions: IRunOptions, configurationProperties: IConfigurationProperties) {
@@ -1139,11 +1139,11 @@ export const enum TaskRunSource {
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): ITaskEvent;
+	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, terminalId?: number, processIdOrExitCode?: number): ITaskEvent;
 	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent;
-	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task, exitReason?: TerminalExitReason): ITaskEvent;
+	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task, terminalId?: number, exitReason?: TerminalExitReason): ITaskEvent;
 	export function create(kind: TaskEventKind.Changed): ITaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>, exitReason?: TerminalExitReason): ITaskEvent {
+	export function create(kind: TaskEventKind, task?: Task, terminalId?: number, resolvedVariablesORProcessIdOrExitCodeOrExitReason?: number | Map<string, string> | TerminalExitReason): ITaskEvent {
 		if (task) {
 			const result: ITaskEvent = {
 				kind: kind,
@@ -1153,16 +1153,15 @@ export namespace TaskEvent {
 				group: task.configurationProperties.group,
 				processId: undefined as number | undefined,
 				exitCode: undefined as number | undefined,
-				terminalId: undefined as number | undefined,
+				terminalId,
 				__task: task
 			};
 			if (kind === TaskEventKind.Start) {
-				result.terminalId = processIdOrExitCodeOrTerminalId;
-				result.resolvedVariables = resolvedVariables;
+				result.resolvedVariables = resolvedVariablesORProcessIdOrExitCodeOrExitReason as Map<string, string>;
 			} else if (kind === TaskEventKind.ProcessStarted) {
-				result.processId = processIdOrExitCodeOrTerminalId;
+				result.processId = resolvedVariablesORProcessIdOrExitCodeOrExitReason as number;
 			} else if (kind === TaskEventKind.ProcessEnded) {
-				result.exitCode = processIdOrExitCodeOrTerminalId;
+				result.exitCode = resolvedVariablesORProcessIdOrExitCodeOrExitReason as number;
 			}
 			return Object.freeze(result);
 		} else {

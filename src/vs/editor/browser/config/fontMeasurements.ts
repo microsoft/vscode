@@ -20,6 +20,7 @@ export interface ISerializedFontInfo {
 	readonly fontWeight: string;
 	readonly fontSize: number;
 	readonly fontFeatureSettings: string;
+	readonly fontVariationSettings: string;
 	readonly lineHeight: number;
 	readonly letterSpacing: number;
 	readonly isMonospace: boolean;
@@ -32,7 +33,7 @@ export interface ISerializedFontInfo {
 	readonly maxDigitWidth: number;
 }
 
-class FontMeasurementsImpl extends Disposable {
+export class FontMeasurementsImpl extends Disposable {
 
 	private _cache: FontMeasurementsCache;
 	private _evictUntrustedReadingsTimeout: number;
@@ -128,6 +129,7 @@ class FontMeasurementsImpl extends Disposable {
 					fontWeight: readConfig.fontWeight,
 					fontSize: readConfig.fontSize,
 					fontFeatureSettings: readConfig.fontFeatureSettings,
+					fontVariationSettings: readConfig.fontVariationSettings,
 					lineHeight: readConfig.lineHeight,
 					letterSpacing: readConfig.letterSpacing,
 					isMonospace: readConfig.isMonospace,
@@ -219,6 +221,7 @@ class FontMeasurementsImpl extends Disposable {
 			fontWeight: bareFontInfo.fontWeight,
 			fontSize: bareFontInfo.fontSize,
 			fontFeatureSettings: bareFontInfo.fontFeatureSettings,
+			fontVariationSettings: bareFontInfo.fontVariationSettings,
 			lineHeight: bareFontInfo.lineHeight,
 			letterSpacing: bareFontInfo.letterSpacing,
 			isMonospace: isMonospace,

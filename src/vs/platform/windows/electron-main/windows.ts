@@ -11,7 +11,6 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -98,7 +97,8 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	 * - a workspace that is neither `file://` nor `vscode-remote://`
 	 */
 	readonly remoteAuthority?: string;
-	readonly profile?: IUserDataProfile;
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

@@ -25,7 +25,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
@@ -109,7 +109,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
-		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateMainService(environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService(), productService);
+		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService());
 
 		return pfs.Promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});

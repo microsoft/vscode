@@ -7,33 +7,41 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - script: node build/setup-npm-registry.js $NPM_REGISTRY build
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - script: |
+      set -e
+      npm config set registry "$NPM_REGISTRY" --location=project
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      echo "always-auth=true" >> .npmrc
+      yarn config set registry "$NPM_REGISTRY"
+    workingDirectory: build
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM & Yarn
+
+  - task: npmAuthenticate@0
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      workingFile: build/.npmrc
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
 
   - script: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
-    timeoutInMinutes: 5
-    retryCountOnTaskFailure: 3
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
-
-  - script: |
-      set -e
-      for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --cwd build --frozen-lockfile --check-files && break
+      for i in {1..5}; do # try 5 times
+        yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
           exit 1
         fi
         echo "Yarn failed $i, trying again..."
       done
+    workingDirectory: build
     displayName: Install build dependencies
 
   - template: ../cli/cli-darwin-sign.yml

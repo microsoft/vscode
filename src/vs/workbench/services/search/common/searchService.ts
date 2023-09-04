@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isNumber } from 'vs/base/common/types';
@@ -74,36 +74,62 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		// Get local results from dirty/untitled
-		const localResults = this.getLocalResults(query);
+		const results = this.textSearchSplitSyncAsync(query, token, onProgress);
+		const openEditorResults = results.syncResults;
+		const otherResults = await results.asyncResults;
+		return {
+			limitHit: otherResults.limitHit || openEditorResults.limitHit,
+			results: [...otherResults.results, ...openEditorResults.results],
+			messages: [...otherResults.messages, ...openEditorResults.messages]
+		};
+	}
+
+	textSearchSplitSyncAsync(
+		query: ITextQuery,
+		token?: CancellationToken | undefined,
+		onProgress?: ((result: ISearchProgressItem) => void) | undefined,
+		notebookFilesToIgnore?: ResourceSet,
+		asyncNotebookFilesToIgnore?: Promise<ResourceSet>
+	): {
+		syncResults: ISearchComplete;
+		asyncResults: Promise<ISearchComplete>;
+	} {
+		// Get open editor results from dirty/untitled
+		const openEditorResults = this.getOpenEditorResults(query);
 
 		if (onProgress) {
-			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
+			arrays.coalesce([...openEditorResults.results.values()]).filter(e => !(notebookFilesToIgnore && notebookFilesToIgnore.has(e.resource))).forEach(onProgress);
 		}
 
-		const onProviderProgress = (progress: ISearchProgressItem) => {
-			if (isFileMatch(progress)) {
-				// Match
-				if (!localResults.results.has(progress.resource) && onProgress) { // don't override local results
-					onProgress(progress);
-				}
-			} else if (onProgress) {
-				// Progress
-				onProgress(<IProgressMessage>progress);
-			}
-
-			if (isProgressMessage(progress)) {
-				this.logService.debug('SearchService#search', progress.message);
-			}
+		const syncResults: ISearchComplete = {
+			results: arrays.coalesce([...openEditorResults.results.values()]),
+			limitHit: openEditorResults.limitHit ?? false,
+			messages: []
 		};
 
-		const otherResults = await this.doSearch(query, token, onProviderProgress);
+		const getAsyncResults = async () => {
+			const resolvedAsyncNotebookFilesToIgnore = await asyncNotebookFilesToIgnore ?? new ResourceSet();
+			const onProviderProgress = (progress: ISearchProgressItem) => {
+				if (isFileMatch(progress)) {
+					// Match
+					if (!openEditorResults.results.has(progress.resource) && !resolvedAsyncNotebookFilesToIgnore.has(progress.resource) && onProgress) { // don't override open editor results
+						onProgress(progress);
+					}
+				} else if (onProgress) {
+					// Progress
+					onProgress(<IProgressMessage>progress);
+				}
+
+				if (isProgressMessage(progress)) {
+					this.logService.debug('SearchService#search', progress.message);
+				}
+			};
+			return await this.doSearch(query, token, onProviderProgress);
+		};
+
 		return {
-			...otherResults,
-			...{
-				limitHit: otherResults.limitHit || localResults.limitHit
-			},
-			results: [...otherResults.results, ...arrays.coalesce([...localResults.results.values()])]
+			syncResults,
+			asyncResults: getAsyncResults()
 		};
 	}
 
@@ -404,8 +430,8 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
-		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	private getOpenEditorResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
+		const openEditorResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
@@ -465,18 +491,18 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 
 					const fileMatch = new FileMatch(originalResource);
-					localResults.set(originalResource, fileMatch);
+					openEditorResults.set(originalResource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
-					localResults.set(originalResource, null);
+					openEditorResults.set(originalResource, null);
 				}
 			});
 		}
 
 		return {
-			results: localResults,
+			results: openEditorResults,
 			limitHit
 		};
 	}

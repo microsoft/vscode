@@ -23,6 +23,8 @@ import { localize } from 'vs/nls';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -77,6 +79,7 @@ export class TerminalTabbedView extends Disposable {
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -400,6 +403,9 @@ export class TerminalTabbedView extends Disposable {
 			}
 			if (!this._cancelContextMenu) {
 				const emptyList = this._tabList.getFocus().length === 0;
+				if (!emptyList) {
+					this._terminalGroupService.lastAccessedMenu = 'tab-list';
+				}
 				openContextMenu(event, this._parentElement, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
 			}
 			event.preventDefault();
@@ -477,6 +483,22 @@ export class TerminalTabbedView extends Disposable {
 			return;
 		}
 		this._focus();
+	}
+
+	focusHover() {
+		if (this._shouldShowTabs()) {
+			this._tabList.focusHover();
+			return;
+		}
+		const instance = this._terminalGroupService.activeInstance;
+		if (!instance) {
+			return;
+		}
+		this._hoverService.showHover({
+			...getInstanceHoverInfo(instance),
+			target: this._terminalContainer,
+			trapFocus: true
+		}, true);
 	}
 
 	private _focus() {

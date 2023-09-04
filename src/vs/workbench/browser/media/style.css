@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Animations */
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
 /* Font Families (with CJK support) */
 
 .mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -45,18 +49,17 @@ body.web {
 	position: fixed; /* prevent bounce effect */
 }
 
-.monaco-workbench.web {
-	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
-}
-
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
 .monaco-workbench {
 	font-size: 13px;
 	line-height: 1.4em;
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench.web {
+	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
 }
 
 .monaco-workbench.border:not(.fullscreen) {
@@ -106,9 +109,13 @@ body.web {
 	font-size: 100%;
 }
 
-.monaco-workbench select {
-	font-family: inherit;
-}
+.monaco-workbench input::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-webkit-input-placeholder  { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
+
+.monaco-workbench textarea::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-webkit-input-placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
 
 .monaco-workbench .pointer {
 	cursor: pointer;
@@ -135,6 +142,9 @@ body.web {
 	-webkit-app-region: no-drag;
 }
 
+.monaco-workbench .codicon {
+	color: var(--vscode-icon-foreground);
+}
 
 .monaco-workbench .codicon[class*='codicon-'] {
 	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
@@ -147,6 +157,8 @@ body.web {
 /* Custom Dropdown (select) Arrows */
 
 .monaco-workbench select {
+	font-family: inherit;
+	appearance: none;
 	-webkit-appearance: none;
 	-moz-appearance: none;
 	/* Hides inner border from FF */
@@ -180,12 +192,20 @@ body.web {
 .monaco-workbench select:focus,
 .monaco-workbench input[type="button"]:focus,
 .monaco-workbench input[type="text"]:focus,
+.monaco-workbench button:focus,
 .monaco-workbench textarea:focus,
+.monaco-workbench input[type="search"]:focus,
 .monaco-workbench input[type="checkbox"]:focus {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
 	opacity: 1;
+}
+
+.monaco-workbench.hc-black .synthetic-focus input,
+.monaco-workbench.hc-light .synthetic-focus input {
+	background: transparent; /* Search input focus fix when in high contrast */
 }
 
 .monaco-workbench input[type="checkbox"]:focus {
@@ -217,6 +237,15 @@ body.web {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+	color: var(--vscode-list-highlightForeground);
+}
+
+.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
+	color: var(--vscode-list-focusHighlightForeground);
 }
 
 .monaco-workbench .synthetic-focus :focus {
@@ -238,4 +267,19 @@ body.web {
 
 .monaco-workbench a.monaco-link:hover {
 	text-decoration: underline; /* render underline on hover for accessibility requirements */
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover,
+.monaco-workbench .monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
+.monaco-workbench .monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
 }

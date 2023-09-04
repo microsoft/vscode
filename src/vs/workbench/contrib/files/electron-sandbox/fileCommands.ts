@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { sequence } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 
 // Commands
 
@@ -15,7 +15,7 @@ export function revealResourcesInOS(resources: URI[], nativeHostService: INative
 	if (resources.length) {
 		sequence(resources.map(r => async () => {
 			if (r.scheme === Schemas.file || r.scheme === Schemas.vscodeUserData) {
-				nativeHostService.showItemInFolder(r.fsPath);
+				nativeHostService.showItemInFolder(r.with({ scheme: Schemas.file }).fsPath);
 			}
 		}));
 	} else if (workspaceContextService.getWorkspace().folders.length) {

@@ -8,7 +8,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { INotebookRendererInfo, ContributedNotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec, NotebookRendererEntrypoint } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, ContributedNotebookRendererEntrypoint, NotebookRendererMatch, RendererMessagingSpec, NotebookRendererEntrypoint, INotebookStaticPreloadInfo as INotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 class DependencyList {
 	private readonly value: ReadonlySet<string>;
@@ -116,5 +116,26 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		}
 
 		return this.mimeTypeGlobs.some(pattern => pattern(mimeType)) || this.mimeTypes.some(pattern => pattern === mimeType);
+	}
+}
+
+export class NotebookStaticPreloadInfo implements INotebookStaticPreloadInfo {
+
+	readonly type: string;
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+	readonly localResourceRoots: readonly URI[];
+
+	constructor(descriptor: {
+		readonly type: string;
+		readonly entrypoint: string;
+		readonly localResourceRoots: readonly string[];
+		readonly extension: IExtensionDescription;
+	}) {
+		this.type = descriptor.type;
+
+		this.entrypoint = joinPath(descriptor.extension.extensionLocation, descriptor.entrypoint);
+		this.extensionLocation = descriptor.extension.extensionLocation;
+		this.localResourceRoots = descriptor.localResourceRoots.map(root => joinPath(descriptor.extension.extensionLocation, root));
 	}
 }

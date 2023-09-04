@@ -6,8 +6,10 @@
 import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedCommand, ISerializedCommandDetectionCapability, ITerminalOutputMatcher } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
@@ -38,6 +40,11 @@ export interface ICurrentPartialCommand {
 	command?: string;
 
 	/**
+	 * Whether the command line is trusted via a nonce.
+	 */
+	isTrusted?: boolean;
+
+	/**
 	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
 	 * event from firing.
 	 */
@@ -49,7 +56,7 @@ interface ITerminalDimensions {
 	rows: number;
 }
 
-export class CommandDetectionCapability implements ICommandDetectionCapability {
+export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
 	protected _commands: ITerminalCommand[] = [];
@@ -72,6 +79,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		return undefined;
 	}
+	get currentCommand(): ICurrentPartialCommand | undefined {
+		return this._currentCommand;
+	}
 	get cwd(): string | undefined { return this._cwd; }
 	private get _isInputting(): boolean {
 		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
@@ -91,29 +101,30 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		return true;
 	}
 
-	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
+	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
-	private readonly _onBeforeCommandFinished = new Emitter<ITerminalCommand>();
+	private readonly _onBeforeCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
-	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
+	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandFinished = this._onCommandFinished.event;
-	private readonly _onCommandExecuted = new Emitter<void>();
+	private readonly _onCommandExecuted = this._register(new Emitter<void>());
 	readonly onCommandExecuted = this._onCommandExecuted.event;
-	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
+	private readonly _onCommandInvalidated = this._register(new Emitter<ITerminalCommand[]>());
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
-	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
+	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
-		@ILogService private readonly _logService: ILogService
+		private readonly _logService: ILogService
 	) {
+		super();
 		this._dimensions = {
 			cols: this._terminal.cols,
 			rows: this._terminal.rows
 		};
-		this._terminal.onResize(e => this._handleResize(e));
-		this._terminal.onCursorMove(() => this._handleCursorMove());
+		this._register(this._terminal.onResize(e => this._handleResize(e)));
+		this._register(this._terminal.onCursorMove(() => this._handleCursorMove()));
 		this._setupClearListeners();
 	}
 
@@ -481,6 +492,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const endMarker = this._currentCommand.commandFinishedMarker;
 			const newCommand: ITerminalCommand = {
 				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
+				isTrusted: !!this._currentCommand.isTrusted,
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -490,7 +502,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._isWindowsPty && (executedMarker?.line === endMarker?.line) ? this._currentCommand.commandStartMarker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -542,24 +554,27 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
 	}
 
-	setCommandLine(commandLine: string) {
-		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
+	setCommandLine(commandLine: string, isTrusted: boolean) {
+		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
 		this._currentCommand.command = commandLine;
+		this._currentCommand.isTrusted = isTrusted;
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
-		const commands: ISerializedCommand[] = this.commands.map(e => {
+		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
 			return {
 				startLine: e.marker?.line,
 				startX: undefined,
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				commandStartLineContent: e.commandStartLineContent,
 				timestamp: e.timestamp,
-				markProperties: e.markProperties
+				markProperties: e.markProperties,
+				aliases: e.aliases
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
@@ -569,6 +584,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				endLine: undefined,
 				executedLine: undefined,
 				command: '',
+				isTrusted: true,
 				cwd: this._cwd,
 				exitCode: undefined,
 				commandStartLineContent: undefined,
@@ -604,8 +620,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			// Full command
 			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const newCommand = {
+			const newCommand: ITerminalCommand = {
 				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
 				marker,
 				endMarker,
 				executedMarker,
@@ -615,8 +632,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
-				markProperties: e.markProperties
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._isWindowsPty && (executedMarker?.line === endMarker?.line) ? marker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				markProperties: e.markProperties,
+				wasReplayed: true
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -647,15 +665,68 @@ function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMa
 	return output === '' ? undefined : output;
 }
 
-export function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): RegExpMatchArray | undefined {
+function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
+	if (!executedMarker || !endMarker) {
+		return undefined;
+	}
+	const endLine = endMarker.line;
+	if (endLine === -1) {
+		return undefined;
+	}
+	const startLine = Math.max(executedMarker.line, 0);
+	const matcher = outputMatcher.lineMatcher;
+	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
+	const lines: string[] = [];
+	let match: RegExpMatchArray | null | undefined;
+	if (outputMatcher.anchor === 'bottom') {
+		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
+			let wrappedLineStart = i;
+			const wrappedLineEnd = i;
+			while (wrappedLineStart >= startLine && buffer.getLine(wrappedLineStart)?.isWrapped) {
+				wrappedLineStart--;
+			}
+			i = wrappedLineStart;
+			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (!match) {
+				match = lines[0].match(matcher);
+			}
+			if (lines.length >= linesToCheck) {
+				break;
+			}
+		}
+	} else {
+		for (let i = startLine + (outputMatcher.offset || 0); i < endLine; i++) {
+			const wrappedLineStart = i;
+			let wrappedLineEnd = i;
+			while (wrappedLineEnd + 1 < endLine && buffer.getLine(wrappedLineEnd + 1)?.isWrapped) {
+				wrappedLineEnd++;
+			}
+			i = wrappedLineEnd;
+			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
+			if (!match) {
+				match = lines[lines.length - 1].match(matcher);
+			}
+			if (lines.length >= linesToCheck) {
+				break;
+			}
+		}
+	}
+	return match ? { regexMatch: match, outputLines: lines } : undefined;
+}
+
+export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, cols: number, outputMatcher?: ITerminalOutputMatcher): string[] | undefined {
+	if (!outputMatcher) {
+		return undefined;
+	}
+	const executedMarker = command.executedMarker;
+	const endMarker = command.endMarker;
 	if (!executedMarker || !endMarker) {
 		return undefined;
 	}
 	const startLine = executedMarker.line;
 	const endLine = endMarker.line;
 
-	const matcher = outputMatcher.lineMatcher;
-	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
+	const linesToCheck = outputMatcher.length;
 	const lines: string[] = [];
 	if (outputMatcher.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
@@ -668,10 +739,6 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
 			if (lines.length > linesToCheck) {
 				lines.pop();
-			}
-			const match = lines.join('\n').match(matcher);
-			if (match) {
-				return match;
 			}
 		}
 	} else {
@@ -686,16 +753,11 @@ export function getOutputMatchForCommand(executedMarker: IMarker | undefined, en
 			if (lines.length === linesToCheck) {
 				lines.shift();
 			}
-			if (outputMatcher) {
-				const match = lines.join('\n').match(matcher);
-				if (match) {
-					return match;
-				}
-			}
 		}
 	}
-	return undefined;
+	return lines;
 }
+
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is

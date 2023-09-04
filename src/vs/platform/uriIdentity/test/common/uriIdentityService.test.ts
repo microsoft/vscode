@@ -34,7 +34,7 @@ suite('URI Identity', function () {
 	setup(function () {
 		_service = new UriIdentityService(new FakeFileService(new Map([
 			['bar', FileSystemProviderCapabilities.PathCaseSensitive],
-			['foo', 0]
+			['foo', FileSystemProviderCapabilities.None]
 		])));
 	});
 

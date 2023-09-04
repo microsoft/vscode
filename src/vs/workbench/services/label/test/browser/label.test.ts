@@ -10,11 +10,12 @@ import { URI } from 'vs/base/common/uri';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { TestWorkspace, Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { isWindows } from 'vs/base/common/platform';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
+import { sep } from 'vs/base/common/path';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -22,7 +23,7 @@ suite('URI Label', () => {
 
 	setup(() => {
 		storageService = new TestStorageService();
-		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), storageService, new TestLifecycleService());
+		labelService = new LabelService(TestEnvironmentService, new TestContextService(), new TestPathService(URI.file('/foobar')), new TestRemoteAgentService(), storageService, new TestLifecycleService());
 	});
 
 	test('custom scheme', function () {
@@ -39,6 +40,27 @@ suite('URI Label', () => {
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
 		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
 		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
+	});
+
+	test('file scheme', function () {
+		labelService.registerFormatter({
+			scheme: 'file',
+			formatting: {
+				label: '${path}',
+				separator: sep,
+				tildify: !isWindows,
+				normalizeDriveLetter: isWindows
+			}
+		});
+
+		const uri1 = TestWorkspace.folders[0].uri.with({ path: TestWorkspace.folders[0].uri.path.concat('/a/b/c/d') });
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: true }), isWindows ? 'a\\b\\c\\d' : 'a/b/c/d');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), isWindows ? 'C:\\testWorkspace\\a\\b\\c\\d' : '/testWorkspace/a/b/c/d');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'd');
+
+		const uri2 = URI.file('c:\\1/2/3');
+		assert.strictEqual(labelService.getUriLabel(uri2, { relative: false }), isWindows ? 'C:\\1\\2\\3' : '/c:\\1/2/3');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri2), '3');
 	});
 
 	test('separator', function () {

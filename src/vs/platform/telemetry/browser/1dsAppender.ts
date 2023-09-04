@@ -17,7 +17,7 @@ export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 
 		// If we cannot fetch the endpoint it means it is down and we should not send any telemetry.
 		// This is most likely due to ad blockers
-		fetch(this.endPointUrl, { method: 'POST' }).catch(err => {
+		fetch(this.endPointHealthUrl, { method: 'GET' }).catch(err => {
 			this._aiCoreOrKey = undefined;
 		});
 	}

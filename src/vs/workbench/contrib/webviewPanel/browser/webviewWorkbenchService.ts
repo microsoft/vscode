@@ -16,8 +16,7 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IOverlayWebview, IWebviewService, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
 import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -101,7 +100,7 @@ export interface IWebviewWorkbenchService {
 /**
  * Handles filling in the content of webview before it can be shown to the user.
  */
-export interface WebviewResolver {
+interface WebviewResolver {
 	/**
 	 * Returns true if the resolver can resolve the given webview.
 	 */
@@ -119,8 +118,8 @@ function canRevive(reviver: WebviewResolver, webview: WebviewInput): boolean {
 
 export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
-	#resolved = false;
-	#resolvePromise?: CancelablePromise<void>;
+	private _resolved = false;
+	private _resolvePromise?: CancelablePromise<void>;
 
 	constructor(
 		init: WebviewInputInitInfo,
@@ -132,17 +131,17 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 	override dispose() {
 		super.dispose();
-		this.#resolvePromise?.cancel();
-		this.#resolvePromise = undefined;
+		this._resolvePromise?.cancel();
+		this._resolvePromise = undefined;
 	}
 
 	@memoize
 	public override async resolve() {
-		if (!this.#resolved) {
-			this.#resolved = true;
-			this.#resolvePromise = createCancelablePromise(token => this._webviewWorkbenchService.resolveWebview(this, token));
+		if (!this._resolved) {
+			this._resolved = true;
+			this._resolvePromise = createCancelablePromise(token => this._webviewWorkbenchService.resolveWebview(this, token));
 			try {
-				await this.#resolvePromise;
+				await this._resolvePromise;
 			} catch (e) {
 				if (!isCancellationError(e)) {
 					throw e;
@@ -157,7 +156,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 			return;
 		}
 
-		other.#resolved = this.#resolved;
+		other._resolved = this._resolved;
 		return other;
 	}
 }
@@ -282,7 +281,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		showOptions: IWebViewShowOptions,
 	): WebviewInput {
 		const webview = this._webviewService.createWebviewOverlay(webviewInitInfo);
-		const webviewInput = this._instantiationService.createInstance(WebviewInput, { id: webviewInitInfo.id, viewType, name: title, providedId: webviewInitInfo.providedViewType }, webview, this.iconManager);
+		const webviewInput = this._instantiationService.createInstance(WebviewInput, { viewType, name: title, providedId: webviewInitInfo.providedViewType }, webview, this.iconManager);
 		this._editorService.openEditor(webviewInput, {
 			pinned: true,
 			preserveFocus: showOptions.preserveFocus,
@@ -333,7 +332,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		const webview = this._webviewService.createWebviewOverlay(options.webviewInitInfo);
 		webview.state = options.state;
 
-		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, { id: options.webviewInitInfo.id, viewType: options.viewType, providedId: options.webviewInitInfo.providedViewType, name: options.title }, webview);
+		const webviewInput = this._instantiationService.createInstance(LazilyResolvedWebviewEditorInput, { viewType: options.viewType, providedId: options.webviewInitInfo.providedViewType, name: options.title }, webview);
 		webviewInput.iconPath = options.iconPath;
 
 		if (typeof options.group === 'number') {

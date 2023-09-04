@@ -8,6 +8,7 @@ import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
@@ -35,7 +36,7 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 		for (const snippet of snippets) {
 			const pick: ISnippetPick = {
 				label: snippet.prefix || snippet.name,
-				detail: snippet.description,
+				detail: snippet.description || snippet.body,
 				snippet
 			};
 			if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource || prevSnippet.source !== snippet.source) {
@@ -58,13 +59,13 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 				const isEnabled = snippetService.isEnabled(snippet);
 				if (isEnabled) {
 					pick.buttons = [{
-						iconClass: Codicon.eyeClosed.classNames,
+						iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
 						tooltip: nls.localize('disableSnippet', 'Hide from IntelliSense')
 					}];
 				} else {
 					pick.description = nls.localize('isDisabled', "(hidden from IntelliSense)");
 					pick.buttons = [{
-						iconClass: Codicon.eye.classNames,
+						iconClass: ThemeIcon.asClassName(Codicon.eye),
 						tooltip: nls.localize('enable.snippet', 'Show in IntelliSense')
 					}];
 				}

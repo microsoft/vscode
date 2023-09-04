@@ -40,7 +40,7 @@ suite('EditorModel', () => {
 
 	class MyEditorModel extends EditorModel { }
 	class MyTextEditorModel extends BaseTextEditorModel {
-		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredLanguageId?: string) {
+		testCreateTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredLanguageId?: string) {
 			return super.createTextEditorModel(value, resource, preferredLanguageId);
 		}
 
@@ -75,6 +75,10 @@ suite('EditorModel', () => {
 		languageService = instantiationService.stub(ILanguageService, LanguageService);
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('basics', async () => {
 		let counter = 0;
 
@@ -99,7 +103,7 @@ suite('EditorModel', () => {
 		const model = new MyTextEditorModel(modelService, languageService, instantiationService.createInstance(LanguageDetectionService), instantiationService.createInstance(TestAccessibilityService));
 		await model.resolve();
 
-		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
+		model.testCreateTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
 		assert.strictEqual(model.isResolved(), true);
 		model.dispose();
 	});

@@ -12,11 +12,16 @@ export class FastDomNode<T extends HTMLElement> {
 	private _left: string = '';
 	private _bottom: string = '';
 	private _right: string = '';
+	private _paddingTop: string = '';
+	private _paddingLeft: string = '';
+	private _paddingBottom: string = '';
+	private _paddingRight: string = '';
 	private _fontFamily: string = '';
 	private _fontWeight: string = '';
 	private _fontSize: string = '';
 	private _fontStyle: string = '';
 	private _fontFeatureSettings: string = '';
+	private _fontVariationSettings: string = '';
 	private _textDecoration: string = '';
 	private _lineHeight: string = '';
 	private _letterSpacing: string = '';
@@ -97,6 +102,42 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.right = this._right;
 	}
 
+	public setPaddingTop(_paddingTop: number | string): void {
+		const paddingTop = numberAsPixels(_paddingTop);
+		if (this._paddingTop === paddingTop) {
+			return;
+		}
+		this._paddingTop = paddingTop;
+		this.domNode.style.paddingTop = this._paddingTop;
+	}
+
+	public setPaddingLeft(_paddingLeft: number | string): void {
+		const paddingLeft = numberAsPixels(_paddingLeft);
+		if (this._paddingLeft === paddingLeft) {
+			return;
+		}
+		this._paddingLeft = paddingLeft;
+		this.domNode.style.paddingLeft = this._paddingLeft;
+	}
+
+	public setPaddingBottom(_paddingBottom: number | string): void {
+		const paddingBottom = numberAsPixels(_paddingBottom);
+		if (this._paddingBottom === paddingBottom) {
+			return;
+		}
+		this._paddingBottom = paddingBottom;
+		this.domNode.style.paddingBottom = this._paddingBottom;
+	}
+
+	public setPaddingRight(_paddingRight: number | string): void {
+		const paddingRight = numberAsPixels(_paddingRight);
+		if (this._paddingRight === paddingRight) {
+			return;
+		}
+		this._paddingRight = paddingRight;
+		this.domNode.style.paddingRight = this._paddingRight;
+	}
+
 	public setFontFamily(fontFamily: string): void {
 		if (this._fontFamily === fontFamily) {
 			return;
@@ -136,6 +177,14 @@ export class FastDomNode<T extends HTMLElement> {
 		}
 		this._fontFeatureSettings = fontFeatureSettings;
 		this.domNode.style.fontFeatureSettings = this._fontFeatureSettings;
+	}
+
+	public setFontVariationSettings(fontVariationSettings: string): void {
+		if (this._fontVariationSettings === fontVariationSettings) {
+			return;
+		}
+		this._fontVariationSettings = fontVariationSettings;
+		this.domNode.style.fontVariationSettings = this._fontVariationSettings;
 	}
 
 	public setTextDecoration(textDecoration: string): void {

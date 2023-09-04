@@ -15,21 +15,20 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorResolverService, ResolvedStatus } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
@@ -69,14 +68,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHostService private readonly hostService: IHostService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 
-		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
+		this.onConfigurationUpdated();
 
 		this.registerListeners();
 	}
@@ -85,9 +83,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Editor & group changes
 		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
-		this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group));
-		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
-		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
+		this._register(this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group)));
+		this._register(this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView)));
+		this._register(this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire()));
 
 		// Out of workspace file watchers
 		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
@@ -101,7 +99,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
 		// Configuration
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
 
 	//#region Editor & group event handlers
@@ -138,7 +136,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
-		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
+		this.lastActiveEditor = activeGroup.activeEditor ?? undefined;
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
@@ -297,7 +295,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private closeOnFileDelete: boolean = false;
 
-	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('workbench.editor.closeOnFileDelete')) {
+			return;
+		}
+
+		const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {
@@ -316,9 +319,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// Handle deletes in opened editors depending on:
 				// - we close any editor when `closeOnFileDelete: true`
 				// - we close any editor when the delete occurred from within VSCode
-				// - we close any editor without resolved working copy assuming that
-				//   this editor could not be opened after the file is gone
-				if (this.closeOnFileDelete || !isExternal || !this.workingCopyService.has(resource)) {
+				if (this.closeOnFileDelete || !isExternal) {
 
 					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 					// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
@@ -458,7 +459,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeEditor(): EditorInput | undefined {
 		const activeGroup = this.editorGroupService.activeGroup;
 
-		return activeGroup ? withNullAsUndefined(activeGroup.activeEditor) : undefined;
+		return activeGroup ? activeGroup.activeEditor ?? undefined : undefined;
 	}
 
 	get visibleEditorPanes(): IVisibleEditorPane[] {
@@ -893,7 +894,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region save/revert
 
-	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
+	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
 
 		// Convert to array
 		if (!Array.isArray(editors)) {
@@ -972,11 +973,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return saveResults.every(result => !!result);
+		return {
+			success: saveResults.every(result => !!result),
+			editors: coalesce(saveResults)
+		};
 	}
 
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
-		return this.save(this.getAllDirtyEditors(options), options);
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult> {
+		return this.save(this.getAllModifiedEditors(options), options);
 	}
 
 	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
@@ -1002,15 +1006,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	async revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
-		return this.revert(this.getAllDirtyEditors(options), options);
+		return this.revert(this.getAllModifiedEditors(options), options);
 	}
 
-	private getAllDirtyEditors(options?: IBaseSaveRevertAllEditorOptions): IEditorIdentifier[] {
+	private getAllModifiedEditors(options?: IBaseSaveRevertAllEditorOptions): IEditorIdentifier[] {
 		const editors: IEditorIdentifier[] = [];
 
 		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (!editor.isDirty()) {
+				if (!editor.isModified()) {
+					continue;
+				}
+
+				if ((typeof options?.includeUntitled === 'boolean' || !options?.includeUntitled?.includeScratchpad)
+					&& editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
 					continue;
 				}
 

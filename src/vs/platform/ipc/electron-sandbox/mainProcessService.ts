@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 
 /**
  * An implementation of `IMainProcessService` that leverages Electron's IPC.

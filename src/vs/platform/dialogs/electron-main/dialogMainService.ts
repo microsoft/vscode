@@ -10,12 +10,12 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { isMacintosh } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { INativeOpenDialogOptions, massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
@@ -52,7 +52,8 @@ export class DialogMainService implements IDialogMainService {
 	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 
 	constructor(
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService
 	) {
 	}
 
@@ -104,7 +105,7 @@ export class DialogMainService implements IDialogMainService {
 		}
 
 		// Show Dialog
-		const result = await this.showOpenDialog(dialogOptions, withNullAsUndefined(window || BrowserWindow.getFocusedWindow()));
+		const result = await this.showOpenDialog(dialogOptions, (window || BrowserWindow.getFocusedWindow()) ?? undefined);
 		if (result && result.filePaths && result.filePaths.length > 0) {
 			return result.filePaths;
 		}
@@ -129,13 +130,21 @@ export class DialogMainService implements IDialogMainService {
 		}
 	}
 
-	showMessageBox(options: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
+	showMessageBox(rawOptions: MessageBoxOptions, window?: BrowserWindow): Promise<MessageBoxReturnValue> {
 		return this.getWindowDialogQueue<MessageBoxReturnValue>(window).queue(async () => {
+			const { options, buttonIndeces } = massageMessageBoxOptions(rawOptions, this.productService);
+
+			let result: MessageBoxReturnValue | undefined = undefined;
 			if (window) {
-				return dialog.showMessageBox(window, options);
+				result = await dialog.showMessageBox(window, options);
+			} else {
+				result = await dialog.showMessageBox(options);
 			}
 
-			return dialog.showMessageBox(options);
+			return {
+				response: buttonIndeces[result.response],
+				checkboxChecked: result.checkboxChecked
+			};
 		});
 	}
 

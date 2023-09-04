@@ -156,7 +156,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
 	if (!externalTerminalService) {
 		if (platform.isWindows) {
 			externalTerminalService = new WindowsExternalTerminalService();

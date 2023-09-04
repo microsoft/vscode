@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
-import { Iterable } from 'vs/base/common/iterator';
 import { Promises } from 'vs/base/common/async';
 import { getNodeType, parse, ParseError } from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
@@ -19,18 +18,6 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
-
-export interface VersionInfo {
-	vscodeVersion: string;
-	os: string;
-}
-
-export interface ProcessInfo {
-	cpu: number;
-	memory: number;
-	pid: number;
-	name: string;
-}
 
 interface ConfigFilePatterns {
 	tag: string;
@@ -161,9 +148,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 }
 
 function asSortedItems(items: Map<string, number>): WorkspaceStatItem[] {
-	return [
-		...Iterable.map(items.entries(), ([name, count]) => ({ name: name, count: count }))
-	].sort((a, b) => b.count - a.count);
+	return Array.from(items.entries(), ([name, count]) => ({ name: name, count: count }))
+		.sort((a, b) => b.count - a.count);
 }
 
 export function getMachineInfo(): IMachineInfo {
@@ -470,21 +456,22 @@ export class DiagnosticsService implements IDiagnosticsService {
 	}
 
 	private formatProcessList(info: IMainProcessDiagnostics, rootProcess: ProcessItem): string {
-		const mapPidToWindowTitle = new Map<number, string>();
-		info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
+		const mapProcessToName = new Map<number, string>();
+		info.windows.forEach(window => mapProcessToName.set(window.pid, `window [${window.id}] (${window.title})`));
+		info.pidToNames.forEach(({ pid, name }) => mapProcessToName.set(pid, name));
 
 		const output: string[] = [];
 
 		output.push('CPU %\tMem MB\t   PID\tProcess');
 
 		if (rootProcess) {
-			this.formatProcessItem(info.mainPID, mapPidToWindowTitle, output, rootProcess, 0);
+			this.formatProcessItem(info.mainPID, mapProcessToName, output, rootProcess, 0);
 		}
 
 		return output.join('\n');
 	}
 
-	private formatProcessItem(mainPid: number, mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+	private formatProcessItem(mainPid: number, mapProcessToName: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
 		const isRoot = (indent === 0);
 
 		// Format name with indent
@@ -492,10 +479,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 		if (isRoot) {
 			name = item.pid === mainPid ? `${this.productService.applicationName} main` : 'remote agent';
 		} else {
-			name = `${'  '.repeat(indent)} ${item.name}`;
-
-			if (item.name === 'window') {
-				name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
+			if (mapProcessToName.has(item.pid)) {
+				name = mapProcessToName.get(item.pid)!;
+			} else {
+				name = `${'  '.repeat(indent)} ${item.name}`;
 			}
 		}
 
@@ -504,7 +491,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
-			item.children.forEach(child => this.formatProcessItem(mainPid, mapPidToWindowTitle, output, child, indent + 1));
+			item.children.forEach(child => this.formatProcessItem(mainPid, mapProcessToName, output, child, indent + 1));
 		}
 	}
 

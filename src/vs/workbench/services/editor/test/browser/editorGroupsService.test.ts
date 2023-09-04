@@ -229,7 +229,7 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(part.groups.length, 3);
 
-		part.saveState();
+		part.testSaveState();
 		part.dispose();
 
 		const [restoredPart] = await createPart(instantiationService);
@@ -320,7 +320,8 @@ suite('EditorGroupsService', () => {
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 
 		await rootGroup.openEditor(input, { pinned: true });
-		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT, { activate: true });
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		part.activateGroup(rightGroup);
 		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
 		assert.strictEqual(groupAddedCounter, 2);
 		assert.strictEqual(downGroup.count, 1);
@@ -1307,6 +1308,29 @@ suite('EditorGroupsService', () => {
 		part.applyLayout({ groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL });
 
 		assert.strictEqual(part.groups.length, 4);
+	});
+
+	test('getLayout', async function () {
+		const [part] = await createPart();
+
+		// 2x2
+		part.applyLayout({ groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL });
+		let layout = part.getLayout();
+
+		assert.strictEqual(layout.orientation, GroupOrientation.HORIZONTAL);
+		assert.strictEqual(layout.groups.length, 2);
+		assert.strictEqual(layout.groups[0].groups!.length, 2);
+		assert.strictEqual(layout.groups[1].groups!.length, 2);
+
+		// 3 columns
+		part.applyLayout({ groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL });
+		layout = part.getLayout();
+
+		assert.strictEqual(layout.orientation, GroupOrientation.VERTICAL);
+		assert.strictEqual(layout.groups.length, 3);
+		assert.ok(typeof layout.groups[0].size === 'number');
+		assert.ok(typeof layout.groups[1].size === 'number');
+		assert.ok(typeof layout.groups[2].size === 'number');
 	});
 
 	test('centeredLayout', async function () {

@@ -85,7 +85,8 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 	});
 });
 
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true));
+// Disable mangling for the editor, as it complicates debugging & quite a few users rely on private/protected fields.
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true }));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
 	{

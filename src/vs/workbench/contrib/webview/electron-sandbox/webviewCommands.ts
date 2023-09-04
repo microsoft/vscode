@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 export class OpenWebviewDeveloperToolsAction extends Action2 {

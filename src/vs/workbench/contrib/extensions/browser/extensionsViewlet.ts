@@ -12,7 +12,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { Action } from 'vs/base/common/actions';
-import { append, $, Dimension, hide, show, DragAndDropObserver } from 'vs/base/browser/dom';
+import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -34,13 +34,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
+import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -61,6 +61,7 @@ import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { extname } from 'vs/base/common/resources';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -527,7 +528,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.recommendedExtensionsContextKey = RecommendedExtensionsContext.bindTo(contextKeyService);
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => { if (e.viewContainerLocation === ViewContainerLocation.Sidebar) { this.onViewletOpen(e.composite); } }, this));
 		this._register(extensionsWorkbenchService.onReset(() => this.refresh()));
-		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	get searchValue(): string | undefined {
@@ -563,8 +564,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		if (this.searchBox.getValue()) {
 			this.triggerSearch();
 		}
-
-		this._register(attachSuggestEnabledInputBoxStyler(this.searchBox, this.themeService));
 
 		this._register(this.searchBox.onInputDidChange(() => {
 			this.sortByContextKey.set(Query.parse(this.searchBox!.getValue() || '').sortBy);
@@ -612,6 +611,22 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}));
 
 		super.create(append(this.root, $('.extensions')));
+
+		const focusTracker = this._register(trackFocus(this.root));
+		const isSearchBoxFocused = () => this.searchBox?.inputWidget.hasWidgetFocus();
+		this._register(registerNavigableContainer({
+			focusNotifiers: [focusTracker],
+			focusNextWidget: () => {
+				if (isSearchBoxFocused()) {
+					this.focusListView();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!isSearchBoxFocused()) {
+					this.searchBox?.focus();
+				}
+			}
+		}));
 	}
 
 	override focus(): void {
@@ -666,7 +681,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			: '';
 	}
 
-	override saveState(): void {
+	protected override saveState(): void {
 		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
@@ -734,13 +749,19 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}
 	}
 
-	private count(): number {
-		return this.panes.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
+	private getFirstExpandedPane(): ExtensionsListView | undefined {
+		for (const pane of this.panes) {
+			if (pane.isExpanded() && pane instanceof ExtensionsListView) {
+				return pane;
+			}
+		}
+		return undefined;
 	}
 
 	private focusListView(): void {
-		if (this.count() > 0) {
-			this.panes[0].focus();
+		const pane = this.getFirstExpandedPane();
+		if (pane && pane.count() > 0) {
+			pane.focus();
 		}
 	}
 
@@ -803,14 +824,15 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
-		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, this._store)(this.onServiceChange, this));
+		this.onServiceChange();
+		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {
 		this.badgeHandle.clear();
 
 		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !e.pinned && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
 		const newBadgeNumber = outdated + extensionsReloadRequired.length;
 		if (newBadgeNumber > 0) {
 			let msg = '';
@@ -865,7 +887,10 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 								label: localize('reloadNow', "Reload Now"),
 								run: () => this.hostService.reload()
 							}],
-							{ sticky: true }
+							{
+								sticky: true,
+								priority: NotificationPriority.URGENT
+							}
 						);
 					})));
 				} else {

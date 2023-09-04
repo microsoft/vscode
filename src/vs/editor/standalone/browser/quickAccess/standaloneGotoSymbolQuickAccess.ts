@@ -9,7 +9,6 @@ import { AbstractGotoSymbolQuickAccessProvider } from 'vs/editor/contrib/quickAc
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { QuickOutlineNLS } from 'vs/editor/common/standaloneStrings';
 import { Event } from 'vs/base/common/event';
 import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
@@ -17,7 +16,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -34,7 +33,7 @@ export class StandaloneGotoSymbolQuickAccessProvider extends AbstractGotoSymbolQ
 	}
 
 	protected get activeTextEditorControl() {
-		return withNullAsUndefined(this.editorService.getFocusedCodeEditor());
+		return this.editorService.getFocusedCodeEditor() ?? undefined;
 	}
 }
 
@@ -61,7 +60,7 @@ export class GotoSymbolAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(AbstractGotoSymbolQuickAccessProvider.PREFIX);
+		accessor.get(IQuickInputService).quickAccess.show(AbstractGotoSymbolQuickAccessProvider.PREFIX, { itemActivation: ItemActivation.NONE });
 	}
 }
 

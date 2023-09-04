@@ -64,7 +64,7 @@ suite('ExternalTerminalService', () => {
 		);
 	});
 
-	test(`WinTerminalService - uses default terminal when configuration.terminal.external.windowsExec is undefined`, done => {
+	test(`WinTerminalService - cwd is correct regardless of case`, done => {
 		const testShell = 'cmd';
 		const testCwd = 'c:/foo';
 		const mockSpawner: any = {

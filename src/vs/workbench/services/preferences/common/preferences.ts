@@ -10,10 +10,12 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, EditPresentationTypes, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
@@ -30,12 +32,14 @@ export enum SettingValueType {
 	Boolean = 'boolean',
 	Array = 'array',
 	Exclude = 'exclude',
+	Include = 'include',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
 	Object = 'object',
 	BooleanObject = 'boolean-object',
-	LanguageTag = 'language-tag'
+	LanguageTag = 'language-tag',
+	ExtensionToggle = 'extension-toggle'
 }
 
 export interface ISettingsGroup {
@@ -91,6 +95,13 @@ export interface ISetting {
 	isLanguageTagSetting?: boolean;
 	categoryOrder?: number;
 	categoryLabel?: string;
+
+	// For ExtensionToggle settings
+	displayExtensionId?: string;
+	stableExtensionId?: string;
+	prereleaseExtensionId?: string;
+	title?: string;
+	extensionGroupTitle?: string;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -127,8 +138,9 @@ export interface IFilterResult {
  */
 export enum SettingMatchType {
 	None = 0,
-	WholeWordMatch = 1 << 0,
-	KeyMatch = 1 << 1
+	RemoteMatch = 1 << 0,
+	WholeWordMatch = 1 << 1,
+	KeyMatch = 1 << 2
 }
 
 export interface ISettingMatch {
@@ -267,6 +279,8 @@ export interface IKeybindingItemEntry {
 	commandLabelMatches?: IMatch[];
 	commandDefaultLabelMatches?: IMatch[];
 	sourceMatches?: IMatch[];
+	extensionIdMatches?: IMatch[];
+	extensionLabelMatches?: IMatch[];
 	whenMatches?: IMatch[];
 	keybindingMatches?: KeybindingMatches;
 }
@@ -277,7 +291,7 @@ export interface IKeybindingItem {
 	commandLabel: string;
 	commandDefaultLabel: string;
 	command: string;
-	source: string;
+	source: string | IExtensionDescription;
 	when: string;
 }
 
@@ -302,6 +316,11 @@ export interface IKeybindingsEditorPane extends IEditorPane {
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	copyKeybindingCommand(keybindingEntry: IKeybindingItemEntry): Promise<void>;
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void;
+}
+
+export const DEFINE_KEYBINDING_EDITOR_CONTRIB_ID = 'editor.contrib.defineKeybinding';
+export interface IDefineKeybindingEditorContribution extends IEditorContribution {
+	showDefineKeybindingWidget(): void;
 }
 
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';

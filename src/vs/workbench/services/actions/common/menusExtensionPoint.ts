@@ -12,8 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { Iterable } from 'vs/base/common/iterator';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -72,9 +71,21 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.explorerContext', "The file explorer context menu")
 	},
 	{
+		key: 'explorer/context/share',
+		id: MenuId.ExplorerContextShare,
+		description: localize('menus.explorerContextShare', "'Share' submenu in the file explorer context menu"),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'editor/title/context',
 		id: MenuId.EditorTitleContext,
 		description: localize('menus.editorTabContext', "The editor tabs context menu")
+	},
+	{
+		key: 'editor/title/context/share',
+		id: MenuId.EditorTitleContextShare,
+		description: localize('menus.editorTitleContextShare', "'Share' submenu inside the editor title context menu"),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'debug/callstack/context',
@@ -140,6 +151,18 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'terminal/context',
+		id: MenuId.TerminalInstanceContext,
+		description: localize('menus.terminalContext', "The terminal context menu"),
+		proposed: 'terminalContextMenu'
+	},
+	{
+		key: 'terminal/title/context',
+		id: MenuId.TerminalTabContext,
+		description: localize('menus.terminalTabContext', "The terminal tabs context menu"),
+		proposed: 'terminalContextMenu'
+	},
+	{
 		key: 'view/title',
 		id: MenuId.ViewTitle,
 		description: localize('view.viewTitle', "The contributed view title menu")
@@ -148,6 +171,12 @@ const apiMenus: IAPIMenu[] = [
 		key: 'view/item/context',
 		id: MenuId.ViewItemContext,
 		description: localize('view.itemContext', "The contributed view item context menu")
+	},
+	{
+		key: 'comments/comment/editorActions',
+		id: MenuId.CommentEditorActions,
+		description: localize('commentThread.editorActions', "The contributed comment editor actions"),
+		proposed: 'contribCommentEditorActionsMenu'
 	},
 	{
 		key: 'comments/commentThread/title',
@@ -159,6 +188,13 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentThreadActions,
 		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'comments/commentThread/additionalActions',
+		id: MenuId.CommentThreadAdditionalActions,
+		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
+		supportsSubmenus: false,
+		proposed: 'contribCommentThreadAdditionalMenu'
 	},
 	{
 		key: 'comments/commentThread/title/context',
@@ -205,12 +241,6 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
 	},
 	{
-		key: 'notebook/cell/executePrimary',
-		id: MenuId.NotebookCellExecutePrimary,
-		description: localize('notebook.cell.executePrimary', "The contributed primary notebook cell execution button"),
-		proposed: 'notebookEditor'
-	},
-	{
 		key: 'interactive/toolbar',
 		id: MenuId.InteractiveToolbar,
 		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
@@ -229,6 +259,16 @@ const apiMenus: IAPIMenu[] = [
 		key: 'testing/item/gutter',
 		id: MenuId.TestItemGutter,
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
+	},
+	{
+		key: 'testing/message/context',
+		id: MenuId.TestMessageContext,
+		description: localize('testing.message.context.title', "A prominent button overlaying editor content where the message is displayed"),
+	},
+	{
+		key: 'testing/message/content',
+		id: MenuId.TestMessageContent,
+		description: localize('testing.message.content.title', "Context menu for the message in the results tree"),
 	},
 	{
 		key: 'extension/context',
@@ -289,6 +329,11 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
 		proposed: 'contribEditorContentMenu'
+	},
+	{
+		key: 'editor/lineNumber/context',
+		id: MenuId.EditorLineNumberContext,
+		description: localize('editorLineNumberContext', "The contributed editor line number context menu")
 	},
 	{
 		key: 'mergeEditor/result/title',
@@ -630,7 +675,14 @@ const _commandRegistrations = new DisposableStore();
 
 export const commandsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.IUserFriendlyCommand[]>({
 	extensionPoint: 'commands',
-	jsonSchema: schema.commandsContribution
+	jsonSchema: schema.commandsContribution,
+	activationEventsGenerator: (contribs: schema.IUserFriendlyCommand[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			if (contrib.command) {
+				result.push(`onCommand:${contrib.command}`);
+			}
+		}
+	}
 });
 
 commandsExtensionPoint.setHandler(extensions => {
@@ -656,13 +708,18 @@ commandsExtensionPoint.setHandler(extensions => {
 			}
 		}
 
-		if (MenuRegistry.getCommand(command)) {
-			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
+		const existingCmd = MenuRegistry.getCommand(command);
+		if (existingCmd) {
+			if (existingCmd.source) {
+				extension.collector.info(localize('dup1', "Command `{0}` already registered by {1} ({2})", userFriendlyCommand.command, existingCmd.source.title, existingCmd.source.id));
+			} else {
+				extension.collector.info(localize('dup0', "Command `{0}` already registered", userFriendlyCommand.command));
+			}
 		}
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
-			source: extension.description.displayName ?? extension.description.name,
+			source: { id: extension.description.identifier.value, title: extension.description.displayName ?? extension.description.name },
 			shortTitle,
 			tooltip: title,
 			category,
@@ -748,7 +805,7 @@ submenusExtensionPoint.setHandler(extensions => {
 	}
 });
 
-const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([menu.key, menu])));
+const _apiMenusByKey = new Map(apiMenus.map(menu => ([menu.key, menu])));
 const _menuRegistrations = new DisposableStore();
 const _submenuMenuItems = new Map<string /* menu id */, Set<string /* submenu id */>>();
 

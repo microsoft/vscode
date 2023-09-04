@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
@@ -16,11 +16,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { editorBracketMatchBorder } from 'vs/editor/common/core/editorColorRegistry';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
+import 'vs/css!./inPlaceReplace';
 
 class InPlaceReplaceController implements IEditorContribution {
 
@@ -148,7 +147,7 @@ class InPlaceReplaceUp extends EditorAction {
 		if (!controller) {
 			return Promise.resolve(undefined);
 		}
-		return controller.run(this.id, true);
+		return controller.run(this.id, false);
 	}
 }
 
@@ -173,17 +172,10 @@ class InPlaceReplaceDown extends EditorAction {
 		if (!controller) {
 			return Promise.resolve(undefined);
 		}
-		return controller.run(this.id, false);
+		return controller.run(this.id, true);
 	}
 }
 
-registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController);
+registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorBracketMatchBorder);
-	if (border) {
-		collector.addRule(`.monaco-editor.vs .valueSetReplacement { outline: solid 2px ${border}; }`);
-	}
-});

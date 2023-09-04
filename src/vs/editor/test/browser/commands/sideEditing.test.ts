@@ -46,7 +46,7 @@ suite('Editor Side Editing - collapsed selection', () => {
 				'third line',
 				'fourth'
 			],
-			[new Selection(1, 1, 1, 11)]
+			[new Selection(1, 11, 1, 11)]
 		);
 	});
 
@@ -233,7 +233,7 @@ suite('SideEditing', () => {
 					new Range(1, 4, 1, 4),
 					new Range(1, 4, 1, 4), 'xx',
 					[
-						[new Selection(1, 4, 1, 6), new Selection(1, 4, 1, 6)],
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
 						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
 					]
 				);
@@ -704,7 +704,7 @@ suite('SideEditing', () => {
 					new Range(1, 4, 1, 4),
 					new Range(1, 2, 1, 4), 'cccc',
 					[
-						[new Selection(1, 4, 1, 6), new Selection(1, 4, 1, 6)],
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
 						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
 					]
 				);

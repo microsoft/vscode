@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{
-	constants::get_default_user_agent,
-	info, log,
+	constants::{get_default_user_agent, PRODUCT_NAME_LONG},
+	debug, info, log,
 	state::{LauncherPaths, PersistedState},
 	trace,
 	util::{
-		errors::{wrap, AnyError, RefreshTokenNotAvailableError, StatusError, WrappedError},
+		errors::{
+			wrap, AnyError, CodeError, OAuthError, RefreshTokenNotAvailableError, StatusError,
+			WrappedError,
+		},
 		input::prompt_options,
 	},
 	warning,
@@ -18,7 +21,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use gethostname::gethostname;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{cell::Cell, fmt::Display, path::PathBuf, sync::Arc};
+use std::{cell::Cell, fmt::Display, path::PathBuf, sync::Arc, thread};
 use tokio::time::sleep;
 use tunnels::{
 	contracts::PROD_FIRST_PARTY_APP_ID,
@@ -41,7 +44,13 @@ struct AuthenticationResponse {
 	expires_in: Option<i64>,
 }
 
-#[derive(clap::ArgEnum, Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Deserialize)]
+struct AuthenticationError {
+	error: String,
+	error_description: Option<String>,
+}
+
+#[derive(clap::ValueEnum, Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum AuthProvider {
 	Microsoft,
 	Github,
@@ -104,7 +113,7 @@ pub struct StoredCredential {
 }
 
 impl StoredCredential {
-	pub async fn is_expired(&self, client: &reqwest::Client) -> bool {
+	pub async fn is_expired(&self, log: &log::Logger, client: &reqwest::Client) -> bool {
 		match self.provider {
 			AuthProvider::Microsoft => self
 				.expires_at
@@ -114,14 +123,29 @@ impl StoredCredential {
 			// Make an auth request to Github. Mark the credential as expired
 			// only on a verifiable 4xx code. We don't error on any failed
 			// request since then a drop in connection could "require" a refresh
-			AuthProvider::Github => client
-				.get("https://api.github.com/user")
-				.header("Authorization", format!("token {}", self.access_token))
-				.header("User-Agent", get_default_user_agent())
-				.send()
-				.await
-				.map(|r| r.status().is_client_error())
-				.unwrap_or(false),
+			AuthProvider::Github => {
+				let res = client
+					.get("https://api.github.com/user")
+					.header("Authorization", format!("token {}", self.access_token))
+					.header("User-Agent", get_default_user_agent())
+					.send()
+					.await;
+				let res = match res {
+					Ok(r) => r,
+					Err(e) => {
+						warning!(log, "failed to check Github token: {}", e);
+						return false;
+					}
+				};
+
+				if res.status().is_success() {
+					return false;
+				}
+
+				let err = StatusError::from_res(res).await;
+				debug!(log, "github token looks expired: {:?}", err);
+				true
+			}
 		}
 	}
 
@@ -137,6 +161,7 @@ impl StoredCredential {
 
 struct StorageWithLastRead {
 	storage: Box<dyn StorageImplementation>,
+	fallback_storage: Option<FileStorage>,
 	last_read: Cell<Result<Option<StoredCredential>, WrappedError>>,
 }
 
@@ -149,9 +174,9 @@ pub struct Auth {
 }
 
 trait StorageImplementation: Send + Sync {
-	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError>;
-	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError>;
-	fn clear(&mut self) -> Result<(), WrappedError>;
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError>;
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError>;
+	fn clear(&mut self) -> Result<(), AnyError>;
 }
 
 // unseal decrypts and deserializes the value
@@ -160,6 +185,9 @@ where
 	T: Serialize + ?Sized,
 {
 	let dec = serde_json::to_string(value).expect("expected to serialize");
+	if std::env::var("VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT").is_ok() {
+		return dec;
+	}
 	encrypt(&dec)
 }
 
@@ -168,7 +196,7 @@ fn unseal<T>(value: &str) -> Option<T>
 where
 	T: DeserializeOwned,
 {
-	// small back-compat for old unencrypted values
+	// small back-compat for old unencrypted values, or if VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT set
 	if let Ok(v) = serde_json::from_str::<T>(value) {
 		return Some(v);
 	}
@@ -184,6 +212,66 @@ const KEYCHAIN_ENTRY_LIMIT: usize = 128 * 1024;
 
 const CONTINUE_MARKER: &str = "<MORE>";
 
+/// Implementation that wraps the KeyringStorage on Linux to avoid
+/// https://github.com/hwchen/keyring-rs/issues/132
+struct ThreadKeyringStorage {
+	s: Option<KeyringStorage>,
+}
+
+impl ThreadKeyringStorage {
+	fn thread_op<R, Fn>(&mut self, f: Fn) -> Result<R, AnyError>
+	where
+		Fn: 'static + Send + FnOnce(&mut KeyringStorage) -> Result<R, AnyError>,
+		R: 'static + Send,
+	{
+		let mut s = match self.s.take() {
+			Some(s) => s,
+			None => return Err(CodeError::KeyringTimeout.into()),
+		};
+
+		// It seems like on Linux communication to the keyring can block indefinitely.
+		// Fall back after a 5 second timeout.
+		let (sender, receiver) = std::sync::mpsc::channel();
+		let tsender = sender.clone();
+
+		thread::spawn(move || sender.send(Some((f(&mut s), s))));
+		thread::spawn(move || {
+			thread::sleep(std::time::Duration::from_secs(5));
+			let _ = tsender.send(None);
+		});
+
+		match receiver.recv().unwrap() {
+			Some((r, s)) => {
+				self.s = Some(s);
+				r
+			}
+			None => Err(CodeError::KeyringTimeout.into()),
+		}
+	}
+}
+
+impl Default for ThreadKeyringStorage {
+	fn default() -> Self {
+		Self {
+			s: Some(KeyringStorage::default()),
+		}
+	}
+}
+
+impl StorageImplementation for ThreadKeyringStorage {
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError> {
+		self.thread_op(|s| s.read())
+	}
+
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError> {
+		self.thread_op(move |s| s.store(value))
+	}
+
+	fn clear(&mut self) -> Result<(), AnyError> {
+		self.thread_op(|s| s.clear())
+	}
+}
+
 #[derive(Default)]
 struct KeyringStorage {
 	// keywring storage can be split into multiple entries due to entry length limits
@@ -196,7 +284,7 @@ macro_rules! get_next_entry {
 		match $self.entries.get($i) {
 			Some(e) => e,
 			None => {
-				let e = keyring::Entry::new("vscode-cli", &format!("vscode-cli-{}", $i));
+				let e = keyring::Entry::new("vscode-cli", &format!("vscode-cli-{}", $i)).unwrap();
 				$self.entries.push(e);
 				$self.entries.last().unwrap()
 			}
@@ -205,7 +293,7 @@ macro_rules! get_next_entry {
 }
 
 impl StorageImplementation for KeyringStorage {
-	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError> {
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError> {
 		let mut str = String::new();
 
 		for i in 0.. {
@@ -213,7 +301,7 @@ impl StorageImplementation for KeyringStorage {
 			let next_chunk = match entry.get_password() {
 				Ok(value) => value,
 				Err(keyring::Error::NoEntry) => return Ok(None), // missing entries?
-				Err(e) => return Err(wrap(e, "error reading keyring")),
+				Err(e) => return Err(wrap(e, "error reading keyring").into()),
 			};
 
 			if next_chunk.ends_with(CONTINUE_MARKER) {
@@ -227,7 +315,7 @@ impl StorageImplementation for KeyringStorage {
 		Ok(unseal(&str))
 	}
 
-	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError> {
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError> {
 		let sealed = seal(&value);
 		let step_size = KEYCHAIN_ENTRY_LIMIT - CONTINUE_MARKER.len();
 
@@ -244,14 +332,14 @@ impl StorageImplementation for KeyringStorage {
 			};
 
 			if let Err(e) = stored {
-				return Err(wrap(e, "error updating keyring"));
+				return Err(wrap(e, "error updating keyring").into());
 			}
 		}
 
 		Ok(())
 	}
 
-	fn clear(&mut self) -> Result<(), WrappedError> {
+	fn clear(&mut self) -> Result<(), AnyError> {
 		self.read().ok(); // make sure component parts are available
 		for entry in self.entries.iter() {
 			entry
@@ -267,16 +355,16 @@ impl StorageImplementation for KeyringStorage {
 struct FileStorage(PersistedState<Option<String>>);
 
 impl StorageImplementation for FileStorage {
-	fn read(&mut self) -> Result<Option<StoredCredential>, WrappedError> {
+	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError> {
 		Ok(self.0.load().and_then(|s| unseal(&s)))
 	}
 
-	fn store(&mut self, value: StoredCredential) -> Result<(), WrappedError> {
-		self.0.save(Some(seal(&value)))
+	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError> {
+		self.0.save(Some(seal(&value))).map_err(|e| e.into())
 	}
 
-	fn clear(&mut self) -> Result<(), WrappedError> {
-		self.0.save(None)
+	fn clear(&mut self) -> Result<(), AnyError> {
+		self.0.save(None).map_err(|e| e.into())
 	}
 }
 
@@ -299,23 +387,38 @@ impl Auth {
 			return op(s);
 		}
 
+		#[cfg(not(target_os = "linux"))]
 		let mut keyring_storage = KeyringStorage::default();
+		#[cfg(target_os = "linux")]
+		let mut keyring_storage = ThreadKeyringStorage::default();
 		let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
 
-		let keyring_storage_result = match std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN") {
-			Ok(_) => Err(wrap("", "user prefers file storage")),
-			_ => keyring_storage.read(),
+		let native_storage_result = if std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN").is_ok()
+			|| self.file_storage_path.exists()
+		{
+			Err(wrap("", "user prefers file storage").into())
+		} else {
+			keyring_storage.read()
 		};
 
-		let mut storage = match keyring_storage_result {
+		let mut storage = match native_storage_result {
 			Ok(v) => StorageWithLastRead {
 				last_read: Cell::new(Ok(v)),
+				fallback_storage: Some(file_storage),
 				storage: Box::new(keyring_storage),
 			},
-			Err(_) => StorageWithLastRead {
-				last_read: Cell::new(file_storage.read()),
-				storage: Box::new(file_storage),
-			},
+			Err(e) => {
+				debug!(self.log, "Using file keychain storage due to: {}", e);
+				StorageWithLastRead {
+					last_read: Cell::new(
+						file_storage
+							.read()
+							.map_err(|e| wrap(e, "could not read from file storage")),
+					),
+					fallback_storage: None,
+					storage: Box::new(file_storage),
+				}
+			}
 		};
 
 		let out = op(&mut storage);
@@ -348,7 +451,7 @@ impl Auth {
 	}
 
 	/// Clears login info from the keyring.
-	pub fn clear_credentials(&self) -> Result<(), WrappedError> {
+	pub fn clear_credentials(&self) -> Result<(), AnyError> {
 		self.with_storage(|storage| {
 			storage.storage.clear()?;
 			storage.last_read.set(Ok(None));
@@ -434,7 +537,18 @@ impl Auth {
 					"Failed to update keyring with new credentials: {}",
 					e
 				);
+
+				if let Some(fb) = storage.fallback_storage.take() {
+					storage.storage = Box::new(fb);
+					match storage.storage.store(creds.clone()) {
+						Err(e) => {
+							warning!(self.log, "Also failed to update fallback storage: {}", e)
+						}
+						Ok(_) => debug!(self.log, "Updated fallback storage successfully"),
+					}
+				}
 			}
+
 			storage.last_read.set(Ok(Some(creds)));
 		})
 	}
@@ -445,7 +559,7 @@ impl Auth {
 		&self,
 		creds: &StoredCredential,
 	) -> Result<Option<StoredCredential>, AnyError> {
-		if !creds.is_expired(&self.client).await {
+		if !creds.is_expired(&self.log, &self.client).await {
 			return Ok(None);
 		}
 
@@ -480,12 +594,26 @@ impl Auth {
 			.send()
 			.await?;
 
-		if !response.status().is_success() {
-			return Err(StatusError::from_res(response).await?.into());
+		let status_code = response.status().as_u16();
+		let body = response.bytes().await?;
+		if let Ok(body) = serde_json::from_slice::<AuthenticationResponse>(&body) {
+			return Ok(StoredCredential::from_response(body, provider));
 		}
 
-		let body = response.json::<AuthenticationResponse>().await?;
-		Ok(StoredCredential::from_response(body, provider))
+		if let Ok(res) = serde_json::from_slice::<AuthenticationError>(&body) {
+			return Err(OAuthError {
+				error: res.error,
+				error_description: res.error_description,
+			}
+			.into());
+		}
+
+		return Err(StatusError {
+			body: String::from_utf8_lossy(&body).to_string(),
+			status_code,
+			url: provider.grant_uri().to_string(),
+		}
+		.into());
 	}
 
 	/// Implements the device code flow, returning the credentials upon success.
@@ -500,7 +628,7 @@ impl Auth {
 		}
 
 		let provider = prompt_options(
-			"How would you like to log in to VS Code?",
+			format!("How would you like to log in to {}?", PRODUCT_NAME_LONG),
 			&[AuthProvider::Microsoft, AuthProvider::Github],
 		)?;
 
@@ -540,16 +668,21 @@ impl Auth {
 			};
 
 			let body = format!(
-                "client_id={}&grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code={}",
-                provider.client_id(),
-                init_code_json.device_code
-            );
+					"client_id={}&grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code={}",
+					provider.client_id(),
+					init_code_json.device_code
+			);
 
+			let mut interval_s = 5;
 			while Utc::now() < expires_at {
-				sleep(std::time::Duration::from_secs(5)).await;
+				sleep(std::time::Duration::from_secs(interval_s)).await;
 
 				match self.do_grant(provider, body.clone()).await {
 					Ok(creds) => return Ok(creds),
+					Err(AnyError::OAuthError(e)) if e.error == "slow_down" => {
+						interval_s += 5; // https://www.rfc-editor.org/rfc/rfc8628#section-3.5
+						trace!(self.log, "refresh poll failed, slowing down");
+					}
 					Err(e) => {
 						trace!(self.log, "refresh poll failed, retrying: {}", e);
 					}

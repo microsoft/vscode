@@ -90,6 +90,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	}
 
 	async toggleRecommendation(extensionId: string): Promise<void> {
+		extensionId = extensionId.toLowerCase();
 		const workspace = this.workspaceContextService.getWorkspace();
 		const workspaceExtensionsConfigContent = workspace.configuration ? await this.resolveWorkspaceExtensionConfig(workspace.configuration) : undefined;
 		const workspaceFolderExtensionsConfigContents = new ResourceMap<IExtensionsConfigContent>();
@@ -98,8 +99,8 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 			workspaceFolderExtensionsConfigContents.set(workspaceFolder.uri, extensionsConfigContent);
 		}));
 
-		const isWorkspaceRecommended = workspaceExtensionsConfigContent && workspaceExtensionsConfigContent.recommendations?.some(r => r === extensionId);
-		const recommendedWorksapceFolders = workspace.folders.filter(workspaceFolder => workspaceFolderExtensionsConfigContents.get(workspaceFolder.uri)?.recommendations?.some(r => r === extensionId));
+		const isWorkspaceRecommended = workspaceExtensionsConfigContent && workspaceExtensionsConfigContent.recommendations?.some(r => r.toLowerCase() === extensionId);
+		const recommendedWorksapceFolders = workspace.folders.filter(workspaceFolder => workspaceFolderExtensionsConfigContents.get(workspaceFolder.uri)?.recommendations?.some(r => r.toLowerCase() === extensionId));
 		const isRecommended = isWorkspaceRecommended || recommendedWorksapceFolders.length > 0;
 
 		const workspaceOrFolders = isRecommended

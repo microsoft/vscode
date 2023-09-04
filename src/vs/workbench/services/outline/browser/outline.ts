@@ -97,3 +97,8 @@ export const enum OutlineConfigKeys {
 	'problemsColors' = 'outline.problems.colors',
 	'problemsBadges' = 'outline.problems.badges'
 }
+
+export const enum OutlineConfigCollapseItemsValues {
+	Collapsed = 'alwaysCollapse',
+	Expanded = 'alwaysExpand'
+}

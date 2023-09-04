@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 mod context;
-mod output;
 
 pub mod args;
 pub mod tunnels;
+pub mod update;
 pub mod version;
+pub mod serve_web;
 pub use context::CommandContext;

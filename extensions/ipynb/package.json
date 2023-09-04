@@ -10,11 +10,12 @@
 	},
 	"enabledApiProposals": [
 		"documentPaste",
-		"diffContentOptions"
+		"diffContentOptions",
+		"dropMetadata"
 	],
 	"activationEvents": [
 		"onNotebook:jupyter-notebook",
-		"onCommand:ipynb.newUntitledIpynb"
+		"onNotebookSerializer:interactive"
 	],
 	"extensionKind": [
 		"workspace",
@@ -32,14 +33,11 @@
 		"configuration": [
 			{
 				"properties": {
-					"ipynb.experimental.pasteImages.enabled": {
+					"ipynb.pasteImagesAsAttachments.enabled": {
 						"type": "boolean",
 						"scope": "resource",
-						"markdownDescription": "%ipynb.experimental.pasteImages.enabled%",
-						"default": false,
-						"tags": [
-							"experimental"
-						]
+						"markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
+						"default": true
 					}
 				}
 			}
@@ -47,18 +45,22 @@
 		"commands": [
 			{
 				"command": "ipynb.newUntitledIpynb",
-				"title": "New Jupyter Notebook",
-				"shortTitle": "Jupyter Notebook",
+				"title": "%newUntitledIpynb.title%",
+				"shortTitle": "%newUntitledIpynb.shortTitle%",
 				"category": "Create"
 			},
 			{
 				"command": "ipynb.openIpynbInNotebookEditor",
-				"title": "Open ipynb file in notebook editor"
+				"title": "%openIpynbInNotebookEditor.title%"
 			},
 			{
 				"command": "ipynb.cleanInvalidImageAttachment",
-				"title": "Clean invalid image attachment reference"
-			}
+				"title": "%cleanInvalidImageAttachment.title%"
+			},
+      {
+        "command": "notebook.cellOutput.copy",
+        "title": "%copyCellOutput.title%"
+      }
 		],
 		"notebooks": [
 			{
@@ -75,7 +77,7 @@
 		"notebookRenderer": [
 			{
 				"id": "vscode.markdown-it-cell-attachment-renderer",
-				"displayName": "Markdown it ipynb Cell Attachment renderer",
+				"displayName": "%markdownAttachmentRenderer.displayName%",
 				"entrypoint": {
 					"extends": "vscode.markdown-it-renderer",
 					"path": "./notebook-out/cellAttachmentRenderer.js"
@@ -101,7 +103,13 @@
 					"command": "ipynb.cleanInvalidImageAttachment",
 					"when": "false"
 				}
-			]
+			],
+      "webview/context": [
+        {
+          "command": "notebook.cellOutput.copy",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+        }
+      ]
 		}
 	},
 	"scripts": {

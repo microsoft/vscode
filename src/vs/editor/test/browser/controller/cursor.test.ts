@@ -1791,7 +1791,7 @@ suite('Editor Controller', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getLineContent(1), 'Hello world ');
-			assertCursor(viewModel, new Selection(1, 12, 1, 13));
+			assertCursor(viewModel, new Selection(1, 13, 1, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getLineContent(1), 'Hello world');
@@ -2433,36 +2433,6 @@ suite('Editor Controller', () => {
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.strictEqual(model.getLineContent(1), '');
 			assertCursor(viewModel, new Position(1, 1));
-		});
-	});
-
-	test('issue #23913: Greater than 1000+ multi cursor typing replacement text appears inverted, lines begin to drop off selection', function () {
-		this.timeout(10000);
-		const LINE_CNT = 2000;
-
-		const text: string[] = [];
-		for (let i = 0; i < LINE_CNT; i++) {
-			text[i] = 'asd';
-		}
-		usingCursor({
-			text: text
-		}, (editor, model, viewModel) => {
-
-			const selections: Selection[] = [];
-			for (let i = 0; i < LINE_CNT; i++) {
-				selections[i] = new Selection(i + 1, 1, i + 1, 1);
-			}
-			viewModel.setSelections('test', selections);
-
-			viewModel.type('n', 'keyboard');
-			viewModel.type('n', 'keyboard');
-
-			for (let i = 0; i < LINE_CNT; i++) {
-				assert.strictEqual(model.getLineContent(i + 1), 'nnasd', 'line #' + (i + 1));
-			}
-
-			assert.strictEqual(viewModel.getSelections().length, LINE_CNT);
-			assert.strictEqual(viewModel.getSelections()[LINE_CNT - 1].startLineNumber, LINE_CNT);
 		});
 	});
 
@@ -4997,13 +4967,13 @@ suite('Editor Controller', () => {
 
 			const autoClosePositions = [
 				'var| a| |=| [|]|;|',
-				'var| b| |=| `asd`|;|',
-				'var| c| |=| \'asd\'|;|',
-				'var| d| |=| "asd"|;|',
+				'var| b| |=| |`asd|`|;|',
+				'var| c| |=| |\'asd|\'|;|',
+				'var| d| |=| |"asd|"|;|',
 				'var| e| |=| /*3*/|	3|;|',
 				'var| f| |=| /**| 3| */3|;|',
 				'var| g| |=| (3+5|)|;|',
-				'var| h| |=| {| a|:| \'value\'| |}|;|',
+				'var| h| |=| {| a|:| |\'value|\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -5713,6 +5683,9 @@ suite('Editor Controller', () => {
 			text: [
 				'foo\'hello\''
 			],
+			editorOpts: {
+				autoClosingBrackets: 'beforeWhitespace'
+			},
 			languageId: languageId
 		}, (editor, model, viewModel) => {
 			assertType(editor, model, viewModel, 1, 4, '(', '(', `does not auto close @ (1, 4)`);
@@ -6106,6 +6079,70 @@ suite('Editor Controller', () => {
 				position: new Position(4, 7)
 			});
 			assertCursor(viewModel, new Selection(3, 7, 4, 7));
+		});
+	});
+
+	test('issue #112039: shift-continuing a double/triple-click and drag selection does not remember its starting mode', () => {
+		const model = createTextModel(
+			[
+				'just some text',
+				'and another line',
+				'and another one',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
+				position: new Position(2, 6)
+			});
+			CoreNavigationCommands.MoveToSelect.runEditorCommand(null, editor, {
+				position: new Position(1, 8),
+			});
+			assertCursor(viewModel, new Selection(2, 12, 1, 6));
+		});
+	});
+
+	test('issue #158236: Shift click selection does not work on line number indicator', () => {
+		const model = createTextModel(
+			[
+				'just some text',
+				'and another line',
+				'and another one',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			CoreNavigationCommands.MoveTo.runEditorCommand(null, editor, {
+				position: new Position(3, 5)
+			});
+			CoreNavigationCommands.LineSelectDrag.runEditorCommand(null, editor, {
+				position: new Position(2, 1)
+			});
+			assertCursor(viewModel, new Selection(3, 5, 2, 1));
+		});
+	});
+
+	test('issue #111513: Text gets automatically selected when typing at the same location in another editor', () => {
+		const model = createTextModel(
+			[
+				'just',
+				'',
+				'some text',
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor1, viewModel1) => {
+			editor1.setSelections([
+				new Selection(2, 1, 2, 1)
+			]);
+			withTestCodeEditor(model, {}, (editor2, viewModel2) => {
+				editor2.setSelections([
+					new Selection(2, 1, 2, 1)
+				]);
+				viewModel2.type('e', 'keyboard');
+				assertCursor(viewModel2, new Position(2, 2));
+				assertCursor(viewModel1, new Position(2, 2));
+			});
 		});
 	});
 });

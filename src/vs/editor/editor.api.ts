@@ -7,7 +7,6 @@ import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/edit
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-import { globals } from 'vs/base/common/platform';
 import { FormattingConflicts } from 'vs/editor/contrib/format/browser/format';
 
 // Set defaults for standalone editor
@@ -38,12 +37,16 @@ export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
 
-if (globals.MonacoEnvironment?.globalAPI || (typeof define === 'function' && (<any>define).amd)) {
-	self.monaco = api;
+interface IMonacoEnvironment {
+	globalAPI?: boolean;
+}
+const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+if (monacoEnvironment?.globalAPI || (typeof define === 'function' && (<any>define).amd)) {
+	globalThis.monaco = api;
 }
 
-if (typeof self.require !== 'undefined' && typeof self.require.config === 'function') {
-	self.require.config({
+if (typeof globalThis.require !== 'undefined' && typeof globalThis.require.config === 'function') {
+	globalThis.require.config({
 		ignoreDuplicateModules: [
 			'vscode-languageserver-types',
 			'vscode-languageserver-types/main',

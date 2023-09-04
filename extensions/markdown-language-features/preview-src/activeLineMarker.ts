@@ -9,7 +9,7 @@ export class ActiveLineMarker {
 
 	onDidChangeTextEditorSelection(line: number, documentVersion: number) {
 		const { previous } = getElementsForSourceLine(line, documentVersion);
-		this._update(previous && previous.element);
+		this._update(previous && (previous.codeElement || previous.element));
 	}
 
 	_update(before: HTMLElement | undefined) {
@@ -22,13 +22,14 @@ export class ActiveLineMarker {
 		if (!element) {
 			return;
 		}
-		element.className = element.className.replace(/\bcode-active-line\b/g, '');
+		element.classList.toggle('code-active-line', false);
 	}
 
 	_markActiveElement(element: HTMLElement | undefined) {
 		if (!element) {
 			return;
 		}
-		element.className += ' code-active-line';
+
+		element.classList.toggle('code-active-line', true);
 	}
 }

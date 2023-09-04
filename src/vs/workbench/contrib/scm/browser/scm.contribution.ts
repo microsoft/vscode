@@ -30,6 +30,8 @@ import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRep
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
+import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
+import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -45,7 +47,7 @@ const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.s
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: localize('source control', "Source Control"),
+	title: { value: localize('source control', "Source Control"), original: 'Source Control' },
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
 	icon: sourceControlViewIcon,
@@ -153,7 +155,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['diff', 'none'],
 			enumDescriptions: [
-				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff peek view on click."),
+				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff Peek view on click."),
 				localize('scm.diffDecorationsGutterAction.none', "Do nothing.")
 			],
 			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
@@ -270,7 +272,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.repositories.visible': {
 			type: 'number',
-			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to `0` to be able to manually resize the view."),
+			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to 0, to be able to manually resize the view."),
 			default: 10
 		},
 		'scm.showActionButton': {
@@ -365,6 +367,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Alt | KeyCode.UpArrow
 });
 
+CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, provider: ISCMProvider) => {
+	if (!provider || !provider.rootUri) {
+		return;
+	}
+
+	const commandService = accessor.get(ICommandService);
+	await commandService.executeCommand('openInIntegratedTerminal', provider.rootUri);
+});
+
 CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {
 	if (!provider || !provider.rootUri) {
 		return;
@@ -378,10 +389,20 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	group: '100_end',
 	command: {
 		id: 'scm.openInTerminal',
-		title: localize('open in terminal', "Open In Terminal")
+		title: localize('open in external terminal', "Open in External Terminal")
 	},
-	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'external'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
+	group: '100_end',
+	command: {
+		id: 'scm.openInIntegratedTerminal',
+		title: localize('open in integrated terminal', "Open in Integrated Terminal")
+	},
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
 });
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
 registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
+registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);

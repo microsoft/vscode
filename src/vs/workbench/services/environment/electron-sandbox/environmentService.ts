@@ -12,7 +12,6 @@ import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { joinPath } from 'vs/base/common/resources';
 
@@ -64,6 +63,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
+	get expectsResolverExtension() { return !!this.configuration.remoteAuthority?.includes('+'); }
+
+	@memoize
 	get execPath() { return this.configuration.execPath; }
 
 	@memoize
@@ -83,17 +85,17 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	}
 
 	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
+	get windowLogsPath(): URI { return joinPath(this.logsHome, `window${this.configuration.windowId}`); }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+	get logFile(): URI { return joinPath(this.windowLogsPath, `renderer.log`); }
 
 	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+	get extHostLogsPath(): URI { return joinPath(this.windowLogsPath, 'exthost'); }
 
 	@memoize
 	get extHostTelemetryLogFile(): URI {
-		return joinPath(this.extHostLogsPath, 'telemetry.log');
+		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
 	}
 
 	@memoize

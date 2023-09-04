@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ttPolicy } from './htmlHelper';
+
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
 
-const WIN_ABSOLUTE_PATH = /(?:[a-zA-Z]:(?:(?:\\|\/)[\w\.-]*)+)/;
-const WIN_RELATIVE_PATH = /(?:(?:\~|\.)(?:(?:\\|\/)[\w\.-]*)+)/;
+const WIN_ABSOLUTE_PATH = /(?<=^|\s)(?:[a-zA-Z]:(?:(?:\\|\/)[\w\.-]*)+)/;
+const WIN_RELATIVE_PATH = /(?<=^|\s)(?:(?:\~|\.)(?:(?:\\|\/)[\w\.-]*)+)/;
 const WIN_PATH = new RegExp(`(${WIN_ABSOLUTE_PATH.source}|${WIN_RELATIVE_PATH.source})`);
-const POSIX_PATH = /((?:\~|\.)?(?:\/[\w\.-]*)+)/;
+const POSIX_PATH = /(?<=^|\s)((?:\~|\.)?(?:\/[\w\.-]*)+)/;
 const LINE_COLUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
-const isWindows = navigator.userAgent.indexOf('Windows') >= 0;
+const isWindows = (typeof navigator !== 'undefined') ? navigator.userAgent && navigator.userAgent.indexOf('Windows') >= 0 : false;
 const PATH_LINK_REGEX = new RegExp(`${isWindows ? WIN_PATH.source : POSIX_PATH.source}${LINE_COLUMN.source}`, 'g');
+const HTML_LINK_REGEX = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1[^>]*?>.*?<\/a>/gi;
 
 const MAX_LENGTH = 2000;
 
-type LinkKind = 'web' | 'path' | 'text';
+type LinkKind = 'web' | 'path' | 'html' | 'text';
 type LinkPart = {
 	kind: LinkKind;
 	value: string;
@@ -36,7 +39,7 @@ export class LinkDetector {
 	 * When splitLines is true, each line of the text, even if it contains no links, is wrapped in a <span>
 	 * and added as a child of the returned <span>.
 	 */
-	linkify(text: string, splitLines?: boolean, workspaceFolder?: string): HTMLElement {
+	linkify(text: string, splitLines?: boolean, workspaceFolder?: string, trustHtml?: boolean): HTMLElement {
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -46,7 +49,7 @@ export class LinkDetector {
 				// Remove the last element ('') that split added.
 				lines.pop();
 			}
-			const elements = lines.map(line => this.linkify(line, false, workspaceFolder));
+			const elements = lines.map(line => this.linkify(line, false, workspaceFolder, trustHtml));
 			if (elements.length === 1) {
 				// Do not wrap single line with extra span.
 				return elements[0];
@@ -64,17 +67,18 @@ export class LinkDetector {
 						container.appendChild(document.createTextNode(part.value));
 						break;
 					case 'web':
+					case 'path':
 						container.appendChild(this.createWebLink(part.value));
 						break;
-					case 'path': {
-						container.appendChild(document.createTextNode(part.value));
-
-						// const path = part.captures[0];
-						// const lineNumber = part.captures[1] ? Number(part.captures[1]) : 0;
-						// const columnNumber = part.captures[2] ? Number(part.captures[2]) : 0;
-						// container.appendChild(this.createPathLink(part.value, path, lineNumber, columnNumber, workspaceFolder));
+					case 'html':
+						if (ttPolicy && trustHtml) {
+							const span = document.createElement('span');
+							span.innerHTML = ttPolicy.createHTML(part.value).toString();
+							container.appendChild(span);
+						} else {
+							container.appendChild(document.createTextNode(part.value));
+						}
 						break;
-					}
 				}
 			} catch (e) {
 				container.appendChild(document.createTextNode(part.value));
@@ -85,7 +89,7 @@ export class LinkDetector {
 
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
-
+		link.href = url;
 		return link;
 	}
 
@@ -127,7 +131,7 @@ export class LinkDetector {
 	// 	return link;
 	// }
 
-	private createLink(text: string): HTMLElement {
+	private createLink(text: string): HTMLAnchorElement {
 		const link = document.createElement('a');
 		link.textContent = text;
 		return link;
@@ -138,8 +142,8 @@ export class LinkDetector {
 			return [{ kind: 'text', value: text, captures: [] }];
 		}
 
-		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX];
-		const kinds: LinkKind[] = ['web', 'path'];
+		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX, HTML_LINK_REGEX];
+		const kinds: LinkKind[] = ['web', 'path', 'html'];
 		const result: LinkPart[] = [];
 
 		const splitOne = (text: string, regexIndex: number) => {
@@ -176,6 +180,6 @@ export class LinkDetector {
 }
 
 const linkDetector = new LinkDetector();
-export function linkify(text: string, splitLines?: boolean, workspaceFolder?: string) {
-	return linkDetector.linkify(text, splitLines, workspaceFolder);
+export function linkify(text: string, splitLines?: boolean, workspaceFolder?: string, trustHtml = false) {
+	return linkDetector.linkify(text, splitLines, workspaceFolder, trustHtml);
 }

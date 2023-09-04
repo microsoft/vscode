@@ -3,14 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, LengthObj, lengthToObj, toLength } from './length';
+import { Range } from 'vs/editor/common/core/range';
+import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, LengthObj, lengthOfString, lengthToObj, positionToLength, toLength } from './length';
+import { IModelContentChange } from 'vs/editor/common/textModelEvents';
 
 export class TextEditInfo {
+	public static fromModelContentChanges(changes: IModelContentChange[]): TextEditInfo[] {
+		// Must be sorted in ascending order
+		const edits = changes.map(c => {
+			const range = Range.lift(c.range);
+			return new TextEditInfo(
+				positionToLength(range.getStartPosition()),
+				positionToLength(range.getEndPosition()),
+				lengthOfString(c.text)
+			);
+		}).reverse();
+		return edits;
+	}
+
 	constructor(
 		public readonly startOffset: Length,
 		public readonly endOffset: Length,
 		public readonly newLength: Length
 	) {
+	}
+
+	toString(): string {
+		return `[${lengthToObj(this.startOffset)}...${lengthToObj(this.endOffset)}) -> ${lengthToObj(this.newLength)}`;
 	}
 }
 
@@ -26,7 +45,6 @@ export class BeforeEditPositionMapper {
 	*/
 	constructor(
 		edits: readonly TextEditInfo[],
-		private readonly documentLength: Length,
 	) {
 		this.edits = edits.map(edit => TextEditInfoCache.from(edit));
 	}
@@ -41,12 +59,16 @@ export class BeforeEditPositionMapper {
 
 	/**
 	 * @param offset Must be equal to or greater than the last offset this method has been called with.
+	 * Returns null if there is no edit anymore.
 	*/
-	getDistanceToNextChange(offset: Length): Length {
+	getDistanceToNextChange(offset: Length): Length | null {
 		this.adjustNextEdit(offset);
 
 		const nextEdit = this.edits[this.nextEditIdx];
-		const nextChangeOffset = nextEdit ? this.translateOldToCur(nextEdit.offsetObj) : this.documentLength;
+		const nextChangeOffset = nextEdit ? this.translateOldToCur(nextEdit.offsetObj) : null;
+		if (nextChangeOffset === null) {
+			return null;
+		}
 
 		return lengthDiffNonNegative(offset, nextChangeOffset);
 	}

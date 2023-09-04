@@ -14,7 +14,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -26,17 +26,17 @@ interface WindowLoadEvent {
 	/**
 	 * The window that is loaded to a new workspace.
 	 */
-	window: ICodeWindow;
+	readonly window: ICodeWindow;
 
 	/**
 	 * The workspace the window is loaded into.
 	 */
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	readonly workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
 
 	/**
 	 * More details why the window loads to a new workspace.
 	 */
-	reason: LoadReason;
+	readonly reason: LoadReason;
 }
 
 export const enum ShutdownReason {
@@ -65,7 +65,21 @@ export interface ShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 */
-	join(promise: Promise<void>): void;
+	join(id: string, promise: Promise<void>): void;
+}
+
+export interface IRelaunchHandler {
+
+	/**
+	 * Allows a handler to deal with relaunching the application. The return
+	 * value indicates if the relaunch is handled or not.
+	 */
+	handleRelaunch(options?: IRelaunchOptions): boolean;
+}
+
+export interface IRelaunchOptions {
+	readonly addArgs?: string[];
+	readonly removeArgs?: string[];
 }
 
 export interface ILifecycleMainService {
@@ -130,7 +144,12 @@ export interface ILifecycleMainService {
 	/**
 	 * Restart the application with optional arguments (CLI). All lifecycle event handlers are triggered.
 	 */
-	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
+	relaunch(options?: IRelaunchOptions): Promise<void>;
+
+	/**
+	 * Sets a custom handler for relaunching the application.
+	 */
+	setRelaunchHandler(handler: IRelaunchHandler): void;
 
 	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
@@ -224,9 +243,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
 
+	private relaunchHandler: IRelaunchHandler | undefined = undefined;
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
 		super();
@@ -236,11 +257,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	private resolveRestarted(): void {
-		this._wasRestarted = !!this.stateMainService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+		this._wasRestarted = !!this.stateService.getItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 
 		if (this._wasRestarted) {
 			// remove the marker right after if found
-			this.stateMainService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
+			this.stateService.removeItem(LifecycleMainService.QUIT_AND_RESTART_KEY);
 		}
 	}
 
@@ -286,7 +307,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// will-quit: an event that is fired after all windows have been
 		// closed, but before actually quitting.
 		app.once('will-quit', e => {
-			this.trace('Lifecycle#app.on(will-quit)');
+			this.trace('Lifecycle#app.on(will-quit) - begin');
 
 			// Prevent the quit until the shutdown promise was resolved
 			e.preventDefault();
@@ -296,6 +317,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 			// Wait until shutdown is signaled to be complete
 			shutdownPromise.finally(() => {
+				this.trace('Lifecycle#app.on(will-quit) - after fireOnWillShutdown');
 
 				// Resolve pending quit promise now without veto
 				this.resolvePendingQuitPromise(false /* no veto */);
@@ -303,8 +325,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// Quit again, this time do not prevent this, since our
 				// will-quit listener is only installed "once". Also
 				// remove any listener we have that is no longer needed
+
 				app.removeListener('before-quit', beforeQuitListener);
 				app.removeListener('window-all-closed', windowAllClosedListener);
+
+				this.trace('Lifecycle#app.on(will-quit) - calling app.quit()');
+
 				app.quit();
 			});
 		});
@@ -315,14 +341,18 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			return this.pendingWillShutdownPromise; // shutdown is already running
 		}
 
+		const logService = this.logService;
 		this.trace('Lifecycle#onWillShutdown.fire()');
 
 		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			reason,
-			join(promise) {
-				joiners.push(promise);
+			join(id, promise) {
+				logService.trace(`Lifecycle#onWillShutdown - begin '${id}'`);
+				joiners.push(promise.finally(() => {
+					logService.trace(`Lifecycle#onWillShutdown - end '${id}'`);
+				}));
 			}
 		});
 
@@ -338,7 +368,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// Then, always make sure at the end
 			// the state service is flushed.
 			try {
-				await this.stateMainService.close();
+				await this.stateService.close();
 			} catch (error) {
 				this.logService.error(error);
 			}
@@ -544,6 +574,29 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	quit(willRestart?: boolean): Promise<boolean /* veto */> {
+		return this.doQuit(willRestart).then(veto => {
+			if (!veto && willRestart) {
+				// Windows: we are about to restart and as such we need to restore the original
+				// current working directory we had on startup to get the exact same startup
+				// behaviour. As such, we briefly change back to that directory and then when
+				// Code starts it will set it back to the installation directory again.
+				try {
+					if (isWindows) {
+						const currentWorkingDir = cwd();
+						if (currentWorkingDir !== process.cwd()) {
+							process.chdir(currentWorkingDir);
+						}
+					}
+				} catch (err) {
+					this.logService.error(err);
+				}
+			}
+
+			return veto;
+		});
+	}
+
+	private doQuit(willRestart?: boolean): Promise<boolean /* veto */> {
 		this.trace(`Lifecycle#quit() - begin (willRestart: ${willRestart})`);
 
 		if (this.pendingQuitPromise) {
@@ -554,7 +607,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Remember if we are about to restart
 		if (willRestart) {
-			this.stateMainService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
+			this.stateService.setItem(LifecycleMainService.QUIT_AND_RESTART_KEY, true);
 		}
 
 		this.pendingQuitPromise = new Promise(resolve => {
@@ -579,7 +632,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 	}
 
-	async relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
+	setRelaunchHandler(handler: IRelaunchHandler): void {
+		this.relaunchHandler = handler;
+	}
+
+	async relaunch(options?: IRelaunchOptions): Promise<void> {
 		this.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);
@@ -597,24 +654,10 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 
 		const quitListener = () => {
-			// Windows: we are about to restart and as such we need to restore the original
-			// current working directory we had on startup to get the exact same startup
-			// behaviour. As such, we briefly change back to that directory and then when
-			// Code starts it will set it back to the installation directory again.
-			try {
-				if (isWindows) {
-					const currentWorkingDir = cwd();
-					if (currentWorkingDir !== process.cwd()) {
-						process.chdir(currentWorkingDir);
-					}
-				}
-			} catch (err) {
-				this.logService.error(err);
+			if (!this.relaunchHandler?.handleRelaunch(options)) {
+				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
+				app.relaunch({ args });
 			}
-
-			// relaunch after we are sure there is no veto
-			this.trace('Lifecycle#relaunch() - calling app.relaunch()');
-			app.relaunch({ args });
 		};
 		app.once('quit', quitListener);
 

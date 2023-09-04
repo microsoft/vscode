@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
-import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, language, isWeb } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
@@ -124,7 +124,7 @@ class OpenTipsAndTricksUrlAction extends Action2 {
 class OpenDocumentationUrlAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openDocumentationUrl';
-	static readonly AVAILABLE = !!product.documentationUrl;
+	static readonly AVAILABLE = !!(isWeb ? product.serverDocumentationUrl : product.documentationUrl);
 
 	constructor() {
 		super({
@@ -147,9 +147,10 @@ class OpenDocumentationUrlAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
+		const url = isWeb ? productService.serverDocumentationUrl : productService.documentationUrl;
 
-		if (productService.documentationUrl) {
-			openerService.open(URI.parse(productService.documentationUrl));
+		if (url) {
+			openerService.open(URI.parse(url));
 		}
 	}
 }
@@ -168,29 +169,26 @@ class OpenNewsletterSignupUrlAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor) {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
 		const telemetryService = accessor.get(ITelemetryService);
-
-		const info = await telemetryService.getTelemetryInfo();
-
-		openerService.open(URI.parse(`${productService.newsletterSignupUrl}?machineId=${encodeURIComponent(info.machineId)}`));
+		openerService.open(URI.parse(`${productService.newsletterSignupUrl}?machineId=${encodeURIComponent(telemetryService.machineId)}`));
 	}
 }
 
-class OpenTwitterUrlAction extends Action2 {
+class OpenYouTubeUrlAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openTwitterUrl';
-	static readonly AVAILABLE = !!product.twitterUrl;
+	static readonly ID = 'workbench.action.openYouTubeUrl';
+	static readonly AVAILABLE = !!product.youTubeUrl;
 
 	constructor() {
 		super({
-			id: OpenTwitterUrlAction.ID,
+			id: OpenYouTubeUrlAction.ID,
 			title: {
-				value: localize('openTwitterUrl', "Join Us on Twitter"),
-				mnemonicTitle: localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter"),
-				original: 'Join Us on Twitter'
+				value: localize('openYouTubeUrl', "Join Us on YouTube"),
+				mnemonicTitle: localize({ key: 'miYouTube', comment: ['&& denotes a mnemonic'] }, "&&Join Us on YouTube"),
+				original: 'Join Us on YouTube'
 			},
 			category: Categories.Help,
 			f1: true,
@@ -206,8 +204,8 @@ class OpenTwitterUrlAction extends Action2 {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
 
-		if (productService.twitterUrl) {
-			openerService.open(URI.parse(productService.twitterUrl));
+		if (productService.youTubeUrl) {
+			openerService.open(URI.parse(productService.youTubeUrl));
 		}
 	}
 }
@@ -248,7 +246,7 @@ class OpenRequestFeatureUrlAction extends Action2 {
 class OpenLicenseUrlAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openLicenseUrl';
-	static readonly AVAILABLE = !!product.licenseUrl;
+	static readonly AVAILABLE = !!(isWeb ? product.serverLicense : product.licenseUrl);
 
 	constructor() {
 		super({
@@ -271,13 +269,14 @@ class OpenLicenseUrlAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
+		const url = isWeb ? productService.serverLicenseUrl : productService.licenseUrl;
 
-		if (productService.licenseUrl) {
+		if (url) {
 			if (language) {
-				const queryArgChar = productService.licenseUrl.indexOf('?') > 0 ? '&' : '?';
-				openerService.open(URI.parse(`${productService.licenseUrl}${queryArgChar}lang=${language}`));
+				const queryArgChar = url.indexOf('?') > 0 ? '&' : '?';
+				openerService.open(URI.parse(`${url}${queryArgChar}lang=${language}`));
 			} else {
-				openerService.open(URI.parse(productService.licenseUrl));
+				openerService.open(URI.parse(url));
 			}
 		}
 	}
@@ -338,8 +337,8 @@ if (OpenNewsletterSignupUrlAction.AVAILABLE) {
 	registerAction2(OpenNewsletterSignupUrlAction);
 }
 
-if (OpenTwitterUrlAction.AVAILABLE) {
-	registerAction2(OpenTwitterUrlAction);
+if (OpenYouTubeUrlAction.AVAILABLE) {
+	registerAction2(OpenYouTubeUrlAction);
 }
 
 if (OpenRequestFeatureUrlAction.AVAILABLE) {

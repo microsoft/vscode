@@ -58,20 +58,31 @@ interface EmitterLike<T> {
 interface PreloadStyles {
 	readonly outputNodePadding: number;
 	readonly outputNodeLeftPadding: number;
+	readonly tokenizationCss: string;
 }
 
 export interface PreloadOptions {
 	dragAndDropEnabled: boolean;
 }
 
+export interface RenderOptions {
+	readonly lineLimit: number;
+	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
+}
+
 interface PreloadContext {
 	readonly nonce: string;
 	readonly style: PreloadStyles;
 	readonly options: PreloadOptions;
+	readonly renderOptions: RenderOptions;
 	readonly rendererData: readonly webviewMessages.RendererMetadata[];
+	readonly staticPreloadsData: readonly webviewMessages.StaticPreloadMetadata[];
 	readonly isWorkspaceTrusted: boolean;
-	readonly lineLimit: number;
 }
+
+declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+declare function cancelIdleCallback(handle: number): void;
 
 declare function __import(path: string): Promise<any>;
 
@@ -80,14 +91,71 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const textDecoder = new TextDecoder();
 
 	let currentOptions = ctx.options;
-	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
-	const lineLimit = ctx.lineLimit;
+	const isWorkspaceTrusted = ctx.isWorkspaceTrusted;
+	let currentRenderOptions = ctx.renderOptions;
+	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
 
-	const tokenizationStyleElement = document.querySelector('style#vscode-tokenization-styles');
+	const tokenizationStyle = new CSSStyleSheet();
+	tokenizationStyle.replaceSync(ctx.style.tokenizationCss);
+
+	const runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable = (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function')
+		? (runner) => {
+			setTimeout(() => {
+				if (disposed) {
+					return;
+				}
+				const end = Date.now() + 15; // one frame at 64fps
+				runner(Object.freeze({
+					didTimeout: true,
+					timeRemaining() {
+						return Math.max(0, end - Date.now());
+					}
+				}));
+			});
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+				}
+			};
+		}
+		: (runner, timeout?) => {
+			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+					cancelIdleCallback(handle);
+				}
+			};
+		};
+
+	// check if an input element is focused within the output element
+	const checkOutputInputFocus = () => {
+
+		const activeElement = document.activeElement;
+		if (!activeElement) {
+			return;
+		}
+
+		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true });
+
+			activeElement.addEventListener('blur', () => {
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false });
+			}, { once: true });
+		}
+	};
 
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
@@ -174,43 +242,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	document.body.addEventListener('click', handleInnerClick);
-
-	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
-		'type', 'src', 'nonce', 'noModule', 'async',
-	];
-
-	// derived from https://github.com/jquery/jquery/blob/d0ce00cdfa680f1f0c38460bc51ea14079ae8b07/src/core/DOMEval.js
-	const domEval = (container: Element) => {
-		const arr = Array.from(container.getElementsByTagName('script'));
-		for (let n = 0; n < arr.length; n++) {
-			const node = arr[n];
-			const scriptTag = document.createElement('script');
-			const trustedScript = ttPolicy?.createScript(node.innerText) ?? node.innerText;
-			scriptTag.text = trustedScript as string;
-			for (const key of preservedScriptAttributes) {
-				const val = node[key] || node.getAttribute && node.getAttribute(key);
-				if (val) {
-					scriptTag.setAttribute(key, val as any);
-				}
-			}
-
-			// TODO@connor4312: should script with src not be removed?
-			container.appendChild(scriptTag).parentNode!.removeChild(scriptTag);
-		}
-	};
-
-	async function loadScriptSource(url: string, originalUri = url): Promise<string> {
-		const res = await fetch(url);
-		const text = await res.text();
-		if (!res.ok) {
-			throw new Error(`Unexpected ${res.status} requesting ${originalUri}: ${text || res.statusText}`);
-		}
-
-		return text;
-	}
+	document.body.addEventListener('focusin', checkOutputInputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
-		readonly settings: { readonly lineLimit: number };
+		readonly onDidChangeSettings: Event<RenderOptions>;
+		readonly settings: RenderOptions;
 	}
 
 	interface RendererModule {
@@ -241,30 +277,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	}
 
-	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
-		const args = Object.entries(globals);
-		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
-	};
-
-	const runKernelPreload = async (url: string, originalUri: string): Promise<void> => {
-		const text = await loadScriptSource(url, originalUri);
-		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+	async function runKernelPreload(url: string): Promise<void> {
 		try {
-			if (isModule) {
-				const module: KernelPreloadModule = await __import(url);
-				if (!module.activate) {
-					console.error(`Notebook preload (${url}) looks like a module but does not export an activate function`);
-					return;
-				}
-				return module.activate(createKernelContext());
-			} else {
-				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
-			}
+			return await activateModuleKernelPreload(url);
 		} catch (e) {
 			console.error(e);
 			throw e;
 		}
-	};
+	}
+
+	async function activateModuleKernelPreload(url: string) {
+		const module: KernelPreloadModule = await __import(url);
+		if (!module.activate) {
+			console.error(`Notebook preload '${url}' was expected to be a module but it does not export an 'activate' function`);
+			return;
+		}
+		return module.activate(createKernelContext());
+	}
 
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
@@ -398,11 +427,26 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return false;
 			}
 
+			// scroll up
 			if (event.deltaY < 0 && node.scrollTop > 0) {
+				// there is still some content to scroll
 				return true;
 			}
 
+			// scroll down
 			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
+				// per https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight
+				// scrollTop is not rounded but scrollHeight and clientHeight are
+				// so we need to check if the difference is less than some threshold
+				if (node.scrollHeight - node.scrollTop - node.clientHeight < 2) {
+					continue;
+				}
+
+				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
+				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+					continue;
+				}
+
 				return true;
 			}
 		}
@@ -430,15 +474,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableInCell(cellId: string) {
-		const cellOutputContainer = document.getElementById(cellId);
+	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
+		const cellOutputContainer = document.getElementById(cellOrOutputId) ??
+			alternateId ? document.getElementById(alternateId!) : undefined;
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
 			}
 
-			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
-			focusableElement?.focus();
+			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
+			if (!focusableElement) {
+				focusableElement = cellOutputContainer;
+				focusableElement.tabIndex = -1;
+			}
+
+			focusableElement.focus();
 		}
 	}
 
@@ -722,46 +772,129 @@ async function webviewPreloads(ctx: PreloadContext) {
 		outputNode.appendChild(errList);
 	}
 
+	const outputItemRequests = new class {
+		private _requestPool = 0;
+		private readonly _requests = new Map</*requestId*/number, { resolve: (x: webviewMessages.OutputItemEntry | undefined) => void }>();
+
+		getOutputItem(outputId: string, mime: string) {
+			const requestId = this._requestPool++;
+
+			let resolve: ((x: webviewMessages.OutputItemEntry | undefined) => void) | undefined;
+			const p = new Promise<webviewMessages.OutputItemEntry | undefined>(r => resolve = r);
+			this._requests.set(requestId, { resolve: resolve! });
+
+			postNotebookMessage<webviewMessages.IGetOutputItemMessage>('getOutputItem', { requestId, outputId, mime });
+			return p;
+		}
+
+		resolveOutputItem(requestId: number, output: webviewMessages.OutputItemEntry | undefined) {
+			const request = this._requests.get(requestId);
+			if (!request) {
+				return;
+			}
+
+			this._requests.delete(requestId);
+			request.resolve(output);
+		}
+	};
+
+	interface AdditionalOutputItemInfo {
+		readonly mime: string;
+		getItem(): Promise<rendererApi.OutputItem | undefined>;
+	}
+
+	interface ExtendedOutputItem extends rendererApi.OutputItem {
+		readonly _allOutputItems: ReadonlyArray<AdditionalOutputItemInfo>;
+		appendedText?(): string | undefined;
+	}
+
+	let hasWarnedAboutAllOutputItemsProposal = false;
+
 	function createOutputItem(
 		id: string,
 		mime: string,
 		metadata: unknown,
-		valueBytes: Uint8Array
-	): rendererApi.OutputItem {
-		return Object.freeze<rendererApi.OutputItem>({
-			id,
-			mime,
-			metadata,
+		valueBytes: Uint8Array,
+		allOutputItemData: ReadonlyArray<{ readonly mime: string }>,
+		appended?: { valueBytes: Uint8Array; previousVersion: number }
+	): ExtendedOutputItem {
 
-			data(): Uint8Array {
-				return valueBytes;
-			},
+		function create(
+			id: string,
+			mime: string,
+			metadata: unknown,
+			valueBytes: Uint8Array,
+			appended?: { valueBytes: Uint8Array; previousVersion: number }
+		): ExtendedOutputItem {
+			return Object.freeze<ExtendedOutputItem>({
+				id,
+				mime,
+				metadata,
 
-			text(): string {
-				return textDecoder.decode(valueBytes);
-			},
+				appendedText(): string | undefined {
+					if (appended) {
+						return textDecoder.decode(appended.valueBytes);
+					}
+					return undefined;
+				},
 
-			json() {
-				return JSON.parse(this.text());
-			},
+				data(): Uint8Array {
+					return valueBytes;
+				},
 
-			blob(): Blob {
-				return new Blob([valueBytes], { type: this.mime });
-			}
-		});
+				text(): string {
+					return textDecoder.decode(valueBytes);
+				},
+
+				json() {
+					return JSON.parse(this.text());
+				},
+
+				blob(): Blob {
+					return new Blob([valueBytes], { type: this.mime });
+				},
+
+				get _allOutputItems() {
+					if (!hasWarnedAboutAllOutputItemsProposal) {
+						hasWarnedAboutAllOutputItemsProposal = true;
+						console.warn(`'_allOutputItems' is proposed API. DO NOT ship an extension that depends on it!`);
+					}
+					return allOutputItemList;
+				},
+			});
+		}
+
+		const allOutputItemCache = new Map</*mime*/string, Promise<(rendererApi.OutputItem & ExtendedOutputItem) | undefined>>();
+		const allOutputItemList = Object.freeze(allOutputItemData.map(outputItem => {
+			const mime = outputItem.mime;
+			return Object.freeze({
+				mime,
+				getItem() {
+					const existingTask = allOutputItemCache.get(mime);
+					if (existingTask) {
+						return existingTask;
+					}
+
+					const task = outputItemRequests.getOutputItem(id, mime).then(item => {
+						return item ? create(id, item.mime, metadata, item.valueBytes) : undefined;
+					});
+					allOutputItemCache.set(mime, task);
+
+					return task;
+				}
+			});
+		}));
+
+		const item = create(id, mime, metadata, valueBytes, appended);
+		allOutputItemCache.set(mime, Promise.resolve(item));
+		return item;
 	}
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const kernelPreloadGlobals = {
-		acquireVsCodeApi,
-		onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
-		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
-	};
-
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-		createHTML: value => value,
-		createScript: value => value,
+		createHTML: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
+		createScript: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
 	});
 
 	window.addEventListener('wheel', handleWheel);
@@ -773,25 +906,43 @@ async function webviewPreloads(ctx: PreloadContext) {
 		container: Node;
 		originalRange: Range;
 		isShadow: boolean;
+		searchPreviewInfo?: ISearchPreviewInfo;
 		highlightResult?: IHighlightResult;
 	}
 
+	interface ISearchPreviewInfo {
+		line: string;
+		range: {
+			start: number;
+			end: number;
+		};
+	}
+
 	interface IHighlighter {
-		highlightCurrentMatch(index: number): void;
-		unHighlightCurrentMatch(index: number): void;
+		addHighlights(matches: IFindMatch[], ownerID: string): void;
+		removeHighlights(ownerID: string): void;
+		highlightCurrentMatch(index: number, ownerID: string): void;
+		unHighlightCurrentMatch(index: number, ownerID: string): void;
 		dispose(): void;
 	}
 
-	let _highlighter: IHighlighter | null = null;
+	interface IHighlightInfo {
+		matches: IFindMatch[];
+		currentMatchIndex: number;
+	}
+
 	const matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
 	const currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	class JSHighlighter implements IHighlighter {
-		private _findMatchIndex = -1;
+		private _activeHighlightInfo: Map<string, IHighlightInfo>;
 
 		constructor(
-			readonly matches: IFindMatch[],
 		) {
+			this._activeHighlightInfo = new Map();
+		}
+
+		addHighlights(matches: IFindMatch[], ownerID: string): void {
 			for (let i = matches.length - 1; i >= 0; i--) {
 				const match = matches[i];
 				const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
@@ -801,14 +952,32 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 				match.highlightResult = ret;
 			}
+
+			const highlightInfo: IHighlightInfo = {
+				matches,
+				currentMatchIndex: -1
+			};
+			this._activeHighlightInfo.set(ownerID, highlightInfo);
 		}
 
-		highlightCurrentMatch(index: number) {
-			const oldMatch = this.matches[this._findMatchIndex];
+		removeHighlights(ownerID: string): void {
+			this._activeHighlightInfo.get(ownerID)?.matches.forEach(match => {
+				match.highlightResult?.dispose();
+			});
+			this._activeHighlightInfo.delete(ownerID);
+		}
+
+		highlightCurrentMatch(index: number, ownerID: string) {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				console.error('Modified current highlight match before adding highlight list.');
+				return;
+			}
+			const oldMatch = highlightInfo.matches[highlightInfo.currentMatchIndex];
 			oldMatch?.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 
-			const match = this.matches[index];
-			this._findMatchIndex = index;
+			const match = highlightInfo.matches[index];
+			highlightInfo.currentMatchIndex = index;
 			const sel = window.getSelection();
 			if (!!match && !!sel && match.highlightResult) {
 				let offset = 0;
@@ -816,23 +985,32 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
 					const tempRange = document.createRange();
 					tempRange.selectNode(match.highlightResult.range.startContainer);
+
+					match.highlightResult.range.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
+
 					const rangeOffset = tempRange.getBoundingClientRect().top;
 					tempRange.detach();
+
 					offset = rangeOffset - outputOffset;
 				} catch (e) {
+					console.error(e);
 				}
 
 				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
 
 				document.getSelection()?.removeAllRanges();
-				postNotebookMessage('didFindHighlight', {
+				postNotebookMessage('didFindHighlightCurrent', {
 					offset
 				});
 			}
 		}
 
-		unHighlightCurrentMatch(index: number) {
-			const oldMatch = this.matches[index];
+		unHighlightCurrentMatch(index: number, ownerID: string) {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				return;
+			}
+			const oldMatch = highlightInfo.matches[index];
 			if (oldMatch && oldMatch.highlightResult) {
 				oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 			}
@@ -840,57 +1018,106 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		dispose() {
 			document.getSelection()?.removeAllRanges();
-
-			this.matches.forEach(match => {
-				match.highlightResult?.dispose();
+			this._activeHighlightInfo.forEach(highlightInfo => {
+				highlightInfo.matches.forEach(match => {
+					match.highlightResult?.dispose();
+				});
 			});
 		}
 	}
 
 	class CSSHighlighter implements IHighlighter {
+		private _activeHighlightInfo: Map<string, IHighlightInfo>;
 		private _matchesHighlight: Highlight;
 		private _currentMatchesHighlight: Highlight;
-		private _findMatchIndex = -1;
 
-		constructor(
-			readonly matches: IFindMatch[],
-		) {
+		constructor() {
+			this._activeHighlightInfo = new Map();
 			this._matchesHighlight = new Highlight();
 			this._matchesHighlight.priority = 1;
 			this._currentMatchesHighlight = new Highlight();
 			this._currentMatchesHighlight.priority = 2;
+			CSS.highlights?.set(`find-highlight`, this._matchesHighlight);
+			CSS.highlights?.set(`current-find-highlight`, this._currentMatchesHighlight);
+		}
+
+		_refreshRegistry(updateMatchesHighlight = true) {
+			// for performance reasons, only update the full list of highlights when we need to
+			if (updateMatchesHighlight) {
+				this._matchesHighlight.clear();
+			}
+
+			this._currentMatchesHighlight.clear();
+
+			this._activeHighlightInfo.forEach((highlightInfo) => {
+
+				if (updateMatchesHighlight) {
+					for (let i = 0; i < highlightInfo.matches.length; i++) {
+						this._matchesHighlight.add(highlightInfo.matches[i].originalRange);
+					}
+				}
+				if (highlightInfo.currentMatchIndex < highlightInfo.matches.length && highlightInfo.currentMatchIndex >= 0) {
+					this._currentMatchesHighlight.add(highlightInfo.matches[highlightInfo.currentMatchIndex].originalRange);
+				}
+			});
+		}
+
+		addHighlights(
+			matches: IFindMatch[],
+			ownerID: string
+		) {
 
 			for (let i = 0; i < matches.length; i++) {
 				this._matchesHighlight.add(matches[i].originalRange);
 			}
-			CSS.highlights?.set('find-highlight', this._matchesHighlight);
-			CSS.highlights?.set('current-find-highlight', this._currentMatchesHighlight);
+
+			const newEntry: IHighlightInfo = {
+				matches,
+				currentMatchIndex: -1,
+			};
+
+			this._activeHighlightInfo.set(ownerID, newEntry);
 		}
 
-		highlightCurrentMatch(index: number): void {
-			this._findMatchIndex = index;
-			const match = this.matches[this._findMatchIndex];
-			const range = match.originalRange;
+		highlightCurrentMatch(index: number, ownerID: string): void {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				console.error('Modified current highlight match before adding highlight list.');
+				return;
+			}
+
+			highlightInfo.currentMatchIndex = index;
+			const match = highlightInfo.matches[index];
 
 			if (match) {
 				let offset = 0;
 				try {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
-					postNotebookMessage('didFindHighlight', {
+					postNotebookMessage('didFindHighlightCurrent', {
 						offset
 					});
 				} catch (e) {
+					console.error(e);
 				}
 			}
-
-			this._currentMatchesHighlight.clear();
-			this._currentMatchesHighlight.add(range);
+			this._refreshRegistry(false);
 		}
 
-		unHighlightCurrentMatch(index: number): void {
-			this._currentMatchesHighlight.clear();
+		unHighlightCurrentMatch(index: number, ownerID: string): void {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				return;
+			}
+
+			highlightInfo.currentMatchIndex = -1;
+		}
+
+		removeHighlights(ownerID: string) {
+			this._activeHighlightInfo.delete(ownerID);
+			this._refreshRegistry();
 		}
 
 		dispose(): void {
@@ -900,7 +1127,97 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
+	const _highlighter = (CSS.highlights) ? new CSSHighlighter() : new JSHighlighter();
+
+	function extractSelectionLine(selection: Selection): ISearchPreviewInfo {
+		const range = selection.getRangeAt(0);
+
+		// we need to keep a reference to the old selection range to re-apply later
+		const oldRange = range.cloneRange();
+		const captureLength = selection.toString().length;
+
+		// use selection API to modify selection to get entire line (the first line if multi-select)
+
+		// collapse selection to start so that the cursor position is at beginning of match
+		selection.collapseToStart();
+
+		// extend selection in both directions to select the line
+		selection.modify('move', 'backward', 'lineboundary');
+		selection.modify('extend', 'forward', 'lineboundary');
+
+		const line = selection.toString();
+
+		// using the original range and the new range, we can find the offset of the match from the line start.
+		const rangeStart = getStartOffset(selection.getRangeAt(0), oldRange);
+
+		// line range for match
+		const lineRange = {
+			start: rangeStart,
+			end: rangeStart + captureLength,
+		};
+
+		// re-add the old range so that the selection is restored
+		selection.removeAllRanges();
+		selection.addRange(oldRange);
+
+		return { line, range: lineRange };
+	}
+
+	function getStartOffset(lineRange: Range, originalRange: Range) {
+		// sometimes, the old and new range are in different DOM elements (ie: when the match is inside of <b></b>)
+		// so we need to find the first common ancestor DOM element and find the positions of the old and new range relative to that.
+		const firstCommonAncestor = findFirstCommonAncestor(lineRange.startContainer, originalRange.startContainer);
+
+		const selectionOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, lineRange.startContainer) + lineRange.startOffset;
+		const textOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, originalRange.startContainer) + originalRange.startOffset;
+		return textOffset - selectionOffset;
+	}
+
+	// modified from https://stackoverflow.com/a/68583466/16253823
+	function findFirstCommonAncestor(nodeA: Node, nodeB: Node) {
+		const range = new Range();
+		range.setStart(nodeA, 0);
+		range.setEnd(nodeB, 0);
+		return range.commonAncestorContainer;
+	}
+
+	function getTextContentLength(node: Node): number {
+		let length = 0;
+
+		if (node.nodeType === Node.TEXT_NODE) {
+			length += node.textContent?.length || 0;
+		} else {
+			for (const childNode of node.childNodes) {
+				length += getTextContentLength(childNode);
+			}
+		}
+
+		return length;
+	}
+
+	// modified from https://stackoverflow.com/a/48812529/16253823
+	function getSelectionOffsetRelativeTo(parentElement: Node, currentNode: Node | null): number {
+		if (!currentNode) {
+			return 0;
+		}
+		let offset = 0;
+
+		if (currentNode === parentElement || !parentElement.contains(currentNode)) {
+			return offset;
+		}
+
+
+		// count the number of chars before the current dom elem and the start of the dom
+		let prevSibling = currentNode.previousSibling;
+		while (prevSibling) {
+			offset += getTextContentLength(prevSibling);
+			prevSibling = prevSibling.previousSibling;
+		}
+
+		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
+	}
+
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
 
@@ -930,12 +1247,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 						break;
 					}
 
+					// Markdown preview are rendered in a shadow DOM.
 					if (options.includeMarkup && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('markup')) {
 						// markdown preview container
 						const preview = (selection.anchorNode?.firstChild as Element);
 						const root = preview.shadowRoot as ShadowRoot & { getSelection: () => Selection };
 						const shadowSelection = root?.getSelection ? root?.getSelection() : null;
+						// find the match in the shadow dom by checking the selection inside the shadow dom
 						if (shadowSelection && shadowSelection.anchorNode) {
 							matches.push({
 								type: 'preview',
@@ -943,11 +1262,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: preview.id,
 								container: preview,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
 
+					// Outputs might be rendered inside a shadow DOM.
 					if (options.includeOutput && selection.rangeCount > 0 && selection.getRangeAt(0).startContainer.nodeType === 1
 						&& (selection.getRangeAt(0).startContainer as Element).classList.contains('output_container')) {
 						// output container
@@ -962,16 +1283,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: cellId,
 								container: outputNode,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
 
-					const anchorNode = selection?.anchorNode?.parentElement;
+					const anchorNode = selection.anchorNode?.parentElement;
 
 					if (anchorNode) {
 						const lastEl: any = matches.length ? matches[matches.length - 1] : null;
 
+						// Optimization: avoid searching for the output container
 						if (lastEl && lastEl.container.contains(anchorNode) && options.includeOutput) {
 							matches.push({
 								type: lastEl.type,
@@ -979,10 +1302,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: lastEl.cellId,
 								container: lastEl.container,
 								isShadow: false,
-								originalRange: window.getSelection()!.getRangeAt(0)
+								originalRange: selection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 							});
 
 						} else {
+							// Traverse up the DOM to find the container
 							for (let node = anchorNode as Element | null; node; node = node.parentElement) {
 								if (!(node instanceof Element)) {
 									break;
@@ -998,7 +1323,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 											cellId: cellId,
 											container: node,
 											isShadow: false,
-											originalRange: window.getSelection()!.getRangeAt(0)
+											originalRange: selection.getRangeAt(0),
+											searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 										});
 									}
 									break;
@@ -1019,24 +1345,60 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
-		if (matches.length && CSS.highlights) {
-			_highlighter = new CSSHighlighter(matches);
-		} else {
-			_highlighter = new JSHighlighter(matches);
-		}
-
+		_highlighter.addHighlights(matches, options.ownerID);
 		document.getSelection()?.removeAllRanges();
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
+
+		document.designMode = 'Off';
 
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
 				id: match.id,
 				cellId: match.cellId,
-				index
+				index,
+				searchPreviewInfo: match.searchPreviewInfo,
 			}))
 		});
+	};
+
+	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
+		if (!document.hasFocus() && retries > 0) {
+			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
+			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			return;
+		}
+
+		try {
+			const image = document.getElementById(outputId)?.querySelector('img')
+				?? document.getElementById(altOutputId)?.querySelector('img');
+			if (image) {
+				await navigator.clipboard.write([new ClipboardItem({
+					'image/png': new Promise((resolve) => {
+						const canvas = document.createElement('canvas');
+						if (canvas !== null) {
+							canvas.width = image.naturalWidth;
+							canvas.height = image.naturalHeight;
+							const context = canvas.getContext('2d');
+							context?.drawImage(image, 0, 0);
+						}
+						canvas.toBlob((blob) => {
+							if (blob) {
+								resolve(blob);
+							}
+							canvas.remove();
+						}, 'image/png');
+					})
+				})]);
+			} else {
+				console.error('Could not find image element to copy for output with id', outputId);
+			}
+		} catch (e) {
+			console.error('Could not copy image:', e);
+		}
 	};
 
 	window.addEventListener('message', async rawEvent => {
@@ -1084,9 +1446,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			case 'html': {
 				const data = event.data;
-				outputRunner.enqueue(data.outputId, signal => {
-					return viewModel.renderOutputCell(data, signal);
-				});
+				if (data.createOnIdle) {
+					outputRunner.enqueueIdle(data.outputId, signal => {
+						// cancel the idle callback if it exists
+						return viewModel.renderOutputCell(data, signal);
+					});
+				} else {
+					outputRunner.enqueue(data.outputId, signal => {
+						// cancel the idle callback if it exists
+						return viewModel.renderOutputCell(data, signal);
+					});
+				}
 				break;
 			}
 			case 'view-scroll':
@@ -1131,6 +1501,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 				break;
 			}
+			case 'copyImage': {
+				await copyOutputImage(event.data.outputId, event.data.altOutputId);
+				break;
+			}
 			case 'ack-dimension': {
 				for (const { cellId, outputId, height } of event.data.updates) {
 					viewModel.updateOutputHeight(cellId, outputId, height);
@@ -1139,8 +1513,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'preload': {
 				const resources = event.data.resources;
-				for (const { uri, originalUri } of resources) {
-					kernelPreloads.load(uri, originalUri);
+				for (const { uri } of resources) {
+					kernelPreloads.load(uri);
 				}
 				break;
 			}
@@ -1150,7 +1524,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableInCell(event.data.cellId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);
@@ -1189,42 +1563,42 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'notebookOptions':
 				currentOptions = event.data.options;
 				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
+				currentRenderOptions = event.data.renderOptions;
+				settingChange.fire(currentRenderOptions);
 				break;
-			case 'updateWorkspaceTrust': {
-				isWorkspaceTrusted = event.data.isTrusted;
-				viewModel.rerender();
-				break;
-			}
 			case 'tokenizedCodeBlock': {
 				const { codeBlockId, html } = event.data;
 				MarkdownCodeBlock.highlightCodeBlock(codeBlockId, html);
 				break;
 			}
 			case 'tokenizedStylesChanged': {
-				if (tokenizationStyleElement) {
-					tokenizationStyleElement.textContent = event.data.css;
-				}
+				tokenizationStyle.replaceSync(event.data.css);
 				break;
 			}
 			case 'find': {
-				_highlighter?.dispose();
+				_highlighter.removeHighlights(event.data.options.ownerID);
 				find(event.data.query, event.data.options);
 				break;
 			}
-			case 'findHighlight': {
-				_highlighter?.highlightCurrentMatch(event.data.index);
+			case 'findHighlightCurrent': {
+				_highlighter?.highlightCurrentMatch(event.data.index, event.data.ownerID);
 				break;
 			}
-			case 'findUnHighlight': {
-				_highlighter?.unHighlightCurrentMatch(event.data.index);
+			case 'findUnHighlightCurrent': {
+				_highlighter?.unHighlightCurrentMatch(event.data.index, event.data.ownerID);
 				break;
 			}
 			case 'findStop': {
-				_highlighter?.dispose();
+				_highlighter.removeHighlights(event.data.ownerID);
 				break;
+			}
+			case 'returnOutputItem': {
+				outputItemRequests.resolveOutputItem(event.data.requestId, event.data.output);
 			}
 		}
 	});
+
+	const renderFallbackErrorName = 'vscode.fallbackToNextRenderer';
 
 	class Renderer {
 
@@ -1258,11 +1632,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			try {
+				const renderStart = performance.now();
 				await this._api.renderOutputItem(item, element, signal);
+				this.postDebugMessage('Rendered output item', { id: item.id, duration: `${performance.now() - renderStart}ms` });
+
 			} catch (e) {
-				if (!signal.aborted) {
-					showRenderError(`Error rendering output item using '${this.data.id}'`, element, e instanceof Error ? [e] : []);
+				if (signal.aborted) {
+					return;
 				}
+
+				if (e instanceof Error && e.name === renderFallbackErrorName) {
+					throw e;
+				}
+
+				showRenderError(`Error rendering output item using '${this.data.id}'`, element, e instanceof Error ? [e] : []);
+				this.postDebugMessage('Rendering output item failed', { id: item.id, error: e + '' });
 			}
 		}
 
@@ -1292,8 +1676,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get isTrusted() { return isWorkspaceTrusted; }
 				},
 				settings: {
-					get lineLimit() { return lineLimit; },
-				}
+					get lineLimit() { return currentRenderOptions.lineLimit; },
+					get outputScrolling() { return currentRenderOptions.outputScrolling; },
+					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
+				},
+				get onDidChangeSettings() { return settingChange.event; }
 			};
 
 			if (messaging) {
@@ -1305,43 +1692,66 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		private load(): Promise<rendererApi.RendererApi | undefined> {
-			if (!this._loadPromise) {
-				this._loadPromise = this._load();
-			}
-
+			this._loadPromise ??= this._load();
 			return this._loadPromise;
 		}
 
 		/** Inner function cached in the _loadPromise(). */
 		private async _load(): Promise<rendererApi.RendererApi | undefined> {
-			const module: RendererModule = await __import(this.data.entrypoint.path);
-			if (!module) {
-				return;
+			this.postDebugMessage('Start loading renderer');
+
+			try {
+				// Preloads need to be loaded before loading renderers.
+				await kernelPreloads.waitForAllCurrent();
+
+				const importStart = performance.now();
+				const module: RendererModule = await __import(this.data.entrypoint.path);
+				this.postDebugMessage('Imported renderer', { duration: `${performance.now() - importStart}ms` });
+
+				if (!module) {
+					return;
+				}
+
+				this._api = await module.activate(this.createRendererContext());
+				this.postDebugMessage('Activated renderer', { duration: `${performance.now() - importStart}ms` });
+
+				const dependantRenderers = ctx.rendererData
+					.filter(d => d.entrypoint.extends === this.data.id);
+
+				if (dependantRenderers.length) {
+					this.postDebugMessage('Activating dependant renderers', { dependents: dependantRenderers.map(x => x.id).join(', ') });
+				}
+
+				// Load all renderers that extend this renderer
+				await Promise.all(dependantRenderers.map(async d => {
+					const renderer = renderers.getRenderer(d.id);
+					if (!renderer) {
+						throw new Error(`Could not find extending renderer: ${d.id}`);
+					}
+
+					try {
+						return await renderer.load();
+					} catch (e) {
+						// Squash any errors extends errors. They won't prevent the renderer
+						// itself from working, so just log them.
+						console.error(e);
+						this.postDebugMessage('Activating dependant renderer failed', { dependent: d.id, error: e + '' });
+						return undefined;
+					}
+				}));
+
+				return this._api;
+			} catch (e) {
+				this.postDebugMessage('Loading renderer failed');
+				throw e;
 			}
+		}
 
-			this._api = await module.activate(this.createRendererContext());
-
-			// Load all renderers that extend this renderer
-			await Promise.all(
-				ctx.rendererData
-					.filter(d => d.entrypoint.extends === this.data.id)
-					.map(async d => {
-						const renderer = renderers.getRenderer(d.id);
-						if (!renderer) {
-							throw new Error(`Could not find extending renderer: ${d.id}`);
-						}
-
-						try {
-							return await renderer.load();
-						} catch (e) {
-							// Squash any errors extends errors. They won't prevent the renderer
-							// itself from working, so just log them.
-							console.error(e);
-							return undefined;
-						}
-					}));
-
-			return this._api;
+		private postDebugMessage(msg: string, data?: Record<string, string>) {
+			postNotebookMessage<webviewMessages.ILogRendererDebugMessage>('logRendererDebugMessage', {
+				message: `[renderer ${this.data.id}] - ${msg}`,
+				data
+			});
 		}
 	}
 
@@ -1360,9 +1770,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * @param uri URI to load from
 		 * @param originalUri URI to show in an error message if the preload is invalid.
 		 */
-		public load(uri: string, originalUri: string) {
+		public load(uri: string) {
 			const promise = Promise.all([
-				runKernelPreload(uri, originalUri),
+				runKernelPreload(uri),
 				this.waitForAllCurrent(),
 			]);
 
@@ -1374,7 +1784,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * Returns a promise that waits for all currently-registered preloads to
 		 * activate before resolving.
 		 */
-		private waitForAllCurrent() {
+		public waitForAllCurrent() {
 			return Promise.all([...this.preloads.values()].map(p => p.catch(err => err)));
 		}
 	};
@@ -1387,23 +1797,40 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * ensuring that it's run in-order.
 		 */
 		public enqueue(outputId: string, action: (cancelSignal: AbortSignal) => unknown) {
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			this.pendingOutputCreationRequest.delete(outputId);
+
 			const record = this.outputs.get(outputId);
 			if (!record) {
 				const controller = new AbortController();
 				this.outputs.set(outputId, { abort: controller, queue: new Promise(r => r(action(controller.signal))) });
 			} else {
-				record.queue = record.queue.then(r => {
+				record.queue = record.queue.then(async r => {
 					if (!record.abort.signal.aborted) {
-						return action(record.abort.signal);
+						await action(record.abort.signal);
 					}
 				});
 			}
+		}
+
+		private pendingOutputCreationRequest: Map<string, IDisposable> = new Map();
+
+		public enqueueIdle(outputId: string, action: (cancelSignal: AbortSignal) => unknown) {
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			outputRunner.pendingOutputCreationRequest.set(outputId, runWhenIdle(() => {
+				outputRunner.enqueue(outputId, action);
+				outputRunner.pendingOutputCreationRequest.delete(outputId);
+			}));
 		}
 
 		/**
 		 * Cancels the rendering of all outputs.
 		 */
 		public cancelAll() {
+			// Delete all pending idle requests
+			this.pendingOutputCreationRequest.forEach(r => r.dispose());
+			this.pendingOutputCreationRequest.clear();
+
 			for (const { abort } of this.outputs.values()) {
 				abort.abort();
 			}
@@ -1414,6 +1841,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * Cancels any ongoing rendering out an output.
 		 */
 		public cancelOutput(outputId: string) {
+			// Delete the pending idle request if it exists
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			this.pendingOutputCreationRequest.delete(outputId);
+
 			const output = this.outputs.get(outputId);
 			if (output) {
 				output.abort.abort();
@@ -1489,7 +1920,63 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._renderers.get(rendererId)?.disposeOutputItem(outputId);
 		}
 
-		public async render(info: rendererApi.OutputItem, preferredRendererId: string | undefined, element: HTMLElement, signal: AbortSignal): Promise<void> {
+		public async render(item: ExtendedOutputItem, preferredRendererId: string | undefined, element: HTMLElement, signal: AbortSignal): Promise<void> {
+			const primaryRenderer = this.findRenderer(preferredRendererId, item);
+			if (!primaryRenderer) {
+				const errorMessage = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', () => item.mime);
+				this.showRenderError(item, element, errorMessage);
+				return;
+			}
+
+			// Try primary renderer first
+			if (!(await this._doRender(item, element, primaryRenderer, signal)).continue) {
+				return;
+			}
+
+			// Primary renderer failed in an expected way. Fallback to render the next mime types
+			for (const additionalItemData of item._allOutputItems) {
+				if (additionalItemData.mime === item.mime) {
+					continue;
+				}
+
+				const additionalItem = await additionalItemData.getItem();
+				if (signal.aborted) {
+					return;
+				}
+
+				if (additionalItem) {
+					const renderer = this.findRenderer(undefined, additionalItem);
+					if (renderer) {
+						if (!(await this._doRender(additionalItem, element, renderer, signal)).continue) {
+							return; // We rendered successfully
+						}
+					}
+				}
+			}
+
+			// All renderers have failed and there is nothing left to fallback to
+			const errorMessage = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-fallbacks-exhausted') || '').replace('$0', () => item.mime);
+			this.showRenderError(item, element, errorMessage);
+		}
+
+		private async _doRender(item: rendererApi.OutputItem, element: HTMLElement, renderer: Renderer, signal: AbortSignal): Promise<{ continue: boolean }> {
+			try {
+				await renderer.renderOutputItem(item, element, signal);
+				return { continue: false }; // We rendered successfully
+			} catch (e) {
+				if (signal.aborted) {
+					return { continue: false };
+				}
+
+				if (e instanceof Error && e.name === renderFallbackErrorName) {
+					return { continue: true };
+				} else {
+					throw e; // Bail and let callers handle unknown errors
+				}
+			}
+		}
+
+		private findRenderer(preferredRendererId: string | undefined, info: rendererApi.OutputItem) {
 			let renderer: Renderer | undefined;
 
 			if (typeof preferredRendererId === 'string') {
@@ -1507,26 +1994,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 					renderer = renderers[0];
 				}
 			}
+			return renderer;
+		}
 
-			if (renderer) {
-				await renderer.renderOutputItem(info, element, signal);
-			} else {
-				const errorContainer = document.createElement('div');
+		private showRenderError(info: rendererApi.OutputItem, element: HTMLElement, errorMessage: string) {
+			const errorContainer = document.createElement('div');
 
-				const error = document.createElement('div');
-				error.className = 'no-renderer-error';
-				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
-				error.innerText = errorText;
+			const error = document.createElement('div');
+			error.className = 'no-renderer-error';
+			error.innerText = errorMessage;
 
-				const cellText = document.createElement('div');
-				cellText.innerText = info.text();
+			const cellText = document.createElement('div');
+			cellText.innerText = info.text();
 
-				errorContainer.appendChild(error);
-				errorContainer.appendChild(cellText);
+			errorContainer.appendChild(error);
+			errorContainer.appendChild(cellText);
 
-				element.innerText = '';
-				element.appendChild(errorContainer);
-			}
+			element.innerText = '';
+			element.appendChild(errorContainer);
 		}
 	}();
 
@@ -1545,11 +2030,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				output.dispose();
 			}
 			this._outputCells.clear();
-		}
-
-		public rerender() {
-			this.rerenderMarkupCells();
-			this.renderOutputCells();
 		}
 
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
@@ -1606,12 +2086,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cell?.unhide();
 		}
 
-		private rerenderMarkupCells() {
-			for (const cell of this._markupCells.values()) {
-				cell.rerender();
-			}
-		}
-
 		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
 			const cell = this._markupCells.get(id);
 			if (!cell) {
@@ -1640,12 +2114,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				if (cell) {
 					cell.element.style.top = `${top}px`;
 				}
-			}
-		}
-
-		private renderOutputCells() {
-			for (const outputCell of this._outputCells.values()) {
-				outputCell.rerender();
 			}
 		}
 
@@ -1720,8 +2188,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
 			el.innerHTML = trustedHtml as string;
-			if (tokenizationStyleElement) {
-				el.insertAdjacentElement('beforebegin', tokenizationStyleElement.cloneNode(true) as HTMLElement);
+			const root = el.getRootNode();
+			if (root instanceof ShadowRoot) {
+				if (!root.adoptedStyleSheets.includes(tokenizationStyle)) {
+					root.adoptedStyleSheets.push(tokenizationStyle);
+				}
 			}
 		}
 
@@ -1748,7 +2219,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public readonly id: string;
 		public readonly element: HTMLElement;
 
-		private readonly outputItem: rendererApi.OutputItem;
+		private readonly outputItem: ExtendedOutputItem;
 
 		/// Internal field that holds text content
 		private _content: { readonly value: string; readonly version: number; readonly metadata: NotebookCellMetadata };
@@ -1769,7 +2240,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
-			this.outputItem = Object.freeze<rendererApi.OutputItem>({
+			this.outputItem = Object.freeze<ExtendedOutputItem>({
 				id,
 				mime,
 
@@ -1797,7 +2268,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 				blob(): Blob {
 					return new Blob([this.data()], { type: this.mime });
-				}
+				},
+
+				_allOutputItems: [{
+					mime,
+					getItem: async () => this.outputItem,
+				}]
 			});
 
 			const root = document.getElementById('container')!;
@@ -1938,10 +2414,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.updateMarkupDimensions();
 		}
 
-		public rerender() {
-			this.updateContentAndRender(this._content.value, this._content.metadata);
-		}
-
 		public remove() {
 			this.element.remove();
 		}
@@ -1979,6 +2451,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.element = document.createElement('div');
 			this.element.style.position = 'absolute';
+			this.element.style.outline = '0';
 
 			this.element.id = cellId;
 			this.element.classList.add('cell_container');
@@ -2009,11 +2482,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public async renderOutputElement(data: webviewMessages.ICreationRequestMessage, preloadErrors: ReadonlyArray<Error | undefined>, signal: AbortSignal) {
-			const outputElement = this.createOutputElement(data);
+			const startTime = Date.now();
+			const outputElement /** outputNode */ = this.createOutputElement(data);
 			await outputElement.render(data.content, data.rendererId, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
-			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
+			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
+
+			if (!!data.executionId && !!data.rendererId) {
+				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
+			}
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {
@@ -2045,12 +2523,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputElements.get(outputId)?.updateContentAndRender(content);
 		}
 
-		public rerender() {
-			for (const outputElement of this.outputElements.values()) {
-				outputElement.rerender();
-			}
-		}
-
 		public updateOutputHeight(outputId: string, height: number) {
 			this.outputElements.get(outputId)?.updateHeight(height);
 		}
@@ -2058,7 +2530,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public updateScroll(request: webviewMessages.IContentWidgetTopRequest) {
 			this.element.style.top = `${request.cellTop}px`;
 
-			this.outputElements.get(request.outputId)?.updateScroll(request.outputOffset);
+			const outputElement = this.outputElements.get(request.outputId);
+			if (outputElement) {
+				outputElement.updateScroll(request.outputOffset);
+
+				if (request.forceDisplay && outputElement.outputNode) {
+					// TODO @rebornix @mjbvz, there is a misalignment here.
+					// We set output visibility on cell container, other than output container or output node itself.
+					outputElement.outputNode.element.style.visibility = '';
+				}
+			}
 
 			if (request.forceDisplay) {
 				this.element.style.visibility = '';
@@ -2072,11 +2553,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private _outputNode?: OutputElement;
 
+		get outputNode() {
+			return this._outputNode;
+		}
+
 		constructor(
 			private readonly outputId: string,
 		) {
 			this.element = document.createElement('div');
 			this.element.classList.add('output_container');
+			this.element.setAttribute('data-vscode-context', JSON.stringify({ 'preventDefaultContextMenuItems': true }));
 			this.element.style.position = 'absolute';
 			this.element.style.overflow = 'hidden';
 		}
@@ -2112,10 +2598,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return this._outputNode;
 		}
 
-		public rerender() {
-			this._outputNode?.rerender();
-		}
-
 		public updateContentAndRender(content: webviewMessages.ICreationContent) {
 			this._outputNode?.updateAndRerender(content);
 		}
@@ -2125,6 +2607,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
+
+	for (const preload of ctx.staticPreloadsData) {
+		kernelPreloads.load(preload.entrypoint);
+	}
 
 	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
 		type: T['type'],
@@ -2140,7 +2626,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	class OutputElement {
 		public readonly element: HTMLElement;
 		private _content?: {
-			readonly content: webviewMessages.ICreationContent;
 			readonly preferredRendererId: string | undefined;
 			readonly preloadErrors: ReadonlyArray<Error | undefined>;
 		};
@@ -2178,16 +2663,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.renderTaskAbort?.abort();
 			this.renderTaskAbort = undefined;
 
-			this._content = { content, preferredRendererId, preloadErrors };
+			this._content = { preferredRendererId, preloadErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
-				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent; // CodeQL [SM03712] The content comes from renderer extensions, not from direct user input.
 				this.element.innerHTML = trustedHtml as string;
-				domEval(this.element);
 			} else if (preloadErrors.some(e => e instanceof Error)) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const item = createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes);
+				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();
 				this.renderTaskAbort = controller;
@@ -2237,16 +2721,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public rerender() {
-			if (this._content) {
-				this.render(this._content.content, this._content.preferredRendererId, this._content.preloadErrors);
-			}
-		}
-
 		public updateAndRerender(content: webviewMessages.ICreationContent) {
 			if (this._content) {
-				this._content = { content, preferredRendererId: this._content.preferredRendererId, preloadErrors: this._content.preloadErrors };
-				this.rerender();
+				this.render(content, this._content.preferredRendererId, this._content.preloadErrors);
 			}
 		}
 	}
@@ -2355,13 +2832,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}();
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly webviewMessages.RendererMetadata[], isWorkspaceTrusted: boolean, lineLimit: number, nonce: string) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderOptions: RenderOptions, renderers: readonly webviewMessages.RendererMetadata[], preloads: readonly webviewMessages.StaticPreloadMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
+		renderOptions,
 		rendererData: renderers,
+		staticPreloadsData: preloads,
 		isWorkspaceTrusted,
-		lineLimit,
 		nonce,
 	};
 	// TS will try compiling `import()` in webviewPreloads, so use a helper function instead

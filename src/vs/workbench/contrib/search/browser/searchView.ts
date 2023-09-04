@@ -9,9 +9,8 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { Delayer } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
+import { ITreeContextMenuEvent, ObjectTreeElementCollapseState } from 'vs/base/browser/ui/tree/tree';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -19,8 +18,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -48,9 +47,9 @@ import { IOpenerService, withSelection } from 'vs/platform/opener/common/opener'
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
@@ -59,19 +58,19 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
-import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
+import { appendKeyBindingLabel } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActionsFind';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from 'vs/workbench/contrib/search/browser/searchResultsView';
-import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
+import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
+import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
-import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { ISearchHistoryService, ISearchHistoryValues, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -79,6 +78,8 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/se
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from 'vs/workbench/services/search/common/search';
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const $ = dom.$;
 
@@ -110,7 +111,9 @@ export class SearchView extends ViewPane {
 	private fileMatchOrFolderMatchWithResourceFocus: IContextKey<boolean>;
 	private fileMatchFocused: IContextKey<boolean>;
 	private folderMatchFocused: IContextKey<boolean>;
+	private folderMatchWithResourceFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
+	private isEditableItem: IContextKey<boolean>;
 	private hasSearchResultsKey: IContextKey<boolean>;
 	private lastFocusState: 'input' | 'tree' = 'input';
 
@@ -153,8 +156,9 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 
-	private _uiRefreshHandle: any;
 	private _visibleMatches: number = 0;
+
+	private _refreshResultsScheduler: RunOnceScheduler;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -170,7 +174,7 @@ export class SearchView extends ViewPane {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
+		@ISearchViewModelWorkbenchService private readonly searchViewModelWorkbenchService: ISearchViewModelWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -180,9 +184,11 @@ export class SearchView extends ViewPane {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INotebookService private readonly notebookService: INotebookService,
+		@ILogService private readonly logService: ILogService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -197,6 +203,7 @@ export class SearchView extends ViewPane {
 		this.fileMatchOrFolderMatchWithResourceFocus = Constants.FileMatchOrFolderMatchWithResourceFocusKey.bindTo(this.contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
+		this.folderMatchWithResourceFocused = Constants.ResourceFolderFocusKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
@@ -212,6 +219,7 @@ export class SearchView extends ViewPane {
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
+		this.isEditableItem = Constants.IsEditableItemKey.bindTo(this.contextKeyService);
 
 		this.instantiationService = this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService]));
@@ -227,10 +235,10 @@ export class SearchView extends ViewPane {
 			}
 		});
 
-		this.viewModel = this._register(this.searchWorkbenchService.searchModel);
+		this.viewModel = this._register(this.searchViewModelWorkbenchService.searchModel);
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.memento = new Memento(this.id, storageService);
-		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
 		this._register(this.textFileService.untitled.onWillDispose(model => this.onUntitledDidDispose(model.resource)));
@@ -246,6 +254,30 @@ export class SearchView extends ViewPane {
 
 		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
 		this.isTreeLayoutViewVisible = this.viewletState['view.treeLayout'] ?? (this.searchConfig.defaultViewMode === ViewMode.Tree);
+
+		this._refreshResultsScheduler = this._register(new RunOnceScheduler(this._updateResults.bind(this), 80));
+
+		// storage service listener for for roaming changes
+		this._register(this.storageService.onWillSaveState(() => {
+			this._saveSearchHistoryService();
+		}));
+
+		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, SearchHistoryService.SEARCH_HISTORY_KEY, this._register(new DisposableStore()))(() => {
+			const restoredHistory = this.searchHistoryService.load();
+
+			if (restoredHistory.include) {
+				this.inputPatternIncludes.prependHistory(restoredHistory.include);
+			}
+			if (restoredHistory.exclude) {
+				this.inputPatternExcludes.prependHistory(restoredHistory.exclude);
+			}
+			if (restoredHistory.search) {
+				this.searchWidget.prependSearchHistory(restoredHistory.search);
+			}
+			if (restoredHistory.replace) {
+				this.searchWidget.prependReplaceHistory(restoredHistory.replace);
+			}
+		}));
 	}
 
 	get isTreeLayoutViewVisible(): boolean {
@@ -261,6 +293,7 @@ export class SearchView extends ViewPane {
 			return;
 		}
 		this.isTreeLayoutViewVisible = visible;
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this.refreshTree();
 	}
 
@@ -286,7 +319,35 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	override renderBody(parent: HTMLElement): void {
+	private refreshInputs() {
+		this.pauseSearching = true;
+		this.searchWidget.setValue(this.viewModel.searchResult.query?.contentPattern.pattern ?? '');
+		this.searchWidget.setReplaceAllActionState(false);
+		this.searchWidget.toggleReplace(true);
+		this.inputPatternIncludes.setOnlySearchInOpenEditors(this.viewModel.searchResult.query?.onlyOpenEditors || false);
+		this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(!this.viewModel.searchResult.query?.userDisabledExcludesAndIgnoreFiles || true);
+		this.searchIncludePattern.setValue('');
+		this.searchExcludePattern.setValue('');
+		this.pauseSearching = false;
+	}
+
+	public async importSearchResult(searchModel: SearchModel): Promise<void> {
+		// experimental: used by the quick access search to overwrite a search result
+		searchModel.transferSearchResult(this.viewModel);
+
+		this.onSearchResultsChanged();
+		this.refreshInputs();
+
+		const collapseResults = this.searchConfig.collapseResults;
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches()[0];
+			if (onlyMatch.count() < 50) {
+				this.tree.expand(onlyMatch);
+			}
+		}
+	}
+
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
@@ -330,15 +391,14 @@ export class SearchView extends ViewPane {
 				if (this.searchWidget.isReplaceActive()) {
 					this.searchWidget.focusReplaceAllAction();
 				} else {
-					this.searchWidget.isReplaceShown() ? this.searchWidget.replaceInput.focusOnPreserve() : this.searchWidget.focusRegexAction();
+					this.searchWidget.isReplaceShown() ? this.searchWidget.replaceInput?.focusOnPreserve() : this.searchWidget.focusRegexAction();
 				}
 				dom.EventHelper.stop(e);
 			}
 		}));
 
 		// folder includes list
-		const folderIncludesList = dom.append(this.queryDetails,
-			$('.file-types.includes'));
+		const folderIncludesList = dom.append(this.queryDetails, $('.file-types.includes'));
 		const filesToIncludeTitle = nls.localize('searchScope.includes', "files to include");
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
@@ -347,6 +407,7 @@ export class SearchView extends ViewPane {
 			placeholder: nls.localize('placeholder.includes', "e.g. *.ts, src/**/include"),
 			showPlaceholderOnFocus: true,
 			history: patternIncludesHistory,
+			inputBoxStyles: defaultInputBoxStyles
 		}));
 
 		this.inputPatternIncludes.setValue(patternIncludes);
@@ -366,6 +427,7 @@ export class SearchView extends ViewPane {
 			placeholder: nls.localize('placeholder.excludes', "e.g. *.ts, src/**/exclude"),
 			showPlaceholderOnFocus: true,
 			history: patternExclusionsHistory,
+			inputBoxStyles: defaultInputBoxStyles
 		}));
 
 		this.inputPatternExcludes.setValue(patternExclusions);
@@ -397,9 +459,16 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true, true);
 		}
 
-		this._register(this.viewModel.searchResult.onChange((event) => this.onSearchResultsChanged(event)));
+		this._register(this.viewModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
+
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+	}
+
+	private updateIndentStyles(theme: IFileIconTheme): void {
+		this.resultsElement.classList.toggle('hide-arrows', this.isTreeLayoutViewVisible && theme.hidesExplorerArrows);
 	}
 
 	private onVisibilityChanged(visible: boolean): void {
@@ -443,7 +512,13 @@ export class SearchView extends ViewPane {
 		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
 		const preserveCase = this.viewletState['query.preserveCase'] === true;
 
-		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, <ISearchWidgetOptions>{
+		const isInNotebookMarkdownInput = this.viewletState['query.isInNotebookMarkdownInput'] ?? true;
+		const isInNotebookMarkdownPreview = this.viewletState['query.isInNotebookMarkdownPreview'] ?? true;
+		const isInNotebookCellInput = this.viewletState['query.isInNotebookCellInput'] ?? true;
+		const isInNotebookCellOutput = this.viewletState['query.isInNotebookCellOutput'] ?? true;
+
+
+		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, {
 			value: contentPattern,
 			replaceValue: replaceText,
 			isRegex: isRegex,
@@ -451,8 +526,21 @@ export class SearchView extends ViewPane {
 			isWholeWords: isWholeWords,
 			searchHistory: searchHistory,
 			replaceHistory: replaceHistory,
-			preserveCase: preserveCase
+			preserveCase: preserveCase,
+			inputBoxStyles: defaultInputBoxStyles,
+			toggleStyles: defaultToggleStyles,
+			notebookOptions: {
+				isInNotebookMarkdownInput,
+				isInNotebookMarkdownPreview,
+				isInNotebookCellInput,
+				isInNotebookCellOutput,
+			}
 		}));
+
+		if (!this.searchWidget.searchInput || !this.searchWidget.replaceInput) {
+			this.logService.warn(`Cannot fully create search widget. Search or replace input undefined. SearchInput: ${this.searchWidget.searchInput}, ReplaceInput: ${this.searchWidget.replaceInput}`);
+			return;
+		}
 
 		if (showReplace) {
 			this.searchWidget.toggleReplace(true);
@@ -461,8 +549,9 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
+		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange()));
 
-		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput.getValue().length > 0);
+		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput ? (this.searchWidget.searchInput.getValue().length > 0) : false);
 		updateHasPatternKey();
 		this._register(this.searchWidget.searchInput.onDidChange(() => updateHasPatternKey()));
 
@@ -505,7 +594,11 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private trackInputBox(inputFocusTracker: dom.IFocusTracker, contextKey?: IContextKey<boolean>): void {
+	private trackInputBox(inputFocusTracker: dom.IFocusTracker | undefined, contextKey?: IContextKey<boolean>): void {
+		if (!inputFocusTracker) {
+			return;
+		}
+
 		this._register(inputFocusTracker.onDidFocus(() => {
 			this.lastFocusState = 'input';
 			this.inputBoxFocused.set(true);
@@ -578,7 +671,7 @@ export class SearchView extends ViewPane {
 	private createFolderIterator(folderMatch: FolderMatch, collapseResults: ISearchConfigurationProperties['collapseResults'], childFolderIncompressible: boolean): Iterable<ICompressedTreeElement<RenderableMatch>> {
 		const sortOrder = this.searchConfig.sortOrder;
 
-		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.downstreamFileMatches();
+		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
 		return Iterable.map(matches, match => {
@@ -588,11 +681,8 @@ export class SearchView extends ViewPane {
 			} else {
 				children = this.createFolderIterator(match, collapseResults, false);
 			}
-			let nodeExists = true;
-			try { this.tree.getNode(match); } catch (e) { nodeExists = false; }
 
-			const collapsed = nodeExists ? undefined :
-				(collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand'));
+			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
 			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
 		});
@@ -631,8 +721,7 @@ export class SearchView extends ViewPane {
 		const confirmation: IConfirmation = {
 			title: nls.localize('replaceAll.confirmation.title', "Replace All"),
 			message: this.buildReplaceAllConfirmationMessage(occurrences, fileCount, replaceValue),
-			primaryButton: nls.localize('replaceAll.confirm.button', "&&Replace"),
-			type: 'question'
+			primaryButton: nls.localize({ key: 'replaceAll.confirm.button', comment: ['&& denotes a mnemonic'] }, "&&Replace")
 		};
 
 		this.dialogService.confirm(confirmation).then(res => {
@@ -648,6 +737,8 @@ export class SearchView extends ViewPane {
 					errors.isCancellationError(error);
 					this.notificationService.error(error);
 				});
+			} else {
+				progressComplete();
 			}
 		});
 	}
@@ -733,7 +824,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private createSearchResultsView(container: HTMLElement): void {
-		this.resultsElement = dom.append(container, $('.results.show-file-icons'));
+		this.resultsElement = dom.append(container, $('.results.show-file-icons.file-icon-themable-tree'));
 		const delegate = this.instantiationService.createInstance(SearchDelegate);
 
 		const identityProvider: IIdentityProvider<RenderableMatch> = {
@@ -748,8 +839,8 @@ export class SearchView extends ViewPane {
 			this.resultsElement,
 			delegate,
 			[
-				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this.viewModel, this, this.treeLabels)),
-				this._register(this.instantiationService.createInstance(FileMatchRenderer, this.viewModel, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.treeLabels)),
+				this._register(this.instantiationService.createInstance(FileMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
 			],
 			{
@@ -769,12 +860,12 @@ export class SearchView extends ViewPane {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				additionalScrollHeight: SearchDelegate.ITEM_HEIGHT
+				paddingBottom: SearchDelegate.ITEM_HEIGHT
 			}));
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
-		this._register(this.viewModel.searchResult.onChange(() => updateHasSomeCollapsible()));
+		this._register(this.viewModel.onSearchResultChanged(() => updateHasSomeCollapsible()));
 		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
@@ -797,8 +888,9 @@ export class SearchView extends ViewPane {
 		}));
 
 		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
+			const focus = this.tree.getFocus()[0];
+
 			if (this.tree.isDOMFocused()) {
-				const focus = this.tree.getFocus()[0];
 				this.firstMatchFocused.set(this.tree.navigate().first() === focus);
 				this.fileMatchOrMatchFocused.set(!!focus);
 				this.fileMatchFocused.set(focus instanceof FileMatch);
@@ -806,8 +898,19 @@ export class SearchView extends ViewPane {
 				this.matchFocused.set(focus instanceof Match);
 				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
 				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
+				this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
 				this.lastFocusState = 'tree';
 			}
+
+			let editable = false;
+			if (focus instanceof Match) {
+				editable = (focus instanceof MatchInNotebook) ? !focus.isWebviewMatch() : true;
+			} else if (focus instanceof FileMatch) {
+				editable = !focus.hasOnlyReadOnlyMatches();
+			} else if (focus instanceof FolderMatch) {
+				editable = !focus.hasOnlyReadOnlyMatches();
+			}
+			this.isEditableItem.set(editable);
 		}));
 
 		this._register(this.tree.onDidBlur(() => {
@@ -818,6 +921,8 @@ export class SearchView extends ViewPane {
 			this.matchFocused.reset();
 			this.fileMatchOrFolderMatchFocus.reset();
 			this.fileMatchOrFolderMatchWithResourceFocus.reset();
+			this.folderMatchWithResourceFocused.reset();
+			this.isEditableItem.reset();
 		}));
 	}
 
@@ -889,7 +994,7 @@ export class SearchView extends ViewPane {
 			this.tree.setSelection([next], event);
 			this.tree.reveal(next);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
-			if (ariaLabel) { aria.alert(ariaLabel); }
+			if (ariaLabel) { aria.status(ariaLabel); }
 		}
 	}
 
@@ -932,7 +1037,7 @@ export class SearchView extends ViewPane {
 			this.tree.setSelection([prev], event);
 			this.tree.reveal(prev);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
-			if (ariaLabel) { aria.alert(ariaLabel); }
+			if (ariaLabel) { aria.status(ariaLabel); }
 		}
 	}
 
@@ -976,9 +1081,9 @@ export class SearchView extends ViewPane {
 			return false;
 		}
 
-		this.searchWidget.searchInput.setCaseSensitive(controller.getState().matchCase);
-		this.searchWidget.searchInput.setWholeWords(controller.getState().wholeWord);
-		this.searchWidget.searchInput.setRegex(controller.getState().isRegex);
+		this.searchWidget.searchInput?.setCaseSensitive(controller.getState().matchCase);
+		this.searchWidget.searchInput?.setWholeWords(controller.getState().wholeWord);
+		this.searchWidget.searchInput?.setRegex(controller.getState().isRegex);
 		this.updateText(searchString, allowSearchOnType);
 
 		return true;
@@ -995,7 +1100,7 @@ export class SearchView extends ViewPane {
 			return false;
 		}
 
-		if (this.searchWidget.searchInput.getRegex()) {
+		if (this.searchWidget.searchInput?.getRegex()) {
 			selectedText = strings.escapeRegExpCharacters(selectedText);
 		}
 
@@ -1113,7 +1218,7 @@ export class SearchView extends ViewPane {
 
 	allSearchFieldsClear(): boolean {
 		return this.searchWidget.getReplaceValue() === '' &&
-			this.searchWidget.searchInput.getValue() === '';
+			(!this.searchWidget.searchInput || this.searchWidget.searchInput.getValue() === '');
 	}
 
 	allFilePatternFieldsClear(): boolean {
@@ -1229,34 +1334,34 @@ export class SearchView extends ViewPane {
 	}
 
 	toggleCaseSensitive(): void {
-		this.searchWidget.searchInput.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
+		this.searchWidget.searchInput?.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
 		this.triggerQueryChange();
 	}
 
 	toggleWholeWords(): void {
-		this.searchWidget.searchInput.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
+		this.searchWidget.searchInput?.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
 		this.triggerQueryChange();
 	}
 
 	toggleRegex(): void {
-		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
+		this.searchWidget.searchInput?.setRegex(!this.searchWidget.searchInput.getRegex());
 		this.triggerQueryChange();
 	}
 
 	togglePreserveCase(): void {
-		this.searchWidget.replaceInput.setPreserveCase(!this.searchWidget.replaceInput.getPreserveCase());
+		this.searchWidget.replaceInput?.setPreserveCase(!this.searchWidget.replaceInput.getPreserveCase());
 		this.triggerQueryChange();
 	}
 
 	setSearchParameters(args: IFindInFilesArgs = {}): void {
 		if (typeof args.isCaseSensitive === 'boolean') {
-			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
+			this.searchWidget.searchInput?.setCaseSensitive(args.isCaseSensitive);
 		}
 		if (typeof args.matchWholeWord === 'boolean') {
-			this.searchWidget.searchInput.setWholeWords(args.matchWholeWord);
+			this.searchWidget.searchInput?.setWholeWords(args.matchWholeWord);
 		}
 		if (typeof args.isRegex === 'boolean') {
-			this.searchWidget.searchInput.setRegex(args.isRegex);
+			this.searchWidget.searchInput?.setRegex(args.isRegex);
 		}
 		if (typeof args.filesToInclude === 'string') {
 			this.searchIncludePattern.setValue(String(args.filesToInclude));
@@ -1265,12 +1370,12 @@ export class SearchView extends ViewPane {
 			this.searchExcludePattern.setValue(String(args.filesToExclude));
 		}
 		if (typeof args.query === 'string') {
-			this.searchWidget.searchInput.setValue(args.query);
+			this.searchWidget.searchInput?.setValue(args.query);
 		}
 		if (typeof args.replace === 'string') {
-			this.searchWidget.replaceInput.setValue(args.replace);
+			this.searchWidget.replaceInput?.setValue(args.replace);
 		} else {
-			if (this.searchWidget.replaceInput.getValue() !== '') {
+			if (this.searchWidget.replaceInput && this.searchWidget.replaceInput.getValue() !== '') {
 				this.searchWidget.replaceInput.setValue('');
 			}
 		}
@@ -1278,7 +1383,7 @@ export class SearchView extends ViewPane {
 			this.triggerQueryChange();
 		}
 		if (typeof args.preserveCase === 'boolean') {
-			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
+			this.searchWidget.replaceInput?.setPreserveCase(args.preserveCase);
 		}
 		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
 			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
@@ -1320,6 +1425,14 @@ export class SearchView extends ViewPane {
 	}
 
 	searchInFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(true, folderPaths);
+	}
+
+	searchOutsideOfFolders(folderPaths: string[] = []): void {
+		this._searchWithIncludeOrExclude(false, folderPaths);
+	}
+
+	private _searchWithIncludeOrExclude(include: boolean, folderPaths: string[]) {
 		if (!folderPaths.length || folderPaths.some(folderPath => folderPath === '.')) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
@@ -1331,7 +1444,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true);
 		}
 
-		this.inputPatternIncludes.setValue(folderPaths.join(', '));
+		(include ? this.inputPatternIncludes : this.inputPatternExcludes).setValue(folderPaths.join(', '));
 		this.searchWidget.focus(false);
 	}
 
@@ -1341,18 +1454,25 @@ export class SearchView extends ViewPane {
 		if (options.triggeredOnType && !this.searchConfig.searchOnType) { return; }
 
 		if (!this.pauseSearching) {
+
+			const delay = options.triggeredOnType ? options.delay : 0;
 			this.triggerQueryDelayer.trigger(() => {
 				this._onQueryChanged(options.preserveFocus, options.triggeredOnType);
-			}, options.delay);
+			}, delay);
 		}
 	}
 
 	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false): void {
-		if (!this.searchWidget.searchInput.inputBox.isInputValid()) {
+		if (!(this.searchWidget.searchInput?.inputBox.isInputValid())) {
 			return;
 		}
 
 		const isRegex = this.searchWidget.searchInput.getRegex();
+		const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
+		const isInNotebookMarkdownPreview = this.searchWidget.getNotebookFilters().markupPreview;
+		const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
+		const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
+
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
@@ -1371,7 +1491,13 @@ export class SearchView extends ViewPane {
 			pattern: contentPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
-			isWordMatch: isWholeWords
+			isWordMatch: isWholeWords,
+			notebookInfo: {
+				isInNotebookMarkdownInput,
+				isInNotebookMarkdownPreview,
+				isInNotebookCellInput,
+				isInNotebookCellOutput
+			}
 		};
 
 		const excludePattern = this.inputPatternExcludes.getValue();
@@ -1385,7 +1511,7 @@ export class SearchView extends ViewPane {
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchView',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
+			maxResults: this.searchConfig.maxResults ?? undefined,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,
@@ -1401,7 +1527,7 @@ export class SearchView extends ViewPane {
 		const folderResources = this.contextService.getWorkspace().folders;
 
 		const onQueryValidationError = (err: Error) => {
-			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
+			this.searchWidget.searchInput?.showMessage({ content: err.message, type: MessageType.ERROR });
 			this.viewModel.searchResult.clear();
 		};
 
@@ -1446,7 +1572,7 @@ export class SearchView extends ViewPane {
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => {
-			this.searchWidget.searchInput.onSearchSubmit();
+			this.searchWidget.searchInput?.onSearchSubmit();
 			this.inputPatternExcludes.onSearchSubmit();
 			this.inputPatternIncludes.onSearchSubmit();
 		});
@@ -1458,13 +1584,31 @@ export class SearchView extends ViewPane {
 			.then(() => undefined, () => undefined);
 	}
 
+
+	private _updateResults() {
+		if (this.state === SearchUIState.Idle) {
+			return;
+		}
+		try {
+			// Search result tree update
+			const fileCount = this.viewModel.searchResult.fileCount();
+			if (this._visibleMatches !== fileCount) {
+				this._visibleMatches = fileCount;
+				this.refreshAndUpdateCount();
+			}
+		} finally {
+			// show frequent progress and results by scheduling updates 80 ms after the last one
+			this._refreshResultsScheduler.schedule();
+		}
+	}
+
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
 		});
 
-		this.searchWidget.searchInput.clearMessage();
+		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
 
@@ -1584,7 +1728,7 @@ export class SearchView extends ViewPane {
 				return onComplete(undefined);
 			} else {
 				progressComplete();
-				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
+				this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
 				return Promise.resolve();
@@ -1593,29 +1737,14 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
-		// Handle UI updates in an interval to show frequent progress and results
-		if (!this._uiRefreshHandle) {
-			this._uiRefreshHandle = setInterval(() => {
-				if (this.state === SearchUIState.Idle) {
-					window.clearInterval(this._uiRefreshHandle);
-					this._uiRefreshHandle = undefined;
-					return;
-				}
-
-				// Search result tree update
-				const fileCount = this.viewModel.searchResult.fileCount();
-				if (this._visibleMatches !== fileCount) {
-					this._visibleMatches = fileCount;
-					this.refreshAndUpdateCount();
-				}
-			}, 100);
-		}
+		this._refreshResultsScheduler.schedule();
 
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.tree.setSelection([]);
-		return this.viewModel.search(query)
-			.then(onComplete, onError);
+		this.tree.setFocus([]);
+		const result = this.viewModel.search(query);
+		return result.asyncResults.then(onComplete, onError);
 	}
 
 	private onOpenSettings(e: dom.EventLike): void {
@@ -1680,7 +1809,7 @@ export class SearchView extends ViewPane {
 
 			const openInEditorTooltip = appendKeyBindingLabel(
 				nls.localize('openInEditor.tooltip', "Copy current search results to an editor"),
-				this.keybindingService.lookupKeybinding(Constants.OpenInEditorCommandId), this.keybindingService);
+				this.keybindingService.lookupKeybinding(Constants.OpenInEditorCommandId));
 			const openInEditorButton = this.messageDisposables.add(new SearchLinkButton(
 				nls.localize('openInEditor.message', "Open in editor"),
 				() => this.instantiationService.invokeFunction(createEditorFromSearchResult, this.searchResult, this.searchIncludePattern.getValue(), this.searchExcludePattern.getValue(), this.searchIncludePattern.onlySearchInOpenEditors()),
@@ -1739,27 +1868,38 @@ export class SearchView extends ViewPane {
 		this.currentSelectedFileMatch = undefined;
 	}
 
-	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
-			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
-			this.open(lineMatch, preserveFocus, sideBySide, pinned);
+	private shouldOpenInNotebookEditor(match: Match, uri: URI): boolean {
+		// Untitled files will return a false positive for getContributedNotebookTypes.
+		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
+		return match instanceof MatchInNotebook || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
-	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<void> {
-		const selection = this.getSelectionFrom(element);
-		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
+	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 
+		const resource = lineMatch instanceof Match ? lineMatch.parent().resource : (<FileMatch>lineMatch).resource;
+		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(lineMatch, resource))) ?
+			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
+			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
+	}
+
+	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean, resourceInput?: URI): Promise<void> {
+		const selection = getEditorSelectionFromMatch(element, this.viewModel);
+		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
+		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<FileMatch>element).resource);
 		let editor: IEditorPane | undefined;
+
+		const options = {
+			preserveFocus,
+			pinned,
+			selection,
+			revealIfVisible: true,
+		};
+
 		try {
 			editor = await this.editorService.openEditor({
 				resource: resource,
-				options: {
-					preserveFocus,
-					pinned,
-					selection,
-					revealIfVisible: true
-				}
+				options,
 			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 			const editorControl = editor?.getControl();
@@ -1777,9 +1917,32 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const controller = editor.getControl()?.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-			const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
-			controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
+			const elemParent = element.parent() as FileMatch;
+			if (element instanceof Match) {
+				if (element instanceof MatchInNotebook) {
+					element.parent().showMatch(element);
+				} else {
+					const editorWidget = editor.getControl();
+					if (editorWidget) {
+						// Ensure that the editor widget is binded. If if is, then this should return immediately.
+						// Otherwise, it will bind the widget.
+						elemParent.bindNotebookEditorWidget(editorWidget);
+						await elemParent.updateMatchesForEditorWidget();
+
+						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
+						const matches = elemParent.matches();
+						const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
+
+						if (match instanceof MatchInNotebook) {
+							elemParent.showMatch(match);
+							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
+								this.tree.setSelection([match], getSelectionKeyboardEvent());
+								this.tree.setFocus([match]);
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -1813,30 +1976,6 @@ export class SearchView extends ViewPane {
 			}
 			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 		}, errors.onUnexpectedError);
-	}
-
-	private getSelectionFrom(element: FileMatchOrMatch): any {
-		let match: Match | null = null;
-		if (element instanceof Match) {
-			match = element;
-		}
-		if (element instanceof FileMatch && element.count() > 0) {
-			match = element.matches()[element.matches().length - 1];
-		}
-		if (match) {
-			const range = match.range();
-			if (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) {
-				const replaceString = match.replaceString;
-				return {
-					startLineNumber: range.startLineNumber,
-					startColumn: range.startColumn,
-					endLineNumber: range.startLineNumber,
-					endColumn: range.startColumn + replaceString.length
-				};
-			}
-			return range;
-		}
-		return undefined;
 	}
 
 	private onUntitledDidDispose(resource: URI): void {
@@ -1884,20 +2023,40 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
-		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
-		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		const contentPattern = this.searchWidget.searchInput.getValue();
-		const patternExcludes = this.inputPatternExcludes.getValue().trim();
-		const patternIncludes = this.inputPatternIncludes.getValue().trim();
-		const onlyOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
-		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
+		// This can be called before renderBody() method gets called for the first time
+		// if we move the searchView inside another viewPaneContainer
+		if (!this.searchWidget) {
+			return;
+		}
+
+		const patternExcludes = this.inputPatternExcludes?.getValue().trim() ?? '';
+		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
+		const onlyOpenEditors = this.inputPatternIncludes?.onlySearchInOpenEditors() ?? false;
+		const useExcludesAndIgnoreFiles = this.inputPatternExcludes?.useExcludesAndIgnoreFiles() ?? true;
 		const preserveCase = this.viewModel.preserveCase;
 
-		this.viewletState['query.contentPattern'] = contentPattern;
-		this.viewletState['query.regex'] = isRegex;
-		this.viewletState['query.wholeWords'] = isWholeWords;
-		this.viewletState['query.caseSensitive'] = isCaseSensitive;
+		if (this.searchWidget.searchInput) {
+			const isRegex = this.searchWidget.searchInput.getRegex();
+			const isWholeWords = this.searchWidget.searchInput.getWholeWords();
+			const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+			const contentPattern = this.searchWidget.searchInput.getValue();
+
+			const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
+			const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
+			const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
+			const isInNotebookMarkdownPreview = this.searchWidget.getNotebookFilters().markupPreview;
+
+			this.viewletState['query.contentPattern'] = contentPattern;
+			this.viewletState['query.regex'] = isRegex;
+			this.viewletState['query.wholeWords'] = isWholeWords;
+			this.viewletState['query.caseSensitive'] = isCaseSensitive;
+
+			this.viewletState['query.isInNotebookMarkdownInput'] = isInNotebookMarkdownInput;
+			this.viewletState['query.isInNotebookMarkdownPreview'] = isInNotebookMarkdownPreview;
+			this.viewletState['query.isInNotebookCellInput'] = isInNotebookCellInput;
+			this.viewletState['query.isInNotebookCellOutput'] = isInNotebookCellOutput;
+		}
+
 		this.viewletState['query.folderExclusions'] = patternExcludes;
 		this.viewletState['query.folderIncludes'] = patternIncludes;
 		this.viewletState['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
@@ -1909,6 +2068,14 @@ export class SearchView extends ViewPane {
 		this.viewletState['view.treeLayout'] = this.isTreeLayoutViewVisible;
 		this.viewletState['query.replaceText'] = isReplaceShown && this.searchWidget.getReplaceValue();
 
+		this._saveSearchHistoryService();
+
+		this.memento.saveMemento();
+
+		super.saveState();
+	}
+
+	private _saveSearchHistoryService() {
 		const history: ISearchHistoryValues = Object.create(null);
 
 		const searchHistory = this.searchWidget.getSearchHistory();
@@ -1932,10 +2099,6 @@ export class SearchView extends ViewPane {
 		}
 
 		this.searchHistoryService.save(history);
-
-		this.memento.saveMemento();
-
-		super.saveState();
 	}
 
 	private async retrieveFileStats(): Promise<void> {
@@ -1961,71 +2124,6 @@ export class SearchView extends ViewPane {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const matchHighlightColor = theme.getColor(editorFindMatchHighlight);
-	if (matchHighlightColor) {
-		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { background-color: ${matchHighlightColor}; }`);
-	}
-
-	const diffInsertedColor = theme.getColor(diffInserted);
-	if (diffInsertedColor) {
-		collector.addRule(`.monaco-workbench .search-view .replaceMatch { background-color: ${diffInsertedColor}; }`);
-	}
-
-	const diffRemovedColor = theme.getColor(diffRemoved);
-	if (diffRemovedColor) {
-		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { background-color: ${diffRemovedColor}; }`);
-	}
-
-	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
-	if (diffInsertedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${diffInsertedOutlineColor}; }`);
-	}
-
-	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
-	if (diffRemovedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${diffRemovedOutlineColor}; }`);
-	}
-
-	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
-	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${findMatchHighlightBorder}; }`);
-	}
-
-	const outlineSelectionColor = theme.getColor(listActiveSelectionForeground);
-	if (outlineSelectionColor) {
-		collector.addRule(`.monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus { outline-color: ${outlineSelectionColor} }`);
-	}
-
-	if (theme.type === 'dark') {
-		const foregroundColor = theme.getColor(foreground);
-		if (foregroundColor) {
-			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
-			collector.addRule(`.search-view .message { color: ${fgWithOpacity}; }`);
-		}
-	}
-
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .search-view .message a { color: ${link}; }`);
-	}
-
-	const activeLink = theme.getColor(textLinkActiveForeground);
-	if (activeLink) {
-		collector.addRule(`.monaco-workbench .search-view .message a:hover,
-			.monaco-workbench .search-view .message a:active { color: ${activeLink}; }`);
-	}
-
-	const toolbarHoverColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverColor) {
-		collector.addRule(`.monaco-workbench .search-view .search-widget .toggle-replace-button:hover { background-color: ${toolbarHoverColor} }`);
-	}
-
-	const toolbarActiveColor = theme.getColor(toolbarActiveBackground);
-	if (toolbarActiveColor) {
-		collector.addRule(`.monaco-workbench .search-view .search-widget .toggle-replace-button:active { background-color: ${toolbarActiveColor} }`);
-	}
-});
 
 class SearchLinkButton extends Disposable {
 	public readonly element: HTMLElement;
@@ -2052,4 +2150,28 @@ class SearchLinkButton extends Disposable {
 			}
 		}));
 	}
+}
+
+export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: SearchModel): any {
+	let match: Match | null = null;
+	if (element instanceof Match) {
+		match = element;
+	}
+	if (element instanceof FileMatch && element.count() > 0) {
+		match = element.matches()[element.matches().length - 1];
+	}
+	if (match) {
+		const range = match.range();
+		if (viewModel.isReplaceActive() && !!viewModel.replaceString) {
+			const replaceString = match.replaceString;
+			return {
+				startLineNumber: range.startLineNumber,
+				startColumn: range.startColumn,
+				endLineNumber: range.startLineNumber,
+				endColumn: range.startColumn + replaceString.length
+			};
+		}
+		return range;
+	}
+	return undefined;
 }

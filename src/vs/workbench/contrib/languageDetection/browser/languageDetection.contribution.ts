@@ -139,7 +139,7 @@ registerAction2(class extends Action2 {
 		if (editorUri) {
 			const lang = await languageDetectionService.detectLanguage(editorUri);
 			if (lang) {
-				editor.getModel()?.setMode(lang, LanguageDetectionLanguageEventSource);
+				editor.getModel()?.setLanguage(lang, LanguageDetectionLanguageEventSource);
 			} else {
 				notificationService.warn(localize('noDetection', "Unable to detect editor language"));
 			}

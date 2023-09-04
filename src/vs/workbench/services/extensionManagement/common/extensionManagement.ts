@@ -14,10 +14,6 @@ export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonl
 
 export const IProfileAwareExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IProfileAwareExtensionManagementService>(IExtensionManagementService);
 export interface IProfileAwareExtensionManagementService extends IExtensionManagementService {
-	readonly onProfileAwareInstallExtension: Event<InstallExtensionEvent>;
-	readonly onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	readonly onProfileAwareUninstallExtension: Event<UninstallExtensionEvent>;
-	readonly onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionEvent>;
 	readonly onDidChangeProfile: Event<DidChangeProfileEvent>;
 }
 
@@ -43,7 +39,7 @@ export interface IExtensionManagementServerService {
 	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null;
 }
 
-export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
+export const DefaultIconPath = FileAccess.asBrowserUri('vs/workbench/services/extensionManagement/common/media/defaultIcon.png').toString(true);
 
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server: IExtensionManagementServer };
@@ -58,17 +54,11 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
-	onProfileAwareInstallExtension: Event<InstallExtensionOnServerEvent>;
-	onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onProfileAwareUninstallExtension: Event<UninstallExtensionOnServerEvent>;
-	onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 	onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallVSIXOptions): Promise<ILocalExtension>;
-	installWebExtension(location: URI): Promise<ILocalExtension>;
-	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
+	installFromLocation(location: URI): Promise<ILocalExtension>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
-	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null;
 }
 
 export const enum EnablementState {
@@ -167,15 +157,16 @@ export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
 	scanSystemExtensions(): Promise<IExtension[]>;
-	scanUserExtensions(profileLocation: URI | undefined, options?: ScanOptions): Promise<IScannedExtension[]>;
+	scanUserExtensions(profileLocation: URI, options?: ScanOptions): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
-	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, profileLocation: URI | undefined): Promise<IScannedExtension | null>;
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType, profileLocation: URI): Promise<IScannedExtension | null>;
 
-	addExtension(location: URI, metadata: Metadata, profileLocation: URI | undefined): Promise<IScannedExtension>;
-	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata: Metadata, profileLocation: URI | undefined): Promise<IScannedExtension>;
-	removeExtension(extension: IScannedExtension, profileLocation: URI | undefined): Promise<void>;
+	addExtension(location: URI, metadata: Metadata, profileLocation: URI): Promise<IScannedExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata: Metadata, profileLocation: URI): Promise<IScannedExtension>;
+	removeExtension(extension: IScannedExtension, profileLocation: URI): Promise<void>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI, filter: (extension: IScannedExtension) => boolean): Promise<void>;
 
-	scanMetadata(extensionLocation: URI, profileLocation: URI | undefined): Promise<Metadata | undefined>;
+	updateMetadata(extension: IScannedExtension, metaData: Partial<Metadata>, profileLocation: URI): Promise<IScannedExtension>;
+
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }

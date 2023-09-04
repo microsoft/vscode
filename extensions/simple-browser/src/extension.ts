@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { SimpleBrowserManager } from './simpleBrowserManager';
 import { SimpleBrowserView } from './simpleBrowserView';
 
@@ -12,8 +11,6 @@ declare class URL {
 	constructor(input: string, base?: string | URL);
 	hostname: string;
 }
-
-const localize = nls.loadMessageBundle();
 
 const openApiCommand = 'simpleBrowser.api.open';
 const showCommand = 'simpleBrowser.show';
@@ -48,8 +45,8 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(showCommand, async (url?: string) => {
 		if (!url) {
 			url = await vscode.window.showInputBox({
-				placeHolder: localize('simpleBrowser.show.placeholder', "https://example.com"),
-				prompt: localize('simpleBrowser.show.prompt', "Enter url to visit")
+				placeHolder: vscode.l10n.t("https://example.com"),
+				prompt: vscode.l10n.t("Enter url to visit")
 			});
 		}
 
@@ -84,7 +81,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}, {
 		schemes: ['http', 'https'],
-		label: localize('openTitle', "Open in simple browser"),
+		label: vscode.l10n.t("Open in simple browser"),
 	}));
 }
 

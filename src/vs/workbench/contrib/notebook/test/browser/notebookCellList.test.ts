@@ -5,25 +5,17 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCellList', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
-	let notebookDefaultOptions: NotebookOptions;
-	let topInsertToolbarHeight: number;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService));
-		topInsertToolbarHeight = notebookDefaultOptions.computeTopInsertToolbarHeight();
-
 	});
 
 	suiteTeardown(() => disposables.dispose());
@@ -40,6 +32,7 @@ suite('NotebookCellList', () => {
 			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
+					cellLineNumberStates: {},
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
 					collapsedInputCells: {},
@@ -50,7 +43,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 				// scroll a bit, scrollTop to bottom: 5, 215
 				cellList.scrollTop = 5;
 
@@ -59,17 +52,17 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 1, top 50, bottom 150, which is fully visible in the viewport
-				cellList.revealElementsInView({ start: 1, end: 2 });
+				cellList.revealCellsInView({ start: 1, end: 2 });
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 2, top 150, bottom 200, which is fully visible in the viewport
-				cellList.revealElementsInView({ start: 2, end: 3 });
+				cellList.revealCellsInView({ start: 2, end: 3 });
 				assert.deepStrictEqual(cellList.scrollTop, 5);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealElementsInView({ start: 3, end: 4 });
+				cellList.revealCellsInView({ start: 3, end: 4 });
 				assert.deepStrictEqual(cellList.scrollTop, 90);
 			});
 	});
@@ -88,6 +81,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -96,14 +90,14 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
 				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
-				cellList.revealElementsInView({ start: 3, end: 4 });
+				cellList.revealCellsInView({ start: 3, end: 4 });
 				assert.deepStrictEqual(cellList.scrollTop, 90);
 
 				// scroll to 5
@@ -112,7 +106,7 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
 
 				// reveal cell 0, top 0, bottom 50
-				cellList.revealElementsInView({ start: 0, end: 1 });
+				cellList.revealCellsInView({ start: 0, end: 1 });
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 			});
 	});
@@ -131,23 +125,24 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
 
 				const cellList = createNotebookCellList(instantiationService);
-				// without additionalscrollheight, the last 20 px will always be hidden due to `topInsertToolbarHeight`
-				cellList.updateOptions({ additionalScrollHeight: 100 });
+				// without paddingBottom, the last 20 px will always be hidden due to `topInsertToolbarHeight`
+				cellList.updateOptions({ paddingBottom: 100 });
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
-				cellList.revealElementsInView({ start: 4, end: 5 });
+				cellList.revealCellsInView({ start: 4, end: 5 });
 				assert.deepStrictEqual(cellList.scrollTop, 140);
 				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 330);
 			});
@@ -167,6 +162,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -175,7 +171,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -208,6 +204,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -216,7 +213,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -260,6 +257,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -268,7 +266,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -295,6 +293,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
 					cellTotalHeights: [50, 100, 50, 100, 50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});
@@ -303,7 +302,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -343,6 +342,7 @@ suite('NotebookCellList', () => {
 					editingCells: [false],
 					editorViewStates: [null],
 					cellTotalHeights: [50],
+					cellLineNumberStates: {},
 					collapsedInputCells: {},
 					collapsedOutputCells: {},
 				});

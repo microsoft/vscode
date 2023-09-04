@@ -32,7 +32,8 @@ import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, T
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -52,7 +53,8 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 
 const ItemHeight = 22;
 
@@ -289,7 +291,7 @@ export class TimelinePane extends ViewPane {
 		this.timelineExcludeSourcesContext.set(excludedSourcesString);
 		this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
-		this._register(storageService.onDidChangeValue(this.onStorageServiceChanged, this));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'timeline.excludeSources', this._register(new DisposableStore()))(this.onStorageServiceChanged, this));
 		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
@@ -328,7 +330,7 @@ export class TimelinePane extends ViewPane {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
 		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
-			pageSize = Math.max(20, Math.floor((this.tree.renderHeight / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
+			pageSize = Math.max(20, Math.floor((this.tree?.renderHeight ?? 0 / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
 		}
 		return pageSize;
 	}
@@ -352,19 +354,17 @@ export class TimelinePane extends ViewPane {
 		this.loadTimeline(true);
 	}
 
-	private onStorageServiceChanged(e: IStorageValueChangeEvent) {
-		if (e.key === 'timeline.excludeSources') {
-			const excludedSourcesString = this.storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
-			this.timelineExcludeSourcesContext.set(excludedSourcesString);
-			this.excludedSources = new Set(JSON.parse(excludedSourcesString));
+	private onStorageServiceChanged() {
+		const excludedSourcesString = this.storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
+		this.timelineExcludeSourcesContext.set(excludedSourcesString);
+		this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
-			const missing = this.timelineService.getSources()
-				.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
-			if (missing.length !== 0) {
-				this.loadTimeline(true, missing.map(({ id }) => id));
-			} else {
-				this.refresh();
-			}
+		const missing = this.timelineService.getSources()
+			.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
+		if (missing.length !== 0) {
+			this.loadTimeline(true, missing.map(({ id }) => id));
+		} else {
+			this.refresh();
 		}
 	}
 
@@ -467,6 +467,9 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private showMessage(message: string): void {
+		if (!this.$message) {
+			return;
+		}
 		this.$message.classList.remove('hide');
 		this.resetMessageElement();
 
@@ -502,7 +505,7 @@ export class TimelinePane extends ViewPane {
 
 			this.pendingRequests.clear();
 
-			if (!this.isBodyVisible()) {
+			if (!this.isBodyVisible() && this.tree) {
 				this.tree.setChildren(null, undefined);
 				this._isEmpty = true;
 			}
@@ -914,7 +917,7 @@ export class TimelinePane extends ViewPane {
 					}
 					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTimeFullWord ?? '', element.label);
 				},
-				getRole(element: TreeElement): string {
+				getRole(element: TreeElement): AriaRole {
 					if (isLoadMoreCommand(element)) {
 						return 'treeitem';
 					}
@@ -1043,7 +1046,7 @@ export class TimelinePane extends ViewPane {
 	}
 }
 
-export class TimelineElementTemplate implements IDisposable {
+class TimelineElementTemplate implements IDisposable {
 	static readonly id = 'TimelineElementTemplate';
 
 	readonly actionBar: ActionBar;
@@ -1052,15 +1055,14 @@ export class TimelineElementTemplate implements IDisposable {
 	readonly timestamp: HTMLSpanElement;
 
 	constructor(
-		readonly container: HTMLElement,
+		container: HTMLElement,
 		actionViewItemProvider: IActionViewItemProvider,
-		private hoverDelegate: IHoverDelegate,
-
+		hoverDelegate: IHoverDelegate,
 	) {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate: hoverDelegate });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
@@ -1089,14 +1091,14 @@ export class TimelineIdentityProvider implements IIdentityProvider<TreeElement> 
 
 class TimelineActionRunner extends ActionRunner {
 
-	override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
+	protected override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
 		if (!isTimelineItem(item)) {
 			// TODO@eamodio do we need to do anything else?
 			await action.run();
 			return;
 		}
 
-		await action.run(...[
+		await action.run(
 			{
 				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
@@ -1105,7 +1107,7 @@ class TimelineActionRunner extends ActionRunner {
 			},
 			uri,
 			item.source,
-		]);
+		);
 	}
 }
 
@@ -1180,6 +1182,8 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;
 			if (item.themeIcon.color) {
 				template.icon.style.color = theme.getColor(item.themeIcon.color.id)?.toString() ?? '';
+			} else {
+				template.icon.style.color = '';
 			}
 			template.icon.style.backgroundImage = '';
 		} else {
@@ -1213,7 +1217,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	}
 
 	disposeTemplate(template: TimelineElementTemplate): void {
-		template.iconLabel.dispose();
+		template.dispose();
 	}
 }
 

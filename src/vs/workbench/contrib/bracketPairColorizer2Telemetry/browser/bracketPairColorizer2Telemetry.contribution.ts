@@ -45,7 +45,7 @@ class BracketPairColorizer2TelemetryContribution {
 		type BracketPairColorizer2Event = {
 			nativeColorizationEnabled: boolean;
 		};
-		this.telemetryService.publicLog2<BracketPairColorizer2Event, BracketPairColorizer2InstalledClassification>('bracketPairColorizer2Usage', {
+		this.telemetryService.publicLog2<BracketPairColorizer2Event, BracketPairColorizer2InstalledClassification>('bracketPairColorizerTwoUsage', {
 			nativeColorizationEnabled
 		});
 	}

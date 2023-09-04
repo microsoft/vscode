@@ -7,7 +7,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 
 class SleepResumeRepaintMinimap extends Disposable implements IWorkbenchContribution {

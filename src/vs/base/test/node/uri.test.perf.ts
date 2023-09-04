@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
+import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 suite('URI - perf', function () {
 
 	let manyFileUris: URI[];
 	setup(function () {
 		manyFileUris = [];
-		const data = readFileSync(getPathFromAmdModule(require, './uri.test.data.txt')).toString();
+		const data = readFileSync(FileAccess.asFileUri('vs/base/test/node/uri.test.data.txt').fsPath).toString();
 		const lines = data.split('\n');
 		for (const line of lines) {
 			manyFileUris.push(URI.file(line));

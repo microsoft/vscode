@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IColorScheme } from 'vs/platform/window/common/window';
 
@@ -45,7 +45,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
 	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
 
-	constructor(@IStateMainService private stateMainService: IStateMainService, @IConfigurationService private configurationService: IConfigurationService) {
+	constructor(@IStateService private stateService: IStateService, @IConfigurationService private configurationService: IConfigurationService) {
 		super();
 
 		// Color Scheme changes
@@ -84,9 +84,9 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 			return colorScheme.dark ? DEFAULT_BG_HC_BLACK : DEFAULT_BG_HC_LIGHT;
 		}
 
-		let background = this.stateMainService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
+		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 		if (!background) {
-			const baseTheme = this.stateMainService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+			const baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
 			switch (baseTheme) {
 				case 'vs': background = DEFAULT_BG_LIGHT; break;
 				case 'hc-black': background = DEFAULT_BG_HC_BLACK; break;
@@ -105,7 +105,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void {
 
 		// Update in storage
-		this.stateMainService.setItems([
+		this.stateService.setItems([
 			{ key: THEME_STORAGE_KEY, data: splash.baseTheme },
 			{ key: THEME_BG_STORAGE_KEY, data: splash.colorInfo.background },
 			{ key: THEME_WINDOW_SPLASH, data: splash }
@@ -127,6 +127,6 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	getWindowSplash(): IPartsSplash | undefined {
-		return this.stateMainService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
+		return this.stateService.getItem<IPartsSplash>(THEME_WINDOW_SPLASH);
 	}
 }

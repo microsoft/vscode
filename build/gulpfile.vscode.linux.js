@@ -165,7 +165,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
-			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+			.pipe(rename('BUILD/usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
 		const workspaceMime = gulp.src('resources/linux/code-workspace.xml', { base: '.' })
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
@@ -297,12 +297,14 @@ const BUILD_TARGETS = [
 BUILD_TARGETS.forEach(({ arch }) => {
 	const debArch = getDebPackageArch(arch);
 	const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(util.rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
-	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, task.series(prepareDebTask, buildDebPackage(arch)));
+	gulp.task(prepareDebTask);
+	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, buildDebPackage(arch));
 	gulp.task(buildDebTask);
 
 	const rpmArch = getRpmPackageArch(arch);
 	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(util.rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
-	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, task.series(prepareRpmTask, buildRpmPackage(arch)));
+	gulp.task(prepareRpmTask);
+	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, buildRpmPackage(arch));
 	gulp.task(buildRpmTask);
 
 	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(util.rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));

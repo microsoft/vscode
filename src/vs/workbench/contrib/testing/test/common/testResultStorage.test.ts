@@ -8,7 +8,6 @@ import { range } from 'vs/base/common/arrays';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -18,7 +17,6 @@ suite('Workbench - Test Result Storage', () => {
 	const makeResult = (taskName = 't') => {
 		const t = new LiveTestResult(
 			'',
-			emptyOutputController(),
 			true,
 			{ targets: [] }
 		);

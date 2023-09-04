@@ -14,7 +14,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class StandaloneCodeEditorService extends AbstractCodeEditorService {
@@ -103,4 +103,4 @@ export class StandaloneCodeEditorService extends AbstractCodeEditorService {
 	}
 }
 
-registerSingleton(ICodeEditorService, StandaloneCodeEditorService, false);
+registerSingleton(ICodeEditorService, StandaloneCodeEditorService, InstantiationType.Eager);

@@ -8,16 +8,15 @@ import * as nls from 'vs/nls';
 import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE } from 'vs/workbench/services/themes/common/themeConfiguration';
 import { fontIdRegex, fontWeightRegex, fontStyleRegex, fontFormatRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { isObject, isString } from 'vs/base/common/types';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IconDefinition, getIconRegistry, IconContribution, IconFontDefinition, IconFontSource } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 
 export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
 
@@ -98,7 +97,7 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 	static get defaultTheme(): ProductIconThemeData {
 		let themeData = ProductIconThemeData._defaultProductIconTheme;
 		if (!themeData) {
-			themeData = ProductIconThemeData._defaultProductIconTheme = new ProductIconThemeData(DEFAULT_PRODUCT_ICON_THEME_ID, nls.localize('defaultTheme', 'Default'), DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE);
+			themeData = ProductIconThemeData._defaultProductIconTheme = new ProductIconThemeData(DEFAULT_PRODUCT_ICON_THEME_ID, nls.localize('defaultTheme', 'Default'), ThemeSettingDefaults.PRODUCT_ICON_THEME);
 			themeData.isLoaded = true;
 			themeData.extensionData = undefined;
 			themeData.watch = false;

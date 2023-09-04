@@ -12,7 +12,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/b
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = dom.$;
@@ -39,7 +39,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 	constructor(
 		editor: ICodeEditor,
 		languageService: ILanguageService,
-		openerService: IOpenerService = NullOpenerService,
+		openerService: IOpenerService,
 	) {
 		super();
 		this._editor = editor;

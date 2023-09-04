@@ -8,7 +8,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toLocalISOString } from 'vs/base/common/date';
-import { dirname, joinPath } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { DelegatedOutputChannelModel, FileOutputChannelModel, IOutputChannelModel } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
@@ -22,15 +22,19 @@ export interface IOutputChannelModelService {
 
 }
 
-export abstract class AbstractOutputChannelModelService {
+export class OutputChannelModelService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly outputLocation: URI;
+
 	constructor(
-		private readonly outputLocation: URI,
-		@IFileService protected readonly fileService: IFileService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
-	) { }
+		@IFileService private readonly fileService: IFileService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	) {
+		this.outputLocation = joinPath(environmentService.windowLogsPath, `output_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
+	}
 
 	createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, file?: URI): IOutputChannelModel {
 		return file ? this.instantiationService.createInstance(FileOutputChannelModel, modelUri, language, file) : this.instantiationService.createInstance(DelegatedOutputChannelModel, id, modelUri, language, this.outputDir);
@@ -44,17 +48,6 @@ export abstract class AbstractOutputChannelModelService {
 		return this._outputDir;
 	}
 
-}
-
-export class OutputChannelModelService extends AbstractOutputChannelModelService implements IOutputChannelModelService {
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IFileService fileService: IFileService,
-	) {
-		super(joinPath(dirname(environmentService.logFile), toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')), fileService, instantiationService);
-	}
 }
 
 registerSingleton(IOutputChannelModelService, OutputChannelModelService, InstantiationType.Delayed);

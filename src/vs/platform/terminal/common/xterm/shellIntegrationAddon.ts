@@ -111,6 +111,11 @@ const enum VSCodeOscPt {
 	 * "\n" -> "\x0a"
 	 * ";"  -> "\x3b"
 	 * ```
+	 *
+	 * An optional nonce can be provided which is may be required by the terminal in order enable
+	 * some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * Format: `OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST`.
 	 */
 	CommandLine = 'E',
 
@@ -201,9 +206,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
 	constructor(
+		private _nonce: string,
 		private readonly _disableTelemetry: boolean | undefined,
 		private readonly _telemetryService: ITelemetryService | undefined,
-		@ILogService private readonly _logService: ILogService
+		private readonly _logService: ILogService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -228,6 +234,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetCwd, data => this._doHandleSetCwd(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.SetWindowsFriendlyCwd, data => this._doHandleSetWindowsFriendlyCwd(data)));
 		this._ensureCapabilitiesOrAddFailureTelemetry();
+	}
+
+	getMarkerId(terminal: Terminal, vscodeMarkerId: string) {
+		this._createOrGetBufferMarkDetection(terminal).getMark(vscodeMarkerId);
 	}
 
 	private _handleFinalTermSequence(data: string): boolean {
@@ -310,8 +320,11 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		const [command, ...args] = data.split(';');
-		switch (command) {
+		const argsIndex = data.indexOf(';');
+		const sequenceCommand = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		// Cast to strict checked index access
+		const args: (string | undefined)[] = argsIndex === -1 ? [] : data.substring(argsIndex + 1).split(';');
+		switch (sequenceCommand) {
 			case VSCodeOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
 				return true;
@@ -322,18 +335,21 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
 			case VSCodeOscPt.CommandFinished: {
-				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				const arg0 = args[0];
+				const exitCode = arg0 !== undefined ? parseInt(arg0) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
 			case VSCodeOscPt.CommandLine: {
+				const arg0 = args[0];
+				const arg1 = args[1];
 				let commandLine: string;
-				if (args.length === 1) {
-					commandLine = deserializeMessage(args[0]);
+				if (arg0 !== undefined) {
+					commandLine = deserializeMessage(arg0);
 				} else {
 					commandLine = '';
 				}
-				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine, arg1 === this._nonce);
 				return true;
 			}
 			case VSCodeOscPt.ContinuationStart: {
@@ -353,7 +369,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const { key, value } = parseKeyValueAssignment(args[0]);
+				const arg0 = args[0];
+				const deserialized = arg0 !== undefined ? deserializeMessage(arg0) : '';
+				const { key, value } = parseKeyValueAssignment(deserialized);
 				if (value === undefined) {
 					return true;
 				}
@@ -402,6 +420,8 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			default: {
 				// Checking for known `<key>=<value>` pairs.
+				// Note that unlike `VSCodeOscPt.Property`, iTerm2 does not interpret backslash or hex-escape sequences.
+				// See: https://github.com/gnachman/iTerm2/blob/bb0882332cec5196e4de4a4225978d746e935279/sources/VT100Terminal.m#L2089-L2105
 				const { key, value } = parseKeyValueAssignment(command);
 
 				if (value === undefined) {
@@ -484,7 +504,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {
 		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
 		if (!cwdDetection) {
-			cwdDetection = new CwdDetectionCapability();
+			cwdDetection = this._register(new CwdDetectionCapability());
 			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
 		}
 		return cwdDetection;
@@ -493,7 +513,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
-			commandDetection = new CommandDetectionCapability(terminal, this._logService);
+			commandDetection = this._register(new CommandDetectionCapability(terminal, this._logService));
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;
@@ -502,7 +522,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetBufferMarkDetection(terminal: Terminal): IBufferMarkCapability {
 		let bufferMarkDetection = this.capabilities.get(TerminalCapability.BufferMarkDetection);
 		if (!bufferMarkDetection) {
-			bufferMarkDetection = new BufferMarkCapability(terminal);
+			bufferMarkDetection = this._register(new BufferMarkCapability(terminal));
 			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
 		return bufferMarkDetection;
@@ -510,35 +530,34 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 }
 
 export function deserializeMessage(message: string): string {
-	let result = message.replace(/\\\\/g, '\\');
-	const deserializeRegex = /\\x([0-9a-f]{2})/i;
-	while (true) {
-		const match = result.match(deserializeRegex);
-		if (!match?.index || match.length < 2) {
-			break;
-		}
-		result = result.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + result.slice(match.index + 4);
-	}
-	return result;
+	return message.replaceAll(
+		// Backslash ('\') followed by an escape operator: either another '\', or 'x' and two hex chars.
+		/\\(\\|x([0-9a-f]{2}))/gi,
+		// If it's a hex value, parse it to a character.
+		// Otherwise the operator is '\', which we return literally, now unescaped.
+		(_match: string, op: string, hex?: string) => hex ? String.fromCharCode(parseInt(hex, 16)) : op);
 }
 
 export function parseKeyValueAssignment(message: string): { key: string; value: string | undefined } {
-	const deserialized = deserializeMessage(message);
-	const separatorIndex = deserialized.indexOf('=');
+	const separatorIndex = message.indexOf('=');
 	if (separatorIndex === -1) {
-		return { key: deserialized, value: undefined }; // No '=' was found.
+		return { key: message, value: undefined }; // No '=' was found.
 	}
 	return {
-		key: deserialized.substring(0, separatorIndex),
-		value: deserialized.substring(1 + separatorIndex)
+		key: message.substring(0, separatorIndex),
+		value: message.substring(1 + separatorIndex)
 	};
 }
 
 
-export function parseMarkSequence(sequence: string[]): { id?: string; hidden?: boolean } {
+export function parseMarkSequence(sequence: (string | undefined)[]): { id?: string; hidden?: boolean } {
 	let id = undefined;
 	let hidden = false;
 	for (const property of sequence) {
+		// Sanity check, this shouldn't happen in practice
+		if (property === undefined) {
+			continue;
+		}
 		if (property === 'Hidden') {
 			hidden = true;
 		}

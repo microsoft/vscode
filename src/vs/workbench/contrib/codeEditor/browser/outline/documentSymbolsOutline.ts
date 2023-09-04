@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from 'vs/workbench/services/outline/browser/outline';
+import { OutlineConfigCollapseItemsValues, IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -103,10 +103,6 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 	}
 }
 
-export const enum DocumentSymbolsOutlineInitialState {
-	Collapsed = 'alwaysCollapse',
-	Expanded = 'alwaysExpand'
-}
 
 class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
@@ -161,9 +157,9 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			}
 		};
 		const comparator = new DocumentSymbolComparator();
-		const initialState = textResourceConfigurationService.getValue<DocumentSymbolsOutlineInitialState>(_editor.getModel()?.uri, OutlineConfigKeys.collapseItems);
+		const initialState = textResourceConfigurationService.getValue<OutlineConfigCollapseItemsValues>(_editor.getModel()?.uri, OutlineConfigKeys.collapseItems);
 		const options = {
-			collapseByDefault: target === OutlineTarget.Breadcrumbs || (target === OutlineTarget.OutlinePane && initialState === DocumentSymbolsOutlineInitialState.Collapsed),
+			collapseByDefault: target === OutlineTarget.Breadcrumbs || (target === OutlineTarget.OutlinePane && initialState === OutlineConfigCollapseItemsValues.Collapsed),
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			identityProvider: new DocumentSymbolIdentityProvider(),

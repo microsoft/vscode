@@ -351,6 +351,39 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	},
 	when: TaskExecutionSupportedContext
 });
+
+class UserTasksGlobalActionContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor() {
+		super();
+		this.registerActions();
+	}
+
+	private registerActions() {
+		const id = 'workbench.action.tasks.openUserTasks';
+		const title = nls.localize('userTasks', "User Tasks");
+		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 4
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 4
+		}));
+	}
+}
+workbenchRegistry.registerWorkbenchContribution(UserTasksGlobalActionContribution, LifecyclePhase.Restored);
+
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
@@ -375,7 +408,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: TasksQuickAccessProvider.PREFIX,
 	contextKey: tasksPickerContextKey,
 	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task") }]
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), commandCenterOrder: 60 }]
 });
 
 // tasks.json validation
@@ -496,20 +529,14 @@ configurationRegistry.registerConfiguration({
 		},
 		[TaskSettingId.AllowAutomaticTasks]: {
 			type: 'string',
-			enum: ['on', 'auto', 'off'],
+			enum: ['on', 'off'],
 			enumDescriptions: [
 				nls.localize('task.allowAutomaticTasks.on', "Always"),
-				nls.localize('task.allowAutomaticTasks.auto', "Prompt for permission for each folder"),
 				nls.localize('task.allowAutomaticTasks.off', "Never"),
 			],
-			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks in the folder - note that tasks won't run in an untrusted workspace."),
-			default: 'auto',
+			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks - note that tasks won't run in an untrusted workspace."),
+			default: 'on',
 			restricted: true
-		},
-		[TaskSettingId.ShowDecorations]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('task.showDecorations', "Shows decorations at points of interest in the terminal buffer such as the first problem found via a watch task. Note that this will only take effect for future tasks. {0} will take precedence over this setting", '`#terminal.integrated.shellIntegration.decorationsEnabled#`'),
-			default: true
 		},
 		[TaskSettingId.Reconnection]: {
 			type: 'boolean',

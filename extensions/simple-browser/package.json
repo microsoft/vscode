@@ -23,7 +23,6 @@
     "workspace"
   ],
   "activationEvents": [
-    "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
     "onOpenExternalUri:http",
     "onOpenExternalUri:https",
@@ -67,8 +66,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.6.2",
-    "vscode-nls": "^5.2.0"
+    "@vscode/extension-telemetry": "^0.8.4"
   },
   "devDependencies": {
     "@types/vscode-webview": "^1.57.0",

@@ -18,12 +18,12 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { CellEditState, CellFocusMode, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { getEditorTopPadding, NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { getEditorTopPadding, NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -200,7 +200,6 @@ export abstract class BaseCellViewModel extends Disposable {
 
 
 	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
-	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
 	abstract layoutChange(change: any): void;
@@ -257,7 +256,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._textEditor.changeDecorations((accessor) => {
+		this._textEditor?.changeDecorations((accessor) => {
 			this._resolvedDecorations.forEach((value, key) => {
 				if (key.startsWith('_lazy_')) {
 					// lazy ones
@@ -488,13 +487,43 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
-	getPositionScrollTopOffset(line: number, column: number): number {
+	getPositionScrollTopOffset(range: Selection | Range): number {
 		if (!this._textEditor) {
 			return 0;
 		}
 
+
+		const position = range instanceof Selection ? range.getPosition() : range.getStartPosition();
+
 		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
-		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
+		return this._textEditor.getTopForPosition(position.lineNumber, position.column) + editorPadding.top;
+	}
+
+	cursorAtLineBoundary(): CursorAtLineBoundary {
+		if (!this._textEditor || !this.textModel || !this._textEditor.hasTextFocus()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const selection = this._textEditor.getSelection();
+
+		if (!selection || !selection.isEmpty()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const currentLineLength = this.textModel.getLineLength(selection.startLineNumber);
+
+		if (currentLineLength === 0) {
+			return CursorAtLineBoundary.Both;
+		}
+
+		switch (selection.startColumn) {
+			case 1:
+				return CursorAtLineBoundary.Start;
+			case currentLineLength + 1:
+				return CursorAtLineBoundary.End;
+			default:
+				return CursorAtLineBoundary.None;
+		}
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {

@@ -14,6 +14,8 @@ import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workben
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
@@ -30,8 +32,30 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 		super({
 			id: ToggleAuxiliaryBarAction.ID,
 			title: { value: ToggleAuxiliaryBarAction.LABEL, original: 'Toggle Secondary Side Bar Visibility' },
+			toggled: {
+				condition: AuxiliaryBarVisibleContext,
+				title: localize('secondary sidebar', "Secondary Side Bar"),
+				mnemonicTitle: localize({ key: 'secondary sidebar mnemonic', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
+			},
+
 			category: Categories.View,
 			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB
+			},
+			menu: [
+				{
+					id: MenuId.LayoutControlMenuSubmenu,
+					group: '0_workbench_layout',
+					order: 1
+				},
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					group: '2_workbench_layout',
+					order: 2
+				}
+			]
 		});
 	}
 
@@ -75,18 +99,6 @@ registerAction2(class FocusAuxiliaryBarAction extends Action2 {
 
 MenuRegistry.appendMenuItems([
 	{
-		id: MenuId.LayoutControlMenuSubmenu,
-		item: {
-			group: '0_workbench_layout',
-			command: {
-				id: ToggleAuxiliaryBarAction.ID,
-				title: localize('miAuxiliaryBarNoMnemonic', "Secondary Side Bar"),
-				toggled: AuxiliaryBarVisibleContext
-			},
-			order: 2
-		}
-	},
-	{
 		id: MenuId.LayoutControlMenu,
 		item: {
 			group: '0_workbench_toggles',
@@ -99,8 +111,7 @@ MenuRegistry.appendMenuItems([
 			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
 			order: 0
 		}
-	},
-	{
+	}, {
 		id: MenuId.LayoutControlMenu,
 		item: {
 			group: '0_workbench_toggles',
@@ -111,18 +122,6 @@ MenuRegistry.appendMenuItems([
 				icon: auxiliaryBarRightOffIcon,
 			},
 			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
-			order: 2
-		}
-	},
-	{
-		id: MenuId.MenubarAppearanceMenu,
-		item: {
-			group: '2_workbench_layout',
-			command: {
-				id: ToggleAuxiliaryBarAction.ID,
-				title: localize({ key: 'miAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Secondary Si&&de Bar"),
-				toggled: AuxiliaryBarVisibleContext
-			},
 			order: 2
 		}
 	}, {

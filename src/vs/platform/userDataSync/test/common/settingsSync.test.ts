@@ -17,21 +17,6 @@ import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } 
 import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'settingsSync',
-	'type': 'object',
-	'properties': {
-		'settingsSync.machine': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE
-		},
-		'settingsSync.machineOverridable': {
-			'type': 'string',
-			'scope': ConfigurationScope.MACHINE_OVERRIDABLE
-		}
-	}
-});
-
 suite('SettingsSync - Auto', () => {
 
 	const disposableStore = new DisposableStore();
@@ -40,6 +25,20 @@ suite('SettingsSync - Auto', () => {
 	let testObject: SettingsSynchroniser;
 
 	setup(async () => {
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+			'id': 'settingsSync',
+			'type': 'object',
+			'properties': {
+				'settingsSync.machine': {
+					'type': 'string',
+					'scope': ConfigurationScope.MACHINE
+				},
+				'settingsSync.machineOverridable': {
+					'type': 'string',
+					'scope': ConfigurationScope.MACHINE_OVERRIDABLE
+				}
+			}
+		});
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Settings) as SettingsSynchroniser;

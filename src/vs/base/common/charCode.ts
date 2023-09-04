@@ -225,6 +225,12 @@ export const enum CharCode {
 	 */
 	Tilde = 126,
 
+	/**
+	 * The &nbsp; (no-break space) character.
+	 * Unicode Character 'NO-BREAK SPACE' (U+00A0)
+	 */
+	NoBreakSpace = 160,
+
 	U_Combining_Grave_Accent = 0x0300,								//	U+0300	Combining Grave Accent
 	U_Combining_Acute_Accent = 0x0301,								//	U+0301	Combining Acute Accent
 	U_Combining_Circumflex_Accent = 0x0302,							//	U+0302	Combining Circumflex Accent

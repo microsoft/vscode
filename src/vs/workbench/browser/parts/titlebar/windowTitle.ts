@@ -12,18 +12,19 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isWeb } from 'vs/base/common/platform';
+import { isWindows, isWeb, isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { trim } from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IViewsService } from 'vs/workbench/common/views';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -52,7 +53,9 @@ export class WindowTitle extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IProductService private readonly productService: IProductService
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IProductService private readonly productService: IProductService,
+		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
 		this.registerListeners();
@@ -73,6 +76,8 @@ export class WindowTitle extends Disposable {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
+		this._register(this.viewsService.onDidChangeFocusedView(() => this.titleUpdater.schedule()));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -104,6 +109,16 @@ export class WindowTitle extends Disposable {
 			let nativeTitle = title;
 			if (!trim(nativeTitle)) {
 				nativeTitle = this.productService.nameLong;
+			}
+			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+				// TODO@electron macOS: if we set a window title for
+				// the first time and it matches the one we set in
+				// `windowImpl.ts` somehow the window does not appear
+				// in the "Windows" menu. As such, we set the title
+				// briefly to something different to ensure macOS
+				// recognizes we have a window.
+				// See: https://github.com/microsoft/vscode/issues/191288
+				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
 			window.document.title = nativeTitle;
 			this.title = title;
@@ -202,7 +217,7 @@ export class WindowTitle extends Disposable {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			folder = workspace.folders[0];
 		} else if (editorResource) {
-			folder = withNullAsUndefined(this.contextService.getWorkspaceFolder(editorResource));
+			folder = this.contextService.getWorkspaceFolder(editorResource) ?? undefined;
 		}
 
 		// Compute remote
@@ -226,13 +241,16 @@ export class WindowTitle extends Disposable {
 		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
 		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
 		const rootName = this.labelService.getWorkspaceLabel(workspace);
+		const rootNameShort = this.labelService.getWorkspaceLabel(workspace, { verbose: LabelVerbosity.SHORT });
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
+		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const separator = this.configurationService.getValue<string>(WindowSettingNames.titleSeparator);
 		const titleTemplate = this.configurationService.getValue<string>(WindowSettingNames.title);
+		const focusedView: string = this.viewsService.getFocusedViewName();
 
 		return template(titleTemplate, {
 			activeEditorShort,
@@ -243,11 +261,14 @@ export class WindowTitle extends Disposable {
 			activeFolderLong,
 			rootName,
 			rootPath,
+			rootNameShort,
 			folderName,
 			folderPath,
 			dirty,
 			appName,
 			remoteName,
+			profileName,
+			focusedView,
 			separator: { label: separator }
 		});
 	}

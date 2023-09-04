@@ -14,9 +14,9 @@ export class DebugTitleContribution implements IWorkbenchContribution {
 	private toDispose: IDisposable[] = [];
 
 	constructor(
-		@IDebugService readonly debugService: IDebugService,
-		@IHostService readonly hostService: IHostService,
-		@ITitleService readonly titleService: ITitleService
+		@IDebugService debugService: IDebugService,
+		@IHostService hostService: IHostService,
+		@ITitleService titleService: ITitleService
 	) {
 		const updateTitle = () => {
 			if (debugService.state === State.Stopped && !hostService.hasFocus) {

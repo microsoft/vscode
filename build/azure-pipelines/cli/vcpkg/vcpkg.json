@@ -1,9 +1,0 @@
-{
-	"name": "vscode-cli",
-	"dependencies": [
-		{
-			"name": "openssl"
-		}
-	],
-	"builtin-baseline": "23cc58477e200bb54c293ad76f3ce438dbabc86c"
-}

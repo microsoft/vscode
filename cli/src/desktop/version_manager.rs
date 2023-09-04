@@ -4,62 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 use std::{
-	fmt,
+	ffi::OsString,
+	fmt, io,
 	path::{Path, PathBuf},
 };
 
-use indicatif::ProgressBar;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use tokio::fs::remove_dir_all;
 
 use crate::{
-	options,
+	constants::{PRODUCT_DOWNLOAD_URL, QUALITY, QUALITYLESS_PRODUCT_NAME},
+	log,
 	state::{LauncherPaths, PersistedState},
-	update_service::{unzip_downloaded_release, Platform, Release, TargetKind, UpdateService},
-	util::{
-		errors::{
-			wrap, AnyError, InvalidRequestedVersion, MissingEntrypointError,
-			NoInstallInUserProvidedPath, UserCancelledInstallation, WrappedError,
-		},
-		http,
-		input::{prompt_yn, ProgressBarReporter},
-	},
+	update_service::Platform,
+	util::errors::{AnyError, InvalidRequestedVersion},
 };
 
 /// Parsed instance that a user can request.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "t", content = "c")]
 pub enum RequestedVersion {
-	Quality(options::Quality),
-	Version {
-		version: String,
-		quality: options::Quality,
-	},
-	Commit {
-		commit: String,
-		quality: options::Quality,
-	},
+	Default,
+	Commit(String),
 	Path(String),
 }
 
 lazy_static! {
-	static ref SEMVER_RE: Regex = Regex::new(r"^\d+\.\d+\.\d+(-insider)?$").unwrap();
-	static ref COMMIT_RE: Regex = Regex::new(r"^[a-z]+/[a-e0-f]{40}$").unwrap();
+	static ref COMMIT_RE: Regex = Regex::new(r"^[a-e0-f]{40}$").unwrap();
 }
 
 impl RequestedVersion {
 	pub fn get_command(&self) -> String {
 		match self {
-			RequestedVersion::Quality(quality) => {
-				format!("code version use {}", quality.get_machine_name())
+			RequestedVersion::Default => {
+				format!("code version use {}", QUALITY)
 			}
-			RequestedVersion::Version { version, .. } => {
-				format!("code version use {}", version)
-			}
-			RequestedVersion::Commit { commit, quality } => {
-				format!("code version use {}/{}", quality.get_machine_name(), commit)
+			RequestedVersion::Commit(commit) => {
+				format!("code version use {}/{}", QUALITY, commit)
 			}
 			RequestedVersion::Path(path) => {
 				format!("code version use {}", path)
@@ -71,12 +53,11 @@ impl RequestedVersion {
 impl std::fmt::Display for RequestedVersion {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			RequestedVersion::Quality(quality) => write!(f, "{}", quality.get_capitalized_name()),
-			RequestedVersion::Version { version, .. } => {
-				write!(f, "{}", version)
+			RequestedVersion::Default => {
+				write!(f, "{}", QUALITY)
 			}
-			RequestedVersion::Commit { commit, quality } => {
-				write!(f, "{}/{}", quality, commit)
+			RequestedVersion::Commit(commit) => {
+				write!(f, "{}/{}", QUALITY, commit)
 			}
 			RequestedVersion::Path(path) => write!(f, "{}", path),
 		}
@@ -87,19 +68,8 @@ impl TryFrom<&str> for RequestedVersion {
 	type Error = InvalidRequestedVersion;
 
 	fn try_from(s: &str) -> Result<Self, Self::Error> {
-		if let Ok(quality) = options::Quality::try_from(s) {
-			return Ok(RequestedVersion::Quality(quality));
-		}
-
-		if SEMVER_RE.is_match(s) {
-			return Ok(RequestedVersion::Version {
-				quality: if s.ends_with("-insider") {
-					options::Quality::Insiders
-				} else {
-					options::Quality::Stable
-				},
-				version: s.to_string(),
-			});
+		if s == QUALITY {
+			return Ok(RequestedVersion::Default);
 		}
 
 		if Path::is_absolute(&PathBuf::from(s)) {
@@ -107,13 +77,7 @@ impl TryFrom<&str> for RequestedVersion {
 		}
 
 		if COMMIT_RE.is_match(s) {
-			let idx = s.find('/').expect("expected a /");
-			if let Ok(quality) = options::Quality::try_from(&s[0..idx]) {
-				return Ok(RequestedVersion::Commit {
-					commit: s[idx + 1..].to_string(),
-					quality,
-				});
-			}
+			return Ok(RequestedVersion::Commit(s.to_string()));
 		}
 
 		Err(InvalidRequestedVersion())
@@ -122,204 +86,316 @@ impl TryFrom<&str> for RequestedVersion {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 struct Stored {
-	versions: Vec<RequestedVersion>,
+	/// Map of requested versions to locations where those versions are installed.
+	versions: Vec<(RequestedVersion, OsString)>,
 	current: usize,
 }
 
 pub struct CodeVersionManager {
 	state: PersistedState<Stored>,
-	platform: Platform,
-	storage_dir: PathBuf,
+	log: log::Logger,
 }
 
 impl CodeVersionManager {
-	pub fn new(lp: &LauncherPaths, platform: Platform) -> Self {
+	pub fn new(log: log::Logger, lp: &LauncherPaths, _platform: Platform) -> Self {
 		CodeVersionManager {
+			log,
 			state: PersistedState::new(lp.root().join("versions.json")),
-			storage_dir: lp.root().join("desktop"),
-			platform,
 		}
+	}
+
+	/// Tries to find the binary entrypoint for VS Code installed in the path.
+	pub async fn get_entrypoint_for_install_dir(path: &Path) -> Option<PathBuf> {
+		use tokio::sync::mpsc;
+
+		// Check whether the user is supplying a path to the CLI directly (e.g. #164622)
+		if let Ok(true) = path.metadata().map(|m| m.is_file()) {
+			let result = std::process::Command::new(path)
+				.args(["--version"])
+				.output()
+				.map(|o| o.status.success());
+
+			if let Ok(true) = result {
+				return Some(path.to_owned());
+			}
+		}
+
+		let (tx, mut rx) = mpsc::channel(1);
+
+		// Look for all the possible paths in parallel
+		for entry in DESKTOP_CLI_RELATIVE_PATH.split(',') {
+			let my_path = path.join(entry);
+			let my_tx = tx.clone();
+			tokio::spawn(async move {
+				if tokio::fs::metadata(&my_path).await.is_ok() {
+					my_tx.send(my_path).await.ok();
+				}
+			});
+		}
+
+		drop(tx); // drop so rx gets None if no sender emits
+
+		rx.recv().await
 	}
 
 	/// Sets the "version" as the persisted one for the user.
-	pub fn set_preferred_version(&self, version: &RequestedVersion) -> Result<(), AnyError> {
+	pub async fn set_preferred_version(
+		&self,
+		version: RequestedVersion,
+		path: PathBuf,
+	) -> Result<(), AnyError> {
 		let mut stored = self.state.load();
-		if let Some(i) = stored.versions.iter().position(|v| v == version) {
-			stored.current = i;
-		} else {
-			stored.current = stored.versions.len();
-			stored.versions.push(version.clone());
-		}
-
+		stored.current = self.store_version_path(&mut stored, version, path);
 		self.state.save(stored)?;
-
 		Ok(())
 	}
 
-	/// Lists installed versions.
-	pub fn list(&self) -> Vec<RequestedVersion> {
-		self.state.load().versions
-	}
-
-	/// Uninstalls a previously installed version.
-	pub async fn uninstall(&self, version: &RequestedVersion) -> Result<(), AnyError> {
-		let mut stored = self.state.load();
-		if let Some(i) = stored.versions.iter().position(|v| v == version) {
-			if i > stored.current && i > 0 {
-				stored.current -= 1;
-			}
-			stored.versions.remove(i);
-			self.state.save(stored)?;
+	/// Stores or updates the path used for the given version. Returns the index
+	/// that the path exists at.
+	fn store_version_path(
+		&self,
+		state: &mut Stored,
+		version: RequestedVersion,
+		path: PathBuf,
+	) -> usize {
+		if let Some(i) = state.versions.iter().position(|(v, _)| v == &version) {
+			state.versions[i].1 = path.into_os_string();
+			i
+		} else {
+			state
+				.versions
+				.push((version.clone(), path.into_os_string()));
+			state.versions.len() - 1
 		}
-
-		remove_dir_all(self.get_install_dir(version))
-			.await
-			.map_err(|e| wrap(e, "error deleting vscode directory"))?;
-
-		Ok(())
 	}
 
+	/// Gets the currently preferred version based on set_preferred_version.
 	pub fn get_preferred_version(&self) -> RequestedVersion {
 		let stored = self.state.load();
 		stored
 			.versions
 			.get(stored.current)
-			.unwrap_or(&RequestedVersion::Quality(options::Quality::Stable))
-			.clone()
+			.map(|(v, _)| v.clone())
+			.unwrap_or(RequestedVersion::Default)
 	}
 
-	/// Installs the release for the given request. This always runs and does not
-	/// prompt, so you may want to use `try_get_entrypoint` first.
-	pub async fn install(
-		&self,
-		update_service: &UpdateService,
-		version: &RequestedVersion,
-	) -> Result<PathBuf, AnyError> {
-		let target_dir = self.get_install_dir(version);
-		let release = get_release_for_request(update_service, version, self.platform).await?;
-		install_release_into(update_service, &target_dir, &release).await?;
-
-		if let Some(p) = try_get_entrypoint(&target_dir).await {
-			return Ok(p);
+	/// Tries to get the entrypoint for the version, if one can be found.
+	pub async fn try_get_entrypoint(&self, version: &RequestedVersion) -> Option<PathBuf> {
+		let mut state = self.state.load();
+		if let Some((_, install_path)) = state.versions.iter().find(|(v, _)| v == version) {
+			let p = PathBuf::from(install_path);
+			if p.exists() {
+				return Some(p);
+			}
 		}
 
-		Err(MissingEntrypointError().into())
-	}
-
-	/// Tries to get the entrypoint in the installed version, if one exists.
-	pub async fn try_get_entrypoint(&self, version: &RequestedVersion) -> Option<PathBuf> {
-		try_get_entrypoint(&self.get_install_dir(version)).await
-	}
-
-	fn get_install_dir(&self, version: &RequestedVersion) -> PathBuf {
-		let (name, quality) = match version {
-			RequestedVersion::Path(path) => return PathBuf::from(path),
-			RequestedVersion::Quality(quality) => (quality.get_machine_name(), quality),
-			RequestedVersion::Version {
-				quality,
-				version: number,
-			} => (number.as_str(), quality),
-			RequestedVersion::Commit { commit, quality } => (commit.as_str(), quality),
+		// For simple quality requests, see if that's installed already on the system
+		let candidates = match &version {
+			RequestedVersion::Default => match detect_installed_program(&self.log) {
+				Ok(p) => p,
+				Err(e) => {
+					warning!(self.log, "error looking up installed applications: {}", e);
+					return None;
+				}
+			},
+			_ => return None,
 		};
 
-		let mut dir = self.storage_dir.join(name);
-		if cfg!(target_os = "macos") {
-			dir.push(format!("{}.app", quality.get_app_name()))
+		let found = match candidates.into_iter().next() {
+			Some(p) => p,
+			None => return None,
+		};
+
+		// stash the found path for faster lookup
+		self.store_version_path(&mut state, version.clone(), found.clone());
+		if let Err(e) = self.state.save(state) {
+			debug!(self.log, "error caching version path: {}", e);
 		}
 
-		dir
+		Some(found)
 	}
 }
 
 /// Shows a nice UI prompt to users asking them if they want to install the
 /// requested version.
-pub fn prompt_to_install(version: &RequestedVersion) -> Result<(), AnyError> {
-	if let RequestedVersion::Path(path) = version {
-		return Err(NoInstallInUserProvidedPath(path.clone()).into());
+pub fn prompt_to_install(version: &RequestedVersion) {
+	println!(
+		"No installation of {} {} was found.",
+		QUALITYLESS_PRODUCT_NAME, version
+	);
+
+	if let RequestedVersion::Default = version {
+		if let Some(uri) = PRODUCT_DOWNLOAD_URL {
+			// todo: on some platforms, we may be able to help automate installation. For example,
+			// we can unzip the app ourselves on macOS and on windows we can download and spawn the GUI installer
+			#[cfg(target_os = "linux")]
+			println!("Install it from your system's package manager or {}, restart your shell, and try again.", uri);
+			#[cfg(target_os = "macos")]
+			println!("Download and unzip it from {} and try again.", uri);
+			#[cfg(target_os = "windows")]
+			println!("Install it from {} and try again.", uri);
+		}
 	}
 
-	if !prompt_yn(&format!(
-		"VS Code {} is not installed yet, install it now?",
-		version
-	))? {
-		return Err(UserCancelledInstallation().into());
+	println!();
+	println!("If you already installed {} and we didn't detect it, run `{} --install-dir /path/to/installation`", QUALITYLESS_PRODUCT_NAME, version.get_command());
+}
+
+#[cfg(target_os = "macos")]
+fn detect_installed_program(log: &log::Logger) -> io::Result<Vec<PathBuf>> {
+	use crate::constants::PRODUCT_NAME_LONG;
+
+	// easy, fast detection for where apps are usually installed
+	let mut probable = PathBuf::from("/Applications");
+	probable.push(format!("{}.app", PRODUCT_NAME_LONG));
+	if probable.exists() {
+		probable.extend(["Contents/Resources", "app", "bin", "code"]);
+		return Ok(vec![probable]);
 	}
 
-	Ok(())
-}
+	// _Much_ slower detection using the system_profiler (~10s for me). While the
+	// profiler can output nicely structure plist xml, pulling in an xml parser
+	// just for this is overkill. The default output looks something like...
+	//
+	//     Visual Studio Code - Exploration 2:
+	//
+	//        Version: 1.73.0-exploration
+	//        Obtained from: Identified Developer
+	//        Last Modified: 9/23/22, 10:16 AM
+	//        Kind: Intel
+	//        Signed by: Developer ID Application: Microsoft Corporation (UBF8T346G9), Developer ID Certification Authority, Apple Root CA
+	//        Location: /Users/connor/Downloads/Visual Studio Code - Exploration 2.app
+	//
+	// So, use a simple state machine that looks for the first line, and then for
+	// the `Location:` line for the path.
+	info!(log, "Searching for installations on your machine, this is done once and will take about 10 seconds...");
 
-async fn get_release_for_request(
-	update_service: &UpdateService,
-	request: &RequestedVersion,
-	platform: Platform,
-) -> Result<Release, WrappedError> {
-	match request {
-		RequestedVersion::Version {
-			quality,
-			version: number,
-		} => update_service
-			.get_release_by_semver_version(platform, TargetKind::Archive, *quality, number)
-			.await
-			.map_err(|e| wrap(e, "Could not get release")),
-		RequestedVersion::Commit { commit, quality } => Ok(Release {
-			platform,
-			commit: commit.clone(),
-			quality: *quality,
-			target: TargetKind::Archive,
-		}),
-		RequestedVersion::Quality(quality) => update_service
-			.get_latest_commit(platform, TargetKind::Archive, *quality)
-			.await
-			.map_err(|e| wrap(e, "Could not get release")),
-		_ => panic!("cannot get release info for a path"),
+	let stdout = std::process::Command::new("system_profiler")
+		.args(["SPApplicationsDataType", "-detailLevel", "mini"])
+		.output()?
+		.stdout;
+
+	enum State {
+		LookingForName,
+		LookingForLocation,
 	}
-}
 
-async fn install_release_into(
-	update_service: &UpdateService,
-	path: &Path,
-	release: &Release,
-) -> Result<(), AnyError> {
-	let tempdir =
-		tempfile::tempdir().map_err(|e| wrap(e, "error creating temporary download dir"))?;
-	let save_path = tempdir.path().join("vscode");
-
-	let stream = update_service.get_download_stream(release).await?;
-	let pb = ProgressBar::new(1);
-	pb.set_message("Downloading...");
-	let progress = ProgressBarReporter::from(pb);
-	http::download_into_file(&save_path, progress, stream).await?;
-
-	let pb = ProgressBar::new(1);
-	pb.set_message("Unzipping...");
-	let progress = ProgressBarReporter::from(pb);
-	unzip_downloaded_release(&save_path, path, progress)?;
-
-	drop(tempdir);
-
-	Ok(())
-}
-
-/// Tries to find the binary entrypoint for VS Code installed in the path.
-async fn try_get_entrypoint(path: &Path) -> Option<PathBuf> {
-	use tokio::sync::mpsc;
-
-	let (tx, mut rx) = mpsc::channel(1);
-
-	// Look for all the possible paths in parallel
-	for entry in DESKTOP_CLI_RELATIVE_PATH.split(',') {
-		let my_path = path.join(entry);
-		let my_tx = tx.clone();
-		tokio::spawn(async move {
-			if tokio::fs::metadata(&my_path).await.is_ok() {
-				my_tx.send(my_path).await.ok();
+	let mut state = State::LookingForName;
+	let mut output: Vec<PathBuf> = vec![];
+	const LOCATION_PREFIX: &str = "Location:";
+	for mut line in String::from_utf8_lossy(&stdout).lines() {
+		line = line.trim();
+		match state {
+			State::LookingForName => {
+				if line.starts_with(PRODUCT_NAME_LONG) && line.ends_with(':') {
+					state = State::LookingForLocation;
+				}
 			}
-		});
+			State::LookingForLocation => {
+				if let Some(suffix) = line.strip_prefix(LOCATION_PREFIX) {
+					output.push(
+						[suffix.trim(), "Contents/Resources", "app", "bin", "code"]
+							.iter()
+							.collect(),
+					);
+					state = State::LookingForName;
+				}
+			}
+		}
 	}
 
-	drop(tx); // drop so rx gets None if no sender emits
+	// Sort shorter paths to the front, preferring "more global" installs, and
+	// incidentally preferring local installs over Parallels 'installs'.
+	output.sort_by_key(|a| a.as_os_str().len());
 
-	rx.recv().await
+	Ok(output)
+}
+
+#[cfg(windows)]
+fn detect_installed_program(_log: &log::Logger) -> io::Result<Vec<PathBuf>> {
+	use crate::constants::{APPLICATION_NAME, WIN32_APP_IDS};
+	use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+	use winreg::RegKey;
+
+	let mut output: Vec<PathBuf> = vec![];
+	let app_ids = match WIN32_APP_IDS.as_ref() {
+		Some(ids) => ids,
+		None => return Ok(output),
+	};
+
+	let scopes = [
+		(
+			HKEY_LOCAL_MACHINE,
+			"SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+		),
+		(
+			HKEY_LOCAL_MACHINE,
+			"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+		),
+		(
+			HKEY_CURRENT_USER,
+			"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+		),
+	];
+
+	for (scope, key) in scopes {
+		let cur_ver = match RegKey::predef(scope).open_subkey(key) {
+			Ok(k) => k,
+			Err(_) => continue,
+		};
+
+		for key in cur_ver.enum_keys().flatten() {
+			if app_ids.iter().any(|id| key.contains(id)) {
+				let sk = cur_ver.open_subkey(&key)?;
+				if let Ok(location) = sk.get_value::<String, _>("InstallLocation") {
+					output.push(
+						[
+							location.as_str(),
+							"bin",
+							&format!("{}.cmd", APPLICATION_NAME),
+						]
+						.iter()
+						.collect(),
+					)
+				}
+			}
+		}
+	}
+
+	Ok(output)
+}
+
+// Looks for the given binary name in the PATH, returning all candidate matches.
+// Based on https://github.dev/microsoft/vscode-js-debug/blob/7594d05518df6700df51771895fcad0ddc7f92f9/src/common/pathUtils.ts#L15
+#[cfg(target_os = "linux")]
+fn detect_installed_program(log: &log::Logger) -> io::Result<Vec<PathBuf>> {
+	use crate::constants::APPLICATION_NAME;
+
+	let path = match std::env::var("PATH") {
+		Ok(p) => p,
+		Err(e) => {
+			info!(log, "PATH is empty ({}), skipping detection", e);
+			return Ok(vec![]);
+		}
+	};
+
+	let current_exe = std::env::current_exe().expect("expected to read current exe");
+	let mut output = vec![];
+	for dir in path.split(':') {
+		let target: PathBuf = [dir, APPLICATION_NAME].iter().collect();
+		match std::fs::canonicalize(&target) {
+			Ok(m) if m == current_exe => continue,
+			Ok(_) => {}
+			Err(_) => continue,
+		};
+
+		// note: intentionally store the non-canonicalized version, since if it's a
+		// symlink, (1) it's probably desired to use it and (2) resolving the link
+		// breaks snap installations.
+		output.push(target);
+	}
+
+	Ok(output)
 }
 
 const DESKTOP_CLI_RELATIVE_PATH: &str = if cfg!(target_os = "macos") {
@@ -339,18 +415,13 @@ mod tests {
 
 	use super::*;
 
-	fn make_fake_vscode_install(path: &Path, quality: options::Quality) {
+	fn make_fake_vscode_install(path: &Path) {
 		let bin = DESKTOP_CLI_RELATIVE_PATH
 			.split(',')
 			.next()
 			.expect("expected exe path");
 
-		let binary_file_path = if cfg!(target_os = "macos") {
-			path.join(format!("{}.app/{}", quality.get_app_name(), bin))
-		} else {
-			path.join(bin)
-		};
-
+		let binary_file_path = path.join(bin);
 		let parent_dir_path = binary_file_path.parent().expect("expected parent path");
 
 		create_dir_all(parent_dir_path).expect("expected to create parent dir");
@@ -363,130 +434,99 @@ mod tests {
 
 	fn make_multiple_vscode_install() -> tempfile::TempDir {
 		let dir = tempfile::tempdir().expect("expected to make temp dir");
-		make_fake_vscode_install(&dir.path().join("desktop/stable"), options::Quality::Stable);
-		make_fake_vscode_install(&dir.path().join("desktop/1.68.2"), options::Quality::Stable);
+		make_fake_vscode_install(&dir.path().join("desktop/stable"));
+		make_fake_vscode_install(&dir.path().join("desktop/1.68.2"));
 		dir
 	}
 
 	#[test]
-	fn test_requested_version_parses() {
-		assert_eq!(
-			RequestedVersion::try_from("1.2.3").unwrap(),
-			RequestedVersion::Version {
-				quality: options::Quality::Stable,
-				version: "1.2.3".to_string(),
-			}
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("1.2.3-insider").unwrap(),
-			RequestedVersion::Version {
-				quality: options::Quality::Insiders,
-				version: "1.2.3-insider".to_string(),
-			}
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("stable").unwrap(),
-			RequestedVersion::Quality(options::Quality::Stable)
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("insiders").unwrap(),
-			RequestedVersion::Quality(options::Quality::Insiders)
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("insiders/92fd228156aafeb326b23f6604028d342152313b")
-				.unwrap(),
-			RequestedVersion::Commit {
-				commit: "92fd228156aafeb326b23f6604028d342152313b".to_string(),
-				quality: options::Quality::Insiders
-			}
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("stable/92fd228156aafeb326b23f6604028d342152313b").unwrap(),
-			RequestedVersion::Commit {
-				commit: "92fd228156aafeb326b23f6604028d342152313b".to_string(),
-				quality: options::Quality::Stable
-			}
-		);
-
-		let exe = std::env::current_exe()
-			.expect("expected to get exe")
-			.to_string_lossy()
-			.to_string();
-		assert_eq!(
-			RequestedVersion::try_from(exe.as_str()).unwrap(),
-			RequestedVersion::Path(exe),
-		);
+	fn test_detect_installed_program() {
+		// developers can run this test and debug output manually; VS Code will not
+		// be installed in CI, so the test only makes sure it doesn't error out
+		let result = detect_installed_program(&log::Logger::test());
+		println!("result: {:?}", result);
+		assert!(result.is_ok());
 	}
 
-	#[test]
-	fn test_set_preferred_version() {
+	#[tokio::test]
+	async fn test_set_preferred_version() {
 		let dir = make_multiple_vscode_install();
 		let lp = LauncherPaths::new_without_replacements(dir.path().to_owned());
-		let vm1 = CodeVersionManager::new(&lp, Platform::LinuxARM64);
+		let vm1 = CodeVersionManager::new(log::Logger::test(), &lp, Platform::LinuxARM64);
+
+		assert_eq!(vm1.get_preferred_version(), RequestedVersion::Default);
+		vm1.set_preferred_version(
+			RequestedVersion::Commit("foobar".to_string()),
+			dir.path().join("desktop/stable"),
+		)
+		.await
+		.expect("expected to store");
+		vm1.set_preferred_version(
+			RequestedVersion::Commit("foobar2".to_string()),
+			dir.path().join("desktop/stable"),
+		)
+		.await
+		.expect("expected to store");
 
 		assert_eq!(
 			vm1.get_preferred_version(),
-			RequestedVersion::Quality(options::Quality::Stable)
-		);
-		vm1.set_preferred_version(&RequestedVersion::Quality(options::Quality::Exploration))
-			.expect("expected to store");
-		vm1.set_preferred_version(&RequestedVersion::Quality(options::Quality::Insiders))
-			.expect("expected to store");
-		assert_eq!(
-			vm1.get_preferred_version(),
-			RequestedVersion::Quality(options::Quality::Insiders)
+			RequestedVersion::Commit("foobar2".to_string()),
 		);
 
-		let vm2 = CodeVersionManager::new(&lp, Platform::LinuxARM64);
+		let vm2 = CodeVersionManager::new(log::Logger::test(), &lp, Platform::LinuxARM64);
 		assert_eq!(
 			vm2.get_preferred_version(),
-			RequestedVersion::Quality(options::Quality::Insiders)
-		);
-
-		assert_eq!(
-			vm2.list(),
-			vec![
-				RequestedVersion::Quality(options::Quality::Exploration),
-				RequestedVersion::Quality(options::Quality::Insiders)
-			]
+			RequestedVersion::Commit("foobar2".to_string()),
 		);
 	}
 
 	#[tokio::test]
 	async fn test_gets_entrypoint() {
 		let dir = make_multiple_vscode_install();
-		let lp = LauncherPaths::new_without_replacements(dir.path().to_owned());
-		let vm = CodeVersionManager::new(&lp, Platform::LinuxARM64);
 
-		assert!(vm
-			.try_get_entrypoint(&RequestedVersion::Quality(options::Quality::Stable))
-			.await
-			.is_some());
+		assert!(CodeVersionManager::get_entrypoint_for_install_dir(
+			&dir.path().join("desktop").join("stable")
+		)
+		.await
+		.is_some());
 
-		assert!(vm
-			.try_get_entrypoint(&RequestedVersion::Quality(options::Quality::Exploration))
-			.await
-			.is_none());
+		assert!(
+			CodeVersionManager::get_entrypoint_for_install_dir(&dir.path().join("invalid"))
+				.await
+				.is_none()
+		);
 	}
 
 	#[tokio::test]
-	async fn test_uninstall() {
-		let dir = make_multiple_vscode_install();
-		let lp = LauncherPaths::new_without_replacements(dir.path().to_owned());
-		let vm = CodeVersionManager::new(&lp, Platform::LinuxARM64);
+	async fn test_gets_entrypoint_as_binary() {
+		let dir = tempfile::tempdir().expect("expected to make temp dir");
 
-		vm.uninstall(&RequestedVersion::Quality(options::Quality::Stable))
-			.await
-			.expect("expected to uninsetall");
+		#[cfg(windows)]
+		let binary_file_path = {
+			let path = dir.path().join("code.cmd");
+			File::create(&path).expect("expected to create file");
+			path
+		};
 
-		assert!(vm
-			.try_get_entrypoint(&RequestedVersion::Quality(options::Quality::Stable))
-			.await
-			.is_none());
+		#[cfg(unix)]
+		let binary_file_path = {
+			use std::fs;
+			use std::os::unix::fs::PermissionsExt;
+
+			let path = dir.path().join("code");
+			{
+				let mut f = File::create(&path).expect("expected to create file");
+				f.write_all(b"#!/bin/sh")
+					.expect("expected to write to file");
+			}
+			fs::set_permissions(&path, fs::Permissions::from_mode(0o777))
+				.expect("expected to set permissions");
+			path
+		};
+
+		assert_eq!(
+			CodeVersionManager::get_entrypoint_for_install_dir(&binary_file_path).await,
+			Some(binary_file_path)
+		);
 	}
 }

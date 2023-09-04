@@ -46,7 +46,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -187,8 +187,7 @@ export class TaskService extends AbstractTaskService {
 		} else {
 			terminatePromise = this._dialogService.confirm({
 				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-				type: 'question'
+				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task")
 			});
 		}
 

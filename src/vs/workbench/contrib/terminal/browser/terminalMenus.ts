@@ -11,6 +11,7 @@ import { IMenu, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions'
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -23,12 +24,6 @@ const enum ContextMenuGroup {
 	Clear = '3_clear',
 	Kill = '4_kill',
 	Config = '5_config'
-}
-
-export const enum TerminalTabContextMenuGroup {
-	Default = '1_create_default',
-	Profile = '2_create_profile',
-	Configure = '3_configure'
 }
 
 export const enum TerminalMenuBarGroup {
@@ -118,8 +113,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInstanceContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Kill,
-						title: terminalStrings.kill.value
+						id: TerminalCommandId.KillViewOrEditor,
+						title: terminalStrings.kill.value,
 					},
 					group: ContextMenuGroup.Kill
 				}
@@ -165,17 +160,6 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.clear', "Clear")
 					},
 					group: ContextMenuGroup.Clear,
-				}
-			},
-			{
-				id: MenuId.TerminalInstanceContext,
-				item: {
-					command: {
-						id: TerminalCommandId.ShowTabs,
-						title: localize('workbench.action.terminal.showsTabs', "Show Tabs")
-					},
-					when: ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
-					group: ContextMenuGroup.Config
 				}
 			},
 			{
@@ -334,9 +318,9 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.SelectDefaultProfile,
-						title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
+						title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
 					},
-					group: TerminalTabContextMenuGroup.Configure
+					group: '3_configure'
 				}
 			},
 			{
@@ -346,8 +330,32 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.ConfigureTerminalSettings,
 						title: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings")
 					},
-					group: TerminalTabContextMenuGroup.Configure
+					group: '3_configure'
 				}
+			},
+			{
+				id: MenuId.TerminalNewDropdownContext,
+				item: {
+					command: {
+						id: 'workbench.action.tasks.runTask',
+						title: localize('workbench.action.tasks.runTask', "Run Task...")
+					},
+					when: TaskExecutionSupportedContext,
+					group: '4_tasks',
+					order: 1
+				},
+			},
+			{
+				id: MenuId.TerminalNewDropdownContext,
+				item: {
+					command: {
+						id: 'workbench.action.tasks.configureTaskRunner',
+						title: localize('workbench.action.tasks.configureTaskRunner', "Configure Tasks...")
+					},
+					when: TaskExecutionSupportedContext,
+					group: '4_tasks',
+					order: 2
+				},
 			}
 		]
 	);
@@ -498,84 +506,49 @@ export function setupTerminalMenus(): void {
 						ContextKeyExpr.or(TerminalContextKeys.webExtensionContributedProfile, TerminalContextKeys.processSupported)
 					)
 				}
-			}
-		]
-	);
-
-	MenuRegistry.appendMenuItems(
-		[
+			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.ViewTitle,
 				item: {
 					command: {
-						id: TerminalCommandId.Split,
-						title: terminalStrings.split.value
+						id: TerminalCommandId.Clear,
+						title: localize('workbench.action.terminal.clearLong', "Clear Terminal"),
+						icon: Codicon.clearAll
 					},
-					group: ContextMenuGroup.Create,
-					order: 1
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					isHiddenByDefault: true
 				}
 			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.ViewTitle,
 				item: {
 					command: {
-						id: TerminalCommandId.MoveToEditor,
-						title: terminalStrings.moveToEditor.value
+						id: TerminalCommandId.RunActiveFile,
+						title: localize('workbench.action.terminal.runActiveFile', "Run Active File"),
+						icon: Codicon.run
 					},
-					group: ContextMenuGroup.Create,
-					order: 2
+					group: 'navigation',
+					order: 5,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					isHiddenByDefault: true
 				}
 			},
 			{
-				id: MenuId.TerminalInlineTabContext,
+				id: MenuId.ViewTitle,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeIconPanel,
-						title: terminalStrings.changeIcon.value
+						id: TerminalCommandId.RunSelectedText,
+						title: localize('workbench.action.terminal.runSelectedText', "Run Selected Text"),
+						icon: Codicon.selection
 					},
-					group: ContextMenuGroup.Edit
+					group: 'navigation',
+					order: 6,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					isHiddenByDefault: true
 				}
 			},
-			{
-				id: MenuId.TerminalInlineTabContext,
-				item: {
-					command: {
-						id: TerminalCommandId.ChangeColorPanel,
-						title: terminalStrings.changeColor.value
-					},
-					group: ContextMenuGroup.Edit
-				}
-			},
-			{
-				id: MenuId.TerminalInlineTabContext,
-				item: {
-					command: {
-						id: TerminalCommandId.RenamePanel,
-						title: terminalStrings.rename.value
-					},
-					group: ContextMenuGroup.Edit
-				}
-			},
-			{
-				id: MenuId.TerminalInlineTabContext,
-				item: {
-					command: {
-						id: TerminalCommandId.SizeToContentWidthInstance,
-						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width")
-					},
-					group: ContextMenuGroup.Edit
-				}
-			},
-			{
-				id: MenuId.TerminalInlineTabContext,
-				item: {
-					command: {
-						id: TerminalCommandId.Kill,
-						title: terminalStrings.kill.value
-					},
-					group: ContextMenuGroup.Kill
-				}
-			}
 		]
 	);
 
@@ -585,7 +558,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SplitInstance,
+						id: TerminalCommandId.SplitActiveTab,
 						title: terminalStrings.split.value,
 					},
 					group: ContextMenuGroup.Create,
@@ -596,7 +569,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.MoveToEditorInstance,
+						id: TerminalCommandId.MoveToEditorActiveTab,
 						title: terminalStrings.moveToEditor.value
 					},
 					group: ContextMenuGroup.Create,
@@ -607,7 +580,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.RenameInstance,
+						id: TerminalCommandId.RenameActiveTab,
 						title: localize('workbench.action.terminal.renameInstance', "Rename...")
 					},
 					group: ContextMenuGroup.Edit
@@ -617,7 +590,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeIconInstance,
+						id: TerminalCommandId.ChangeIconActiveTab,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
 					},
 					group: ContextMenuGroup.Edit
@@ -627,7 +600,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeColorInstance,
+						id: TerminalCommandId.ChangeColorActiveTab,
 						title: localize('workbench.action.terminal.changeColor', "Change Color...")
 					},
 					group: ContextMenuGroup.Edit
@@ -637,7 +610,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SizeToContentWidthInstance,
+						id: TerminalCommandId.SizeToContentWidthActiveTab,
 						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width")
 					},
 					group: ContextMenuGroup.Edit
@@ -646,30 +619,30 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalTabContext,
 				item: {
-					group: ContextMenuGroup.Config,
 					command: {
-						id: TerminalCommandId.JoinInstance,
+						id: TerminalCommandId.JoinActiveTab,
 						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
 					},
-					when: TerminalContextKeys.tabsSingularSelection.toNegated()
+					when: TerminalContextKeys.tabsSingularSelection.toNegated(),
+					group: ContextMenuGroup.Config
 				}
 			},
 			{
 				id: MenuId.TerminalTabContext,
 				item: {
-					group: ContextMenuGroup.Config,
 					command: {
-						id: TerminalCommandId.UnsplitInstance,
+						id: TerminalCommandId.UnsplitActiveTab,
 						title: terminalStrings.unsplit.value
 					},
-					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal)
+					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal),
+					group: ContextMenuGroup.Config
 				}
 			},
 			{
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.KillInstance,
+						id: TerminalCommandId.KillActiveTab,
 						title: terminalStrings.kill.value
 					},
 					group: ContextMenuGroup.Kill,
@@ -724,7 +697,7 @@ export function setupTerminalMenus(): void {
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		command: {
-			id: TerminalCommandId.CreateTerminalEditor,
+			id: TerminalCommandId.CreateTerminalEditorSameGroup,
 			title: terminalStrings.new,
 			icon: Codicon.plus
 		},
@@ -797,15 +770,8 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		dropdownActions.push(new SubmenuAction('split.profile', localize('splitTerminal', 'Split Terminal'), submenuActions));
 		dropdownActions.push(new Separator());
 	}
-
-	for (const [, configureActions] of dropdownMenu.getActions()) {
-		for (const action of configureActions) {
-			// make sure the action is a MenuItemAction
-			if ('alt' in action) {
-				dropdownActions.push(action);
-			}
-		}
-	}
+	const actions = dropdownMenu.getActions();
+	dropdownActions.push(...Separator.join(...actions.map(a => a[1])));
 
 	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
 	if (defaultSubmenuProfileAction) {

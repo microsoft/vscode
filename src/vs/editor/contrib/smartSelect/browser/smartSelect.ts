@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -51,7 +51,7 @@ class SelectionRanges {
 	}
 }
 
-class SmartSelectController implements IEditorContribution {
+export class SmartSelectController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.smartSelectController';
 
@@ -202,18 +202,19 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerEditorContribution(SmartSelectController.ID, SmartSelectController);
+registerEditorContribution(SmartSelectController.ID, SmartSelectController, EditorContributionInstantiation.Lazy);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
 export interface SelectionRangesOptions {
 	selectLeadingAndTrailingWhitespace: boolean;
+	selectSubwords: boolean;
 }
 
 export async function provideSelectionRanges(registry: LanguageFeatureRegistry<languages.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
 	const providers = registry.all(model)
-		.concat(new WordSelectionRangeProvider()); // ALWAYS have word based selection range
+		.concat(new WordSelectionRangeProvider(options.selectSubwords)); // ALWAYS have word based selection range
 
 	if (providers.length === 1) {
 		// add word selection and bracket selection when no provider exists
@@ -313,7 +314,7 @@ CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async functio
 	const reference = await accessor.get(ITextModelService).createModelReference(resource);
 
 	try {
-		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}

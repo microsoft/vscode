@@ -44,7 +44,7 @@ export class ListTopCellToolbar extends Disposable {
 				shouldForwardArgs: true
 			},
 			toolbarOptions: {
-				primaryGroup: g => /^inline/.test(g),
+				primaryGroup: (g: string) => /^inline/.test(g),
 			},
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 		}));

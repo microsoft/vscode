@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import * as nls from 'vs/nls';
@@ -24,13 +26,18 @@ export class ReadOnlyMessageController extends Disposable implements IEditorCont
 	private _onDidAttemptReadOnlyEdit(): void {
 		const messageController = MessageController.get(this.editor);
 		if (messageController && this.editor.hasModel()) {
-			if (this.editor.isSimpleWidget) {
-				messageController.showMessage(nls.localize('editor.simple.readonly', "Cannot edit in read-only input"), this.editor.getPosition());
-			} else {
-				messageController.showMessage(nls.localize('editor.readonly', "Cannot edit in read-only editor"), this.editor.getPosition());
+			let message = this.editor.getOptions().get(EditorOption.readOnlyMessage);
+			if (!message) {
+				if (this.editor.isSimpleWidget) {
+					message = new MarkdownString(nls.localize('editor.simple.readonly', "Cannot edit in read-only input"));
+				} else {
+					message = new MarkdownString(nls.localize('editor.readonly', "Cannot edit in read-only editor"));
+				}
 			}
+
+			messageController.showMessage(message, this.editor.getPosition());
 		}
 	}
 }
 
-registerEditorContribution(ReadOnlyMessageController.ID, ReadOnlyMessageController);
+registerEditorContribution(ReadOnlyMessageController.ID, ReadOnlyMessageController, EditorContributionInstantiation.BeforeFirstInteraction);

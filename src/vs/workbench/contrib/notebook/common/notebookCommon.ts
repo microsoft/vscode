@@ -15,7 +15,7 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
@@ -23,15 +23,17 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 
 
 export enum CellKind {
@@ -55,11 +57,11 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	Mimes.latex,
 	Mimes.markdown,
 	'application/json',
-	Mimes.text,
 	'text/html',
 	'image/svg+xml',
 	'image/png',
 	'image/jpeg',
+	Mimes.text,
 ];
 
 /**
@@ -89,6 +91,11 @@ export enum NotebookCellExecutionState {
 	Pending = 2,
 	Executing = 3
 }
+export enum NotebookExecutionState {
+	Unconfirmed = 1,
+	Pending = 2,
+	Executing = 3
+}
 
 export interface INotebookCellPreviousExecutionResult {
 	executionOrder?: number;
@@ -104,11 +111,13 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	renderDuration?: { [key: string]: number };
 }
 
 export interface NotebookCellCollapseState {
@@ -123,15 +132,15 @@ export interface NotebookCellDefaultCollapseConfig {
 
 export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
-export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type CellContentMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
+export type TransientCellMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type CellContentMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { readonly [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
-	transientOutputs: boolean;
-	transientCellMetadata: TransientCellMetadata;
-	transientDocumentMetadata: TransientDocumentMetadata;
-	cellContentMetadata: CellContentMetadata;
+	readonly transientOutputs: boolean;
+	readonly transientCellMetadata: TransientCellMetadata;
+	readonly transientDocumentMetadata: TransientDocumentMetadata;
+	readonly cellContentMetadata: CellContentMetadata;
 }
 
 /** Note: enum values are used for sorting */
@@ -176,6 +185,12 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
+export interface INotebookStaticPreloadInfo {
+	readonly type: string;
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+	readonly localResourceRoots: readonly URI[];
+}
 
 export interface IOrderedMimeType {
 	mimeType: string;
@@ -195,12 +210,20 @@ export interface IOutputDto {
 }
 
 export interface ICellOutput {
+	readonly versionId: number;
 	outputs: IOutputItemDto[];
 	metadata?: Record<string, any>;
 	outputId: string;
+	/**
+	 * Alternative output id that's reused when the output is updated.
+	 */
+	alternativeOutputId: string;
 	onDidChangeData: Event<void>;
-	replaceData(items: IOutputItemDto[]): void;
+	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
+	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	asDto(): IOutputDto;
+	bumpVersion(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -691,6 +714,7 @@ export class MimeTypeDisplayOrder {
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
+	readonly toInsert: T[];
 	deleteCount: number;
 }
 
@@ -756,6 +780,7 @@ export interface ICellEditorViewState {
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
 
+export const NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY = new RawContextKey<'none' | 'start' | 'end' | 'both'>('notebookEditorCursorAtLineBoundary', 'none');
 
 export interface INotebookLoadOptions {
 	/**
@@ -773,12 +798,15 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidSave: Event<IWorkingCopySaveEvent>;
 	readonly onDidChangeOrphaned: Event<void>;
 	readonly onDidChangeReadonly: Event<void>;
+	readonly onDidRevertUntitled: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
+	readonly hasErrorState: boolean;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
-	isReadonly(): boolean;
+	isModified(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 	isOrphaned(): boolean;
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
@@ -881,7 +909,7 @@ export interface INotebookCellStatusBarItem {
 	readonly text: string;
 	readonly color?: string | ThemeColor;
 	readonly backgroundColor?: string | ThemeColor;
-	readonly tooltip?: string;
+	readonly tooltip?: string | IMarkdownString;
 	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
 	readonly opacity?: string;
@@ -901,11 +929,13 @@ export const NotebookSetting = {
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
+	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
 	compactView: 'notebook.compactView',
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
+	stickyScroll: 'notebook.stickyScroll.enabled',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
@@ -913,13 +943,26 @@ export const NotebookSetting = {
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
 	consolidatedRunButton: 'notebook.consolidatedRunButton',
 	openGettingStarted: 'notebook.experimental.openGettingStarted',
-	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
-	outputLineHeight: 'notebook.outputLineHeight',
-	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily'
+	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
+	outputScrolling: 'notebook.output.scrolling',
+	textOutputLineLimit: 'notebook.output.textLineLimit',
+	formatOnSave: 'notebook.formatOnSave.enabled',
+	formatOnCellExecution: 'notebook.formatOnCellExecution',
+	codeActionsOnSave: 'notebook.codeActionsOnSave',
+	outputWordWrap: 'notebook.output.wordWrap',
+	outputLineHeightDeprecated: 'notebook.outputLineHeight',
+	outputLineHeight: 'notebook.output.lineHeight',
+	outputFontSizeDeprecated: 'notebook.outputFontSize',
+	outputFontSize: 'notebook.output.fontSize',
+	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
+	outputFontFamily: 'notebook.output.fontFamily',
+	findScope: 'notebook.find.scope',
+	logging: 'notebook.logging',
+	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
+	remoteSaving: 'notebook.experimental.remoteSave'
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -962,6 +1005,7 @@ const textDecoder = new TextDecoder();
  * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
  * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and
  * last line contained such a code, then the result string would be just the first two lines.
+ * @returns a single VSBuffer with the concatenated and compressed data, and whether any compression was done.
  */
 export function compressOutputItemStreams(outputs: Uint8Array[]) {
 	const buffers: Uint8Array[] = [];
@@ -974,13 +1018,19 @@ export function compressOutputItemStreams(outputs: Uint8Array[]) {
 			startAppending = true;
 		}
 	}
-	compressStreamBuffer(buffers);
-	return formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+
+	let didCompression = compressStreamBuffer(buffers);
+	const concatenated = VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer)));
+	const data = formatStreamText(concatenated);
+	didCompression = didCompression || data.byteLength !== concatenated.byteLength;
+	return { data, didCompression };
 }
-const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
+
+export const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
 const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
 const LINE_FEED = 10;
 function compressStreamBuffer(streams: Uint8Array[]) {
+	let didCompress = false;
 	streams.forEach((stream, index) => {
 		if (index === 0 || stream.length < MOVE_CURSOR_1_LINE_COMMAND.length) {
 			return;
@@ -995,10 +1045,13 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 			if (lastIndexOfLineFeed === -1) {
 				return;
 			}
+
+			didCompress = true;
 			streams[index - 1] = previousStream.subarray(0, lastIndexOfLineFeed);
 			streams[index] = stream.subarray(MOVE_CURSOR_1_LINE_COMMAND.length);
 		}
 	});
+	return didCompress;
 }
 
 
@@ -1043,4 +1096,12 @@ function formatStreamText(buffer: VSBuffer): VSBuffer {
 	}
 	// Do the same thing jupyter is doing
 	return VSBuffer.fromString(fixCarriageReturn(fixBackspace(textDecoder.decode(buffer.buffer))));
+}
+
+export interface INotebookKernelSourceAction {
+	readonly label: string;
+	readonly description?: string;
+	readonly detail?: string;
+	readonly command?: string | Command;
+	readonly documentation?: UriComponents | string;
 }

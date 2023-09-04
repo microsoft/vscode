@@ -7,9 +7,9 @@ import { IdleValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { Graph } from 'vs/platform/instantiation/common/graph';
-import { IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
+import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LinkedList } from 'vs/base/common/linkedList';
 
@@ -72,6 +72,8 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
+	createInstance<T>(descriptor: SyncDescriptor0<T>): T;
+	createInstance<Ctor extends new (...args: any[]) => any, R extends InstanceType<Ctor>>(ctor: Ctor, ...args: GetLeadingNonServiceArgs<ConstructorParameters<Ctor>>): R;
 	createInstance(ctorOrDescriptor: any | SyncDescriptor<any>, ...rest: any[]): any {
 		let _trace: Trace;
 		let result: any;
@@ -307,6 +309,9 @@ export class InstantiationService implements IInstantiationService {
 				set(_target: T, p: PropertyKey, value: any): boolean {
 					idle.value[p] = value;
 					return true;
+				},
+				getPrototypeOf(_target: T) {
+					return ctor.prototype;
 				}
 			});
 		}
@@ -325,7 +330,10 @@ export class InstantiationService implements IInstantiationService {
 //#region -- tracing ---
 
 const enum TraceType {
-	Creation, Invocation, Branch
+	None = 0,
+	Creation = 1,
+	Invocation = 2,
+	Branch = 3,
 }
 
 export class Trace {
@@ -333,7 +341,7 @@ export class Trace {
 	static all = new Set<string>();
 
 	private static readonly _None = new class extends Trace {
-		constructor() { super(-1, null); }
+		constructor() { super(TraceType.None, null); }
 		override stop() { }
 		override branch() { return this; }
 	};

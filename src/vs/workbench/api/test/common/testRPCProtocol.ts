@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { CharCode } from 'vs/base/common/charCode';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { isThenable } from 'vs/base/common/async';
+import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { parseJsonAndRestoreBufferRefs, stringifyJsonWithBufferRefs } from 'vs/workbench/services/extensions/common/rpcProtocol';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
