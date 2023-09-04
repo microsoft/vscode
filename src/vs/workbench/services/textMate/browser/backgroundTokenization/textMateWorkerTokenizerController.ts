@@ -5,7 +5,7 @@
 
 import { importAMDNodeModule } from 'vs/amdX';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, keepAlive, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, keepObserved, observableFromEvent } from 'vs/base/common/observable';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
@@ -46,7 +46,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	) {
 		super();
 
-		this._register(keepAlive(this._loggingEnabled));
+		this._register(keepObserved(this._loggingEnabled));
 
 		this._register(this._model.onDidChangeContent((e) => {
 			if (this._shouldLog) {

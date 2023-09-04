@@ -5,7 +5,7 @@
 
 import { CompareResult, equals } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { autorunHandleChanges, derived, IObservable, IReader, ISettableObservable, ITransaction, keepAlive, observableValue, transaction, waitForState } from 'vs/base/common/observable';
+import { autorunHandleChanges, derived, IObservable, IReader, ISettableObservable, ITransaction, keepObserved, observableValue, transaction, waitForState } from 'vs/base/common/observable';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -62,9 +62,9 @@ export class MergeEditorModel extends EditorModel {
 	) {
 		super();
 
-		this._register(keepAlive(this.modifiedBaseRangeResultStates));
-		this._register(keepAlive(this.input1ResultMapping));
-		this._register(keepAlive(this.input2ResultMapping));
+		this._register(keepObserved(this.modifiedBaseRangeResultStates));
+		this._register(keepObserved(this.input1ResultMapping));
+		this._register(keepObserved(this.input2ResultMapping));
 
 		const initializePromise = this.initialize();
 

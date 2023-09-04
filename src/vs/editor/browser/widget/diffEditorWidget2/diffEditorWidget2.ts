@@ -7,7 +7,7 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IObservable, autorun, autorunWithStore, derived, derivedWithStore, disposableObservableValue, keepAlive, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunWithStore, derived, derivedWithStore, disposableObservableValue, recomputeInitiallyAndOnChange, observableValue, transaction } from 'vs/base/common/observable';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IMouseTargetViewZone } from 'vs/editor/browser/editorBrowser';
@@ -157,7 +157,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 			}));
 			return result;
 		});
-		this._register(keepAlive(this._sash, true));
+		this._register(recomputeInitiallyAndOnChange(this._sash));
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description UnchangedRangesFeature */
@@ -218,7 +218,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 
 		codeEditorService.addDiffEditor(this);
 
-		this._register(keepAlive(this._layoutInfo, true));
+		this._register(recomputeInitiallyAndOnChange(this._layoutInfo));
 
 		this._register(autorunWithStore((reader, store) => {
 			this.movedBlocksLinesPart.set(store.add(new (readHotReloadableExport(MovedBlocksLinesPart, reader))(
