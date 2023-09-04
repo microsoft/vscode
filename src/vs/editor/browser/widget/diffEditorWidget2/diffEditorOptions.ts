@@ -54,7 +54,7 @@ export class DiffEditorOptions {
 	public readonly hideUnchangedRegions = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.enabled!);
 	public readonly hideUnchangedRegionsRevealLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.revealLineCount!);
 	public readonly hideUnchangedRegionsContextLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.contextLineCount!);
-	public readonly hideUnchangedRegionsminimumLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.minimumLineCount!);
+	public readonly hideUnchangedRegionsMinimumLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.minimumLineCount!);
 
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
