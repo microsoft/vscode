@@ -13,14 +13,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { URI } from 'vs/base/common/uri';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class ToggleDevToolsAction extends Action2 {
 
@@ -116,105 +111,5 @@ export class OpenUserDataFolderAction extends Action2 {
 		}
 
 		return nativeHostService.showItemInFolder(itemToShow.fsPath);
-	}
-}
-
-export class RemoveLargeStorageEntriesAction extends Action2 {
-
-	private static SIZE_THRESHOLD = 1024 * 16; // 16kb
-
-	constructor() {
-		super({
-			id: 'workbench.action.removeLargeStorageDatabaseEntries',
-			title: { value: localize('removeLargeStorageDatabaseEntries', "Remove Large Storage Database Entries..."), original: 'Remove Large Storage Database Entries...' },
-			category: Categories.Developer,
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const storageService = accessor.get(IStorageService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const userDataProfileService = accessor.get(IUserDataProfileService);
-		const dialogService = accessor.get(IDialogService);
-
-		interface IStorageItem extends IQuickPickItem {
-			readonly key: string;
-			readonly scope: StorageScope;
-			readonly target: StorageTarget;
-			readonly size: number;
-		}
-
-		const items: IStorageItem[] = [];
-
-		for (const scope of [StorageScope.APPLICATION, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
-			if (scope === StorageScope.PROFILE && userDataProfileService.currentProfile.isDefault) {
-				continue; // avoid duplicates
-			}
-
-			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				for (const key of storageService.keys(scope, target)) {
-					const value = storageService.get(key, scope);
-					if (value && value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD) {
-						items.push({
-							key,
-							scope,
-							target,
-							size: value.length,
-							label: key,
-							description: ByteSize.formatSize(value.length),
-							detail: localize('largeStorageItemDetail', "Scope: {0}, Target: {1}", scope === StorageScope.APPLICATION ? localize('global', "Global") : scope === StorageScope.PROFILE ? localize('profile', "Profile") : localize('workspace', "Workspace"), target === StorageTarget.MACHINE ? localize('machine', "Machine") : localize('user', "User")),
-						});
-					}
-				}
-			}
-		}
-
-		items.sort((itemA, itemB) => itemB.size - itemA.size);
-
-		const selectedItems = await new Promise<readonly IStorageItem[]>(resolve => {
-			const disposables = new DisposableStore();
-
-			const picker = disposables.add(quickInputService.createQuickPick<IStorageItem>());
-			picker.items = items;
-			picker.canSelectMany = true;
-			picker.ok = false;
-			picker.customButton = true;
-			picker.hideCheckAll = true;
-			picker.customLabel = localize('remove', "Remove");
-			picker.placeholder = localize('selectEntries', "Select large entries to remove from storage");
-
-			if (items.length === 0) {
-				picker.description = localize('noLargeStorageEntries', "There are no large storage entries to remove.");
-			}
-
-			picker.show();
-
-			disposables.add(picker.onDidCustom(() => {
-				resolve(picker.selectedItems);
-				picker.hide();
-			}));
-
-			disposables.add(picker.onDidHide(() => disposables.dispose()));
-		});
-
-		if (selectedItems.length === 0) {
-			return;
-		}
-
-		const { confirmed } = await dialogService.confirm({
-			type: 'warning',
-			message: localize('confirmRemove', "Do you want to remove the selected storage entries from the database?"),
-			detail: localize('confirmRemoveDetail', "{0}\n\nThis action is irreversible and may result in data loss!", selectedItems.map(item => item.key).join('\n')),
-			primaryButton: localize({ key: 'removeButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Remove")
-		});
-
-		if (!confirmed) {
-			return;
-		}
-
-		for (const item of selectedItems) {
-			storageService.remove(item.key, item.scope);
-		}
 	}
 }
