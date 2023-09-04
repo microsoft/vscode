@@ -122,7 +122,7 @@ suite('git smoke test', function () {
 		repository.state.workingTreeChanges.some(r => r.uri.path === newfile.path && r.status === Status.UNTRACKED);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 
-		await commands.executeCommand('git.stageAll', appjs);
+		await commands.executeCommand('git.stageAll');
 		await repository.commit('third commit');
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
