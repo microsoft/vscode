@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok } from 'vs/base/common/assert';
-import { illegalArgument, readonly } from 'vs/base/common/errors';
+import { ReadonlyError, illegalArgument } from 'vs/base/common/errors';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
@@ -431,7 +431,7 @@ export class ExtHostTextEditor {
 				return document.value;
 			},
 			set document(_value) {
-				throw readonly('document');
+				throw new ReadonlyError('document');
 			},
 			// --- selection
 			get selection(): Selection {
@@ -459,7 +459,7 @@ export class ExtHostTextEditor {
 				return that._visibleRanges;
 			},
 			set visibleRanges(_value: Range[]) {
-				throw readonly('visibleRanges');
+				throw new ReadonlyError('visibleRanges');
 			},
 			// --- options
 			get options(): vscode.TextEditorOptions {
@@ -475,7 +475,7 @@ export class ExtHostTextEditor {
 				return that._viewColumn;
 			},
 			set viewColumn(_value) {
-				throw readonly('viewColumn');
+				throw new ReadonlyError('viewColumn');
 			},
 			// --- edit
 			edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
