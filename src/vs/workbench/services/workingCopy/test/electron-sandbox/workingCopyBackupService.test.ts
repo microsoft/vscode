@@ -30,6 +30,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { generateUuid } from 'vs/base/common/uuid';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import product from 'vs/platform/product/common/product';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const homeDir = URI.file('home').with({ scheme: Schemas.inMemory });
 const tmpDir = URI.file('tmp').with({ scheme: Schemas.inMemory });
@@ -1296,4 +1297,6 @@ suite('WorkingCopyBackupService', () => {
 			assert.ok(backups.every(backup => backup.typeId === ''));
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

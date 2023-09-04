@@ -352,4 +352,3 @@ suite('WorkingCopyHistoryTracker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
-
