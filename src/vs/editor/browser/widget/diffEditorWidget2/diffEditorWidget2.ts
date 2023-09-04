@@ -21,7 +21,7 @@ import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditorWidget2/diffE
 import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/lineAlignment';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
-import { UnchangedRangesFeature } from 'vs/editor/browser/widget/diffEditorWidget2/unchangedRanges';
+import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditorWidget2/hideUnchangedRegionsFeature';
 import { CSSStyle, ObservableElementSizeObserver, applyStyle, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -68,7 +68,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>('boundarySashes', undefined);
 
-	private unchangedRangesFeature!: UnchangedRangesFeature;
+	private unchangedRangesFeature!: HideUnchangedRegionsFeature;
 
 	private _accessibleDiffViewerShouldBeVisible = observableValue('accessibleDiffViewerShouldBeVisible', false);
 	private _accessibleDiffViewerVisible = derived(reader =>
@@ -162,7 +162,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		this._register(autorunWithStore((reader, store) => {
 			/** @description UnchangedRangesFeature */
 			this.unchangedRangesFeature = store.add(
-				this._instantiationService.createInstance(readHotReloadableExport(UnchangedRangesFeature, reader), this._editors, this._diffModel, this._options)
+				this._instantiationService.createInstance(readHotReloadableExport(HideUnchangedRegionsFeature, reader), this._editors, this._diffModel, this._options)
 			);
 		}));
 

@@ -11,7 +11,7 @@ import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 suite('DiffEditorWidget2', () => {
 	suite('UnchangedRegion', () => {
 		function serialize(regions: UnchangedRegion[]): unknown {
-			return regions.map(r => `${r.originalRange} - ${r.modifiedRange}`);
+			return regions.map(r => `${r.originalUnchangedRange} - ${r.modifiedUnchangedRange}`);
 		}
 
 		test('Everything changed', () => {

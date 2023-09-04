@@ -82,7 +82,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				result.changes,
 				model.original.getLineCount(),
 				model.modified.getLineCount(),
-				this._options.hideUnchangedRegionsminimumLineCount.read(reader),
+				this._options.hideUnchangedRegionsMinimumLineCount.read(reader),
 				this._options.hideUnchangedRegionsContextLineCount.read(reader),
 			);
 
@@ -99,18 +99,18 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 			const originalDecorationIds = model.original.deltaDecorations(
 				lastUnchangedRegions.originalDecorationIds,
-				newUnchangedRegions.map(r => ({ range: r.originalRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
+				newUnchangedRegions.map(r => ({ range: r.originalUnchangedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
 			);
 			const modifiedDecorationIds = model.modified.deltaDecorations(
 				lastUnchangedRegions.modifiedDecorationIds,
-				newUnchangedRegions.map(r => ({ range: r.modifiedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
+				newUnchangedRegions.map(r => ({ range: r.modifiedUnchangedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
 			);
 
 
 			for (const r of newUnchangedRegions) {
 				for (let i = 0; i < lastUnchangedRegions.regions.length; i++) {
-					if (r.originalRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
-						&& r.modifiedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
+					if (r.originalUnchangedRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
+						&& r.modifiedUnchangedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
 						r.setHiddenModifiedRange(lastUnchangedRegions.regions[i].getHiddenModifiedRange(undefined), tx);
 						break;
 					}
@@ -169,7 +169,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			/** @description compute diff */
 
 			// So that they get recomputed when these settings change
-			this._options.hideUnchangedRegionsminimumLineCount.read(reader);
+			this._options.hideUnchangedRegionsMinimumLineCount.read(reader);
 			this._options.hideUnchangedRegionsContextLineCount.read(reader);
 
 			debouncer.cancel();
@@ -260,7 +260,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		transaction(tx => {
 			for (const r of regions.regions) {
 				for (const range of ranges) {
-					if (r.modifiedRange.intersect(range)) {
+					if (r.modifiedUnchangedRange.intersect(range)) {
 						r.setHiddenModifiedRange(range, tx);
 						break;
 					}
@@ -357,11 +357,11 @@ export class UnchangedRegion {
 		return result;
 	}
 
-	public get originalRange(): LineRange {
+	public get originalUnchangedRange(): LineRange {
 		return LineRange.ofLength(this.originalLineNumber, this.lineCount);
 	}
 
-	public get modifiedRange(): LineRange {
+	public get modifiedUnchangedRange(): LineRange {
 		return LineRange.ofLength(this.modifiedLineNumber, this.lineCount);
 	}
 
@@ -371,7 +371,8 @@ export class UnchangedRegion {
 	private readonly _visibleLineCountBottom = observableValue<number>('visibleLineCountBottom', 0);
 	public readonly visibleLineCountBottom: ISettableObservable<number> = this._visibleLineCountBottom;
 
-	private readonly _shouldHideControls = derived(reader => /** @description isVisible */ this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
+	private readonly _shouldHideControls = derived(reader => /** @description isVisible */
+		this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
 
 	public readonly isDragged = observableValue<boolean>('isDragged', false);
 

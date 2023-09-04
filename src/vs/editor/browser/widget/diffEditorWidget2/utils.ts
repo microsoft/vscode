@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDimension } from 'vs/base/browser/dom';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
@@ -368,4 +369,10 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 	});
 
 	return store;
+}
+
+export class DisposableCancellationTokenSource extends CancellationTokenSource {
+	public override dispose() {
+		super.dispose(true);
+	}
 }
