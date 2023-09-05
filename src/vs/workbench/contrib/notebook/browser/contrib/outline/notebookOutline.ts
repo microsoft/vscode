@@ -34,6 +34,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 class NotebookOutlineTemplate {
@@ -274,8 +275,8 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		};
 	}
 
-	async setFullSymbols() {
-		await this._outlineProvider?.setFullSymbols();
+	async setFullSymbols(cancelToken: CancellationToken) {
+		await this._outlineProvider?.setFullSymbols(cancelToken);
 	}
 
 	get uri(): URI | undefined {
@@ -346,12 +347,12 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 		return candidate.getId() === NotebookEditor.ID;
 	}
 
-	async createOutline(editor: NotebookEditor, target: OutlineTarget): Promise<IOutline<OutlineEntry> | undefined> {
+	async createOutline(editor: NotebookEditor, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 
 		const showAllSymbols = this._configurationService.getValue<boolean>('notebook.experimental.gotoSymbols.showAllSymbols');
 		if (target === OutlineTarget.QuickPick && showAllSymbols) {
-			await outline.setFullSymbols();
+			await outline.setFullSymbols(cancelToken);
 		}
 		return outline;
 	}

@@ -13,11 +13,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IActiveNotebookEditor, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/NotebookOutlineEntryFactory';
 import { OutlineEntry } from './OutlineEntry';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class NotebookCellOutlineProvider {
 	private readonly _dispoables = new DisposableStore();
@@ -46,13 +46,12 @@ export class NotebookCellOutlineProvider {
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
 		@IThemeService themeService: IThemeService,
-		@IEditorService _editorService: IEditorService,
-		@IOutlineModelService outlineModelService: IOutlineModelService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService, outlineModelService);
+		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService);
 
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
@@ -100,19 +99,21 @@ export class NotebookCellOutlineProvider {
 		this._recomputeState();
 	}
 
-	async setFullSymbols() {
+	async setFullSymbols(cancelToken: CancellationToken) {
 		const notebookEditorWidget = this._editor;
 
 		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
 
 		this._entries.length = 0;
 		if (notebookCells) {
+			const promises: Promise<void>[] = [];
 			for (const cell of notebookCells) {
 				if (cell.textModel) {
 					// gather all symbols asynchronously
-					await this._outlineEntryFactory.cacheSymbols(cell.textModel);
+					promises.push(this._outlineEntryFactory.cacheSymbols(cell.textModel, this._outlineModelService, cancelToken));
 				}
 			}
+			Promise.allSettled(promises);
 		}
 
 		this._recomputeState();

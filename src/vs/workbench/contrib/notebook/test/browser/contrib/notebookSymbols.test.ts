@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ITextModel } from 'vs/editor/common/model';
@@ -61,7 +62,7 @@ suite('Notebook Symbols', function () {
 
 	test('Cell without symbols cache', function () {
 		setSymbolsForTextModel([{ name: 'var', selectionRange: {} }]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
 		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 1, 'no entries created');
@@ -70,10 +71,10 @@ suite('Notebook Symbols', function () {
 
 	test('Cell with simple symbols', async function () {
 		setSymbolsForTextModel([{ name: 'var1', selectionRange: {} }, { name: 'var2', selectionRange: {} }]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell.model.textModel!);
+		await entryFactory.cacheSymbols(cell.model.textModel!, outlineModelService, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(cell, 0);
 
 		assert.equal(entries.length, 2, 'wrong number of outline entries');
@@ -91,10 +92,10 @@ suite('Notebook Symbols', function () {
 			{ name: 'root1', selectionRange: {}, children: [{ name: 'nested1', selectionRange: {} }, { name: 'nested2', selectionRange: {} }] },
 			{ name: 'root2', selectionRange: {}, children: [{ name: 'nested1', selectionRange: {} }] }
 		]);
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell.model.textModel!);
+		await entryFactory.cacheSymbols(cell.model.textModel!, outlineModelService, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 5, 'wrong number of outline entries');
@@ -113,12 +114,12 @@ suite('Notebook Symbols', function () {
 	test('Multiple Cells with symbols', async function () {
 		setSymbolsForTextModel([{ name: 'var1', selectionRange: {} }], '$1');
 		setSymbolsForTextModel([{ name: 'var2', selectionRange: {} }], '$2');
-		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService);
 
 		const cell1 = createCellViewModel(1, '$1');
 		const cell2 = createCellViewModel(1, '$2');
-		await entryFactory.cacheSymbols(cell1.model.textModel!);
-		await entryFactory.cacheSymbols(cell2.model.textModel!);
+		await entryFactory.cacheSymbols(cell1.model.textModel!, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell2.model.textModel!, outlineModelService, CancellationToken.None);
 
 		const entries1 = entryFactory.getOutlineEntries(createCellViewModel(1, '$1'), 0);
 		const entries2 = entryFactory.getOutlineEntries(createCellViewModel(1, '$2'), 0);

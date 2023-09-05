@@ -26,8 +26,7 @@ export class NotebookOutlineEntryFactory {
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
 
 	constructor(
-		private readonly executionStateService: INotebookExecutionStateService,
-		private readonly outlineModelService: IOutlineModelService
+		private readonly executionStateService: INotebookExecutionStateService
 	) { }
 
 	public getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[] {
@@ -93,8 +92,8 @@ export class NotebookOutlineEntryFactory {
 		return entries;
 	}
 
-	public async cacheSymbols(textModel: ITextModel) {
-		const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
+	public async cacheSymbols(textModel: ITextModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
+		const outlineModel = await outlineModelService.getOrCreate(textModel, cancelToken);
 		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
 		this.cellOutlineEntryCache[textModel.id] = entries;
 		console.log(`cached ${entries.length} top level symbols for text model ID ${textModel.id}`);
