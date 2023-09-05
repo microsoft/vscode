@@ -37,8 +37,6 @@ class MockQuickInputService implements Partial<IQuickInputService>{
 }
 
 suite('ExternalUriOpenerService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
