@@ -613,7 +613,11 @@ export function insertInto<T>(array: T[], start: number, newItems: T[]): void {
  */
 export function splice<T>(array: T[], start: number, deleteCount: number, newItems: T[]): T[] {
 	const index = getActualStartIndex(array, start);
-	const result = array.splice(index, deleteCount);
+	let result = array.splice(index, deleteCount);
+	if (result === undefined) {
+		// see https://bugs.webkit.org/show_bug.cgi?id=261140
+		result = [];
+	}
 	insertInto(array, index, newItems);
 	return result;
 }
