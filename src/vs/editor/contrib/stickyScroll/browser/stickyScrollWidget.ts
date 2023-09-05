@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { equals } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./stickyScroll';
@@ -26,6 +27,14 @@ export class StickyScrollWidgetState {
 		readonly lastLineRelativePosition: number,
 		readonly showEndForLine: number | null = null
 	) { }
+
+	equals(other: StickyScrollWidgetState | undefined): boolean {
+		return !!other
+			&& this.lastLineRelativePosition === other.lastLineRelativePosition
+			&& this.showEndForLine === other.showEndForLine
+			&& equals(this.startLineNumbers, other.startLineNumbers)
+			&& equals(this.endLineNumbers, other.endLineNumbers);
+	}
 }
 
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
@@ -40,6 +49,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 
+	private _state: StickyScrollWidgetState | undefined;
 	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 	private _stickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
@@ -114,7 +124,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers;
 	}
 
-	setState(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, forceRebuild: boolean = false): void {
+	setState(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, forceRebuildFromLine: number = Infinity): void {
+		if (
+			((!this._state && !state) || (this._state && this._state.equals(state)))
+			&& forceRebuildFromLine === Infinity
+		) {
+			return;
+		}
+		this._state = state;
 		const previousStickyLines = this._stickyLines;
 		this._clearStickyWidget();
 		if (!state || !this._editor._getViewModel()) {
@@ -133,7 +150,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._lastLineRelativePosition = 0;
 			this._lineNumbers = [];
 		}
-		this._renderRootNode(previousStickyLines, foldingModel, forceRebuild);
+		this._renderRootNode(previousStickyLines, foldingModel, forceRebuildFromLine);
 	}
 
 	private _updateWidgetWidth(): void {
@@ -167,14 +184,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	private async _renderRootNode(previousStickyLines: RenderedStickyLine[], foldingModel: FoldingModel | null, forceRebuild: boolean = false): Promise<void> {
+	private async _renderRootNode(previousStickyLines: RenderedStickyLine[], foldingModel: FoldingModel | null, forceRebuildFromLine: number = Infinity): Promise<void> {
 
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const previousStickyLine = previousStickyLines[index];
-			const stickyLine = (!forceRebuild && previousStickyLine?.lineNumber === line)
-				? this._updateTopAndZIndexOfStickyLine(previousStickyLine)
-				: this._renderChildNode(index, line, foldingModel, layoutInfo);
+			const stickyLine = (line >= forceRebuildFromLine || previousStickyLine?.lineNumber !== line)
+				? this._renderChildNode(index, line, foldingModel, layoutInfo)
+				: this._updateTopAndZIndexOfStickyLine(previousStickyLine);
 			this._linesDomNode.appendChild(stickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
 			this._stickyLines.push(stickyLine);
