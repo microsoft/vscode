@@ -56,7 +56,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			this._proxy.$acceptDebugSessionTerminated(this.getSessionDto(session));
 			this._sessions.delete(session.getId());
 			for (const [handle, value] of this._debugAdapters) {
-				if (value._session === session) {
+				if (value.session === session) {
 					this._debugAdapters.delete(handle);
 					// break;
 				}
@@ -428,7 +428,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private readonly _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, readonly _session: IDebugSession) {
+	constructor(private readonly _ds: MainThreadDebugService, private _handle: number, private _proxy: ExtHostDebugServiceShape, readonly session: IDebugSession) {
 		super();
 	}
 
@@ -441,7 +441,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	startSession(): Promise<void> {
-		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this._session)));
+		return Promise.resolve(this._proxy.$startDASession(this._handle, this._ds.getSessionDto(this.session)));
 	}
 
 	sendMessage(message: DebugProtocol.ProtocolMessage): void {

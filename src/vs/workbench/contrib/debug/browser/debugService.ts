@@ -698,7 +698,6 @@ export class DebugService implements IDebugService {
 			}
 			this.endInitializingState();
 			this.cancelTokens(session.getId());
-			this.model.removeSession(session);
 			this._onDidEndSession.fire(session);
 
 			const focusedSession = this.viewModel.focusedSession;
@@ -728,7 +727,7 @@ export class DebugService implements IDebugService {
 
 			this.model.removeExceptionBreakpointsForSession(session.getId());
 			sessionStore.dispose();
-			session.dispose();
+			// session.dispose(); TODO@roblourens
 		}));
 	}
 

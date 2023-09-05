@@ -1264,13 +1264,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeCallStack.fire(undefined);
 	}
 
-	removeSession(session: IDebugSession): void {
-		const idx = this.sessions.indexOf(session);
-		if (idx >= 0) {
-			this.sessions.splice(idx, 1);
-		}
-	}
-
 	get onDidChangeBreakpoints(): Event<IBreakpointsChangeEvent | undefined> {
 		return this._onDidChangeBreakpoints.event;
 	}
