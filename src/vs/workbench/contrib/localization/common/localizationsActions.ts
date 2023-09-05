@@ -36,6 +36,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		const installedLanguages = await languagePackService.getInstalledLanguages();
 
 		const qp = quickInputService.createQuickPick<ILanguagePackItem>();
+		qp.matchOnDescription = true;
 		qp.placeholder = localize('chooseLocale', "Select Display Language");
 
 		if (installedLanguages?.length) {
