@@ -366,6 +366,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
+		private actionRunner: ActionRunner,
 		@ISCMViewService private scmViewService: ISCMViewService
 	) { }
 
@@ -376,7 +377,10 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
 		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
+		const actionBar = new ActionBar(actionsContainer, {
+			actionViewItemProvider: this.actionViewItemProvider,
+			actionRunner: this.actionRunner
+		});
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const disposables = combinedDisposable(actionBar);
@@ -430,7 +434,7 @@ interface RenderedResourceData {
 
 class RepositoryPaneActionRunner extends ActionRunner {
 
-	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
+	constructor(private getSelectedResources: (wantResourceGroups: boolean) => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
 		super();
 	}
 
@@ -439,7 +443,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 			return super.runAction(action, context);
 		}
 
-		const selection = this.getSelectedResources();
+		const selection = this.getSelectedResources(!(context as ISCMResource).resourceGroup);
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
 		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
@@ -2354,7 +2358,7 @@ export class SCMViewPane extends ViewPane {
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
-		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		const actionRunner = new RepositoryPaneActionRunner((wantResourceGroups) => this.getSelectedResources(wantResourceGroups));
 		this._register(actionRunner);
 		this._register(actionRunner.onWillRun(() => this.tree.domFocus()));
 
@@ -2362,7 +2366,7 @@ export class SCMViewPane extends ViewPane {
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
 			this.actionButtonRenderer,
-			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
+			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService), actionRunner),
 			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
 		];
 
@@ -2569,7 +2573,7 @@ export class SCMViewPane extends ViewPane {
 			actions = collectContextMenuActions(menu);
 		}
 
-		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		const actionRunner = new RepositoryPaneActionRunner((wantResourceGroups) => this.getSelectedResources(wantResourceGroups));
 		actionRunner.onWillRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({
@@ -2580,9 +2584,9 @@ export class SCMViewPane extends ViewPane {
 		});
 	}
 
-	private getSelectedResources(): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
+	private getSelectedResources(wantResourceGroups: boolean): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
 		return this.tree.getSelection()
-			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
+			.filter(r => !!r && wantResourceGroups ? isSCMResourceGroup(r) : !isSCMResourceGroup(r))! as any;
 	}
 
 	override shouldShowWelcome(): boolean {
