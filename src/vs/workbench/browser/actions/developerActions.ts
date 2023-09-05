@@ -463,11 +463,11 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 			picker.ok = false;
 			picker.customButton = true;
 			picker.hideCheckAll = true;
-			picker.customLabel = localize('remove', "Remove");
-			picker.placeholder = localize('selectEntries', "Select large entries to remove from storage");
+			picker.customLabel = localize('removeLargeStorageEntriesPickerButton', "Remove");
+			picker.placeholder = localize('removeLargeStorageEntriesPickerPlaceholder', "Select large entries to remove from storage");
 
 			if (items.length === 0) {
-				picker.description = localize('noLargeStorageEntries', "There are no large storage entries to remove.");
+				picker.description = localize('removeLargeStorageEntriesPickerDescriptionNoEntries', "There are no large storage entries to remove.");
 			}
 
 			picker.show();
@@ -486,17 +486,23 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 
 		const { confirmed } = await dialogService.confirm({
 			type: 'warning',
-			message: localize('confirmRemove', "Do you want to remove the selected storage entries from the database?"),
-			detail: localize('confirmRemoveDetail', "{0}\n\nThis action is irreversible and may result in data loss!", selectedItems.map(item => item.key).join('\n')),
-			primaryButton: localize({ key: 'removeButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Remove")
+			message: localize('removeLargeStorageEntriesConfirmRemove', "Do you want to remove the selected storage entries from the database?"),
+			detail: localize('removeLargeStorageEntriesConfirmRemoveDetail', "{0}\n\nThis action is irreversible!", selectedItems.map(item => item.label).join('\n')),
+			primaryButton: localize({ key: 'removeLargeStorageEntriesButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Remove")
 		});
 
 		if (!confirmed) {
 			return;
 		}
 
+		const scopesToOptimize = new Set<StorageScope>();
 		for (const item of selectedItems) {
 			storageService.remove(item.key, item.scope);
+			scopesToOptimize.add(item.scope);
+		}
+
+		for (const scope of scopesToOptimize) {
+			await storageService.optimize(scope);
 		}
 	}
 }

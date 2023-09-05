@@ -125,6 +125,10 @@ export class StorageDatabaseChannel extends Disposable implements IServerChannel
 				break;
 			}
 
+			case 'optimize': {
+				return storage.optimize();
+			}
+
 			case 'isUsed': {
 				const path = arg.payload as string | undefined;
 				if (typeof path === 'string') {
