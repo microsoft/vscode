@@ -774,7 +774,17 @@ export class CodeApplication extends Disposable {
 			if (secondSlash !== -1) {
 				const authority = uri.path.substring(1, secondSlash);
 				const path = uri.path.substring(secondSlash);
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+
+				let query = uri.query;
+				const params = new URLSearchParams(uri.query);
+				if (params.get('windowId') === '_blank') {
+					// Make sure to unset any `windowId=_blank` here
+					// https://github.com/microsoft/vscode/issues/191902
+					params.delete('windowId');
+					query = params.toString();
+				}
+
+				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
 
 				if (hasWorkspaceFileExtension(path)) {
 					return { workspaceUri: remoteUri };

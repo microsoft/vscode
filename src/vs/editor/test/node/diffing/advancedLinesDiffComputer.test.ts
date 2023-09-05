@@ -6,8 +6,9 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { LinesSliceCharSequence, getLineRangeMapping } from 'vs/editor/common/diff/advancedLinesDiffComputer';
+import { getLineRangeMapping } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
 
 suite('lineRangeMapping', () => {
 	test('1', () => {
