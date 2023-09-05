@@ -8,7 +8,7 @@ import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Promises } from 'vs/base/node/pfs';
 import { SnapshotContext, assertSnapshot } from 'vs/base/test/common/snapshot';
 import { URI } from 'vs/base/common/uri';
-import path = require('path');
+import * as path from 'path';
 import { assertThrowsAsync } from 'vs/base/test/common/utils';
 
 // tests for snapshot are in Node so that we can use native FS operations to

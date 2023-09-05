@@ -52,7 +52,7 @@ suite('MainThreadHostTreeView', function () {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: ITreeViewDescriptor = {
 			id: testTreeViewId,
 			ctorDescriptor: null!,

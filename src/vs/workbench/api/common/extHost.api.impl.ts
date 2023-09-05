@@ -876,7 +876,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('rootPath');
 			},
 			getWorkspaceFolder(resource) {
 				return extHostWorkspace.getWorkspaceFolder(resource);
@@ -888,13 +888,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWorkspace.name;
 			},
 			set name(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('name');
 			},
 			get workspaceFile() {
 				return extHostWorkspace.workspaceFile;
 			},
 			set workspaceFile(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('workspaceFile');
 			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
@@ -946,7 +946,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
 			},
 			set textDocuments(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('textDocuments');
 			},
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string }) {
 				let uriPromise: Thenable<URI>;

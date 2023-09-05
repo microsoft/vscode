@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
@@ -11,7 +11,7 @@ import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 suite('DiffEditorWidget2', () => {
 	suite('UnchangedRegion', () => {
 		function serialize(regions: UnchangedRegion[]): unknown {
-			return regions.map(r => `${r.originalRange} - ${r.modifiedRange}`);
+			return regions.map(r => `${r.originalUnchangedRange} - ${r.modifiedUnchangedRange}`);
 		}
 
 		test('Everything changed', () => {

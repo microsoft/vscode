@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { forEachAdjacent } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 
@@ -33,12 +34,29 @@ export class DiffAlgorithmResult {
 }
 
 export class SequenceDiff {
+	public static invert(sequenceDiffs: SequenceDiff[], doc1Length: number): SequenceDiff[] {
+		const result: SequenceDiff[] = [];
+
+		forEachAdjacent(sequenceDiffs, (a, b) => {
+			const seq1Start = a ? a.seq1Range.endExclusive : 0;
+			const seq2Start = a ? a.seq2Range.endExclusive : 0;
+			const seq1EndEx = b ? b.seq1Range.start : doc1Length;
+			const seq2EndEx = b ? b.seq2Range.start : (a ? a.seq2Range.endExclusive - a.seq1Range.endExclusive : 0) + doc1Length;
+			result.push(new SequenceDiff(
+				new OffsetRange(seq1Start, seq1EndEx),
+				new OffsetRange(seq2Start, seq2EndEx),
+			));
+		});
+
+		return result;
+	}
+
 	constructor(
 		public readonly seq1Range: OffsetRange,
 		public readonly seq2Range: OffsetRange,
 	) { }
 
-	public reverse(): SequenceDiff {
+	public swap(): SequenceDiff {
 		return new SequenceDiff(this.seq2Range, this.seq1Range);
 	}
 

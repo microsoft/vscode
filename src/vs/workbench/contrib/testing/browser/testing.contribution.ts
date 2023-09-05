@@ -56,7 +56,7 @@ registerSingleton(ITestingDecorationsService, TestingDecorationService, Instanti
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
-	title: localize('test', "Testing"),
+	title: { value: localize('test', "Testing"), original: 'Testing' },
 	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
@@ -74,7 +74,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 
 const testResultsViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ResultsPanelId,
-	title: localize('testResultsPanelName', "Test Results"),
+	title: { value: localize('testResultsPanelName', "Test Results"), original: 'Test Results' },
 	icon: testingResultsIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Testing.ResultsPanelId, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,

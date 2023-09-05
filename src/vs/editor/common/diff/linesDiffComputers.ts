@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { AdvancedLinesDiffComputer } from 'vs/editor/common/diff/advancedLinesDiffComputer';
+import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
+import { ILinesDiffComputer } from 'vs/editor/common/diff/linesDiffComputer';
 
 export const linesDiffComputers = {
 	getLegacy: () => new LegacyLinesDiffComputer(),
-	getAdvanced: () => new AdvancedLinesDiffComputer(),
-};
+	getDefault: () => new DefaultLinesDiffComputer(),
+} satisfies Record<string, () => ILinesDiffComputer>;
