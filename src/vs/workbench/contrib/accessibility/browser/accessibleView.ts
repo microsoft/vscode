@@ -18,6 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
@@ -36,7 +37,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -55,8 +56,8 @@ export interface IAccessibleContentProvider {
 	provideContent(): string;
 	onClose(): void;
 	onKeyUp?(e: IKeyboardEvent): void;
-	previous?(): void;
-	next?(): void;
+	previous?(position?: Position): void;
+	next?(position?: Position): void;
 	/**
 	 * When the language is markdown, this is provided by default.
 	 */
@@ -98,6 +99,7 @@ class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
+	private _onLastLine: IContextKey<boolean>;
 	private _accessibleViewIsShown: IContextKey<boolean>;
 	private _accessibleViewSupportsNavigation: IContextKey<boolean>;
 	private _accessibleViewVerbosityEnabled: IContextKey<boolean>;
@@ -132,6 +134,7 @@ class AccessibleView extends Disposable {
 		this._accessibleViewVerbosityEnabled = accessibleViewVerbosityEnabled.bindTo(this._contextKeyService);
 		this._accessibleViewGoToSymbolSupported = accessibleViewGoToSymbolSupported.bindTo(this._contextKeyService);
 		this._accessibleViewCurrentProviderId = accessibleViewCurrentProviderId.bindTo(this._contextKeyService);
+		this._onLastLine = accessibleViewOnLastLine.bindTo(this._contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('accessible-view');
@@ -182,6 +185,9 @@ class AccessibleView extends Disposable {
 			}
 		}));
 		this._register(this._editorWidget.onDidDispose(() => this._resetContextKeys()));
+		this._register(this._editorWidget.onDidChangeCursorPosition(() => {
+			this._onLastLine.set(this._editorWidget.getPosition()?.lineNumber === this._editorWidget.getModel()?.getLineCount());
+		}));
 	}
 
 	private _resetContextKeys(): void {
@@ -221,14 +227,23 @@ class AccessibleView extends Disposable {
 		if (!this._currentProvider) {
 			return;
 		}
-		this._currentProvider.previous?.();
+		this._currentProvider.previous?.(this._getCursorPosition());
 	}
 
 	next(): void {
 		if (!this._currentProvider) {
 			return;
 		}
-		this._currentProvider.next?.();
+		this._currentProvider.next?.(this._getCursorPosition());
+	}
+
+	private _getCursorPosition(): Position | undefined {
+		const position = this.editorWidget.getPosition();
+		if (position) {
+			return position;
+		}
+		const modelLineCount = this.editorWidget.getModel()?.getLineCount();
+		return modelLineCount ? new Position(modelLineCount, 1) : undefined;
 	}
 
 	goToSymbol(): void {
@@ -242,37 +257,41 @@ class AccessibleView extends Disposable {
 		if (!this._currentProvider || !this._currentContent) {
 			return;
 		}
-		const tokens = this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown' ? this._currentProvider.getSymbols?.() : marked.lexer(this._currentContent);
-		if (!tokens) {
-			return;
-		}
-		const symbols: IAccessibleViewSymbol[] = [];
-		let firstListItem: string | undefined;
-		for (const token of tokens) {
-			let label: string | undefined = undefined;
-			if ('type' in token) {
-				switch (token.type) {
-					case 'heading':
-					case 'paragraph':
-					case 'code':
-						label = token.text;
-						break;
-					case 'list': {
-						const firstItem = token.items?.[0];
-						if (!firstItem) {
+		let symbols: IAccessibleViewSymbol[] | undefined = this._currentProvider.getSymbols?.();
+		if (!symbols) {
+			symbols = [];
+			let tokens: marked.TokensList | undefined;
+			if (!this._currentProvider.options.language || this._currentProvider.options.language === 'markdown') {
+				tokens = marked.lexer(this._currentContent);
+			}
+			if (!tokens) {
+				return;
+			}
+			let firstListItem: string | undefined;
+			for (const token of tokens) {
+				let label: string | undefined = undefined;
+				if ('type' in token) {
+					switch (token.type) {
+						case 'heading':
+						case 'paragraph':
+						case 'code':
+							label = token.text;
+							break;
+						case 'list': {
+							const firstItem = token.items?.[0];
+							if (!firstItem) {
+								break;
+							}
+							firstListItem = `- ${firstItem.text}`;
+							label = token.items?.map(i => i.text).join(', ');
 							break;
 						}
-						firstListItem = `- ${firstItem.text}`;
-						label = token.items?.map(i => i.text).join(', ');
-						break;
 					}
 				}
-			} else {
-				label = token.label;
-			}
-			if (label) {
-				symbols.push({ info: label, label: localize('symbolLabel', "({0}) {1}", token.type, label), ariaLabel: localize('symbolLabelAria', "({0}) {1}", token.type, label), firstListItem });
-				firstListItem = undefined;
+				if (label) {
+					symbols.push({ info: label, label: localize('symbolLabel', "({0}) {1}", token.type, label), ariaLabel: localize('symbolLabelAria', "({0}) {1}", token.type, label), firstListItem });
+					firstListItem = undefined;
+				}
 			}
 		}
 		return symbols;
@@ -282,7 +301,16 @@ class AccessibleView extends Disposable {
 		if (!this._currentContent) {
 			return;
 		}
-		const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.info.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
+		if (symbol.lineNumber) {
+			this.show(provider);
+			this._editorWidget.revealLine(symbol.lineNumber);
+			this._editorWidget.setSelection({ startLineNumber: symbol.lineNumber, startColumn: 1, endLineNumber: symbol.lineNumber, endColumn: 1 });
+			return;
+		}
+		if (!symbol.info) {
+			return;
+		}
+		const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.info!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
 		if (index >= 0) {
 			this.show(provider);
 			this._editorWidget.revealLine(index + 1);
@@ -449,7 +477,7 @@ class AccessibleView extends Disposable {
 		if (!this._currentProvider) {
 			return false;
 		}
-		return this._currentProvider.options.type === AccessibleViewType.Help || this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || !!this._currentProvider.getSymbols;
+		return this._currentProvider.options.type === AccessibleViewType.Help || this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || !!this._currentProvider.getSymbols?.();
 	}
 
 	public showAccessibleViewHelp(): void {
@@ -612,7 +640,8 @@ class AccessibleViewSymbolQuickPick {
 	}
 }
 
-interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
-	info: string;
+export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
+	info?: string;
 	firstListItem?: string;
+	lineNumber?: number;
 }
