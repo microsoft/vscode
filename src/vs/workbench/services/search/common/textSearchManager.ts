@@ -31,7 +31,7 @@ export class TextSearchManager {
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
 		const tokenSource = new CancellationTokenSource();
-		token.onCancellationRequested(() => tokenSource.cancel());
+		const listener = token.onCancellationRequested(() => tokenSource.cancel());
 
 		return new Promise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
@@ -65,6 +65,7 @@ export class TextSearchManager {
 				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
 			})).then(results => {
 				tokenSource.dispose();
+				listener.dispose();
 				this.collector!.flush();
 
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
@@ -81,6 +82,7 @@ export class TextSearchManager {
 				});
 			}, (err: Error) => {
 				tokenSource.dispose();
+				listener.dispose();
 				const errMsg = toErrorMessage(err);
 				reject(new Error(errMsg));
 			});

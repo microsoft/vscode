@@ -8,26 +8,25 @@ import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import type * as vscode from 'vscode';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: NativeExtHostSearch;
-const disposables = new DisposableStore();
 
 let mockMainThreadSearch: MockMainThreadSearch;
 class MockMainThreadSearch implements MainThreadSearchShape {
@@ -68,6 +67,8 @@ function extensionResultIsMatch(data: vscode.TextSearchResult): data is vscode.T
 }
 
 suite('ExtHostSearch', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
 		disposables.add(extHostSearch.registerTextSearchProvider(scheme, provider));
 		await rpcProtocol.sync();
@@ -137,7 +138,7 @@ suite('ExtHostSearch', () => {
 		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
 
 		mockPFS = {};
-		extHostSearch = new class extends NativeExtHostSearch {
+		extHostSearch = disposables.add(new class extends NativeExtHostSearch {
 			constructor() {
 				super(
 					rpcProtocol,
@@ -151,11 +152,10 @@ suite('ExtHostSearch', () => {
 			protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
 				return new NativeTextSearchManager(query, provider, this._pfs);
 			}
-		};
+		});
 	});
 
 	teardown(() => {
-		disposables.clear();
 		return rpcProtocol.sync();
 	});
 
@@ -231,7 +231,7 @@ suite('ExtHostSearch', () => {
 						if (token.isCancellationRequested) {
 							onCancel();
 						} else {
-							token.onCancellationRequested(() => onCancel());
+							disposables.add(token.onCancellationRequested(() => onCancel()));
 						}
 					});
 				}
@@ -512,7 +512,7 @@ suite('ExtHostSearch', () => {
 			let wasCanceled = false;
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => wasCanceled = true);
+					disposables.add(token.onCancellationRequested(() => wasCanceled = true));
 
 					return Promise.resolve(reportedResults);
 				}
@@ -548,7 +548,7 @@ suite('ExtHostSearch', () => {
 			let wasCanceled = false;
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => wasCanceled = true);
+					disposables.add(token.onCancellationRequested(() => wasCanceled = true));
 
 					return Promise.resolve(reportedResults);
 				}
@@ -583,7 +583,7 @@ suite('ExtHostSearch', () => {
 			let wasCanceled = false;
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => wasCanceled = true);
+					disposables.add(token.onCancellationRequested(() => wasCanceled = true));
 
 					return Promise.resolve(reportedResults);
 				}
@@ -613,7 +613,7 @@ suite('ExtHostSearch', () => {
 			let cancels = 0;
 			await registerTestFileSearchProvider({
 				async provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					token.onCancellationRequested(() => cancels++);
+					disposables.add(token.onCancellationRequested(() => cancels++));
 
 					// Provice results async so it has a chance to invoke every provider
 					await new Promise(r => process.nextTick(r));
@@ -1083,7 +1083,7 @@ suite('ExtHostSearch', () => {
 			let wasCanceled = false;
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => wasCanceled = true);
+					disposables.add(token.onCancellationRequested(() => wasCanceled = true));
 					providedResults.forEach(r => progress.report(r));
 					return Promise.resolve(null!);
 				}
@@ -1116,7 +1116,7 @@ suite('ExtHostSearch', () => {
 			let wasCanceled = false;
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => wasCanceled = true);
+					disposables.add(token.onCancellationRequested(() => wasCanceled = true));
 					providedResults.forEach(r => progress.report(r));
 					return Promise.resolve(null!);
 				}
@@ -1148,7 +1148,7 @@ suite('ExtHostSearch', () => {
 			let wasCanceled = false;
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => wasCanceled = true);
+					disposables.add(token.onCancellationRequested(() => wasCanceled = true));
 					providedResults.forEach(r => progress.report(r));
 					return Promise.resolve(null!);
 				}
@@ -1205,7 +1205,7 @@ suite('ExtHostSearch', () => {
 			let cancels = 0;
 			await registerTestTextSearchProvider({
 				async provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					token.onCancellationRequested(() => cancels++);
+					disposables.add(token.onCancellationRequested(() => cancels++));
 					await new Promise(r => process.nextTick(r));
 					[
 						'file1.ts',
