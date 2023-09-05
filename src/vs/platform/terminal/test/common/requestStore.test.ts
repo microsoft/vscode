@@ -12,8 +12,8 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 
 suite('RequestStore', () => {
-	let instantiationService: TestInstantiationService;
 	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		disposables = new DisposableStore();
