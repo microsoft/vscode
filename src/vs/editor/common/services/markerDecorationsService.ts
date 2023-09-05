@@ -34,7 +34,13 @@ class MarkerDecorations extends Disposable {
 		}));
 	}
 
-	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): boolean {
+	public update(markers: IMarker[]): boolean {
+		const newDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
+			return {
+				range: this._createDecorationRange(this.model, marker),
+				options: this._createDecorationOption(marker)
+			};
+		});
 		const oldIds = [...this._markersData.keys()];
 		this._markersData.clear();
 		const ids = this.model.deltaDecorations(oldIds, newDecorations);
@@ -57,87 +63,6 @@ class MarkerDecorations extends Disposable {
 			}
 		});
 		return res;
-	}
-}
-
-export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
-	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
-
-	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
-
-	constructor(
-		@IModelService modelService: IModelService,
-		@IMarkerService private readonly _markerService: IMarkerService
-	) {
-		super();
-		modelService.getModels().forEach(model => this._onModelAdded(model));
-		this._register(modelService.onModelAdded(this._onModelAdded, this));
-		this._register(modelService.onModelRemoved(this._onModelRemoved, this));
-		this._register(this._markerService.onMarkerChanged(this._handleMarkerChange, this));
-	}
-
-	override dispose() {
-		super.dispose();
-		this._markerDecorations.forEach(value => value.dispose());
-		this._markerDecorations.clear();
-	}
-
-	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null {
-		const markerDecorations = this._markerDecorations.get(uri);
-		return markerDecorations ? (markerDecorations.getMarker(decoration) || null) : null;
-	}
-
-	getLiveMarkers(uri: URI): [Range, IMarker][] {
-		const markerDecorations = this._markerDecorations.get(uri);
-		return markerDecorations ? markerDecorations.getMarkers() : [];
-	}
-
-	private _handleMarkerChange(changedResources: readonly URI[]): void {
-		changedResources.forEach((resource) => {
-			const markerDecorations = this._markerDecorations.get(resource);
-			if (markerDecorations) {
-				this._updateDecorations(markerDecorations);
-			}
-		});
-	}
-
-	private _onModelAdded(model: ITextModel): void {
-		const markerDecorations = new MarkerDecorations(model);
-		this._markerDecorations.set(model.uri, markerDecorations);
-		this._updateDecorations(markerDecorations);
-	}
-
-	private _onModelRemoved(model: ITextModel): void {
-		const markerDecorations = this._markerDecorations.get(model.uri);
-		if (markerDecorations) {
-			markerDecorations.dispose();
-			this._markerDecorations.delete(model.uri);
-		}
-
-		// clean up markers for internal, transient models
-		if (model.uri.scheme === Schemas.inMemory
-			|| model.uri.scheme === Schemas.internal
-			|| model.uri.scheme === Schemas.vscode) {
-			this._markerService?.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
-		}
-	}
-
-	private _updateDecorations(markerDecorations: MarkerDecorations): void {
-		// Limit to the first 500 errors/warnings
-		const markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
-		const newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
-			return {
-				range: this._createDecorationRange(markerDecorations.model, marker),
-				options: this._createDecorationOption(marker)
-			};
-		});
-		if (markerDecorations.update(markers, newModelDecorations)) {
-			this._onDidChangeMarker.fire(markerDecorations.model);
-		}
 	}
 
 	private _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
@@ -250,5 +175,80 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			return marker.tags.indexOf(tag) >= 0;
 		}
 		return false;
+	}
+}
+
+export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
+	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
+
+	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
+
+	constructor(
+		@IModelService modelService: IModelService,
+		@IMarkerService private readonly _markerService: IMarkerService
+	) {
+		super();
+		modelService.getModels().forEach(model => this._onModelAdded(model));
+		this._register(modelService.onModelAdded(this._onModelAdded, this));
+		this._register(modelService.onModelRemoved(this._onModelRemoved, this));
+		this._register(this._markerService.onMarkerChanged(this._handleMarkerChange, this));
+	}
+
+	override dispose() {
+		super.dispose();
+		this._markerDecorations.forEach(value => value.dispose());
+		this._markerDecorations.clear();
+	}
+
+	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null {
+		const markerDecorations = this._markerDecorations.get(uri);
+		return markerDecorations ? (markerDecorations.getMarker(decoration) || null) : null;
+	}
+
+	getLiveMarkers(uri: URI): [Range, IMarker][] {
+		const markerDecorations = this._markerDecorations.get(uri);
+		return markerDecorations ? markerDecorations.getMarkers() : [];
+	}
+
+	private _handleMarkerChange(changedResources: readonly URI[]): void {
+		changedResources.forEach((resource) => {
+			const markerDecorations = this._markerDecorations.get(resource);
+			if (markerDecorations) {
+				this._updateDecorations(markerDecorations);
+			}
+		});
+	}
+
+	private _onModelAdded(model: ITextModel): void {
+		const markerDecorations = new MarkerDecorations(model);
+		this._markerDecorations.set(model.uri, markerDecorations);
+		this._updateDecorations(markerDecorations);
+	}
+
+	private _onModelRemoved(model: ITextModel): void {
+		const markerDecorations = this._markerDecorations.get(model.uri);
+		if (markerDecorations) {
+			markerDecorations.dispose();
+			this._markerDecorations.delete(model.uri);
+		}
+
+		// clean up markers for internal, transient models
+		if (model.uri.scheme === Schemas.inMemory
+			|| model.uri.scheme === Schemas.internal
+			|| model.uri.scheme === Schemas.vscode) {
+			this._markerService?.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+		}
+	}
+
+	private _updateDecorations(markerDecorations: MarkerDecorations): void {
+		// Limit to the first 500 errors/warnings
+		const markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
+		if (markerDecorations.update(markers)) {
+			this._onDidChangeMarker.fire(markerDecorations.model);
+		}
 	}
 }
