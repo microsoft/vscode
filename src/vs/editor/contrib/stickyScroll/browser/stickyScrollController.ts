@@ -52,7 +52,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _widgetState: StickyScrollWidgetState;
 	private _foldingModel: FoldingModel | null = null;
-	private _forceRebuildFromLine: number = Infinity;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
@@ -257,7 +256,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			if (mouseEvent.shiftKey) {
 				// shift click
-				const lineIndex = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
+				const lineIndex = this._stickyScrollWidget.getLineIndexFromChildDomNode(mouseEvent.target);
 				if (lineIndex === null) {
 					return;
 				}
@@ -299,12 +298,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				return;
 			}
 			if (this._showEndForLine !== null) {
-				this._renderStickyScrollUpdateFields();
+				this._showEndForLine = null;
+				this._renderStickyScroll();
 			}
 		}));
 		this._register(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_LEAVE, (e) => {
 			if (this._showEndForLine !== null) {
-				this._renderStickyScrollUpdateFields();
+				this._showEndForLine = null;
+				this._renderStickyScroll();
 			}
 		}));
 
@@ -396,19 +397,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			return;
 		}
 		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
-		this._forceRebuildFromLine = line;
 		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
 			: this._editor.getTopForLineNumber(foldingIcon.foldingStartLine))
 			- this._editor.getOption(EditorOption.lineHeight) * stickyLine.index + 1;
 		this._editor.setScrollTop(scrollTop);
-	}
-
-	private async _renderStickyScrollUpdateFields() {
-		this._showEndForLine = null;
-		await this._renderStickyScroll(this._forceRebuildFromLine);
-		this._forceRebuildFromLine = Infinity;
+		this._renderStickyScroll(line);
 	}
 
 	private _readConfiguration() {
@@ -423,13 +418,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidScrollChange((e) => {
 				if (e.scrollTopChanged) {
-					this._renderStickyScrollUpdateFields();
+					this._showEndForLine = null;
+					this._renderStickyScroll();
 				}
 			}));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => {
-				this._renderStickyScrollUpdateFields();
+				this._showEndForLine = null;
+				this._renderStickyScroll();
 			}));
 			this._enabled = true;
 		}
@@ -437,7 +434,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
-				this._renderStickyScrollUpdateFields();
+				this._showEndForLine = null;
+				this._renderStickyScroll();
 			}));
 		}
 	}
@@ -456,6 +454,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _onTokensChange(event: IModelTokensChangedEvent) {
 		if (this._needsUpdate(event)) {
+			// Rebuilding the whole widget from line -1
 			this._renderStickyScroll(-1);
 		}
 	}
@@ -467,10 +466,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
 	}
 
-	private async _renderStickyScroll(forceRebuildFromLine: number = Infinity) {
+	private async _renderStickyScroll(rebuildFromLine: number = Infinity) {
 		const model = this._editor.getModel();
 		if (!model || model.isTooLargeForTokenization()) {
-			this._stickyScrollWidget.setState(undefined, null, forceRebuildFromLine);
+			this._stickyScrollWidget.setState(undefined, null, rebuildFromLine);
 			return;
 		}
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
@@ -480,18 +479,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._stickyScrollVisibleContextKey.set(!(this._widgetState.startLineNumbers.length === 0));
 
 			if (!this._focused) {
-				this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, forceRebuildFromLine);
+				this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, rebuildFromLine);
 			} else {
 				// Suppose that previously the sticky scroll widget had height 0, then if there are visible lines, set the last line as focused
 				if (this._focusedStickyElementIndex === -1) {
-					this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, forceRebuildFromLine);
+					this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, rebuildFromLine);
 					this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumberCount - 1;
 					if (this._focusedStickyElementIndex !== -1) {
 						this._stickyScrollWidget.focusLineWithIndex(this._focusedStickyElementIndex);
 					}
 				} else {
 					const focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
-					this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, forceRebuildFromLine);
+					this._stickyScrollWidget.setState(this._widgetState, this._foldingModel, rebuildFromLine);
 					// Suppose that after setting the state, there are no sticky lines, set the focused index to -1
 					if (this._stickyScrollWidget.lineNumberCount === 0) {
 						this._focusedStickyElementIndex = -1;
