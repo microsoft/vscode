@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ITextModel } from 'vs/editor/common/model';
 import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -12,6 +13,7 @@ import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/brows
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 suite('Notebook Symbols', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	type textSymbol = { name: string; selectionRange: {}; children?: textSymbol[] };
 	const symbolsPerTextModel: Record<string, textSymbol[]> = {};
