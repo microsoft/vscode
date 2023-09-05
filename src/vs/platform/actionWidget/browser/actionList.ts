@@ -24,6 +24,11 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
+	// onFocus(action: T, preview?: boolean): Promise<boolean>;
+}
+
+export interface IActionListDelegate2<T> extends IActionListDelegate<T> {
+	onFocus(action: T, preview?: boolean): Promise<boolean>;
 }
 
 export interface IActionListItem<T> {
@@ -32,6 +37,7 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
+	canPreview?: boolean;
 
 	readonly keybinding?: ResolvedKeybinding;
 }
@@ -126,7 +132,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			if (this._supportsPreview) {
+			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 			} else {
 				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
@@ -172,7 +178,7 @@ export class ActionList<T> extends Disposable {
 		user: string,
 		preview: boolean,
 		items: readonly IActionListItem<T>[],
-		private readonly _delegate: IActionListDelegate<T>,
+		private readonly _delegate: IActionListDelegate2<T>,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -302,7 +308,22 @@ export class ActionList<T> extends Disposable {
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<IActionListItem<T>>): void {
+	private async onListHover(e: IListMouseEvent<IActionListItem<T>>): Promise<void> {
+
+		const element = e.element;
+		if (element) {
+			if (element.item && this.focusCondition(element)) {
+				element.canPreview = await this._delegate.onFocus!(element.item);
+				if (e.index) {
+					this._list.splice(e.index, 1, [element]);
+				}
+			}
+		}
+
+		this._list.rerender();
+
+
+
 		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 

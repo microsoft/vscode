@@ -20,7 +20,7 @@ import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu
 import { LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
-import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
+import { IActionListDelegate2 } from 'vs/platform/actionWidget/browser/actionList';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,6 +30,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 interface IActionShowOptions {
@@ -244,13 +245,17 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
-		const delegate: IActionListDelegate<CodeActionItem> = {
+		const delegate: IActionListDelegate2<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
 				this._applyCodeAction(action, /* retrigger */ true, !!preview);
 				this._actionWidgetService.hide();
 			},
 			onHide: () => {
 				this._editor?.focus();
+			},
+			onFocus: async (action: CodeActionItem, preview?: boolean | undefined) => {
+				await action.resolve(CancellationToken.None);
+				return action.action.edit?.edits.length ? true : false;
 			}
 		};
 
