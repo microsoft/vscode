@@ -41,6 +41,8 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	Pick<IFileSystemProvider, 'onDidChangeFile'>,
 	Pick<IFileSystemProvider, 'onDidWatchError'> {
 
+	private isDisposed = false;
+
 	constructor(
 		protected readonly logService: ILogService,
 		private readonly options?: IDiskFileSystemProviderOptions
@@ -60,6 +62,11 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		}
 
 		return this.watchNonRecursive(resource, opts);
+	}
+
+	public override dispose(): void {
+		this.isDisposed = true;
+		super.dispose();
 	}
 
 	//#region File Watching (universal)
@@ -89,6 +96,9 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	private refreshUniversalWatchers(): void {
+		if (this.isDisposed) {
+			return; // triggered during teardown
+		}
 
 		// Buffer requests for universal watching to decide on right watcher
 		// that supports potentially watching more than one path at once
@@ -170,6 +180,9 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	private refreshNonRecursiveWatchers(): void {
+		if (this.isDisposed) {
+			return; // triggered during teardown
+		}
 
 		// Buffer requests for nonrecursive watching to decide on right watcher
 		// that supports potentially watching more than one path at once
