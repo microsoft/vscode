@@ -43,7 +43,7 @@ function getSearchText(accessor: ServicesAccessor): string | null {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	const activeEditor: IEditor = editorService.activeTextEditorControl;
+	const activeEditor: IEditor = editorService.activeTextEditorControl as IEditor;
 	if (!activeEditor) {
 		return null;
 	}
