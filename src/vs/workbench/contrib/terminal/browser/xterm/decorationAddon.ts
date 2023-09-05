@@ -381,6 +381,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (actions.length > 0) {
 				actions.push(new Separator());
 			}
+			const labelCopyCommandAndOutput = localize("terminal.copyCommandAndOutput", 'Copy Command and Output');
+			actions.push({
+				class: undefined, tooltip: labelCopyCommandAndOutput, id: 'terminal.copyCommandAndOutput', label: labelCopyCommandAndOutput, enabled: true,
+				run: () => {
+					const text = command.getOutput();
+					if (typeof text === 'string') {
+						this._clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${text}`);
+					}
+				}
+			});
 			const labelText = localize("terminal.copyOutput", 'Copy Output');
 			actions.push({
 				class: undefined, tooltip: labelText, id: 'terminal.copyOutput', label: labelText, enabled: true,
