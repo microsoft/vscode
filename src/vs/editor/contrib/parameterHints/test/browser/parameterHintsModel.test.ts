@@ -45,7 +45,7 @@ suite('ParameterHintsModel', () => {
 
 	const disposables = new DisposableStore();
 
-	let registry = new LanguageFeatureRegistry<languages.SignatureHelpProvider>();
+	let registry: LanguageFeatureRegistry<languages.SignatureHelpProvider>;
 
 	setup(() => {
 		disposables.clear();
@@ -56,17 +56,26 @@ suite('ParameterHintsModel', () => {
 		disposables.clear();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function createMockEditor(fileContents: string) {
-		const textModel = createTextModel(fileContents, undefined, undefined, mockFile);
-		const editor = createTestCodeEditor(textModel, {
+		const textModel = disposables.add(createTextModel(fileContents, undefined, undefined, mockFile));
+		const editor = disposables.add(createTestCodeEditor(textModel, {
 			serviceCollection: new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
-				[IStorageService, new InMemoryStorageService()]
+				[IStorageService, disposables.add(new InMemoryStorageService())]
 			)
-		});
-		disposables.add(textModel);
-		disposables.add(editor);
+		}));
 		return editor;
+	}
+
+	function getNextHint(model: ParameterHintsModel) {
+		return new Promise<languages.SignatureHelpResult | undefined>(resolve => {
+			const sub = disposables.add(model.onChangedHints(e => {
+				sub.dispose();
+				return resolve(e ? { value: e, dispose: () => { } } : undefined);
+			}));
+		});
 	}
 
 	test('Provider should get trigger character on type', async () => {
@@ -151,8 +160,7 @@ suite('ParameterHintsModel', () => {
 		const triggerChar = '(';
 
 		const editor = createMockEditor('');
-		const hintModel = new ParameterHintsModel(editor, registry);
-		disposables.add(hintModel);
+		const hintModel = disposables.add(new ParameterHintsModel(editor, registry));
 
 		let invokeCount = 0;
 		disposables.add(registry.register(mockFileSelector, new class implements languages.SignatureHelpProvider {
@@ -284,7 +292,7 @@ suite('ParameterHintsModel', () => {
 	test('Should cancel existing request when new request comes in', async () => {
 
 		const editor = createMockEditor('abc def');
-		const hintsModel = new ParameterHintsModel(editor, registry);
+		const hintsModel = disposables.add(new ParameterHintsModel(editor, registry));
 
 		let didRequestCancellationOf = -1;
 		let invokeCount = 0;
@@ -296,7 +304,7 @@ suite('ParameterHintsModel', () => {
 			provideSignatureHelp(_model: ITextModel, _position: Position, token: CancellationToken): languages.SignatureHelpResult | Promise<languages.SignatureHelpResult> {
 				try {
 					const count = invokeCount++;
-					token.onCancellationRequested(() => { didRequestCancellationOf = count; });
+					disposables.add(token.onCancellationRequested(() => { didRequestCancellationOf = count; }));
 
 					// retrigger on first request
 					if (count === 0) {
@@ -333,7 +341,7 @@ suite('ParameterHintsModel', () => {
 			assert.strictEqual(-1, didRequestCancellationOf);
 
 			return new Promise<void>((resolve, reject) =>
-				hintsModel.onChangedHints(newParamterHints => {
+				disposables.add(hintsModel.onChangedHints(newParamterHints => {
 					try {
 						assert.strictEqual(0, didRequestCancellationOf);
 						assert.strictEqual('1', newParamterHints!.signatures[0].label);
@@ -341,7 +349,7 @@ suite('ParameterHintsModel', () => {
 					} catch (e) {
 						reject(e);
 					}
-				}));
+				})));
 		});
 	});
 
@@ -404,8 +412,7 @@ suite('ParameterHintsModel', () => {
 		const paramterLabel = 'parameter';
 
 		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, registry, 5);
-		disposables.add(model);
+		const model = disposables.add(new ParameterHintsModel(editor, registry, 5));
 
 		disposables.add(registry.register(mockFileSelector, new class implements languages.SignatureHelpProvider {
 			signatureHelpTriggerCharacters = [triggerChar];
@@ -480,8 +487,7 @@ suite('ParameterHintsModel', () => {
 
 	test('Quick typing should use the first trigger character', async () => {
 		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, registry, 50);
-		disposables.add(model);
+		const model = disposables.add(new ParameterHintsModel(editor, registry, 50));
 
 		const triggerCharacter = 'a';
 
@@ -522,8 +528,7 @@ suite('ParameterHintsModel', () => {
 		const donePromise = new Promise<void>(resolve => { done = resolve; });
 
 		const editor = createMockEditor('');
-		const model = new ParameterHintsModel(editor, registry, 50);
-		disposables.add(model);
+		const model = disposables.add(new ParameterHintsModel(editor, registry, 50));
 
 		const triggerCharacter = 'a';
 		const retriggerCharacter = 'b';
@@ -573,12 +578,3 @@ suite('ParameterHintsModel', () => {
 		});
 	});
 });
-
-function getNextHint(model: ParameterHintsModel) {
-	return new Promise<languages.SignatureHelpResult | undefined>(resolve => {
-		const sub = model.onChangedHints(e => {
-			sub.dispose();
-			return resolve(e ? { value: e, dispose: () => { } } : undefined);
-		});
-	});
-}
