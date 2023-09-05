@@ -4,26 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatProgress, IChatProvider, IChatRequest, IChatResponse, IChat, ISlashCommand, IPersistedChatState } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatProgress, IChatProvider, IChatRequest, IChatResponse, IPersistedChatState, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
+import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 class SimpleTestProvider extends Disposable implements IChatProvider {
 	private static sessionId = 0;
@@ -59,35 +60,28 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 }
 
 suite('Chat', () => {
-	const testDisposables = new DisposableStore();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let storageService: IStorageService;
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(async () => {
-		instantiationService = new TestInstantiationService(new ServiceCollection(
+	setup(async () => {
+		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatSlashCommandService, new SyncDescriptor<any>(ChatSlashCommandService)],
 			[IChatVariablesService, new SyncDescriptor<any>(ChatVariablesService)]
-		));
-		instantiationService.stub(IStorageService, storageService = new TestStorageService());
+		)));
+		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
+		// instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IChatContributionService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 	});
 
-	suiteTeardown(() => {
-		instantiationService.dispose();
-	});
-
-	teardown(() => {
-		testDisposables.clear();
-	});
-
 	test('retrieveSession', async () => {
-		const testService = instantiationService.createInstance(ChatService);
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const provider1 = new SimpleTestProvider('provider1');
 		const provider2 = new SimpleTestProvider('provider2');
 		testService.registerProvider(provider1);
@@ -107,7 +101,7 @@ suite('Chat', () => {
 		provider2.changeState({ state: 'provider2_state' });
 		storageService.flush();
 
-		const testService2 = instantiationService.createInstance(ChatService);
+		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		testService2.registerProvider(provider1);
 		testService2.registerProvider(provider2);
 		const retrieved1 = testService2.getOrRestoreSession(session1.sessionId);
@@ -136,7 +130,7 @@ suite('Chat', () => {
 			};
 		}
 
-		const testService = instantiationService.createInstance(ChatService);
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const provider1 = getFailProvider('provider1');
 		testService.registerProvider(provider1);
 
@@ -145,7 +139,7 @@ suite('Chat', () => {
 	});
 
 	test('Can\'t register same provider id twice', async () => {
-		const testService = instantiationService.createInstance(ChatService);
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const id = 'testProvider';
 		testService.registerProvider({
 			id,
@@ -173,7 +167,7 @@ suite('Chat', () => {
 	});
 
 	test('getSlashCommands', async () => {
-		const testService = instantiationService.createInstance(ChatService);
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const provider = new class extends SimpleTestProvider {
 			constructor() {
 				super('testProvider');
@@ -202,7 +196,7 @@ suite('Chat', () => {
 	});
 
 	test('sendRequestToProvider', async () => {
-		const testService = instantiationService.createInstance(ChatService);
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
 		const model = testService.startSession('testProvider', CancellationToken.None);
@@ -213,7 +207,7 @@ suite('Chat', () => {
 	});
 
 	test('addCompleteRequest', async () => {
-		const testService = instantiationService.createInstance(ChatService);
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		testService.registerProvider(new SimpleTestProvider('testProvider'));
 
 		const model = testService.startSession('testProvider', CancellationToken.None);

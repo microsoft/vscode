@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -91,18 +91,18 @@ export interface IChatSlashCommandService {
 
 type Tuple = { data: IChatSlashData; command?: IChatSlashCallback };
 
-export class ChatSlashCommandService implements IChatSlashCommandService {
+export class ChatSlashCommandService extends Disposable implements IChatSlashCommandService {
 
 	declare _serviceBrand: undefined;
 
 	private readonly _commands = new Map<string, Tuple>();
 
-	private readonly _onDidChangeCommands = new Emitter<void>();
+	private readonly _onDidChangeCommands = this._register(new Emitter<void>());
 	readonly onDidChangeCommands: Event<void> = this._onDidChangeCommands.event;
 
 	constructor(@IExtensionService private readonly _extensionService: IExtensionService) {
-
-		const contributions = new DisposableStore();
+		super();
+		const contributions = this._register(new DisposableStore());
 
 		slashesExtPoint.setHandler(extensions => {
 			contributions.clear();
@@ -128,9 +128,9 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
+		super.dispose();
 		this._commands.clear();
-		this._onDidChangeCommands.dispose();
 	}
 
 	registerSlashData(data: IChatSlashData): IDisposable {
