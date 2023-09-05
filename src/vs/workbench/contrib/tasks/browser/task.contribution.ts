@@ -43,7 +43,7 @@ import { TaskLogService } from 'vs/platform/tasks/common/taskLogService';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
-registerSingleton(ITaskLogService, TaskLogService, InstantiationType.Delayed);
+registerSingleton(ITaskLogService, TaskLogService, InstantiationType.Eventually);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
