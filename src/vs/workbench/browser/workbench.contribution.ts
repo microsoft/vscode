@@ -169,7 +169,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['normal', 'compact'],
 				'default': 'normal',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs. Also applies to the title control bar when `#workbench.editor.showTabs#` is disabled.")
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
