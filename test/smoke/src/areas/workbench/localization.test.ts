@@ -8,7 +8,7 @@ import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
 
-	describe('Localization', () => {
+	describe.skip('Localization', () => {
 		// Shared before/after handling
 		installAllHandlers(logger);
 

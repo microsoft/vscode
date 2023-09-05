@@ -8,7 +8,6 @@ import { IObservable, IReader, autorunHandleChanges, observableFromEvent } from 
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
@@ -17,6 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { ITextModel } from 'vs/editor/common/model';
+import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;

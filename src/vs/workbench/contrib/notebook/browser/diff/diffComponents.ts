@@ -10,7 +10,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DiffElementViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -42,6 +41,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -242,7 +242,7 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _metadataInfoContainer!: HTMLElement;
 	protected _metadataEditorContainer?: HTMLElement;
 	protected _metadataEditorDisposeStore!: DisposableStore;
-	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
+	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget2;
 
 	protected _outputHeaderContainer!: HTMLElement;
 	protected _outputHeader!: PropertyHeader;
@@ -256,8 +256,8 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _outputLeftView?: OutputContainer;
 	protected _outputRightView?: OutputContainer;
 	protected _outputEditorDisposeStore!: DisposableStore;
-	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
-	protected _outputMetadataEditor?: DiffEditorWidget;
+	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget2;
+	protected _outputMetadataEditor?: DiffEditorWidget2;
 
 	protected _diffEditorContainer!: HTMLElement;
 	protected _diagonalFill?: HTMLElement;
@@ -493,7 +493,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._metadataEditorDisposeStore.clear();
 
 		if (this.cell instanceof SideBySideDiffElementViewModel) {
-			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
+			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget2, this._metadataEditorContainer!, {
 				...fixedDiffEditorOptions,
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 				readOnly: false,
@@ -606,7 +606,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 				const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 				const lineCount = Math.max(originalModel.getLineCount(), modifiedModel.getLineCount());
-				this._outputEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputEditorContainer!, {
+				this._outputEditor = this.instantiationService.createInstance(DiffEditorWidget2, this._outputEditorContainer!, {
 					...fixedDiffEditorOptions,
 					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 					readOnly: true,
@@ -1214,7 +1214,7 @@ export class InsertElement extends SingleSideDiffElement {
 }
 
 export class ModifiedElement extends AbstractElementRenderer {
-	private _editor?: DiffEditorWidget;
+	private _editor?: DiffEditorWidget2;
 	private _editorViewStateChanged: boolean;
 	private _editorContainer!: HTMLElement;
 	private _inputToolbarContainer!: HTMLElement;
@@ -1416,7 +1416,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 				this._outputMetadataContainer.style.top = `${this.cell.layoutInfo.rawOutputHeight}px`;
 				// single output, metadata change, let's render a diff editor for metadata
-				this._outputMetadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputMetadataContainer!, {
+				this._outputMetadataEditor = this.instantiationService.createInstance(DiffEditorWidget2, this._outputMetadataContainer!, {
 					...fixedDiffEditorOptions,
 					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 					readOnly: true,

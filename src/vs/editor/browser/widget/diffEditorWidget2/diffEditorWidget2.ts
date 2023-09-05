@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import { $, h } from 'vs/base/browser/dom';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, derivedWithStore, disposableObservableValue, recomputeInitiallyAndOnChange, observableValue, transaction } from 'vs/base/common/observable';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -14,23 +15,21 @@ import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IMouseTargetV
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
 import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditorWidget2/accessibleDiffViewer';
 import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorDecorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorSash';
+import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditorWidget2/hideUnchangedRegionsFeature';
 import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/lineAlignment';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
-import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditorWidget2/hideUnchangedRegionsFeature';
 import { CSSStyle, ObservableElementSizeObserver, applyStyle, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
-import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { EditorType, IDiffEditorModel, IDiffEditorViewModel, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
@@ -39,15 +38,21 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import './colors';
 import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+
+export interface IDiffCodeEditorWidgetOptions {
+	originalEditor?: ICodeEditorWidgetOptions;
+	modifiedEditor?: ICodeEditorWidgetOptions;
+}
 
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
+	public static ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
+
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
 		h('div.noModificationsOverlay@overlay', { style: { position: 'absolute', height: '100%', visibility: 'hidden', } }, [$('span', {}, 'No Changes')]),
 		h('div.editor.original@original', { style: { position: 'absolute', height: '100%' } }),
@@ -280,6 +285,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		}));
 	}
 
+	public getViewWidth(): number {
+		return this._rootSizeObserver.width.get();
+	}
+
 	public getContentHeight() {
 		return this._editors.modified.getContentHeight();
 	}
@@ -366,12 +375,7 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 	}
 
 	public createViewModel(model: IDiffEditorModel): IDiffEditorViewModel {
-		return new DiffEditorViewModel(
-			model,
-			this._options,
-			// TODO@hediet make diffAlgorithm observable
-			this._instantiationService.createInstance(WorkerBasedDocumentDiffProvider, { diffAlgorithm: this._options.diffAlgorithm.get() })
-		);
+		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options, this);
 	}
 
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
