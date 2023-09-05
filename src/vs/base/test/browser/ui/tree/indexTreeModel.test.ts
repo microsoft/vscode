@@ -380,7 +380,7 @@ suite('IndexTreeModel', () => {
 		assert.deepStrictEqual(list[5].depth, 1);
 	}));
 
-	test.skip('smart diff consistency', () => {
+	test('smart diff consistency', () => {
 		const times = 500;
 		const minEdits = 1;
 		const maxEdits = 10;
