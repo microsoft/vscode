@@ -788,7 +788,7 @@ flakySuite('SQLite Storage Library', function () {
 		const dbPath = join(testdir, 'storage.db');
 		let storage = new SQLiteStorageDatabase(dbPath);
 
-		const { items, keys } = createManyRandomData();
+		const { items, keys } = createManyRandomData(400, true);
 
 		await storage.updateItems({ insert: items });
 
@@ -819,7 +819,7 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.close();
 	});
 
-	function createManyRandomData(length = 400) {
+	function createManyRandomData(length = 400, includeVeryLarge = false) {
 		const items = new Map<string, string>();
 		const keys = new Set<string>();
 
@@ -829,6 +829,14 @@ flakySuite('SQLite Storage Library', function () {
 
 			items.set(key, `value: ${uuid}`);
 			keys.add(key);
+		}
+
+		if (includeVeryLarge) {
+			const largeData = createLargeRandomData();
+			for (const [key, value] of largeData.items) {
+				items.set(key, value);
+				keys.add(key);
+			}
 		}
 
 		return { items, keys };
