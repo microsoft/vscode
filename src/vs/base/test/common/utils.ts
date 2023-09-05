@@ -111,7 +111,7 @@ export class DisposableTracker implements IDisposableTracker {
 			const firstLeaking = leaking.slice(0, count);
 			const remainingCount = leaking.length - count;
 
-			const separator = '--------------------\n\n';
+			const separator = '\n--------------------\n\n';
 			let s = firstLeaking.map(l => l.source).join(separator);
 			if (remainingCount > 0) {
 				s += `${separator}+ ${remainingCount} more`;
