@@ -61,7 +61,7 @@
 		// supported by blink/chromium. To work around this, we generate an import map that maps all node modules
 		// to a blob that exports all properties of the module as named exports and the module itself as default.
 
-		const builtin = require('module').builtinModules.filter(mod => !mod.startsWith('_')).sort();
+		const builtin = require('module').builtinModules.filter(mod => !mod.startsWith('_') && !mod.startsWith('electron/js2c/')).sort();
 		const dependencies = Object.keys(require('../../../package.json').dependencies).sort();
 		const optionalDependencies = Object.keys(require('../../../package.json').optionalDependencies).sort();
 		const dependenciesRemote = Object.keys(require('../../../remote/package.json').dependencies).sort();
