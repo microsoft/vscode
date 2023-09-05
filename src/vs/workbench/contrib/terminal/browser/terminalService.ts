@@ -235,7 +235,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this.initializePrimaryBackend();
 
 		// Create async as the class depends on `this`
-		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
+		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, document.head)));
 	}
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
@@ -421,7 +421,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}
 		return new Promise<void>(r => {
-			instance.onExit(() => r());
+			Event.once(instance.onExit)(() => r());
 			instance.dispose(TerminalExitReason.User);
 		});
 	}
