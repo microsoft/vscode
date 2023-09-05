@@ -12,7 +12,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/browser/services/webWorker';
-import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
@@ -28,7 +27,7 @@ import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/commo
 import { IModelService } from 'vs/editor/common/services/model';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
@@ -96,21 +95,7 @@ export function getDiffEditors(): readonly IDiffEditor[] {
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
 	const instantiationService = StandaloneServices.initialize(override || {});
-	if ((options?.experimental as any)?.useVersion2) {
-		return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
-	}
-	return instantiationService.createInstance(StandaloneDiffEditor, domElement, options);
-}
-
-export interface IDiffNavigatorOptions {
-	readonly followsCaret?: boolean;
-	readonly ignoreCharChanges?: boolean;
-	readonly alwaysRevealFirst?: boolean;
-}
-
-export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
-	const instantiationService = StandaloneServices.initialize({});
-	return instantiationService.createInstance(DiffNavigator, diffEditor, opts);
+	return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
 }
 
 /**
@@ -516,7 +501,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		onDidCreateEditor: <any>onDidCreateEditor,
 		onDidCreateDiffEditor: <any>onDidCreateDiffEditor,
 		createDiffEditor: <any>createDiffEditor,
-		createDiffNavigator: <any>createDiffNavigator,
 
 		addCommand: <any>addCommand,
 		addEditorAction: <any>addEditorAction,

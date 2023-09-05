@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, addStandardDisposableListener, reset } from 'vs/base/browser/dom';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Action } from 'vs/base/common/actions';
@@ -16,7 +17,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { applyStyle } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
-import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
@@ -39,6 +39,8 @@ const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codico
 const accessibleDiffViewerCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('accessibleDiffViewerCloseIcon', 'Icon for \'Close\' in accessible diff viewer.'));
 
 export class AccessibleDiffViewer extends Disposable {
+	public static _ttPolicy = createTrustedTypesPolicy('diffReview', { createHTML: value => value });
+
 	constructor(
 		private readonly _parentNode: HTMLElement,
 		private readonly _visible: IObservable<boolean>,
@@ -590,15 +592,15 @@ class View extends Disposable {
 		let lineContent: string;
 		if (item.modifiedLineNumber !== undefined) {
 			let html: string | TrustedHTML = this._getLineHtml(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, item.modifiedLineNumber, this._languageService.languageIdCodec);
-			if (DiffReview._ttPolicy) {
-				html = DiffReview._ttPolicy.createHTML(html as string);
+			if (AccessibleDiffViewer._ttPolicy) {
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = modifiedModel.getLineContent(item.modifiedLineNumber);
 		} else {
 			let html: string | TrustedHTML = this._getLineHtml(originalModel, originalOptions, originalModelOpts.tabSize, item.originalLineNumber, this._languageService.languageIdCodec);
-			if (DiffReview._ttPolicy) {
-				html = DiffReview._ttPolicy.createHTML(html as string);
+			if (AccessibleDiffViewer._ttPolicy) {
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = originalModel.getLineContent(item.originalLineNumber);

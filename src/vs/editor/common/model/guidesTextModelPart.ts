@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import * as strings from 'vs/base/common/strings';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { IPosition, Position } from 'vs/editor/common/core/position';

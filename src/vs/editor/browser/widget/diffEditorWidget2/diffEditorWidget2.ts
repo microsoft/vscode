@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { $, h } from 'vs/base/browser/dom';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -15,7 +15,6 @@ import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IMouseTargetV
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
 import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditorWidget2/accessibleDiffViewer';
 import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorDecorations';
 import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorSash';
@@ -46,7 +45,14 @@ import { DiffEditorEditors } from './diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel';
 
+export interface IDiffCodeEditorWidgetOptions {
+	originalEditor?: ICodeEditorWidgetOptions;
+	modifiedEditor?: ICodeEditorWidgetOptions;
+}
+
 export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
+	public static ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
+
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
 		h('div.noModificationsOverlay@overlay', { style: { position: 'absolute', height: '100%', visibility: 'hidden', } }, [$('span', {}, 'No Changes')]),
 		h('div.editor.original@original', { style: { position: 'absolute', height: '100%' } }),
@@ -277,6 +283,10 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 				store.add(toDisposable(() => r.done()));
 			}
 		}));
+	}
+
+	public getViewWidth(): number {
+		return this._rootSizeObserver.width.get();
 	}
 
 	public getContentHeight() {
