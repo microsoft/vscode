@@ -52,6 +52,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _widgetState: StickyScrollWidgetState;
 	private _foldingModel: FoldingModel | null = null;
+	private _forceRebuild: boolean = false;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
@@ -294,14 +295,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				return;
 			}
 			if (this._showEndForLine !== null) {
-				this._showEndForLine = null;
-				this._renderStickyScroll();
+				this._renderStickyScrollUpdateFields();
 			}
 		}));
 		this._register(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_LEAVE, (e) => {
 			if (this._showEndForLine !== null) {
-				this._showEndForLine = null;
-				this._renderStickyScroll();
+				this._renderStickyScrollUpdateFields();
 			}
 		}));
 
@@ -394,11 +393,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 		toggleCollapseState(this._foldingModel, Number.MAX_VALUE, [line]);
 		foldingIcon.isCollapsed = !foldingIcon.isCollapsed;
+		this._forceRebuild = true;
 		const scrollTop = (foldingIcon.isCollapsed ?
 			this._editor.getTopForLineNumber(foldingIcon.foldingEndLine)
 			: this._editor.getTopForLineNumber(foldingIcon.foldingStartLine))
 			- this._editor.getOption(EditorOption.lineHeight) * stickyLine.index + 1;
 		this._editor.setScrollTop(scrollTop);
+	}
+
+	private _renderStickyScrollUpdateFields() {
+		this._showEndForLine = null;
+		this._renderStickyScroll(this._forceRebuild);
+		this._forceRebuild = false;
 	}
 
 	private _readConfiguration() {
@@ -413,15 +419,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidScrollChange((e) => {
 				if (e.scrollTopChanged) {
-					this._showEndForLine = null;
-					this._renderStickyScroll();
+					this._renderStickyScrollUpdateFields();
 				}
 			}));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => {
-				this._showEndForLine = null;
-				this._renderStickyScroll();
+				this._renderStickyScrollUpdateFields();
 			}));
 			this._enabled = true;
 		}
@@ -429,8 +433,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
-				this._showEndForLine = null;
-				this._renderStickyScroll();
+				this._renderStickyScrollUpdateFields();
 			}));
 		}
 	}
