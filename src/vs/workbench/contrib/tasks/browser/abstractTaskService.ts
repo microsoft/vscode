@@ -69,7 +69,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -83,6 +82,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ITaskLogService } from 'vs/platform/tasks/common/tasks';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -99,28 +99,28 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 
 	private _validationStatus: ValidationStatus;
 
-	constructor(private _outputChannel: IOutputChannel) {
+	constructor(private _taskLogService: ITaskLogService) {
 		this._validationStatus = new ValidationStatus();
 	}
 
 	public info(message: string): void {
 		this._validationStatus.state = ValidationState.Info;
-		this._outputChannel.append(message + '\n');
+		this._taskLogService.info(message + '\n');
 	}
 
 	public warn(message: string): void {
 		this._validationStatus.state = ValidationState.Warning;
-		this._outputChannel.append(message + '\n');
+		this._taskLogService.warn(message + '\n');
 	}
 
 	public error(message: string): void {
 		this._validationStatus.state = ValidationState.Error;
-		this._outputChannel.append(message + '\n');
+		this._taskLogService.error(message + '\n');
 	}
 
 	public fatal(message: string): void {
 		this._validationStatus.state = ValidationState.Fatal;
-		this._outputChannel.append(message + '\n');
+		this._taskLogService.warn(message + '\n');
 	}
 
 	public get status(): ValidationStatus {
@@ -262,11 +262,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly _logService: ILogService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITaskLogService private readonly _taskLogService: ITaskLogService
 	) {
 		super();
 		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
@@ -797,7 +797,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		if (!matchingProvider) {
 			if (matchingProviderUnavailable) {
-				this._outputChannel.append(nls.localize(
+				this._taskLogService.warn(nls.localize(
 					'TaskService.providerUnavailable',
 					'Warning: {0} tasks are unavailable in the current environment.\n',
 					configuringTask.configures.type
@@ -1689,7 +1689,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 		if (workspaceTasks.length > 0) {
 			if (workspaceTasks.length > 1) {
-				this._outputChannel.append(nls.localize('moreThanOneBuildTask', 'There are many build tasks defined in the tasks.json. Executing the first one.\n'));
+				this._taskLogService.info(nls.localize('moreThanOneBuildTask', 'There are many build tasks defined in the tasks.json. Executing the first one.\n'));
 			}
 			return { task: workspaceTasks[0], resolver };
 		}
@@ -1926,8 +1926,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._modelService, this._configurationResolverService,
 			this._contextService, this._environmentService,
 			AbstractTaskService.OutputChannelId, this._fileService, this._terminalProfileResolverService,
-			this._pathService, this._viewDescriptorService, this._logService, this._notificationService,
+			this._pathService, this._viewDescriptorService, this._notificationService,
 			this._instantiationService,
+			this._taskLogService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
 					return this._getTaskSystemInfo(workspaceFolder.uri.scheme);
@@ -1975,12 +1976,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const error = (error: any) => {
 				try {
 					if (error && Types.isString(error.message)) {
-						this._outputChannel.append('Error: ');
-						this._outputChannel.append(error.message);
-						this._outputChannel.append('\n');
+						this._taskLogService.error('Error: ');
+						this._taskLogService.error(error.message);
+						this._taskLogService.error('\n');
 						this._showOutput();
 					} else {
-						this._outputChannel.append('Unknown error received while collecting tasks from providers.\n');
+						this._taskLogService.error('Unknown error received while collecting tasks from providers.\n');
 						this._showOutput();
 					}
 				} finally {
@@ -2003,7 +2004,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							// Check that the tasks provided are of the correct type
 							for (const task of taskSet.tasks) {
 								if (task.type !== this._providerTypes.get(handle)) {
-									this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
+									this._taskLogService.error(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
 									if ((task.type !== 'shell') && (task.type !== 'process')) {
 										this._showOutput();
 									}
@@ -2131,13 +2132,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							}
 
 							if (requiredTaskProviderUnavailable) {
-								this._outputChannel.append(nls.localize(
+								this._taskLogService.warn(nls.localize(
 									'TaskService.providerUnavailable',
 									'Warning: {0} tasks are unavailable in the current environment.\n',
 									configuringTask.configures.type
 								));
 							} else {
-								this._outputChannel.append(nls.localize(
+								this._taskLogService.warn(nls.localize(
 									'TaskService.noConfiguration',
 									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
 									configuringTask.configures.type,
@@ -2207,7 +2208,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return new Map();
 		}
 		await raceTimeout(this._waitForAllSupportedExecutions, 2000, () => {
-			this._logService.warn('Timed out waiting for all supported executions');
+			this._taskLogService.warn('Timed out waiting for all supported executions');
 		});
 		await this._whenTaskSystemReady;
 		if (this._workspaceTasksPromise) {
@@ -2269,7 +2270,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await ProblemMatcherRegistry.onReady();
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
-		const problemReporter = new ProblemReporter(this._outputChannel);
+		const problemReporter = new ProblemReporter(this._taskLogService);
 		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config!, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
@@ -2309,7 +2310,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			if (isAffected) {
-				this._outputChannel.append(nls.localize({ key: 'TaskSystem.invalidTaskJsonOther', comment: ['Message notifies of an error in one of several places there is tasks related json, not necessarily in a file named tasks.json'] }, 'Error: The content of the tasks json in {0} has syntax errors. Please correct them before executing a task.\n', location));
+				this._taskLogService.error(nls.localize({ key: 'TaskSystem.invalidTaskJsonOther', comment: ['Message notifies of an error in one of several places there is tasks related json, not necessarily in a file named tasks.json'] }, 'Error: The content of the tasks json in {0} has syntax errors. Please correct them before executing a task.\n', location));
 				this._showOutput();
 				return { config, hasParseErrors: true };
 			}
@@ -2366,7 +2367,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return false;
 		}
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
-		const problemReporter = new ProblemReporter(this._outputChannel);
+		const problemReporter = new ProblemReporter(this._taskLogService);
 		if (!taskSystemInfo) {
 			problemReporter.fatal(nls.localize('TaskSystem.workspaceFolderError', 'Workspace folder was undefined'));
 			return true;
@@ -2432,7 +2433,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					workspaceFolders.push(workspaceFolder);
 				} else {
 					ignoredWorkspaceFolders.push(workspaceFolder);
-					this._outputChannel.append(nls.localize(
+					this._taskLogService.info(nls.localize(
 						'taskService.ignoreingFolder',
 						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0\n',
 						workspaceFolder.uri.fsPath));
@@ -2495,7 +2496,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			if (isAffected) {
-				this._outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+				this._taskLogService.error(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
 				this._showOutput();
 				return { config: undefined, hasParseErrors: true };
 			}

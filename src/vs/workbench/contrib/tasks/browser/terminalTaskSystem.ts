@@ -30,7 +30,6 @@ import { Schemas } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IShellLaunchConfig, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
@@ -49,6 +48,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITaskLogService } from 'vs/platform/tasks/common/tasks';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -113,15 +113,18 @@ class VerifiedTask {
 	systemInfo?: ITaskSystemInfo;
 	workspaceFolder?: IWorkspaceFolder;
 	shellLaunchConfig?: IShellLaunchConfig;
+	private readonly _logService: ITaskLogService;
 
-	constructor(task: Task, resolver: ITaskResolver, trigger: string) {
+	constructor(task: Task, resolver: ITaskResolver, trigger: string, logService: ITaskLogService) {
 		this.task = task;
 		this.resolver = resolver;
 		this.trigger = trigger;
+		this._logService = logService;
 	}
 
 	public verify(): boolean {
 		let verified = false;
+		this._logService.debug(`Verifying trigger ${this.trigger}, resolvedVars ${this.resolvedVariables}, workspace folder ${this.workspaceFolder}, launch config: ${this.shellLaunchConfig !== undefined}`);
 		if (this.trigger && this.resolvedVariables && this.workspaceFolder && (this.shellLaunchConfig !== undefined)) {
 			verified = true;
 		}
@@ -228,9 +231,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private _terminalProfileResolverService: ITerminalProfileResolverService,
 		private _pathService: IPathService,
 		private _viewDescriptorService: IViewDescriptorService,
-		private _logService: ILogService,
 		private _notificationService: INotificationService,
 		instantiationService: IInstantiationService,
+		private _taskLogService: ITaskLogService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
 	) {
 		super();
@@ -249,10 +252,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return this._onDidStateChange.event;
 	}
 
-	private _log(value: string): void {
-		this._appendOutput(value + '\n');
-	}
-
 	protected _showOutput(): void {
 		this._outputService.showChannel(this._outputChannelId, true);
 	}
@@ -267,37 +266,49 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const instances = InMemoryTask.is(task) || this._isTaskEmpty(task) ? [] : this._getInstances(task);
 		const validInstance = instances.length < ((task.runOptions && task.runOptions.instanceLimit) ?? 1);
 		const instance = instances[0]?.count?.count ?? 0;
-		this._currentTask = new VerifiedTask(task, resolver, trigger);
+		this._currentTask = new VerifiedTask(task, resolver, trigger, this._taskLogService);
+		this._taskLogService.debug(`Set current task to ${this._currentTask?.task._label}`);
 		if (instance > 0) {
 			task.instance = instance;
 		}
 		if (!validInstance) {
 			const terminalData = instances[instances.length - 1];
 			this._lastTask = this._currentTask;
+			this._taskLogService.debug(`Set last task to ${this._lastTask?.task._label}, no valid instance`);
 			return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 		}
-
+		// let executeResultPromise: Promise<ITaskSummary> | undefined;
 		try {
 			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), new Map(), undefined) };
-			executeResult.promise.then(summary => {
+			// executeResultPromise = executeResult.promise;
+			executeResult.promise.then(() => {
 				this._lastTask = this._currentTask;
+				this._taskLogService.debug(`Set last task to ${this._lastTask?.task._label}`);
 			});
 			return executeResult;
 		} catch (error) {
 			if (error instanceof TaskError) {
 				throw error;
 			} else if (error instanceof Error) {
-				this._log(error.message);
+				this._taskLogService.error(error.message);
 				throw new TaskError(Severity.Error, error.message, TaskErrors.UnknownError);
 			} else {
-				this._log(error.toString());
+				this._taskLogService.error(error.toString());
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
+			// } finally {
+			// 	if (executeResultPromise) {
+			// 		executeResultPromise.then(() => {
+			// 			this._lastTask = this._currentTask;
+			// 			this._taskLogService.debug(`Finally, set last task to ${this._lastTask?.task._label}`);
+			// 		});
+			// 	}
 		}
 	}
 
 	public rerun(): ITaskExecuteResult | undefined {
-		if (this._lastTask && this._lastTask.verify()) {
+		this._taskLogService.debug(`Rerunning task ${this._lastTask?.task._label} verified: ${this._lastTask?.verify()}`);
+		if (this._lastTask) {
 			if ((this._lastTask.task.runOptions.reevaluateOnRerun !== undefined) && !this._lastTask.task.runOptions.reevaluateOnRerun) {
 				this._isRerun = true;
 			}
@@ -314,7 +325,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _showTaskLoadErrors(task: Task) {
 		if (task.taskLoadMessages && task.taskLoadMessages.length > 0) {
 			task.taskLoadMessages.forEach(loadMessage => {
-				this._log(loadMessage + '\n');
+				this._taskLogService.error(loadMessage + '\n');
 			});
 			const openOutput = 'Show Output';
 			this._notificationService.prompt(Severity.Warning,
@@ -483,7 +494,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _showDependencyCycleMessage(task: Task) {
-		this._log(nls.localize('dependencyCycle',
+		this._taskLogService.error(nls.localize('dependencyCycle',
 			'There is a dependency cycle. See task "{0}".',
 			task._label
 		));
@@ -532,7 +543,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 							}
 						}
 					} else {
-						this._log(nls.localize('dependencyFailed',
+						this._taskLogService.error(nls.localize('dependencyFailed',
 							'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
 							Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
 							dependency.uri.toString()
@@ -811,11 +822,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
+		this._taskLogService.trace('Executing task {0} workspace folder {1}', task._label, workspaceFolder?.name);
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService);
 			if ((problemMatchers.length > 0) && !watchingProblemMatcher.isWatching()) {
-				this._appendOutput(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));
+				this._taskLogService.warn(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));
 				this._showOutput();
 			}
 			const toDispose = new DisposableStore();
@@ -866,7 +878,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					processStartedSignaled = true;
 				}
 			}, (_error) => {
-				this._logService.error('Task terminal process never got ready');
+				this._taskLogService.error('Task terminal process never got ready');
 			});
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
 			let onData: IDisposable | undefined;
@@ -1288,7 +1300,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
 			reconnectedTerminal.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
-			this._logService.trace('reconnected to task and terminal', task._id);
+			this._taskLogService.trace('Reconnected to task and terminal', task._id);
 			return reconnectedTerminal;
 		}
 		if (group) {
@@ -1296,7 +1308,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			// Even if an existing terminal is found, the split can fail if the terminal width is too small.
 			for (const terminal of Object.values(this._terminals)) {
 				if (terminal.group === group) {
-					this._logService.trace(`Found terminal to split for group ${group}`);
+					this._taskLogService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
 					const result = await this._terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
 					result.onDisposed((terminal) => this._fireTaskEvent({ kind: TaskEventKind.Terminated, exitReason: terminal.exitReason, taskId: task.getRecentlyUsedKey() }));
@@ -1305,7 +1317,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					}
 				}
 			}
-			this._logService.trace(`No terminal found to split for group ${group}`);
+			this._taskLogService.trace(`No terminal found to split for group ${group}`);
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
 		const createdTerminal = await this._terminalService.createTerminal({ config: launchConfigs });
@@ -1315,20 +1327,20 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private _reconnectToTerminals(): void {
 		if (this._hasReconnected) {
-			this._logService.trace(`Already reconnected, to ${this._reconnectedTerminals?.length} terminals so returning`);
+			this._taskLogService.trace(`Already reconnected, to ${this._reconnectedTerminals?.length} terminals so returning`);
 			return;
 		}
 		this._reconnectedTerminals = this._terminalService.getReconnectedTerminals(ReconnectionType)?.filter(t => !t.isDisposed && getReconnectionData(t)) || [];
-		this._logService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
+		this._taskLogService.trace(`Attempting reconnection of ${this._reconnectedTerminals?.length} terminals`);
 		if (!this._reconnectedTerminals?.length) {
-			this._logService.trace(`No terminals to reconnect to so returning`);
+			this._taskLogService.trace(`No terminals to reconnect to so returning`);
 		} else {
 			for (const terminal of this._reconnectedTerminals) {
 				const data = getReconnectionData(terminal) as IReconnectionTaskData | undefined;
 				if (data) {
 					const terminalData = { lastTask: data.lastTask, group: data.group, terminal };
 					this._terminals[terminal.instanceId] = terminalData;
-					this._logService.trace('Reconnecting to task terminal', terminalData.lastTask, terminal.instanceId);
+					this._taskLogService.trace('Reconnecting to task terminal', terminalData.lastTask, terminal.instanceId);
 				}
 			}
 		}
@@ -1695,7 +1707,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				matcher = value;
 			}
 			if (!matcher) {
-				this._appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				this._taskLogService.warn(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				continue;
 			}
 			const taskSystemInfo: ITaskSystemInfo | undefined = resolver.taskSystemInfo;
@@ -1805,11 +1817,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return result;
 		}
 		return 'other';
-	}
-
-	private _appendOutput(output: string): void {
-		const outputChannel = this._outputService.getChannel(this._outputChannelId);
-		outputChannel?.append(output);
 	}
 }
 

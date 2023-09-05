@@ -46,7 +46,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { ITaskLogService } from 'vs/platform/tasks/common/tasks';
 
 interface IWorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -91,7 +91,7 @@ export class TaskService extends AbstractTaskService {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IAudioCueService audioCueService: IAudioCueService
+		@ITaskLogService taskLogService: ITaskLogService
 	) {
 		super(configurationService,
 			markerService,
@@ -124,11 +124,11 @@ export class TaskService extends AbstractTaskService {
 			viewDescriptorService,
 			workspaceTrustRequestService,
 			workspaceTrustManagementService,
-			logService,
 			themeService,
 			lifecycleService,
 			remoteAgentService,
-			instantiationService
+			instantiationService,
+			taskLogService
 		);
 		this._register(lifecycleService.onBeforeShutdown(event => event.veto(this.beforeShutdown(), 'veto.tasks')));
 	}

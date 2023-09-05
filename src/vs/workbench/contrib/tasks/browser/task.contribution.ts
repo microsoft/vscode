@@ -18,8 +18,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
-
 import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 
@@ -29,7 +27,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import schemaVersion1 from '../common/jsonSchema_v1';
 import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '../common/jsonSchema_v2';
-import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
+import { ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
@@ -39,9 +37,13 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { isString } from 'vs/base/common/types';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITaskLogService } from 'vs/platform/tasks/common/tasks';
+import { TaskLogService } from 'vs/platform/tasks/common/taskLogService';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
+registerSingleton(ITaskLogService, TaskLogService, InstantiationType.Delayed);
 
 registerAction2(ManageAutomaticTaskRunning);
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -393,10 +395,6 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: TaskCommandsRegistered,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB
 });
-
-// Tasks Output channel. Register it before using it in Task Service.
-const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-outputChannelRegistry.registerChannel({ id: AbstractTaskService.OutputChannelId, label: AbstractTaskService.OutputChannelLabel, log: false });
 
 
 // Register Quick Access
