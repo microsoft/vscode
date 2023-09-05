@@ -28,14 +28,14 @@ class TestShellIntegrationAddon extends ShellIntegrationAddon {
 }
 
 suite('ShellIntegrationAddon', () => {
-	let xterm: Terminal;
-	let shellIntegrationAddon: TestShellIntegrationAddon;
-	let capabilities: ITerminalCapabilityStore;
-
 	let store: DisposableStore;
 	setup(() => store = new DisposableStore());
 	teardown(() => store.dispose());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let xterm: Terminal;
+	let shellIntegrationAddon: TestShellIntegrationAddon;
+	let capabilities: ITerminalCapabilityStore;
 
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
