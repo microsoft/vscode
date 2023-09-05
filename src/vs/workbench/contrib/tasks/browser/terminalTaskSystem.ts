@@ -113,9 +113,9 @@ class VerifiedTask {
 	systemInfo?: ITaskSystemInfo;
 	workspaceFolder?: IWorkspaceFolder;
 	shellLaunchConfig?: IShellLaunchConfig;
-	private readonly _logService: ITaskLogService;
+	private readonly _logService?: ITaskLogService;
 
-	constructor(task: Task, resolver: ITaskResolver, trigger: string, logService: ITaskLogService) {
+	constructor(task: Task, resolver: ITaskResolver, trigger: string, logService?: ITaskLogService) {
 		this.task = task;
 		this.resolver = resolver;
 		this.trigger = trigger;
@@ -124,7 +124,7 @@ class VerifiedTask {
 
 	public verify(): boolean {
 		let verified = false;
-		this._logService.debug(`Verifying trigger ${this.trigger}, resolvedVars ${this.resolvedVariables}, workspace folder ${this.workspaceFolder}, launch config: ${this.shellLaunchConfig !== undefined}`);
+		this._logService?.debug(`Verifying trigger ${this.trigger}, resolvedVars ${this.resolvedVariables}, workspace folder ${this.workspaceFolder}, launch config: ${this.shellLaunchConfig !== undefined}`);
 		if (this.trigger && this.resolvedVariables && this.workspaceFolder && (this.shellLaunchConfig !== undefined)) {
 			verified = true;
 		}
