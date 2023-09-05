@@ -115,7 +115,7 @@ export abstract class TitleControl extends Themable {
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
-		parent: HTMLElement,
+		protected parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected group: IEditorGroupView,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
@@ -420,6 +420,14 @@ export abstract class TitleControl extends Themable {
 		const keybinding = this.getKeybinding(action);
 
 		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
+	}
+
+	protected get tabHeight() {
+		return this.accessor.partOptions.tabHeight !== 'compact' ? 35 : 22;
+	}
+
+	protected updateTabHeight(): void {
+		this.parent.style.setProperty('--tab-height', `${this.tabHeight}px`);
 	}
 
 	abstract openEditor(editor: EditorInput): void;

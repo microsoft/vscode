@@ -268,10 +268,6 @@ export class TabsTitleControl extends TitleControl {
 		});
 	}
 
-	private updateTabHeight(): void {
-		const tabsContainer = assertIsDefined(this.tabsContainer);
-		tabsContainer.style.setProperty('--tab-height', `${this.getTabHeight()}px`);
-	}
 
 	private getTabsScrollbarSizing(): number {
 		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
@@ -1558,7 +1554,7 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			total = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			total = this.getTabHeight();
+			total = this.tabHeight;
 		}
 
 		const offset = total;
@@ -1571,9 +1567,6 @@ export class TabsTitleControl extends TitleControl {
 		return { total, offset };
 	}
 
-	getTabHeight() {
-		return this.accessor.partOptions.tabHeight !== 'small' ? 35 : 22;
-	}
 
 	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): Dimension {
 
@@ -1720,7 +1713,7 @@ export class TabsTitleControl extends TitleControl {
 			if (tabsWrapMultiLine) {
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.getTabHeight()) ||	// if wrapping is not needed anymore
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.tabHeight) ||	// if wrapping is not needed anymore
 					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);
