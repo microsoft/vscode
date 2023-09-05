@@ -1527,7 +1527,7 @@ suite('Event utils', () => {
 		});
 
 		test('maps', () => {
-			const ev = Event.chain2(em.event, $ => $.map(v => v * 2));
+			const ev = Event.chain(em.event, $ => $.map(v => v * 2));
 			store.add(ev(v => calls.push(v)));
 			em.fire(1);
 			em.fire(2);
@@ -1536,7 +1536,7 @@ suite('Event utils', () => {
 		});
 
 		test('filters', () => {
-			const ev = Event.chain2(em.event, $ => $.filter(v => v % 2 === 0));
+			const ev = Event.chain(em.event, $ => $.filter(v => v % 2 === 0));
 			store.add(ev(v => calls.push(v)));
 			em.fire(1);
 			em.fire(2);
@@ -1546,7 +1546,7 @@ suite('Event utils', () => {
 		});
 
 		test('reduces', () => {
-			const ev = Event.chain2(em.event, $ => $.reduce((acc, v) => acc + v, 0));
+			const ev = Event.chain(em.event, $ => $.reduce((acc, v) => acc + v, 0));
 			store.add(ev(v => calls.push(v)));
 			em.fire(1);
 			em.fire(2);
@@ -1556,7 +1556,7 @@ suite('Event utils', () => {
 		});
 
 		test('latches', () => {
-			const ev = Event.chain2(em.event, $ => $.latch());
+			const ev = Event.chain(em.event, $ => $.latch());
 			store.add(ev(v => calls.push(v)));
 			em.fire(1);
 			em.fire(1);
@@ -1569,7 +1569,7 @@ suite('Event utils', () => {
 		});
 
 		test('does everything', () => {
-			const ev = Event.chain2(em.event, $ => $
+			const ev = Event.chain(em.event, $ => $
 				.filter(v => v % 2 === 0)
 				.map(v => v * 2)
 				.reduce((acc, v) => acc + v, 0)
