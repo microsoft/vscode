@@ -73,7 +73,6 @@ suite('Chat', () => {
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		// instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IChatContributionService, new TestExtensionService());
