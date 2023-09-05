@@ -17,48 +17,8 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecor
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
 import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
-import { ResourceMap } from 'vs/base/common/map';
-
-
-class MarkerDecorations extends Disposable {
-
-	private readonly _markersData: Map<string, IMarker> = new Map<string, IMarker>();
-
-	constructor(
-		readonly model: ITextModel
-	) {
-		super();
-		this._register(toDisposable(() => {
-			this.model.deltaDecorations([...this._markersData.keys()], []);
-			this._markersData.clear();
-		}));
-	}
-
-	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): boolean {
-		const oldIds = [...this._markersData.keys()];
-		this._markersData.clear();
-		const ids = this.model.deltaDecorations(oldIds, newDecorations);
-		for (let index = 0; index < ids.length; index++) {
-			this._markersData.set(ids[index], markers[index]);
-		}
-		return oldIds.length !== 0 || ids.length !== 0;
-	}
-
-	getMarker(decoration: IModelDecoration): IMarker | undefined {
-		return this._markersData.get(decoration.id);
-	}
-
-	getMarkers(): [Range, IMarker][] {
-		const res: [Range, IMarker][] = [];
-		this._markersData.forEach((marker, id) => {
-			const range = this.model.getDecorationRange(id);
-			if (range) {
-				res.push([range, marker]);
-			}
-		});
-		return res;
-	}
-}
+import { BidirectionalMap, ResourceMap } from 'vs/base/common/map';
+import { diffSets } from 'vs/base/common/collections';
 
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
@@ -129,15 +89,68 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
 		// Limit to the first 500 errors/warnings
 		const markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
-		const newModelDecorations: IModelDeltaDecoration[] = markers.map((marker) => {
+		if (markerDecorations.update(markers)) {
+			this._onDidChangeMarker.fire(markerDecorations.model);
+		}
+	}
+}
+
+class MarkerDecorations extends Disposable {
+
+	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
+
+	constructor(
+		readonly model: ITextModel
+	) {
+		super();
+		this._register(toDisposable(() => {
+			this.model.deltaDecorations([...this._map.values()], []);
+			this._map.clear();
+		}));
+	}
+
+	public update(markers: IMarker[]): boolean {
+
+		// We use the fact that marker instances are not recreated when different owners
+		// update. So we can compare references to find out what changed since the last update.
+
+		const { added, removed } = diffSets(new Set(this._map.keys()), new Set(markers));
+
+		if (added.length === 0 && removed.length === 0) {
+			return false;
+		}
+
+		const oldIds: string[] = removed.map(marker => this._map.get(marker)!);
+		const newDecorations: IModelDeltaDecoration[] = added.map(marker => {
 			return {
-				range: this._createDecorationRange(markerDecorations.model, marker),
+				range: this._createDecorationRange(this.model, marker),
 				options: this._createDecorationOption(marker)
 			};
 		});
-		if (markerDecorations.update(markers, newModelDecorations)) {
-			this._onDidChangeMarker.fire(markerDecorations.model);
+
+		const ids = this.model.deltaDecorations(oldIds, newDecorations);
+		for (const removedMarker of removed) {
+			this._map.delete(removedMarker);
 		}
+		for (let index = 0; index < ids.length; index++) {
+			this._map.set(added[index], ids[index]);
+		}
+		return true;
+	}
+
+	getMarker(decoration: IModelDecoration): IMarker | undefined {
+		return this._map.getKey(decoration.id);
+	}
+
+	getMarkers(): [Range, IMarker][] {
+		const res: [Range, IMarker][] = [];
+		this._map.forEach((id, marker) => {
+			const range = this.model.getDecorationRange(id);
+			if (range) {
+				res.push([range, marker]);
+			}
+		});
+		return res;
 	}
 
 	private _createDecorationRange(model: ITextModel, rawMarker: IMarker): Range {
