@@ -128,6 +128,10 @@ registerTerminalAction({
 		{
 			primary: KeyMod.Alt | KeyCode.F2,
 			secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+			linux: {
+				primary: KeyMod.Alt | KeyCode.F2 | KeyMod.Shift,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow]
+			},
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus, ContextKeyExpr.or(terminalTabFocusModeContextKey, TerminalContextKeys.accessibleBufferFocus.negate()))
 		}
