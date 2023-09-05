@@ -38,10 +38,10 @@ export class StickyScrollWidgetState {
 }
 
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
-const STICKY_LINE_INDEX_ATTR = 'data-sticky-line-index';
-const STICKY_LINE_NUMBER_INDEX_ATTR = 'data-sticky-line-number-index';
+const STICKY_INDEX_ATTR = 'data-sticky-line-index';
+const STICKY_IS_LINE_ATTR = 'data-sticky-is-line';
+const STICKY_IS_LINE_NUMBER_ATTR = 'data-sticky-is-line-number';
 const STICKY_IS_FOLDING_ICON_ATTR = 'data-sticky-is-folding-icon';
-type STICKY_INDEX_TYPE = typeof STICKY_LINE_INDEX_ATTR | typeof STICKY_LINE_NUMBER_INDEX_ATTR;
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
@@ -51,7 +51,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
 	private readonly _linesDomNode: HTMLElement = document.createElement('div');
 
-	private _state: StickyScrollWidgetState | undefined;
+	private _previousState: StickyScrollWidgetState | undefined;
 	private _lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 	private _stickyLines: RenderedStickyLine[] = [];
 	private _lineNumbers: number[] = [];
@@ -128,12 +128,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	setState(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, forceRebuildFromLine: number = Infinity): void {
 		if (
-			((!this._state && !state) || (this._state && this._state.equals(state)))
+			((!this._previousState && !state) || (this._previousState && this._previousState.equals(state)))
 			&& forceRebuildFromLine === Infinity
 		) {
 			return;
 		}
-		this._state = state;
+		this._previousState = state;
 		const previousStickyLines = this._stickyLines;
 		this._clearStickyWidget();
 		if (!state || !this._editor._getViewModel()) {
@@ -273,12 +273,18 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		const lineHTMLNode = document.createElement('span');
+		lineHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
+		lineHTMLNode.setAttribute(STICKY_IS_LINE_ATTR, '');
+		lineHTMLNode.setAttribute('role', 'listitem');
+		lineHTMLNode.tabIndex = 0;
 		lineHTMLNode.className = 'sticky-line-content';
 		lineHTMLNode.classList.add(`stickyLine${line}`);
 		lineHTMLNode.style.lineHeight = `${this._lineHeight}px`;
 		lineHTMLNode.innerHTML = newLine as string;
 
 		const lineNumberHTMLNode = document.createElement('span');
+		lineNumberHTMLNode.setAttribute(STICKY_INDEX_ATTR, String(index));
+		lineNumberHTMLNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
 		lineNumberHTMLNode.className = 'sticky-line-number';
 		lineNumberHTMLNode.style.lineHeight = `${this._lineHeight}px`;
 		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
@@ -308,10 +314,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._editor.applyFontInfo(lineHTMLNode);
 		this._editor.applyFontInfo(innerLineNumberHTML);
 
-		lineNumberHTMLNode.setAttribute(STICKY_LINE_NUMBER_INDEX_ATTR, String(index));
-		lineHTMLNode.setAttribute(STICKY_LINE_INDEX_ATTR, String(index));
-		lineHTMLNode.setAttribute('role', 'listitem');
-		lineHTMLNode.tabIndex = 0;
 
 		lineNumberHTMLNode.style.lineHeight = `${this._lineHeight}px`;
 		lineHTMLNode.style.lineHeight = `${this._lineHeight}px`;
@@ -394,14 +396,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	/**
-	 * Given a sticky line (not line number) leaf dom node, tries to find the editor position.
+	 * Given a leaf dom node, tries to find the editor position.
 	 */
 	getEditorPositionFromNode(spanDomNode: HTMLElement | null): Position | null {
 		if (!spanDomNode || spanDomNode.children.length > 0) {
 			// This is not a leaf node
 			return null;
 		}
-		const renderedStickyLine = this._getRenderedStickyLineFromDomNode(spanDomNode, STICKY_LINE_INDEX_ATTR);
+		const renderedStickyLine = this._getRenderedStickyLineFromChildDomNode(spanDomNode);
 		if (!renderedStickyLine) {
 			return null;
 		}
@@ -409,36 +411,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return new Position(renderedStickyLine.lineNumber, column);
 	}
 
-	/**
-	 * Retrieves the line number and index from the input dom node.
-	 * Returns non null, only if the dom node is in the sticky lines dom node (as opposed to sticky line numbers dom node).
-	 * @param domNode input dom node
-	 * @returns info containing the line number and index
-	 */
-	getInfoFromLineDomNode(domNode: HTMLElement | null): { index: number; line: number } | null {
-		return this._getInfoFromDomNode(domNode, STICKY_LINE_INDEX_ATTR);
+	getLineNumberFromChildDomNode(domNode: HTMLElement | null): number | null {
+		return this._getRenderedStickyLineFromChildDomNode(domNode)?.lineNumber ?? null;
 	}
 
-	/**
-	 * Retrieves the line number and index from the input dom node.
-	 * Returns non null, only if the dom node is in the sticky line numbers dom node (as opposed to sticky lines dom node)
-	 * @param domNode input dom node
-	 * @returns info containing the line number and index
-	 */
-	getInfoFromLineNumberDomNode(domNode: HTMLElement | null): { index: number; line: number } | null {
-		return this._getInfoFromDomNode(domNode, STICKY_LINE_NUMBER_INDEX_ATTR);
-	}
-
-	private _getInfoFromDomNode(domNode: HTMLElement | null, attribute: STICKY_INDEX_TYPE): { index: number; line: number } | null {
-		const renderedStickyLine = this._getRenderedStickyLineFromDomNode(domNode, attribute);
-		if (!renderedStickyLine) {
-			return null;
-		}
-		return { index: renderedStickyLine.index, line: renderedStickyLine.lineNumber };
-	}
-
-	private _getRenderedStickyLineFromDomNode(domNode: HTMLElement | null, attribute: STICKY_INDEX_TYPE): RenderedStickyLine | null {
-		const index = this._getLineIndexFromDomNode(domNode, attribute);
+	private _getRenderedStickyLineFromChildDomNode(domNode: HTMLElement | null): RenderedStickyLine | null {
+		const index = this.getLineIndexFromChildDomNode(domNode);
 		if (index === null || index < 0 || index >= this._stickyLines.length) {
 			return null;
 		}
@@ -449,9 +427,27 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	 * Given a child dom node, tries to find the sticky line index or sticky line number index atttribute.
 	 * Returns null if none is found.
 	 */
-	private _getLineIndexFromDomNode(domNode: HTMLElement | null, attribute: STICKY_INDEX_TYPE): number | null {
-		const lineIndex = this._getAttributeValue(domNode, attribute);
+	getLineIndexFromChildDomNode(domNode: HTMLElement | null): number | null {
+		const lineIndex = this._getAttributeValue(domNode, STICKY_INDEX_ATTR);
 		return lineIndex ? parseInt(lineIndex, 10) : null;
+	}
+
+	/**
+	 * Given a child dom node, tries to find if this dom node
+	 * is (contained in) a sticky line. Returns a boolean.
+	 */
+	isInStickyLine(domNode: HTMLElement | null): boolean {
+		const isInLine = this._getAttributeValue(domNode, STICKY_IS_LINE_ATTR);
+		return isInLine !== undefined;
+	}
+
+	/**
+	 * Given a child dom node, tries to find if this dom node
+	 * is (contained in) a sticky line number. Returns a boolean.
+	 */
+	isInStickyLineNumber(domNode: HTMLElement | null): boolean {
+		const isInLineNumber = this._getAttributeValue(domNode, STICKY_IS_LINE_NUMBER_ATTR);
+		return isInLineNumber !== undefined;
 	}
 
 	/**
