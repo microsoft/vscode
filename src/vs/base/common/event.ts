@@ -437,21 +437,33 @@ export namespace Event {
 
 		return emitter.event;
 	}
-
 	/**
-	 * Implements event chaining, in a way that avoids having disposable
-	 * intermediates at each step like {@link chain} does.
+	 * Wraps the event in an {@link IChainableEvent}, allowing a more functional programming style.
+	 *
+	 * @example
+	 * ```
+	 * // Normal
+	 * const onEnterPressNormal = Event.filter(
+	 *   Event.map(onKeyPress.event, e => new StandardKeyboardEvent(e)),
+	 *   e.keyCode === KeyCode.Enter
+	 * ).event;
+	 *
+	 * // Using chain
+	 * const onEnterPressChain = Event.chain(onKeyPress.event, $ => $
+	 *   .map(e => new StandardKeyboardEvent(e))
+	 *   .filter(e => e.keyCode === KeyCode.Enter)
+	 * );
+	 * ```
 	 */
-	export function chain2<T, R>(event: Event<T>, sythensize: ($: IChainableSythensis<T>) => IChainableSythensis<R>): Event<R> {
+	export function chain<T, R>(event: Event<T>, sythensize: ($: IChainableSythensis<T>) => IChainableSythensis<R>): Event<R> {
 		const fn: Event<R> = (listener, thisArgs, disposables) => {
-			const cs = new ChainableSynthesis();
-			sythensize(cs);
-			return event(value => {
+			const cs = sythensize(new ChainableSynthesis()) as ChainableSynthesis;
+			return event(function (value) {
 				const result = cs.evaluate(value);
 				if (result !== HaltChainable) {
-					listener(result);
+					listener.call(thisArgs, result);
 				}
-			}, thisArgs, disposables);
+			}, undefined, disposables);
 		};
 
 		return fn;
@@ -522,100 +534,6 @@ export namespace Event {
 		reduce<R>(merge: (last: R, event: T) => R, initial: R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R): IChainableSythensis<R>;
 		latch(equals?: (a: T, b: T) => boolean): IChainableSythensis<T>;
-	}
-
-	export interface IChainableEvent<T> extends IDisposable {
-
-		event: Event<T>;
-		map<O>(fn: (i: T) => O): IChainableEvent<O>;
-		forEach(fn: (i: T) => void): IChainableEvent<T>;
-		filter(fn: (e: T) => boolean): IChainableEvent<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
-		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
-		latch(): IChainableEvent<T>;
-		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
-		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
-		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
-	}
-
-	class ChainableEvent<T> implements IChainableEvent<T> {
-
-		private readonly disposables = new DisposableStore();
-
-		constructor(readonly event: Event<T>) { }
-
-		/** @see {@link Event.map} */
-		map<O>(fn: (i: T) => O): IChainableEvent<O> {
-			return new ChainableEvent(map(this.event, fn, this.disposables));
-		}
-
-		/** @see {@link Event.forEach} */
-		forEach(fn: (i: T) => void): IChainableEvent<T> {
-			return new ChainableEvent(forEach(this.event, fn, this.disposables));
-		}
-
-		/** @see {@link Event.filter} */
-		filter(fn: (e: T) => boolean): IChainableEvent<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
-		filter(fn: (e: T) => boolean): IChainableEvent<T> {
-			return new ChainableEvent(filter(this.event, fn, this.disposables));
-		}
-
-		/** @see {@link Event.reduce} */
-		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
-			return new ChainableEvent(reduce(this.event, merge, initial, this.disposables));
-		}
-
-		/** @see {@link Event.reduce} */
-		latch(): IChainableEvent<T> {
-			return new ChainableEvent(latch(this.event, undefined, this.disposables));
-		}
-
-		/** @see {@link Event.debounce} */
-		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay: number = 100, leading = false, flushOnListenerRemove = false, leakWarningThreshold?: number): IChainableEvent<R> {
-			return new ChainableEvent(debounce(this.event, merge, delay, leading, flushOnListenerRemove, leakWarningThreshold, this.disposables));
-		}
-
-		/**
-		 * Attach a listener to the event.
-		 */
-		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
-			return this.event(listener, thisArgs, disposables);
-		}
-
-		/** @see {@link Event.once} */
-		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
-			return once(this.event)(listener, thisArgs, disposables);
-		}
-
-		dispose() {
-			this.disposables.dispose();
-		}
-	}
-
-	/**
-	 * Wraps the event in an {@link IChainableEvent}, allowing a more functional programming style.
-	 *
-	 * @example
-	 * ```
-	 * // Normal
-	 * const onEnterPressNormal = Event.filter(
-	 *   Event.map(onKeyPress.event, e => new StandardKeyboardEvent(e)),
-	 *   e.keyCode === KeyCode.Enter
-	 * ).event;
-	 *
-	 * // Using chain
-	 * const onEnterPressChain = Event.chain(onKeyPress.event)
-	 *   .map(e => new StandardKeyboardEvent(e))
-	 *   .filter(e => e.keyCode === KeyCode.Enter)
-	 *   .event;
-	 * ```
-	 */
-	export function chain<T>(event: Event<T>): IChainableEvent<T> {
-		return new ChainableEvent(event);
 	}
 
 	export interface NodeEventEmitter {
