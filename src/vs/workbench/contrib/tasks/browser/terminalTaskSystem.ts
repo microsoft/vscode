@@ -277,10 +277,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._taskLogService.debug(`Set last task to ${this._lastTask?.task._label}, no valid instance`);
 			return { kind: TaskExecuteKind.Active, task: terminalData.task, active: { same: true, background: task.configurationProperties.isBackground! }, promise: terminalData.promise };
 		}
-		// let executeResultPromise: Promise<ITaskSummary> | undefined;
 		try {
 			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), new Map(), undefined) };
-			// executeResultPromise = executeResult.promise;
 			executeResult.promise.then(() => {
 				this._lastTask = this._currentTask;
 				this._taskLogService.debug(`Set last task to ${this._lastTask?.task._label}`);
@@ -296,13 +294,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._taskLogService.error(error.toString());
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
-			// } finally {
-			// 	if (executeResultPromise) {
-			// 		executeResultPromise.then(() => {
-			// 			this._lastTask = this._currentTask;
-			// 			this._taskLogService.debug(`Finally, set last task to ${this._lastTask?.task._label}`);
-			// 		});
-			// 	}
 		}
 	}
 
