@@ -47,6 +47,7 @@ export class CommandCenterControl {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {
 				primaryGroup: () => true,
+				shouldInlineSubmenu: () => true,
 			},
 			telemetrySource: 'commandCenter',
 			actionViewItemProvider: (action) => {

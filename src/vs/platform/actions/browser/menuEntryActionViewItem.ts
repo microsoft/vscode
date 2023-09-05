@@ -102,7 +102,7 @@ function fillInActions(
 		// inlining submenus with length 0 or 1 is easy,
 		// larger submenus need to be checked with the overall limit
 		const submenuActions = action.actions;
-		if (submenuActions.length <= 1 && shouldInlineSubmenu(action, group, target.length)) {
+		if (/* submenuActions.length <= 1 && */ shouldInlineSubmenu(action, group, target.length)) {
 			target.splice(index, 1, ...submenuActions);
 		}
 	}
