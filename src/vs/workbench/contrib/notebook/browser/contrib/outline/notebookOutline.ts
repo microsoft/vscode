@@ -274,6 +274,10 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		};
 	}
 
+	async pupulateEntries() {
+		await this._outlineProvider?.precacheSymbols();
+	}
+
 	get uri(): URI | undefined {
 		return this._outlineProvider?.uri;
 	}
@@ -342,7 +346,9 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 	}
 
 	async createOutline(editor: NotebookEditor, target: OutlineTarget): Promise<IOutline<OutlineEntry> | undefined> {
-		return this._instantiationService.createInstance(NotebookCellOutline, editor, target);
+		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
+		await outline.pupulateEntries();
+		return outline;
 	}
 }
 

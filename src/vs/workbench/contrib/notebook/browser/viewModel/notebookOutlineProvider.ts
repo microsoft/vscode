@@ -95,6 +95,22 @@ export class NotebookCellOutlineProvider {
 		this._recomputeState();
 	}
 
+	async precacheSymbols() {
+		const notebookEditorWidget = this._editor;
+
+		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
+
+		this._entries.length = 0;
+		if (notebookCells) {
+			for (const cell of notebookCells) {
+				if (cell.textModel) {
+					await this._outlineEntryFactory.cacheSymbols(cell.textModel);
+					this._entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, 1, true, true));
+				}
+			}
+		}
+	}
+
 	private _recomputeState(): void {
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
