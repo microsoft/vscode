@@ -69,6 +69,7 @@ export interface IUserDataSyncConflictsView extends IView {
 	open(conflict: IResourcePreview): Promise<void>;
 }
 
+export const SYNC_ORIGINAL_TITLE = 'Settings Sync';
 export const SYNC_TITLE = localize('sync category', "Settings Sync");
 
 export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IReader, autorunHandleChanges } from 'vs/base/common/observable';
+import { IObservable, IReader, autorunHandleChanges, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
@@ -16,6 +15,8 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DiffEditorOptions } from './diffEditorOptions';
+import { ITextModel } from 'vs/editor/common/model';
+import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;
@@ -23,6 +24,8 @@ export class DiffEditorEditors extends Disposable {
 
 	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
+
+	public readonly modifiedModel: IObservable<ITextModel | null>;
 
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
@@ -37,6 +40,8 @@ export class DiffEditorEditors extends Disposable {
 
 		this.original = this._register(this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {}));
 		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
+
+		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => this.modified.getModel());
 
 		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),

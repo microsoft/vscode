@@ -25,7 +25,7 @@ import { animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEd
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextModelPart';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -39,14 +39,14 @@ import { DiffEditorOptions } from './diffEditorOptions';
  * Synchronizes scrolling.
  */
 export class ViewZoneManager extends Disposable {
-	private readonly _originalTopPadding = observableValue('originalTopPadding', 0);
+	private readonly _originalTopPadding = observableValue(this, 0);
 	private readonly _originalScrollTop: IObservable<number>;
-	private readonly _originalScrollOffset = observableValue<number, boolean>('originalScrollOffset', 0);
+	private readonly _originalScrollOffset = observableValue<number, boolean>(this, 0);
 	private readonly _originalScrollOffsetAnimated = animatedObservable(this._originalScrollOffset, this._store);
 
-	private readonly _modifiedTopPadding = observableValue('modifiedTopPadding', 0);
+	private readonly _modifiedTopPadding = observableValue(this, 0);
 	private readonly _modifiedScrollTop: IObservable<number>;
-	private readonly _modifiedScrollOffset = observableValue<number, boolean>('modifiedScrollOffset', 0);
+	private readonly _modifiedScrollOffset = observableValue<number, boolean>(this, 0);
 	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._modifiedScrollOffset, this._store);
 
 	constructor(
@@ -193,7 +193,7 @@ export class ViewZoneManager extends Disposable {
 						const decorations: InlineDecoration[] = [];
 						for (const i of a.diff.innerChanges || []) {
 							decorations.push(new InlineDecoration(
-								i.originalRange.delta(-(a.diff.originalRange.startLineNumber - 1)),
+								i.originalRange.delta(-(a.diff.original.startLineNumber - 1)),
 								diffDeleteDecoration.className!,
 								InlineDecorationType.Regular
 							));
@@ -287,7 +287,7 @@ export class ViewZoneManager extends Disposable {
 						}
 
 						let marginDomNode: HTMLElement | undefined = undefined;
-						if (a.diff && a.diff.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader)) {
+						if (a.diff && a.diff.modified.isEmpty && this._options.shouldRenderRevertArrows.read(reader)) {
 							marginDomNode = createViewZoneMarginArrow();
 						}
 
@@ -472,7 +472,7 @@ interface ILineRangeAlignment {
 	 * If this range alignment is a direct result of a diff, then this is the diff's line mapping.
 	 * Only used for inline-view.
 	 */
-	diff?: LineRangeMapping;
+	diff?: DetailedLineRangeMapping;
 }
 
 function computeRangeAlignment(
@@ -540,11 +540,11 @@ function computeRangeAlignment(
 
 	for (const m of diffs) {
 		const c = m.lineRangeMapping;
-		handleAlignmentsOutsideOfDiffs(c.originalRange.startLineNumber, c.modifiedRange.startLineNumber);
+		handleAlignmentsOutsideOfDiffs(c.original.startLineNumber, c.modified.startLineNumber);
 
 		let first = true;
-		let lastModLineNumber = c.modifiedRange.startLineNumber;
-		let lastOrigLineNumber = c.originalRange.startLineNumber;
+		let lastModLineNumber = c.modified.startLineNumber;
+		let lastOrigLineNumber = c.original.startLineNumber;
 
 		function emitAlignment(origLineNumberExclusive: number, modLineNumberExclusive: number) {
 			if (origLineNumberExclusive < lastOrigLineNumber || modLineNumberExclusive < lastModLineNumber) {
@@ -593,10 +593,10 @@ function computeRangeAlignment(
 			}
 		}
 
-		emitAlignment(c.originalRange.endLineNumberExclusive, c.modifiedRange.endLineNumberExclusive);
+		emitAlignment(c.original.endLineNumberExclusive, c.modified.endLineNumberExclusive);
 
-		lastOriginalLineNumber = c.originalRange.endLineNumberExclusive;
-		lastModifiedLineNumber = c.modifiedRange.endLineNumberExclusive;
+		lastOriginalLineNumber = c.original.endLineNumberExclusive;
+		lastModifiedLineNumber = c.modified.endLineNumberExclusive;
 	}
 	handleAlignmentsOutsideOfDiffs(Number.MAX_VALUE, Number.MAX_VALUE);
 

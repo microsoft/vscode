@@ -403,11 +403,11 @@ export class ListView<T> implements IListView<T> {
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
-		this.scrollable = new Scrollable({
+		this.scrollable = this.disposables.add(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: (options.smoothScrolling ?? false) ? 125 : 0,
 			scheduleAtNextAnimationFrame: cb => scheduleAtNextAnimationFrame(cb)
-		});
+		}));
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: options.alwaysConsumeMouseWheel ?? DefaultOptions.alwaysConsumeMouseWheel,
 			horizontal: ScrollbarVisibility.Auto,

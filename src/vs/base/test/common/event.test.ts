@@ -1507,4 +1507,82 @@ suite('Event utils', () => {
 			assert.deepStrictEqual(calls, [1]);
 		});
 	});
+
+	suite('chain2', () => {
+		let store: DisposableStore;
+		let em: Emitter<number>;
+		let calls: number[];
+
+		teardown(() => {
+			store.dispose();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		setup(() => {
+			store = new DisposableStore();
+			em = new Emitter<number>();
+			store.add(em);
+			calls = [];
+		});
+
+		test('maps', () => {
+			const ev = Event.chain(em.event, $ => $.map(v => v * 2));
+			store.add(ev(v => calls.push(v)));
+			em.fire(1);
+			em.fire(2);
+			em.fire(3);
+			assert.deepStrictEqual(calls, [2, 4, 6]);
+		});
+
+		test('filters', () => {
+			const ev = Event.chain(em.event, $ => $.filter(v => v % 2 === 0));
+			store.add(ev(v => calls.push(v)));
+			em.fire(1);
+			em.fire(2);
+			em.fire(3);
+			em.fire(4);
+			assert.deepStrictEqual(calls, [2, 4]);
+		});
+
+		test('reduces', () => {
+			const ev = Event.chain(em.event, $ => $.reduce((acc, v) => acc + v, 0));
+			store.add(ev(v => calls.push(v)));
+			em.fire(1);
+			em.fire(2);
+			em.fire(3);
+			em.fire(4);
+			assert.deepStrictEqual(calls, [1, 3, 6, 10]);
+		});
+
+		test('latches', () => {
+			const ev = Event.chain(em.event, $ => $.latch());
+			store.add(ev(v => calls.push(v)));
+			em.fire(1);
+			em.fire(1);
+			em.fire(2);
+			em.fire(2);
+			em.fire(3);
+			em.fire(3);
+			em.fire(1);
+			assert.deepStrictEqual(calls, [1, 2, 3, 1]);
+		});
+
+		test('does everything', () => {
+			const ev = Event.chain(em.event, $ => $
+				.filter(v => v % 2 === 0)
+				.map(v => v * 2)
+				.reduce((acc, v) => acc + v, 0)
+				.latch()
+			);
+
+			store.add(ev(v => calls.push(v)));
+			em.fire(1);
+			em.fire(2);
+			em.fire(3);
+			em.fire(4);
+			em.fire(0);
+			assert.deepStrictEqual(calls, [4, 12]);
+		});
+	});
 });

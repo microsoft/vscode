@@ -10,7 +10,7 @@ import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensio
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { EmbeddedDiffEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -39,7 +39,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 
 		this._register(createScreenReaderHelp());
 
-		const isEmbeddedDiffEditor = (this._diffEditor instanceof EmbeddedDiffEditorWidget) || (this._diffEditor instanceof EmbeddedDiffEditorWidget2);
+		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget2;
 
 		if (!isEmbeddedDiffEditor) {
 			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());

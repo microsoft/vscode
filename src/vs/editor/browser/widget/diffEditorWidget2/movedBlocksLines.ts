@@ -6,10 +6,11 @@
 import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { booleanComparator, compareBy, findMaxIdxBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
+import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
+import { findMaxIdxBy } from 'vs/base/common/arraysFind';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, keepAlive, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
@@ -29,7 +30,7 @@ export class MovedBlocksLinesPart extends Disposable {
 	private readonly _modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 	private readonly _viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
-	public readonly width = observableValue('width', 0);
+	public readonly width = observableValue(this, 0);
 
 	constructor(
 		private readonly _rootElement: HTMLElement,
@@ -58,7 +59,7 @@ export class MovedBlocksLinesPart extends Disposable {
 			this._element.style.width = `${info.verticalScrollbarWidth + info.contentLeft - MovedBlocksLinesPart.movedCodeBlockPadding + this.width.read(reader)}px`;
 		}));
 
-		this._register(keepAlive(this._state, true));
+		this._register(recomputeInitiallyAndOnChange(this._state));
 
 		const movedBlockViewZones = derived(reader => {
 			const model = this._diffModel.read(reader);
@@ -136,8 +137,8 @@ export class MovedBlocksLinesPart extends Disposable {
 	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
 
-	private readonly _state = derivedWithStore('state', (reader, store) => {
-		/** @description update moved blocks lines */
+	private readonly _state = derivedWithStore((reader, store) => {
+		/** @description state */
 
 		this._element.replaceChildren();
 		const model = this._diffModel.read(reader);

@@ -128,7 +128,7 @@ const markersViewIcon = registerIcon('markers-view-icon', Codicon.warning, local
 // markers view container
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Markers.MARKERS_CONTAINER_ID,
-	title: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	title: { value: Messages.MARKERS_PANEL_TITLE_PROBLEMS, original: Messages.MARKERS_PANEL_ORIGINAL_TITLE_PROBLEMS },
 	icon: markersViewIcon,
 	hideIfEmpty: true,
 	order: 0,

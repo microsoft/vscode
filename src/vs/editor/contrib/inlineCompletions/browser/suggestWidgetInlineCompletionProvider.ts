@@ -16,7 +16,8 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { IObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { ITextModel } from 'vs/editor/common/model';
-import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
+import { compareBy, numberComparator } from 'vs/base/common/arrays';
+import { findFirstMaxBy } from 'vs/base/common/arraysFind';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
@@ -24,7 +25,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 	private _isActive = false;
 	private _currentSuggestItemInfo: SuggestItemInfo | undefined = undefined;
 
-	private readonly _selectedItem = observableValue('suggestWidgetInlineCompletionProvider.selectedItem', undefined as SuggestItemInfo | undefined);
+	private readonly _selectedItem = observableValue(this, undefined as SuggestItemInfo | undefined);
 
 	public get selectedItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedItem;
@@ -80,7 +81,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 						})
 						.filter(item => item && item.valid && item.prefixLength > 0);
 
-					const result = findMaxBy(
+					const result = findFirstMaxBy(
 						candidates,
 						compareBy(s => s!.prefixLength, numberComparator)
 					);

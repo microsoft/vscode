@@ -113,7 +113,7 @@ export class ChatContributionService implements IChatContributionService {
 		const viewContainerId = CHAT_SIDEBAR_PANEL_ID + '.' + providerDescriptor.id;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
-			title,
+			title: { value: title, original: 'Chat' },
 			icon,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,

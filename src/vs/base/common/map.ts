@@ -664,3 +664,63 @@ export class CounterSet<T> {
 		return this.map.has(value);
 	}
 }
+
+/**
+ * A map that allows access both by keys and values.
+ * **NOTE**: values need to be unique.
+ */
+export class BidirectionalMap<K, V> {
+
+	private readonly _m1 = new Map<K, V>();
+	private readonly _m2 = new Map<V, K>();
+
+	constructor(entries?: readonly (readonly [K, V])[]) {
+		if (entries) {
+			for (const [key, value] of entries) {
+				this.set(key, value);
+			}
+		}
+	}
+
+	clear(): void {
+		this._m1.clear();
+		this._m2.clear();
+	}
+
+	set(key: K, value: V): void {
+		this._m1.set(key, value);
+		this._m2.set(value, key);
+	}
+
+	get(key: K): V | undefined {
+		return this._m1.get(key);
+	}
+
+	getKey(value: V): K | undefined {
+		return this._m2.get(value);
+	}
+
+	delete(key: K): boolean {
+		const value = this._m1.get(key);
+		if (value === undefined) {
+			return false;
+		}
+		this._m1.delete(key);
+		this._m2.delete(value);
+		return true;
+	}
+
+	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: any): void {
+		this._m1.forEach((value, key) => {
+			callbackfn.call(thisArg, value, key, this);
+		});
+	}
+
+	keys(): IterableIterator<K> {
+		return this._m1.keys();
+	}
+
+	values(): IterableIterator<V> {
+		return this._m1.values();
+	}
+}

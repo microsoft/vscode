@@ -8,9 +8,9 @@ import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs
 import { join, resolve } from 'path';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { FileAccess } from 'vs/base/common/network';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { AdvancedLinesDiffComputer } from 'vs/editor/common/diff/advancedLinesDiffComputer';
+import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 
 suite('diff fixtures', () => {
 	setup(() => {
@@ -38,15 +38,15 @@ suite('diff fixtures', () => {
 		const secondContent = readFileSync(join(folderPath, secondFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 		const secondContentLines = secondContent.split(/\n/);
 
-		const diffingAlgo = diffingAlgoName === 'legacy' ? new LegacyLinesDiffComputer() : new AdvancedLinesDiffComputer();
+		const diffingAlgo = diffingAlgoName === 'legacy' ? new LegacyLinesDiffComputer() : new DefaultLinesDiffComputer();
 
 		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
 		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false });
 
-		function getDiffs(changes: readonly LineRangeMapping[]): IDetailedDiff[] {
+		function getDiffs(changes: readonly DetailedLineRangeMapping[]): IDetailedDiff[] {
 			return changes.map<IDetailedDiff>(c => ({
-				originalRange: c.originalRange.toString(),
-				modifiedRange: c.modifiedRange.toString(),
+				originalRange: c.original.toString(),
+				modifiedRange: c.modified.toString(),
 				innerChanges: c.innerChanges?.map<IDiff>(c => ({
 					originalRange: c.originalRange.toString(),
 					modifiedRange: c.modifiedRange.toString(),
