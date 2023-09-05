@@ -434,7 +434,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (!renderedStickyLine) {
 			return null;
 		}
-		return { index: renderedStickyLine.index, line: renderedStickyLine.index };
+		return { index: renderedStickyLine.index, line: renderedStickyLine.lineNumber };
 	}
 
 	private _getRenderedStickyLineFromDomNode(domNode: HTMLElement | null, attribute: STICKY_INDEX_TYPE): RenderedStickyLine | null {
@@ -460,10 +460,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	 */
 	isInFoldingIconDomNode(domNode: HTMLElement | null): boolean {
 		const isInFoldingIcon = this._getAttributeValue(domNode, STICKY_IS_FOLDING_ICON_ATTR);
-		return !!isInFoldingIcon;
+		return isInFoldingIcon !== undefined;
 	}
 
-	private _getAttributeValue(domNode: HTMLElement | null, attribute: string): string | void {
+	private _getAttributeValue(domNode: HTMLElement | null, attribute: string): string | undefined {
 		while (domNode && domNode !== this._rootDomNode) {
 			const line = domNode.getAttribute(attribute);
 			if (line !== null) {
@@ -471,6 +471,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			}
 			domNode = domNode.parentElement;
 		}
+		return;
 	}
 }
 
