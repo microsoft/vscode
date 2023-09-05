@@ -257,8 +257,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			if (mouseEvent.shiftKey) {
 				// shift click
-				const lineIndex = this._stickyScrollWidget.getLineIndexFromLineDomNode(mouseEvent.target);
-				if (lineIndex === null) {
+				const lineIndex = this._stickyScrollWidget.getInfoFromLineDomNode(mouseEvent.target)?.index;
+				if (lineIndex === undefined) {
 					return;
 				}
 				const position = new Position(this._endLineNumbers[lineIndex], 1);
@@ -268,15 +268,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			// click on folding icon
 			const isInFoldingIconDomNode = this._stickyScrollWidget.isInFoldingIconDomNode(mouseEvent.target);
 			if (isInFoldingIconDomNode) {
-				const lineNumber = this._stickyScrollWidget.getLineNumberFromLineNumberDomNode(mouseEvent.target);
+				const lineNumber = this._stickyScrollWidget.getInfoFromLineNumberDomNode(mouseEvent.target)?.line;
 				this._toggleFoldingRegionForLine(lineNumber);
 				return;
 			}
 			// normal click
 			let position = this._stickyScrollWidget.getEditorPositionFromNode(mouseEvent.target);
 			if (!position) {
-				const lineNumber = this._stickyScrollWidget.getLineNumberFromLineDomNode(mouseEvent.target);
-				if (lineNumber === null) {
+				const lineNumber = this._stickyScrollWidget.getInfoFromLineDomNode(mouseEvent.target)?.line;
+				if (lineNumber === undefined) {
 					// not hovering a sticky scroll line
 					return;
 				}
@@ -286,8 +286,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}));
 		this._register(dom.addStandardDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_MOVE, (mouseEvent: IMouseEvent) => {
 			if (mouseEvent.shiftKey) {
-				const currentEndForLineIndex = this._stickyScrollWidget.getLineIndexFromLineDomNode(mouseEvent.target);
-				if (currentEndForLineIndex === null || this._showEndForLine !== null && this._showEndForLine === currentEndForLineIndex) {
+				const currentEndForLineIndex = this._stickyScrollWidget.getInfoFromLineDomNode(mouseEvent.target)?.index;
+				if (currentEndForLineIndex === undefined || this._showEndForLine !== null && this._showEndForLine === currentEndForLineIndex) {
 					return;
 				}
 				this._showEndForLine = currentEndForLineIndex;
@@ -382,8 +382,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		});
 	}
 
-	private _toggleFoldingRegionForLine(line: number | null) {
-		if (!this._foldingModel || line === null) {
+	private _toggleFoldingRegionForLine(line: number | undefined) {
+		if (!this._foldingModel || line === undefined) {
 			return;
 		}
 		const stickyLine = this._stickyScrollWidget.getStickyLineForLine(line);
