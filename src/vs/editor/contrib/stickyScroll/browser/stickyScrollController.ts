@@ -257,7 +257,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			if (mouseEvent.shiftKey) {
 				// shift click
-				const lineIndex = this._stickyScrollWidget.getStickyLineIndexFromChildDomNode(mouseEvent.target);
+				const lineIndex = this._stickyScrollWidget.getLineIndexFromLineDomNode(mouseEvent.target);
 				if (lineIndex === null) {
 					return;
 				}
@@ -268,14 +268,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			// click on folding icon
 			const isInFoldingIconDomNode = this._stickyScrollWidget.isInFoldingIconDomNode(mouseEvent.target);
 			if (isInFoldingIconDomNode) {
-				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
+				const lineNumber = this._stickyScrollWidget.getLineNumberFromLineNumberDomNode(mouseEvent.target);
 				this._toggleFoldingRegionForLine(lineNumber);
 				return;
 			}
 			// normal click
 			let position = this._stickyScrollWidget.getEditorPositionFromNode(mouseEvent.target);
 			if (!position) {
-				const lineNumber = this._stickyScrollWidget.getLineNumberFromChildDomNode(mouseEvent.target);
+				const lineNumber = this._stickyScrollWidget.getLineNumberFromLineDomNode(mouseEvent.target);
 				if (lineNumber === null) {
 					// not hovering a sticky scroll line
 					return;
@@ -286,7 +286,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}));
 		this._register(dom.addStandardDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_MOVE, (mouseEvent: IMouseEvent) => {
 			if (mouseEvent.shiftKey) {
-				const currentEndForLineIndex = this._stickyScrollWidget.getStickyLineIndexFromChildDomNode(mouseEvent.target);
+				const currentEndForLineIndex = this._stickyScrollWidget.getLineIndexFromLineDomNode(mouseEvent.target);
 				if (currentEndForLineIndex === null || this._showEndForLine !== null && this._showEndForLine === currentEndForLineIndex) {
 					return;
 				}
