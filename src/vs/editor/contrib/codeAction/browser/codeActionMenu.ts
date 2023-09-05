@@ -45,7 +45,7 @@ export function toMenuItems(
 				group: uncategorizedCodeActionGroup,
 				disabled: !!action.action.disabled,
 				label: action.action.disabled || action.action.title,
-				canPreview: action.action.edit?.edits.length ? true : false,
+				canPreview: !!action.action.edit?.edits.length,
 			};
 		});
 	}
