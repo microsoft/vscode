@@ -5,28 +5,39 @@
 
 declare module 'vscode' {
 
-	export interface InteractiveEditorSlashCommand {
+	export class InteractiveEditorSlashCommand {
 		command: string;
 		detail?: string;
 		refer?: boolean;
-		/**
-		 * Whether the command should execute as soon
-		 * as it is entered. Defaults to `false`.
-		 */
 		executeImmediately?: boolean;
-		// kind: CompletionItemKind;
+
+		constructor(
+			command: string,
+			detail?: string,
+			refer?: boolean,
+			/**
+			 * Whether the command should execute as soon
+			 * as it is entered. Defaults to `false`.
+			 */
+			executeImmediately?: boolean,
+		);
 	}
 
-	// todo@API make classes
-	export interface InteractiveEditorSession {
+	export class InteractiveEditorSession {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
 		message?: string;
+
+		constructor(
+			placeholder?: string,
+			slashCommands?: InteractiveEditorSlashCommand[],
+			wholeRange?: Range,
+			message?: string,
+		);
 	}
 
-	// todo@API make classes
-	export interface InteractiveEditorRequest {
+	export class InteractiveEditorRequest {
 		session: InteractiveEditorSession;
 		prompt: string;
 
@@ -34,20 +45,39 @@ declare module 'vscode' {
 		wholeRange: Range;
 		attempt: number;
 		live: boolean;
+
+		constructor(
+			session: InteractiveEditorSession,
+			prompt: string,
+			selection: Selection,
+			wholeRange: Range,
+			attempt: number,
+			live: boolean,
+		);
 	}
 
-	// todo@API make classes
-	export interface InteractiveEditorResponse {
+	export class InteractiveEditorResponse {
 		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
 		wholeRange?: Range;
+
+		constructor(
+			edits: TextEdit[] | WorkspaceEdit,
+			placeholder?: string,
+			wholeRange?: Range,
+		);
 	}
 
-	// todo@API make classes
-	export interface InteractiveEditorMessageResponse {
+	export class InteractiveEditorMessageResponse {
 		contents: MarkdownString;
 		placeholder?: string;
 		wholeRange?: Range;
+
+		constructor(
+			contents: MarkdownString,
+			placeholder?: string,
+			wholeRange?: Range,
+		);
 	}
 
 	export enum InteractiveEditorResponseFeedbackKind {

@@ -4070,6 +4070,55 @@ export class InteractiveWindowInput {
 
 //#region Interactive session
 
+export class InteractiveEditorSlashCommand {
+	constructor(
+		public command: string,
+		public detail?: string,
+		public refer?: boolean,
+		/**
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
+		 */
+		public executeImmediately?: boolean,
+		// kind: CompletionItemKind;
+	) { }
+}
+
+export class InteractiveEditorSession {
+	constructor(
+		public placeholder?: string,
+		public slashCommands?: InteractiveEditorSlashCommand[],
+		public wholeRange?: vscode.Range,
+		public message?: string,
+	) { }
+}
+
+export class InteractiveEditorRequest {
+	constructor(
+		public session: InteractiveEditorSession,
+		public prompt: string,
+		public selection: Selection,
+		public wholeRange: vscode.Range,
+		public attempt: number,
+		public live: boolean,
+	) { }
+}
+
+export class InteractiveEditorResponse {
+	constructor(
+		public edits: TextEdit[] | WorkspaceEdit,
+		public placeholder?: string,
+		public wholeRange?: vscode.Range,
+	) { }
+}
+
+export class InteractiveEditorMessageResponse {
+	constructor(
+		public contents: MarkdownString,
+		public placeholder?: string,
+		public wholeRange?: vscode.Range,
+	) { }
+}
 export enum InteractiveSessionVoteDirection {
 	Up = 1,
 	Down = 2
