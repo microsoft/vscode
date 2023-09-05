@@ -1843,6 +1843,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return this.setAuxiliaryBarHidden(hidden);
 			case Parts.PANEL_PART:
 				return this.setPanelHidden(hidden);
+			case Parts.STATUSBAR_PART:
+				return this.setStatusBarHidden(hidden);
 		}
 	}
 

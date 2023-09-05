@@ -67,6 +67,48 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Hide Activity Bar
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.hideActivityBar',
+			title: {
+				value: localize('hideActivityBar', "Hide Acitivity Bar"),
+				original: 'Hide Acitivity Bar'
+			},
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.ACTIVITYBAR_PART);
+	}
+});
+
+// --- Hide Status Bar
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.hideStatusBar',
+			title: {
+				value: localize('hideStatusBar', "Hide Status Bar"),
+				original: 'Hide Status Bar'
+			},
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.STATUSBAR_PART);
+	}
+});
+
 // --- Toggle Activity Bar
 
 export class ToggleActivityBarVisibilityAction extends Action2 {
