@@ -798,6 +798,8 @@ flakySuite('SQLite Storage Library', function () {
 		await storage.optimize();
 		await storage.close();
 
+		const sizeBeforeDeleteAndOptimize = (await Promises.stat(dbPath)).size;
+
 		storage = new SQLiteStorageDatabase(dbPath);
 
 		storedItems = await storage.getItems();
@@ -817,6 +819,10 @@ flakySuite('SQLite Storage Library', function () {
 		strictEqual(storedItems.size, 0);
 
 		await storage.close();
+
+		const sizeAfterDeleteAndOptimize = (await Promises.stat(dbPath)).size;
+
+		strictEqual(sizeAfterDeleteAndOptimize < sizeBeforeDeleteAndOptimize, true);
 	});
 
 	function createManyRandomData(length = 400, includeVeryLarge = false) {
