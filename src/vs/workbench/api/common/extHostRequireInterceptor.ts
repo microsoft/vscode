@@ -213,7 +213,6 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 	) {
 		this._mainThreadTelemetry = rpcService.getProxy(MainContext.MainThreadTelemetry);
 		const { environment } = initData;
-		const mainThreadKeytar = rpcService.getProxy(MainContext.MainThreadKeytar);
 
 		if (environment.appRoot) {
 			let appRoot = environment.appRoot.fsPath;
@@ -227,21 +226,24 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 			this.alternativeNames.add(`${appRoot}/node_modules.asar/keytar`);
 			this.alternativeNames.add(`${appRoot}/node_modules/keytar`);
 		}
+
+		// Use an implementation that does nothing to prevent errors from popping up
+		// do to VS Code no longer shipping with keytar.
 		this._impl = {
-			getPassword: (service: string, account: string): Promise<string | null> => {
-				return mainThreadKeytar.$getPassword(service, account);
+			getPassword: (_service: string, _account: string): Promise<string | null> => {
+				return Promise.resolve(null);
 			},
-			setPassword: (service: string, account: string, password: string): Promise<void> => {
-				return mainThreadKeytar.$setPassword(service, account, password);
+			setPassword: (_service: string, _account: string, _password: string): Promise<void> => {
+				return Promise.resolve();
 			},
-			deletePassword: (service: string, account: string): Promise<boolean> => {
-				return mainThreadKeytar.$deletePassword(service, account);
+			deletePassword: (_service: string, _account: string): Promise<boolean> => {
+				return Promise.resolve(true);
 			},
-			findPassword: (service: string): Promise<string | null> => {
-				return mainThreadKeytar.$findPassword(service);
+			findPassword: (_service: string): Promise<string | null> => {
+				return Promise.resolve(null);
 			},
-			findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
-				return mainThreadKeytar.$findCredentials(service);
+			findCredentials(_service: string): Promise<Array<{ account: string; password: string }>> {
+				return Promise.resolve([]);
 			}
 		};
 	}
@@ -249,7 +251,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 	public load(_request: string, parent: URI): any {
 		const ext = this._extensionPaths.findSubstr(parent);
 		type ShimmingKeytarClassification = {
-			owner: 'jrieken';
+			owner: 'TylerLeonhardt';
 			comment: 'Know when the keytar-shim was used';
 			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension is question' };
 		};
