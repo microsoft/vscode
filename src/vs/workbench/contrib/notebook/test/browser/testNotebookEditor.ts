@@ -63,7 +63,6 @@ import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServic
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/config/editorOptions';
-import { INotebookOutlineEntryCacheService, NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/NotebookOutlineEntryFactory';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -194,7 +193,6 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, new NotebookCellStatusBarService());
-	instantiationService.stub(INotebookOutlineEntryCacheService, instantiationService.createInstance(NotebookOutlineEntryFactory));
 
 	return instantiationService;
 }
