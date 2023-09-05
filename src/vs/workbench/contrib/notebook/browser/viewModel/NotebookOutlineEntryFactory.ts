@@ -97,6 +97,7 @@ export class NotebookOutlineEntryFactory {
 		const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
 		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
 		this.cellOutlineEntryCache[textModel.id] = entries;
+		console.log(`cached ${entries.length} top level symbols for text model ID ${textModel.id}`);
 	}
 }
 
