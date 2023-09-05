@@ -107,7 +107,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.34.3",
+    "@playwright/test": "^1.37.1",
     "@swc/cli": "0.1.62",
     "@swc/core": "1.3.62",
     "@types/cookie": "^0.3.3",
