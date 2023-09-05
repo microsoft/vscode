@@ -181,7 +181,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 	parsedArgs['_'] = [];
 
-	if (hasReadStdinArg && fileURIs.length === 0 && folderURIs.length === 0 && hasStdinWithoutTty()) {
+	if (hasReadStdinArg && hasStdinWithoutTty()) {
 		try {
 			let stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
