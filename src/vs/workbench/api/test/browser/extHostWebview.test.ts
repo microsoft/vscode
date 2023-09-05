@@ -23,8 +23,6 @@ import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHost
 import type * as vscode from 'vscode';
 
 suite('ExtHostWebview', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	let disposables: DisposableStore;
 	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
 

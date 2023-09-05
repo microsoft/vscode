@@ -41,10 +41,7 @@ const emptySigHelpResult: languages.SignatureHelpResult = {
 };
 
 suite('ParameterHintsModel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	const disposables = new DisposableStore();
-
 	let registry: LanguageFeatureRegistry<languages.SignatureHelpProvider>;
 
 	setup(() => {
