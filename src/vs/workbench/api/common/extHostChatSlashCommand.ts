@@ -67,7 +67,7 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.SlashResponse>(p => {
 				throwIfDone();
-				this._proxy.$handleProgressChunk(requestId, { content: p.message.value });
+				this._proxy.$handleProgressChunk(requestId, { content: isInteractiveProgressFileTree(p.message) ? p.message : p.message.value });
 			}),
 			token
 		);
@@ -79,4 +79,8 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 			commandExecution.complete();
 		}
 	}
+}
+
+function isInteractiveProgressFileTree(thing: unknown): thing is vscode.InteractiveProgressFileTree {
+	return !!thing && typeof thing === 'object' && 'treeData' in thing;
 }

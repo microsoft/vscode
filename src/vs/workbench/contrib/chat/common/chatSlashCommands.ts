@@ -12,6 +12,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -71,7 +72,7 @@ function isChatSlashData(data: any): data is IChatSlashData {
 }
 
 export interface IChatSlashFragment {
-	content: string;
+	content: string | { treeData: IChatResponseProgressFileTreeData };
 }
 
 export type IChatSlashCallback = { (prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void> };
@@ -183,6 +184,6 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 			throw new Error(`No command with id ${id} NOT resolved`);
 		}
 
-		await data.command(prompt, progress, history, token);
+		return await data.command(prompt, progress, history, token);
 	}
 }

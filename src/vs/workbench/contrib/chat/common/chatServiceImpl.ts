@@ -497,7 +497,11 @@ export class ChatService extends Disposable implements IChatService {
 						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
 					}
 				}
-				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => progressCallback(p)), history, token);
+				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
+					const { content } = p;
+					const data = isCompleteInteractiveProgressTreeData(content) ? content : { content };
+					progressCallback(data);
+				}), history, token);
 				rawResponse = { session: model.session! };
 
 			} else {
