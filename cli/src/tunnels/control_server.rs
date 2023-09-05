@@ -1021,6 +1021,9 @@ where
 		p.current_dir(cwd);
 	}
 
+	#[cfg(target_os = "windows")]
+	p.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+
 	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
 
 	let futs = FuturesUnordered::new();

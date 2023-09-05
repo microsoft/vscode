@@ -136,6 +136,20 @@ export class OffsetRange {
 		}
 		return value;
 	}
+
+	public map<T>(f: (offset: number) => T): T[] {
+		const result: T[] = [];
+		for (let i = this.start; i < this.endExclusive; i++) {
+			result.push(f(i));
+		}
+		return result;
+	}
+
+	public forEach(f: (offset: number) => void): void {
+		for (let i = this.start; i < this.endExclusive; i++) {
+			f(i);
+		}
+	}
 }
 
 export class OffsetRangeSet {

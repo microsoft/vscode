@@ -8,7 +8,7 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, TextEditorOptions
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
@@ -102,7 +102,6 @@ export type JSONSchemaSettings = {
 export namespace SettingIds {
 	export const enableFormatter = 'json.format.enable';
 	export const enableKeepLines = 'json.format.keepLines';
-	export const enableSortOnSave = 'json.sortOnSave.enable';
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
@@ -171,15 +170,6 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
-	toDispose.push(workspace.onWillSaveTextDocument(event => {
-		const sortOnSave = workspace.getConfiguration().get<boolean>(SettingIds.enableSortOnSave);
-		const document = event.document;
-		if (sortOnSave && (document.languageId === 'json' || document.languageId === 'jsonc')) {
-			const documentOptions = getOptionsForDocument(document);
-			const textEditsPromise = getSortTextEdits(document, documentOptions?.tabSize, documentOptions?.insertSpaces);
-			event.waitUntil(textEditsPromise);
-		}
-	}));
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
@@ -642,13 +632,4 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 
 function isSchemaResolveError(d: Diagnostic) {
 	return d.code === /* SchemaResolveError */ 0x300;
-}
-
-function getOptionsForDocument(document: TextDocument): TextEditorOptions | undefined {
-	for (const editor of window.visibleTextEditors) {
-		if (editor.document.uri.toString() === document.uri.toString()) {
-			return editor.options;
-		}
-	}
-	return;
 }

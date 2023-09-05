@@ -937,13 +937,6 @@ declare namespace monaco {
 
 declare namespace monaco.editor {
 
-	export interface IDiffNavigator {
-		canNavigate(): boolean;
-		next(): void;
-		previous(): void;
-		dispose(): void;
-	}
-
 	/**
 	 * Create a new editor under `domElement`.
 	 * `domElement` should be empty (not contain other dom nodes).
@@ -980,14 +973,6 @@ declare namespace monaco.editor {
 	 * The editor will read the size of `domElement`.
 	 */
 	export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
-
-	export interface IDiffNavigatorOptions {
-		readonly followsCaret?: boolean;
-		readonly ignoreCharChanges?: boolean;
-		readonly alwaysRevealFirst?: boolean;
-	}
-
-	export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator;
 
 	/**
 	 * Description of a command contribution
@@ -2365,188 +2350,6 @@ declare namespace monaco.editor {
 	 */
 	export interface ILineChange extends IChange {
 		readonly charChanges: ICharChange[] | undefined;
-	}
-
-	/**
-	 * A document diff provider computes the diff between two text models.
-	 */
-	export interface IDocumentDiffProvider {
-		/**
-		 * Computes the diff between the text models `original` and `modified`.
-		 */
-		computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff>;
-		/**
-		 * Is fired when settings of the diff algorithm change that could alter the result of the diffing computation.
-		 * Any user of this provider should recompute the diff when this event is fired.
-		 */
-		onDidChange: IEvent<void>;
-	}
-
-	/**
-	 * Options for the diff computation.
-	 */
-	export interface IDocumentDiffProviderOptions {
-		/**
-		 * When set to true, the diff should ignore whitespace changes.
-		 */
-		ignoreTrimWhitespace: boolean;
-		/**
-		 * A diff computation should throw if it takes longer than this value.
-		 */
-		maxComputationTimeMs: number;
-		/**
-		 * If set, the diff computation should compute moves in addition to insertions and deletions.
-		 */
-		computeMoves: boolean;
-	}
-
-	/**
-	 * Represents a diff between two text models.
-	 */
-	export interface IDocumentDiff {
-		/**
-		 * If true, both text models are identical (byte-wise).
-		 */
-		readonly identical: boolean;
-		/**
-		 * If true, the diff computation timed out and the diff might not be accurate.
-		 */
-		readonly quitEarly: boolean;
-		/**
-		 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
-		 */
-		readonly changes: readonly LineRangeMapping[];
-		/**
-		 * Sorted by original line ranges.
-		 * The original line ranges and the modified line ranges must be disjoint (but can be touching).
-		 */
-		readonly moves: readonly MovedText[];
-	}
-
-	/**
-	 * A range of lines (1-based).
-	 */
-	export class LineRange {
-		static fromRange(range: Range): LineRange;
-		static subtract(a: LineRange, b: LineRange | undefined): LineRange[];
-		/**
-		 * @param lineRanges An array of sorted line ranges.
-		 */
-		static joinMany(lineRanges: readonly (readonly LineRange[])[]): readonly LineRange[];
-		/**
-		 * @param lineRanges1 Must be sorted.
-		 * @param lineRanges2 Must be sorted.
-		 */
-		static join(lineRanges1: readonly LineRange[], lineRanges2: readonly LineRange[]): readonly LineRange[];
-		static ofLength(startLineNumber: number, length: number): LineRange;
-		/**
-		 * The start line number.
-		 */
-		readonly startLineNumber: number;
-		/**
-		 * The end line number (exclusive).
-		 */
-		readonly endLineNumberExclusive: number;
-		constructor(startLineNumber: number, endLineNumberExclusive: number);
-		/**
-		 * Indicates if this line range contains the given line number.
-		 */
-		contains(lineNumber: number): boolean;
-		/**
-		 * Indicates if this line range is empty.
-		 */
-		get isEmpty(): boolean;
-		/**
-		 * Moves this line range by the given offset of line numbers.
-		 */
-		delta(offset: number): LineRange;
-		deltaLength(offset: number): LineRange;
-		/**
-		 * The number of lines this line range spans.
-		 */
-		get length(): number;
-		/**
-		 * Creates a line range that combines this and the given line range.
-		 */
-		join(other: LineRange): LineRange;
-		toString(): string;
-		/**
-		 * The resulting range is empty if the ranges do not intersect, but touch.
-		 * If the ranges don't even touch, the result is undefined.
-		 */
-		intersect(other: LineRange): LineRange | undefined;
-		intersectsStrict(other: LineRange): boolean;
-		overlapOrTouch(other: LineRange): boolean;
-		equals(b: LineRange): boolean;
-		toInclusiveRange(): Range | null;
-		toExclusiveRange(): Range;
-		mapToLineArray<T>(f: (lineNumber: number) => T): T[];
-		forEach(f: (lineNumber: number) => void): void;
-		includes(lineNumber: number): boolean;
-	}
-
-	/**
-	 * Maps a line range in the original text model to a line range in the modified text model.
-	 */
-	export class LineRangeMapping {
-		static inverse(mapping: readonly LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[];
-		/**
-		 * The line range in the original text model.
-		 */
-		readonly originalRange: LineRange;
-		/**
-		 * The line range in the modified text model.
-		 */
-		readonly modifiedRange: LineRange;
-		/**
-		 * If inner changes have not been computed, this is set to undefined.
-		 * Otherwise, it represents the character-level diff in this line range.
-		 * The original range of each range mapping should be contained in the original line range (same for modified), exceptions are new-lines.
-		 * Must not be an empty array.
-		 */
-		readonly innerChanges: RangeMapping[] | undefined;
-		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
-		toString(): string;
-		get changedLineCount(): any;
-		flip(): LineRangeMapping;
-	}
-
-	/**
-	 * Maps a range in the original text model to a range in the modified text model.
-	 */
-	export class RangeMapping {
-		/**
-		 * The original range.
-		 */
-		readonly originalRange: Range;
-		/**
-		 * The modified range.
-		 */
-		readonly modifiedRange: Range;
-		constructor(originalRange: Range, modifiedRange: Range);
-		toString(): string;
-		flip(): RangeMapping;
-	}
-
-	export class MovedText {
-		readonly lineRangeMapping: SimpleLineRangeMapping;
-		/**
-		 * The diff from the original text to the moved text.
-		 * Must be contained in the original/modified line range.
-		 * Can be empty if the text didn't change (only moved).
-		 */
-		readonly changes: readonly LineRangeMapping[];
-		constructor(lineRangeMapping: SimpleLineRangeMapping, changes: readonly LineRangeMapping[]);
-		flip(): MovedText;
-	}
-
-	export class SimpleLineRangeMapping {
-		readonly original: LineRange;
-		readonly modified: LineRange;
-		constructor(original: LineRange, modified: LineRange);
-		toString(): string;
-		flip(): SimpleLineRangeMapping;
-		join(other: SimpleLineRangeMapping): SimpleLineRangeMapping;
 	}
 	export interface IDimension {
 		width: number;
@@ -3970,7 +3773,7 @@ declare namespace monaco.editor {
 		/**
 		 * Diff Algorithm
 		*/
-		diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+		diffAlgorithm?: 'legacy' | 'advanced';
 		/**
 		 * Whether the diff editor aria label should be verbose.
 		 */
