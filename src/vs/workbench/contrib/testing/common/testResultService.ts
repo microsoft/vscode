@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstInSorted } from 'vs/base/common/arrays';
+import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -168,7 +169,7 @@ export class TestResultService implements ITestResultService {
 		if (result.completedAt === undefined) {
 			this.results.unshift(result);
 		} else {
-			const index = findFirstInSorted(this.results, r => r.completedAt !== undefined && r.completedAt <= result.completedAt!);
+			const index = findFirstIdxMonotonousOrArrLen(this.results, r => r.completedAt !== undefined && r.completedAt <= result.completedAt!);
 			this.results.splice(index, 0, result);
 			this.persistScheduler.schedule();
 		}
@@ -179,8 +180,9 @@ export class TestResultService implements ITestResultService {
 		}
 
 		if (result instanceof LiveTestResult) {
-			result.onComplete(() => this.onComplete(result));
-			result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
+			const ds = new DisposableStore();
+			ds.add(result.onComplete(() => this.onComplete(result)));
+			ds.add(result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter));
 			this.isRunning.set(true);
 			this.changeResultEmitter.fire({ started: result });
 		} else {

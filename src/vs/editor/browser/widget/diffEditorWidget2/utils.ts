@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDimension } from 'vs/base/browser/dom';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
@@ -56,7 +57,7 @@ export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelect
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
 	const decorationsCollection = editor.createDecorationsCollection();
-	d.add(autorunOpts({ debugName: `Apply decorations from ${decorations.debugName}` }, reader => {
+	d.add(autorunOpts({ debugName: () => `Apply decorations from ${decorations.debugName}` }, reader => {
 		const d = decorations.read(reader);
 		decorationsCollection.set(d);
 	}));
@@ -99,8 +100,8 @@ export class ObservableElementSizeObserver extends Disposable {
 		super();
 
 		this.elementSizeObserver = this._register(new ElementSizeObserver(element, dimension));
-		this._width = observableValue('width', this.elementSizeObserver.getWidth());
-		this._height = observableValue('height', this.elementSizeObserver.getHeight());
+		this._width = observableValue(this, this.elementSizeObserver.getWidth());
+		this._height = observableValue(this, this.elementSizeObserver.getHeight());
 
 		this._register(this.elementSizeObserver.onDidChange(e => transaction(tx => {
 			/** @description Set width/height from elementSizeObserver */
@@ -213,8 +214,8 @@ export interface IObservableViewZone extends IViewZone {
 export class PlaceholderViewZone implements IObservableViewZone {
 	public readonly domNode = document.createElement('div');
 
-	private readonly _actualTop = observableValue<number | undefined>('actualTop', undefined);
-	private readonly _actualHeight = observableValue<number | undefined>('actualHeight', undefined);
+	private readonly _actualTop = observableValue<number | undefined>(this, undefined);
+	private readonly _actualHeight = observableValue<number | undefined>(this, undefined);
 
 	public readonly actualTop: IObservable<number | undefined> = this._actualTop;
 	public readonly actualHeight: IObservable<number | undefined> = this._actualHeight;
@@ -368,4 +369,10 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 	});
 
 	return store;
+}
+
+export class DisposableCancellationTokenSource extends CancellationTokenSource {
+	public override dispose() {
+		super.dispose(true);
+	}
 }

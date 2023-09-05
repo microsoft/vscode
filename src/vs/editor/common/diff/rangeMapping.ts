@@ -6,6 +6,9 @@
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
 
+/**
+ * Maps a line range in the original text model to a line range in the modified text model.
+ */
 export class LineRangeMapping {
 	public static inverse(mapping: readonly DetailedLineRangeMapping[], originalLineCount: number, modifiedLineCount: number): DetailedLineRangeMapping[] {
 		const result: DetailedLineRangeMapping[] = [];
@@ -76,6 +79,7 @@ export class LineRangeMapping {
 
 /**
  * Maps a line range in the original text model to a line range in the modified text model.
+ * Also contains inner range mappings.
  */
 export class DetailedLineRangeMapping extends LineRangeMapping {
 	/**
@@ -116,7 +120,6 @@ export class RangeMapping {
 
 	constructor(
 		originalRange: Range,
-
 		modifiedRange: Range
 	) {
 		this.originalRange = originalRange;

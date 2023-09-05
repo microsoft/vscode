@@ -7,6 +7,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -274,11 +275,11 @@ export type TestResultItemChange = { item: TestResultItem; result: ITestResult }
  * Results of a test. These are created when the test initially started running
  * and marked as "complete" when the run finishes.
  */
-export class LiveTestResult implements ITestResult {
-	private readonly completeEmitter = new Emitter<void>();
-	private readonly newTaskEmitter = new Emitter<number>();
-	private readonly endTaskEmitter = new Emitter<number>();
-	private readonly changeEmitter = new Emitter<TestResultItemChange>();
+export class LiveTestResult extends Disposable implements ITestResult {
+	private readonly completeEmitter = this._register(new Emitter<void>());
+	private readonly newTaskEmitter = this._register(new Emitter<number>());
+	private readonly endTaskEmitter = this._register(new Emitter<number>());
+	private readonly changeEmitter = this._register(new Emitter<TestResultItemChange>());
 	/** todo@connor4312: convert to a WellDefinedPrefixTree */
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
 	private testMarkerCounter = 0;
@@ -334,6 +335,7 @@ export class LiveTestResult implements ITestResult {
 		public readonly persist: boolean,
 		public readonly request: ResolvedTestRunRequest,
 	) {
+		super();
 	}
 
 	/**
@@ -382,7 +384,7 @@ export class LiveTestResult implements ITestResult {
 	 * Adds a new run task to the results.
 	 */
 	public addTask(task: ITestRunTask) {
-		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [], output: new TaskRawOutput() });
+		this.tasks.push({ ...task, coverage: this._register(new MutableObservableValue(undefined)), otherMessages: [], output: new TaskRawOutput() });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
