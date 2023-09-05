@@ -43,10 +43,12 @@ suite('SuggestController', function () {
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
 
-
 	teardown(function () {
+
 		disposables.clear();
 	});
+
+	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 
@@ -54,7 +56,7 @@ suite('SuggestController', function () {
 			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
 			[ILogService, new NullLogService()],
-			[IStorageService, new InMemoryStorageService()],
+			[IStorageService, disposables.add(new InMemoryStorageService())],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 				override computeWordRanges() {
