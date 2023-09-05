@@ -274,8 +274,8 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		};
 	}
 
-	async pupulateEntries() {
-		await this._outlineProvider?.precacheSymbols();
+	async setFullSymbols() {
+		await this._outlineProvider?.setFullSymbols();
 	}
 
 	get uri(): URI | undefined {
@@ -336,6 +336,7 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 	constructor(
 		@IOutlineService outlineService: IOutlineService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		const reg = outlineService.registerOutlineCreator(this);
 		this.dispose = () => reg.dispose();
@@ -347,7 +348,11 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 
 	async createOutline(editor: NotebookEditor, target: OutlineTarget): Promise<IOutline<OutlineEntry> | undefined> {
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
-		await outline.pupulateEntries();
+
+		const showAllSymbols = this._configurationService.getValue<boolean>('notebook.experimental.gotoSymbols.showAllSymbols');
+		if (target === OutlineTarget.QuickPick && showAllSymbols) {
+			await outline.setFullSymbols();
+		}
 		return outline;
 	}
 }

@@ -12,20 +12,8 @@ import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/
 import { OutlineEntry } from './OutlineEntry';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-
-
-export const INotebookOutlineEntryCacheService = createDecorator<INotebookOutlineEntryCacheService>('INotebookOutlineEntryFactory');
-
-export interface INotebookOutlineEntryCacheService {
-	readonly _serviceBrand: undefined;
-	getOutlineEntries(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[];
-	cacheSymbols(textModel: ITextModel): Promise<void>;
-}
 
 type entryDesc = {
 	name: string;
@@ -33,18 +21,16 @@ type entryDesc = {
 	level: number;
 };
 
-export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCacheService, IDisposable {
-	_serviceBrand: undefined;
+export class NotebookOutlineEntryFactory {
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
-	private cacheTimers: Record<string, TimeoutTimer> = {};
 
 	constructor(
-		@INotebookExecutionStateService private readonly executionStateService: INotebookExecutionStateService,
-		@IOutlineModelService private readonly outlineModelService: IOutlineModelService
+		private readonly executionStateService: INotebookExecutionStateService,
+		private readonly outlineModelService: IOutlineModelService
 	) { }
 
-	public getOutlineEntries(cell: ICellViewModel, index: number, includeAllSymbols: boolean, cacheSymbols: boolean): OutlineEntry[] {
+	public getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[] {
 		const entries: OutlineEntry[] = [];
 
 		const isMarkdown = cell.cellKind === CellKind.Markup;
@@ -79,15 +65,12 @@ export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCa
 		}
 
 		if (!hasHeader) {
-			if (!isMarkdown && cacheSymbols && cell.model.textModel) {
+			if (!isMarkdown && cell.model.textModel) {
 				const cachedEntries = this.cellOutlineEntryCache[cell.model.textModel.id];
-				if (!cachedEntries || cachedEntries.entries.length === 0) {
-					this.cacheSymbolsDebounced(cell);
-				}
 
 				// Gathering symbols from the model is an async operation, but this provider is syncronous.
-				// This will just provide the most recently cached values to stay syncronous, while refreshing the cache asyncronously.
-				if (includeAllSymbols && cachedEntries) {
+				// So symbols need to be precached before this function is called to get the full list.
+				if (cachedEntries) {
 					cachedEntries.forEach((cached) => {
 						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.position));
 					});
@@ -110,32 +93,10 @@ export class NotebookOutlineEntryCacheService implements INotebookOutlineEntryCa
 		return entries;
 	}
 
-	async cacheSymbolsDebounced(cell: ICellViewModel) {
-		const textModel = cell.model.textModel;
-		if (textModel) {
-			const timer = this.cacheTimers[cell.id] ?? new TimeoutTimer();
-			this.cacheTimers[cell.id] = timer;
-
-			const timeout = this.outlineModelService.getDebounceValue(textModel);
-			timer.cancelAndSet(async () => {
-				this.cacheTimers[cell.id].dispose();
-				delete this.cacheTimers[cell.id];
-
-				await this.cacheSymbols(textModel);
-			}, timeout);
-		}
-	}
-
 	public async cacheSymbols(textModel: ITextModel) {
-		if (textModel) {
-			const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
-			const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
-			this.cellOutlineEntryCache[textModel.id] = entries;
-		}
-	}
-
-	dispose(): void {
-		Object.values(this.cacheTimers).forEach(timer => timer.dispose());
+		const outlineModel = await this.outlineModelService.getOrCreate(textModel, CancellationToken.None);
+		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
+		this.cellOutlineEntryCache[textModel.id] = entries;
 	}
 }
 

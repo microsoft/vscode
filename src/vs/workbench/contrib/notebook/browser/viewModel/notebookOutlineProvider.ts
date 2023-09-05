@@ -15,8 +15,9 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { INotebookOutlineEntryCacheService } from 'vs/workbench/contrib/notebook/browser/viewModel/NotebookOutlineEntryCacheService';
+import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/NotebookOutlineEntryFactory';
 import { OutlineEntry } from './OutlineEntry';
+import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 
 export class NotebookCellOutlineProvider {
 	private readonly _dispoables = new DisposableStore();
@@ -39,16 +40,20 @@ export class NotebookCellOutlineProvider {
 		return this._activeEntry;
 	}
 
+	private readonly _outlineEntryFactory: NotebookOutlineEntryFactory;
+
 	constructor(
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
 		@IThemeService themeService: IThemeService,
 		@IEditorService _editorService: IEditorService,
+		@IOutlineModelService outlineModelService: IOutlineModelService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@INotebookExecutionStateService _notebookExecutionStateService: INotebookExecutionStateService,
-		@INotebookOutlineEntryCacheService private readonly _outlineEntryFactory: INotebookOutlineEntryCacheService,
 	) {
+		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService, outlineModelService);
+
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
 
@@ -75,7 +80,7 @@ export class NotebookCellOutlineProvider {
 			this._onDidChange.fire({});
 		}));
 
-		this._dispoables.add(_notebookExecutionStateService.onDidChangeExecution(e => {
+		this._dispoables.add(notebookExecutionStateService.onDidChangeExecution(e => {
 			if (e.type === NotebookExecutionType.cell && !!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
 				this._recomputeState();
 			}
@@ -95,7 +100,7 @@ export class NotebookCellOutlineProvider {
 		this._recomputeState();
 	}
 
-	async precacheSymbols() {
+	async setFullSymbols() {
 		const notebookEditorWidget = this._editor;
 
 		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
@@ -104,11 +109,13 @@ export class NotebookCellOutlineProvider {
 		if (notebookCells) {
 			for (const cell of notebookCells) {
 				if (cell.textModel) {
+					// gather all symbols asynchronously
 					await this._outlineEntryFactory.cacheSymbols(cell.textModel);
-					this._entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, 1, true, true));
 				}
 			}
 		}
+
+		this._recomputeState();
 	}
 
 	private _recomputeState(): void {
@@ -135,14 +142,11 @@ export class NotebookCellOutlineProvider {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const cacheSymbols = this._configurationService.getValue<boolean>('notebook.experimental.gotoSymbols.showAllSymbols');
-		const showAllSymbols = cacheSymbols && this._target === OutlineTarget.QuickPick;
-
 		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
 
 		const entries: OutlineEntry[] = [];
 		for (const cell of notebookCells) {
-			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, entries.length, showAllSymbols, cacheSymbols));
+			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, entries.length));
 			// send an event whenever any of the cells change
 			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
 				this._recomputeState();
