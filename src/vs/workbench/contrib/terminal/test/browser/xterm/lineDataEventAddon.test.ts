@@ -9,22 +9,29 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('LineDataEventAddon', () => {
 	let xterm: Terminal;
 	let lineDataEventAddon: LineDataEventAddon;
+
+	let store: DisposableStore;
+	setup(() => store = new DisposableStore());
+	teardown(() => store.dispose());
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('onLineData', () => {
 		let events: string[];
 
 		setup(async () => {
 			const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-			xterm = new TerminalCtor({ allowProposedApi: true, cols: 4 });
-			lineDataEventAddon = new LineDataEventAddon();
+			xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 4 }));
+			lineDataEventAddon = store.add(new LineDataEventAddon());
 			xterm.loadAddon(lineDataEventAddon);
 
 			events = [];
-			lineDataEventAddon.onLineData(e => events.push(e));
+			store.add(lineDataEventAddon.onLineData(e => events.push(e)));
 		});
 
 		test('should fire when a non-wrapped line ends with a line feed', async () => {

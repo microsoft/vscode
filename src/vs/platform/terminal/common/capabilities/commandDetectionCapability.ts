@@ -164,7 +164,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
 		// cls will clear all commands in the viewport. This is not perfect but it's right most
 		// of the time.
-		this.onBeforeCommandFinished(command => {
+		this._register(this.onBeforeCommandFinished(command => {
 			if (this._isWindowsPty) {
 				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 					this._clearCommandsInViewport();
@@ -172,7 +172,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 				}
 			}
-		});
+		}));
 
 		// For non-Windows backends we can just listen to CSI J which is what the clear command
 		// typically emits.
