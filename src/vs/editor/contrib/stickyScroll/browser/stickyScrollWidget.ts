@@ -440,15 +440,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	/**
-	 * Given a child dom node, tries to find if it is (contained in) a sticky line number.
-	 * @returns a boolean.
-	 */
-	isInStickyLineNumber(domNode: HTMLElement | null): boolean {
-		const isInLineNumber = this._getAttributeValue(domNode, STICKY_IS_LINE_NUMBER_ATTR);
-		return isInLineNumber !== undefined;
-	}
-
-	/**
 	 * Given a child dom node, tries to find if this dom node is (contained in) a sticky folding icon.
 	 * @returns a boolean.
 	 */

@@ -469,6 +469,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private async _renderStickyScroll(rebuildFromLine: number = Infinity) {
 		const model = this._editor.getModel();
 		if (!model || model.isTooLargeForTokenization()) {
+			this._foldingModel = null;
 			this._stickyScrollWidget.setState(undefined, null, rebuildFromLine);
 			return;
 		}
