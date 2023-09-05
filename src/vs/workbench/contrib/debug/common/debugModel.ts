@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, findLastIndex } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -27,6 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILogService } from 'vs/platform/log/common/log';
 import { autorun } from 'vs/base/common/observable';
+import { findLastIdx } from 'vs/base/common/arraysFind';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -1253,7 +1254,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 		let index = -1;
 		if (session.parentSession) {
 			// Make sure that child sessions are placed after the parent session
-			index = findLastIndex(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
+			index = findLastIdx(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
 		}
 		if (index >= 0) {
 			this.sessions.splice(index + 1, 0, session);

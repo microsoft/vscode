@@ -290,9 +290,9 @@ class MergeModelInterface extends Disposable {
 				);
 				const changes = result.changes.map(c =>
 					new DetailedLineRangeMapping(
-						toLineRange(c.originalRange),
+						toLineRange(c.original),
 						textModel1,
-						toLineRange(c.modifiedRange),
+						toLineRange(c.modified),
 						textModel2,
 						c.innerChanges?.map(ic => toRangeMapping(ic)).filter(isDefined)
 					)

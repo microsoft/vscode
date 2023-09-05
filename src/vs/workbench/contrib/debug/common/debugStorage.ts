@@ -22,11 +22,11 @@ const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
 export class DebugStorage extends Disposable {
-	public readonly breakpoints = observableValue('debugBreakpoints', this.loadBreakpoints());
-	public readonly functionBreakpoints = observableValue('debugFunctionBreakpoints', this.loadFunctionBreakpoints());
-	public readonly exceptionBreakpoints = observableValue('debugExceptionBreakpoints', this.loadExceptionBreakpoints());
-	public readonly dataBreakpoints = observableValue('debugDataBreakpoints', this.loadDataBreakpoints());
-	public readonly watchExpressions = observableValue('debugWatchExpressions', this.loadWatchExpressions());
+	public readonly breakpoints = observableValue(this, this.loadBreakpoints());
+	public readonly functionBreakpoints = observableValue(this, this.loadFunctionBreakpoints());
+	public readonly exceptionBreakpoints = observableValue(this, this.loadExceptionBreakpoints());
+	public readonly dataBreakpoints = observableValue(this, this.loadDataBreakpoints());
+	public readonly watchExpressions = observableValue(this, this.loadWatchExpressions());
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,

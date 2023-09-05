@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, getFunctionName, observableValue, transaction } from 'vs/base/common/observableInternal/base';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, getDebugName, getFunctionName, observableValue, transaction } from 'vs/base/common/observableInternal/base';
 import { derived } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -207,10 +207,14 @@ class FromEventObservableSignal extends BaseObservable<void> {
  * Signals don't have a value - when they are triggered they indicate a change.
  * However, signals can carry a delta that is passed to observers.
  */
-export function observableSignal<TDelta = void>(
-	debugName: string
-): IObservableSignal<TDelta> {
-	return new ObservableSignal<TDelta>(debugName);
+export function observableSignal<TDelta = void>(debugName: string): IObservableSignal<TDelta>;
+export function observableSignal<TDelta = void>(owner: object): IObservableSignal<TDelta>;
+export function observableSignal<TDelta = void>(debugNameOrOwner: string | object): IObservableSignal<TDelta> {
+	if (typeof debugNameOrOwner === 'string') {
+		return new ObservableSignal<TDelta>(debugNameOrOwner);
+	} else {
+		return new ObservableSignal<TDelta>(undefined, debugNameOrOwner);
+	}
 }
 
 export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
@@ -218,8 +222,13 @@ export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
 }
 
 class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
+	public get debugName() {
+		return getDebugName(this._debugName, undefined, this._owner, this) ?? 'Observable Signal';
+	}
+
 	constructor(
-		public readonly debugName: string
+		private readonly _debugName: string | undefined,
+		private readonly _owner?: object,
 	) {
 		super();
 	}
@@ -285,22 +294,24 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 	return observable;
 }
 
-// TODO@hediet: Have `keepCacheAlive` and `recomputeOnChange` instead of forceRecompute
 /**
- * This ensures the observable is being observed.
- * Observed observables (such as {@link derived}s) can maintain a cache, as they receive invalidation events.
- * Unobserved observables are forced to recompute their value from scratch every time they are read.
- *
- * @param observable the observable to keep alive
- * @param forceRecompute if true, the observable will be eagerly recomputed after it changed.
- * Use this if recomputing the observables causes side-effects.
-*/
-export function keepAlive(observable: IObservable<any>, forceRecompute?: boolean): IDisposable {
-	const o = new KeepAliveObserver(forceRecompute ?? false);
+ * This makes sure the observable is being observed and keeps its cache alive.
+ */
+export function keepObserved<T>(observable: IObservable<T>): IDisposable {
+	const o = new KeepAliveObserver(false);
 	observable.addObserver(o);
-	if (forceRecompute) {
-		observable.reportChanges();
-	}
+	return toDisposable(() => {
+		observable.removeObserver(o);
+	});
+}
+
+/**
+ * This converts the given observable into an autorun.
+ */
+export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>): IDisposable {
+	const o = new KeepAliveObserver(true);
+	observable.addObserver(o);
+	observable.reportChanges();
 
 	return toDisposable(() => {
 		observable.removeObserver(o);
@@ -332,23 +343,23 @@ class KeepAliveObserver implements IObserver {
 	}
 }
 
-export function derivedObservableWithCache<T>(name: string, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
+export function derivedObservableWithCache<T>(computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> {
 	let lastValue: T | undefined = undefined;
 	const observable = derived(reader => {
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
-	}, name);
+	});
 	return observable;
 }
 
-export function derivedObservableWithWritableCache<T>(name: string, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> & { clearCache(transaction: ITransaction): void } {
+export function derivedObservableWithWritableCache<T>(owner: object, computeFn: (reader: IReader, lastValue: T | undefined) => T): IObservable<T> & { clearCache(transaction: ITransaction): void } {
 	let lastValue: T | undefined = undefined;
 	const counter = observableValue('derivedObservableWithWritableCache.counter', 0);
-	const observable = derived(reader => {
+	const observable = derived(owner, reader => {
 		counter.read(reader);
 		lastValue = computeFn(reader, lastValue);
 		return lastValue;
-	}, name);
+	});
 	return Object.assign(observable, {
 		clearCache: (transaction: ITransaction) => {
 			lastValue = undefined;

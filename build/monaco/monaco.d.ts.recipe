@@ -89,7 +89,6 @@ declare namespace monaco {
 }
 
 declare namespace monaco.editor {
-#include(vs/editor/browser/widget/diffNavigator): IDiffNavigator
 #includeAll(vs/editor/standalone/browser/standaloneEditor;languages.Token=>Token):
 #include(vs/editor/standalone/common/standaloneTheme): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/languages/supports/tokenization): ITokenThemeRule
@@ -108,9 +107,6 @@ export interface ICommandHandler {
 #include(vs/editor/common/core/wordHelper): IWordAtPosition
 #includeAll(vs/editor/common/model): IScrollEvent
 #include(vs/editor/common/diff/legacyLinesDiffComputer): IChange, ICharChange, ILineChange
-#include(vs/editor/common/diff/documentDiffProvider): IDocumentDiffProvider, IDocumentDiffProviderOptions, IDocumentDiff
-#include(vs/editor/common/core/lineRange): LineRange
-#include(vs/editor/common/diff/linesDiffComputer): LineRangeMapping, RangeMapping, MovedText, SimpleLineRangeMapping
 #include(vs/editor/common/core/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):
