@@ -117,6 +117,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		}
 
 		if (context.reason === SaveReason.AUTO) {
+			// do not run notebook codeactions upon auto save
 			return undefined;
 		}
 
