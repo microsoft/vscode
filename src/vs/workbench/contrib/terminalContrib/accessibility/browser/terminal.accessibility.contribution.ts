@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -61,14 +61,12 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 		this.add(_instance.onDidRunText(() => {
 			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
-			const focusTerminal = focusAfterRun === 'terminal' || (focusAfterRun === 'auto' && accessibilityService.isScreenReaderOptimized());
-			if (focusTerminal) {
+			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
 			} else if (focusAfterRun === 'accessible-buffer') {
 				this.show();

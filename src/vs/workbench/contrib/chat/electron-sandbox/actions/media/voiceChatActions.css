@@ -10,5 +10,5 @@
 
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before,
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before {
-	content: "\eba5"; /* use `stop-circle` icon unicode for hovering over running voice recording */
+	content: "\ead7"; /* use `debug-stop` icon unicode for hovering over running voice recording */
 }
