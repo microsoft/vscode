@@ -73,7 +73,13 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 		);
 
 		try {
-			await raceCancellation(Promise.resolve(task), token);
+			return await raceCancellation(Promise.resolve(task).then((v) => {
+				if (v && 'followUp' in v) {
+					const convertedFollowup = v?.followUp?.map(f => typeConvert.ChatFollowup.from(f));
+					return { followUp: convertedFollowup };
+				}
+				return undefined;
+			}), token);
 		} finally {
 			done = true;
 			commandExecution.complete();

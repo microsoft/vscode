@@ -42,7 +42,7 @@ export class MainThreadChatSlashCommands implements MainThreadChatSlashCommandsS
 			const requestId = Math.random();
 			this._pendingProgress.set(requestId, progress);
 			try {
-				await this._proxy.$executeCommand(handle, requestId, prompt, { history }, token);
+				return await this._proxy.$executeCommand(handle, requestId, prompt, { history }, token);
 			} finally {
 				this._pendingProgress.delete(requestId);
 			}
