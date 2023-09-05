@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -40,6 +41,8 @@ const emptySigHelpResult: languages.SignatureHelpResult = {
 };
 
 suite('ParameterHintsModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const disposables = new DisposableStore();
 
 	let registry = new LanguageFeatureRegistry<languages.SignatureHelpProvider>();
