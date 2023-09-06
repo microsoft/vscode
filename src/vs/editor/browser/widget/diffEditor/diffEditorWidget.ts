@@ -15,14 +15,14 @@ import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IMouseTargetV
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditorWidget2/accessibleDiffViewer';
-import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorDecorations';
-import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorSash';
-import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditorWidget2/hideUnchangedRegionsFeature';
-import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditorWidget2/lineAlignment';
-import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditorWidget2/movedBlocksLines';
-import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
-import { CSSStyle, ObservableElementSizeObserver, applyStyle, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditor/accessibleDiffViewer';
+import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditor/diffEditorDecorations';
+import { DiffEditorSash } from 'vs/editor/browser/widget/diffEditor/diffEditorSash';
+import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor/hideUnchangedRegionsFeature';
+import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditor/lineAlignment';
+import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditor/movedBlocksLines';
+import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditor/overviewRulerPart';
+import { CSSStyle, ObservableElementSizeObserver, applyStyle, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
@@ -50,7 +50,7 @@ export interface IDiffCodeEditorWidgetOptions {
 	modifiedEditor?: ICodeEditorWidgetOptions;
 }
 
-export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
+export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public static ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
 	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
@@ -103,7 +103,6 @@ export class DiffEditorWidget2 extends DelegatingEditor implements IDiffEditor {
 		codeEditorService.willCreateDiffEditor();
 
 		this._contextKeyService.createKey('isInDiffEditor', true);
-		this._contextKeyService.createKey('diffEditorVersion', 2);
 
 		this._domElement.appendChild(this.elements.root);
 		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));

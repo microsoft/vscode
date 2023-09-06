@@ -7,7 +7,7 @@ import * as objects from 'vs/base/common/objects';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget2, IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { DiffEditorWidget, IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ConfigurationChangedEvent, IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -66,10 +66,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 	}
 }
 
-/**
- * TODO: Rename to EmbeddedDiffEditorWidget once EmbeddedDiffEditorWidget is removed.
- */
-export class EmbeddedDiffEditorWidget2 extends DiffEditorWidget2 {
+export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 
 	private readonly _parentEditor: ICodeEditor;
 	private readonly _overwriteOptions: IDiffEditorOptions;
