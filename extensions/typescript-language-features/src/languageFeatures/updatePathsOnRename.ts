@@ -59,25 +59,25 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 			for (const { newUri, oldUri } of e.files) {
 				const newFilePath = this.client.toTsFilePath(newUri);
 				if (!newFilePath) {
-					return;
+					continue;
 				}
 
 				const oldFilePath = this.client.toTsFilePath(oldUri);
 				if (!oldFilePath) {
-					return;
+					continue;
 				}
 
 				const config = this.getConfiguration(newUri);
 				const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
 				if (setting === UpdateImportsOnFileMoveSetting.Never) {
-					return;
+					continue;
 				}
 
 				// Try to get a js/ts file that is being moved
 				// For directory moves, this returns a js/ts file under the directory.
 				const jsTsFileThatIsBeingMoved = await this.getJsTsFileBeingMoved(newUri);
 				if (!jsTsFileThatIsBeingMoved || !this.client.toTsFilePath(jsTsFileThatIsBeingMoved)) {
-					return;
+					continue;
 				}
 
 				this._pendingRenames.add({ oldUri, newUri, newFilePath, oldFilePath, jsTsFileThatIsBeingMoved });
