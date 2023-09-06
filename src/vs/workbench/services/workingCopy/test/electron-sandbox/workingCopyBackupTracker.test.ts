@@ -82,8 +82,9 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		override dispose() {
 			super.dispose();
 
-			for (const [_, disposable] of this.pendingBackupOperations) {
-				disposable.dispose();
+			for (const [_, pending] of this.pendingBackupOperations) {
+				pending.cts.cancel();
+				pending.disposable.dispose();
 			}
 		}
 
