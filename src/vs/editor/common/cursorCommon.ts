@@ -74,8 +74,7 @@ export class CursorConfiguration {
 	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly blockCommentPairsOpen: CharacterMap;
-	public readonly blockCommentPairsClose: CharacterMap;
+	public readonly blockCommentStartToken: string | null;
 	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean; comment: (ch: string) => boolean };
 
 	private readonly _languageId: string;
@@ -137,8 +136,6 @@ export class CursorConfiguration {
 		this.autoIndent = options.get(EditorOption.autoIndent);
 
 		this.surroundingPairs = {};
-		this.blockCommentPairsOpen = {};
-		this.blockCommentPairsClose = {};
 		this._electricChars = null;
 
 		this.shouldAutoCloseBefore = {
@@ -156,13 +153,8 @@ export class CursorConfiguration {
 			}
 		}
 
-		let commentsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
-		if (commentsConfiguration) {
-			if (commentsConfiguration.blockCommentEndToken && commentsConfiguration.blockCommentStartToken) {
-				this.blockCommentPairsOpen[commentsConfiguration.blockCommentEndToken] = commentsConfiguration.blockCommentStartToken;
-				this.blockCommentPairsClose[commentsConfiguration.blockCommentStartToken] = commentsConfiguration.blockCommentEndToken;
-			}
-		}
+		const commentsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
+		this.blockCommentStartToken = commentsConfiguration?.blockCommentStartToken ?? null;
 	}
 
 	public get electricChars() {

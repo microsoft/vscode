@@ -19,7 +19,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
@@ -565,13 +565,6 @@ export class TypeOperations {
 	}
 
 	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
-		const chIsQuote = isQuote(ch);
-		const autoCloseConfig = (chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets);
-		const shouldAutoCloseBefore = (chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket);
-
-		if (autoCloseConfig === 'never') {
-			return null;
-		}
 
 		for (const selection of selections) {
 			if (!selection.isEmpty()) {
@@ -600,6 +593,28 @@ export class TypeOperations {
 		// e.g. when having [f","] and [","], it picks [f","] if the character before is f
 		const pair = this._findAutoClosingPairOpen(config, model, positions.map(p => new Position(p.lineNumber, p.beforeColumn)), ch);
 		if (!pair) {
+			return null;
+		}
+
+		let autoCloseConfig: EditorAutoClosingStrategy;
+		let shouldAutoCloseBefore: (ch: string) => boolean;
+
+		const chIsQuote = isQuote(ch);
+		if (chIsQuote) {
+			autoCloseConfig = config.autoClosingQuotes;
+			shouldAutoCloseBefore = config.shouldAutoCloseBefore.quote;
+		} else {
+			const pairIsForComments = config.blockCommentStartToken ? pair.open.includes(config.blockCommentStartToken) : false;
+			if (pairIsForComments) {
+				autoCloseConfig = config.autoClosingComments;
+				shouldAutoCloseBefore = config.shouldAutoCloseBefore.comment;
+			} else {
+				autoCloseConfig = config.autoClosingBrackets;
+				shouldAutoCloseBefore = config.shouldAutoCloseBefore.bracket;
+			}
+		}
+
+		if (autoCloseConfig === 'never') {
 			return null;
 		}
 
@@ -763,34 +778,6 @@ export class TypeOperations {
 		return false;
 	}
 
-	private static _isIgnorableAutoCloseCommentElectricAction(config: CursorConfiguration, model: ITextModel, selection: Selection, electricAction: IElectricAction) {
-		// Check whether this is an action which geenrates auto-closing text.
-		if (!electricAction.appendText || !electricAction.matchOpenText) {
-			return false;
-		}
-		// Check if it is a block comment which is being closed.
-		if (!config.blockCommentPairsClose.hasOwnProperty(electricAction.matchOpenText)) {
-			return false;
-		}
-		// TODO: Verify that appending text is the closing comment block.
-		if (config.autoClosingComments === 'never') {
-			return true;
-		}
-		const position = selection.getPosition();
-		const lineText = model.getLineContent(position.lineNumber);
-		const characterAfter = lineText.charAt(position.column - 1);
-		if (characterAfter) {
-			if (!config.shouldAutoCloseBefore.comment(characterAfter)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private static _isIgnorableElectricAction(config: CursorConfiguration, model: ITextModel, selection: Selection, electricAction: IElectricAction) {
-		return this._isIgnorableAutoCloseCommentElectricAction(config, model, selection, electricAction);
-	}
-
 	private static _typeInterceptorElectricChar(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): EditOperationResult | null {
 		if (!config.electricChars.hasOwnProperty(ch) || !selection.isEmpty()) {
 			return null;
@@ -809,10 +796,6 @@ export class TypeOperations {
 		}
 
 		if (!electricAction) {
-			return null;
-		}
-
-		if (this._isIgnorableElectricAction(config, model, selection, electricAction)) {
 			return null;
 		}
 
