@@ -3690,7 +3690,7 @@ declare namespace monaco.editor {
 		 */
 		pasteAs?: IPasteAsOptions;
 		/**
-		 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+		 * Controls whether the editor / terminal receives tabs or defers them to the workbench for navigation.
 		 */
 		tabFocusMode?: boolean;
 		/**

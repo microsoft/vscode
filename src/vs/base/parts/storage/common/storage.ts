@@ -49,6 +49,8 @@ export interface IStorageDatabase {
 	getItems(): Promise<Map<string, string>>;
 	updateItems(request: IUpdateRequest): Promise<void>;
 
+	optimize(): Promise<void>;
+
 	close(recovery?: () => Map<string, string>): Promise<void>;
 }
 
@@ -98,6 +100,8 @@ export interface IStorage extends IDisposable {
 
 	flush(delay?: number): Promise<void>;
 	whenFlushed(): Promise<void>;
+
+	optimize(): Promise<void>;
 
 	close(): Promise<void>;
 }
@@ -312,6 +316,18 @@ export class Storage extends Disposable implements IStorage {
 		return this.doFlush();
 	}
 
+	async optimize(): Promise<void> {
+		if (this.state === StorageState.Closed) {
+			return; // Return early if we are already closed
+		}
+
+		// Await pending data to be flushed to the DB
+		// before attempting to optimize the DB
+		await this.flush(0);
+
+		return this.database.optimize();
+	}
+
 	async close(): Promise<void> {
 		if (!this.pendingClose) {
 			this.pendingClose = this.doClose();
@@ -414,5 +430,6 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 		request.delete?.forEach(key => this.items.delete(key));
 	}
 
+	async optimize(): Promise<void> { }
 	async close(): Promise<void> { }
 }

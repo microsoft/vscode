@@ -20,7 +20,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { clamp } from 'vs/base/common/numbers';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -33,6 +33,9 @@ import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keyb
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
+import { ByteSize } from 'vs/platform/files/common/files';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -397,11 +400,118 @@ class LogWorkingCopiesAction extends Action2 {
 	}
 }
 
+class RemoveLargeStorageEntriesAction extends Action2 {
+
+	private static SIZE_THRESHOLD = 1024 * 16; // 16kb
+
+	constructor() {
+		super({
+			id: 'workbench.action.removeLargeStorageDatabaseEntries',
+			title: { value: localize('removeLargeStorageDatabaseEntries', "Remove Large Storage Database Entries..."), original: 'Remove Large Storage Database Entries...' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const storageService = accessor.get(IStorageService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const userDataProfileService = accessor.get(IUserDataProfileService);
+		const dialogService = accessor.get(IDialogService);
+
+		interface IStorageItem extends IQuickPickItem {
+			readonly key: string;
+			readonly scope: StorageScope;
+			readonly target: StorageTarget;
+			readonly size: number;
+		}
+
+		const items: IStorageItem[] = [];
+
+		for (const scope of [StorageScope.APPLICATION, StorageScope.PROFILE, StorageScope.WORKSPACE]) {
+			if (scope === StorageScope.PROFILE && userDataProfileService.currentProfile.isDefault) {
+				continue; // avoid duplicates
+			}
+
+			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
+				for (const key of storageService.keys(scope, target)) {
+					const value = storageService.get(key, scope);
+					if (value && value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD) {
+						items.push({
+							key,
+							scope,
+							target,
+							size: value.length,
+							label: key,
+							description: ByteSize.formatSize(value.length),
+							detail: localize('largeStorageItemDetail', "Scope: {0}, Target: {1}", scope === StorageScope.APPLICATION ? localize('global', "Global") : scope === StorageScope.PROFILE ? localize('profile', "Profile") : localize('workspace', "Workspace"), target === StorageTarget.MACHINE ? localize('machine', "Machine") : localize('user', "User")),
+						});
+					}
+				}
+			}
+		}
+
+		items.sort((itemA, itemB) => itemB.size - itemA.size);
+
+		const selectedItems = await new Promise<readonly IStorageItem[]>(resolve => {
+			const disposables = new DisposableStore();
+
+			const picker = disposables.add(quickInputService.createQuickPick<IStorageItem>());
+			picker.items = items;
+			picker.canSelectMany = true;
+			picker.ok = false;
+			picker.customButton = true;
+			picker.hideCheckAll = true;
+			picker.customLabel = localize('removeLargeStorageEntriesPickerButton', "Remove");
+			picker.placeholder = localize('removeLargeStorageEntriesPickerPlaceholder', "Select large entries to remove from storage");
+
+			if (items.length === 0) {
+				picker.description = localize('removeLargeStorageEntriesPickerDescriptionNoEntries', "There are no large storage entries to remove.");
+			}
+
+			picker.show();
+
+			disposables.add(picker.onDidCustom(() => {
+				resolve(picker.selectedItems);
+				picker.hide();
+			}));
+
+			disposables.add(picker.onDidHide(() => disposables.dispose()));
+		});
+
+		if (selectedItems.length === 0) {
+			return;
+		}
+
+		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
+			message: localize('removeLargeStorageEntriesConfirmRemove', "Do you want to remove the selected storage entries from the database?"),
+			detail: localize('removeLargeStorageEntriesConfirmRemoveDetail', "{0}\n\nThis action is irreversible and may result in data loss!", selectedItems.map(item => item.label).join('\n')),
+			primaryButton: localize({ key: 'removeLargeStorageEntriesButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Remove")
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		const scopesToOptimize = new Set<StorageScope>();
+		for (const item of selectedItems) {
+			storageService.remove(item.key, item.scope);
+			scopesToOptimize.add(item.scope);
+		}
+
+		for (const scope of scopesToOptimize) {
+			await storageService.optimize(scope);
+		}
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
+registerAction2(RemoveLargeStorageEntriesAction);
 
 // --- Configuration
 

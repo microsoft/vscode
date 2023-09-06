@@ -18,7 +18,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService, SyncResource, EDIT_SESSIONS_PENDING_KEY } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { isWeb } from 'vs/base/common/platform';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
@@ -82,8 +81,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
-		@ICredentialsService private readonly credentialsService: ICredentialsService
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService
 	) {
 		super();
 
@@ -280,7 +278,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// If settings sync is already enabled, avoid asking again to authenticate
 		if (this.shouldAttemptEditSessionInit()) {
 			this.logService.info(`Reusing user data sync enablement`);
-			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
+			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService);
 			if (authenticationSessionInfo !== undefined) {
 				this.logService.info(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
 				this.existingSessionId = authenticationSessionInfo.id;
