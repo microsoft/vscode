@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -71,15 +71,15 @@ suite('EditorAutoSave', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
-		model.textEditorModel.setValue('Super Good');
+		const model = await accessor.textFileService.files.resolve(resource);
+		model.textEditorModel?.setValue('Super Good');
 
 		assert.ok(model.isDirty());
 
 		await awaitModelSaved(model);
 
-		assert.ok(!model.isDirty());
-		(model as IResolvedTextFileEditorModel).dispose();
+		assert.strictEqual(model.isDirty(), false);
+		model.dispose();
 	});
 
 	test('editor auto saves on focus change if configured', async function () {
@@ -88,17 +88,19 @@ suite('EditorAutoSave', () => {
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
-		model.textEditorModel.setValue('Super Good');
+		const model = await accessor.textFileService.files.resolve(resource);
+		model.textEditorModel?.setValue('Super Good');
 
 		assert.ok(model.isDirty());
 
-		await accessor.editorService.openEditor({ resource: toResource.call(this, '/path/index_other.txt') });
+		const editorPane = await accessor.editorService.openEditor({ resource: toResource.call(this, '/path/index_other.txt') });
 
 		await awaitModelSaved(model);
 
-		assert.ok(!model.isDirty());
-		(model as IResolvedTextFileEditorModel).dispose();
+		assert.strictEqual(model.isDirty(), false);
+		model.dispose();
+
+		await editorPane?.group?.closeAllEditors();
 	});
 
 	function awaitModelSaved(model: ITextFileEditorModel): Promise<void> {
