@@ -74,6 +74,8 @@ export interface IAccessibleViewService {
 	previous(): void;
 	goToSymbol(): void;
 	disableHint(): void;
+	getPosition(): Position | undefined;
+	setPosition(position: Position): void;
 	/**
 	 * If the setting is enabled, provides the open accessible view hint as a localized string.
 	 * @param verbositySettingKey The setting key for the verbosity of the feature
@@ -86,6 +88,11 @@ export const enum AccessibleViewType {
 	View = 'view'
 }
 
+export const enum NavigationType {
+	Previous = 'previous',
+	Next = 'next'
+}
+
 export interface IAccessibleViewOptions {
 	readMoreUrl?: string;
 	/**
@@ -95,7 +102,7 @@ export interface IAccessibleViewOptions {
 	type: AccessibleViewType;
 }
 
-class AccessibleView extends Disposable {
+export class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
@@ -572,7 +579,6 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		this._accessibleView.show(provider);
-
 	}
 	next(): void {
 		this._accessibleView?.next();
@@ -601,6 +607,12 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	showAccessibleViewHelp(): void {
 		this._accessibleView?.showAccessibleViewHelp();
+	}
+	getPosition(): Position | undefined {
+		return this._accessibleView?.editorWidget.getPosition() ?? undefined;
+	}
+	setPosition(position: Position): void {
+		this._accessibleView?.editorWidget.setPosition(position);
 	}
 }
 
