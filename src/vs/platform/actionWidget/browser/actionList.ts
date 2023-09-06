@@ -24,7 +24,7 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
-	onFocus(action: T): Promise<boolean> | undefined;
+	onFocus?(action: T): Promise<{ canPreview: boolean }>;
 }
 
 export interface IActionListItem<T> {
@@ -308,7 +308,10 @@ export class ActionList<T> extends Disposable {
 		const element = e.element;
 		if (element) {
 			if (element.item && this.focusCondition(element)) {
-				element.canPreview = await this._delegate.onFocus(element.item);
+				if (this._delegate.onFocus) {
+					const result = await this._delegate.onFocus(element.item);
+					element.canPreview = result.canPreview;
+				}
 				if (e.index) {
 					this._list.splice(e.index, 1, [element]);
 				}

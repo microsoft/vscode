@@ -255,7 +255,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			},
 			onFocus: async (action: CodeActionItem) => {
 				await action.resolve(CancellationToken.None);
-				return !!action.action.edit?.edits.length;
+				return { canPreview: !!action.action.edit?.edits.length };
 			}
 		};
 
