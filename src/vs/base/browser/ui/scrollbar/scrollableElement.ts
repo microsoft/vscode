@@ -626,14 +626,14 @@ export class DomScrollableElement extends AbstractScrollableElement {
 		super(element, options, scrollable);
 		this._register(scrollable);
 		this._element = element;
-		this.onScroll((e) => {
+		this._register(this.onScroll((e) => {
 			if (e.scrollTopChanged) {
 				this._element.scrollTop = e.scrollTop;
 			}
 			if (e.scrollLeftChanged) {
 				this._element.scrollLeft = e.scrollLeft;
 			}
-		});
+		}));
 		this.scanDomNode();
 	}
 

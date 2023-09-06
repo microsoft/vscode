@@ -221,8 +221,7 @@ jobs:
       - name: Compile Integration Tests
         run: yarn --cwd test/integration/browser compile
 
-      # This is required for keytar unittests, otherwise we hit
-      # https://github.com/atom/node-keytar/issues/76
+      # This is required for SecretStorage unittests
       - name: Create temporary keychain
         run: |
           security create-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
