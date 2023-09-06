@@ -36,7 +36,6 @@ import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import product from 'vs/platform/product/common/product';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -487,7 +486,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 		const { confirmed } = await dialogService.confirm({
 			type: 'warning',
 			message: localize('removeLargeStorageEntriesConfirmRemove', "Do you want to remove the selected storage entries from the database?"),
-			detail: localize('removeLargeStorageEntriesConfirmRemoveDetail', "{0}\n\nThis action is irreversible!", selectedItems.map(item => item.label).join('\n')),
+			detail: localize('removeLargeStorageEntriesConfirmRemoveDetail', "{0}\n\nThis action is irreversible and may result in data loss!", selectedItems.map(item => item.label).join('\n')),
 			primaryButton: localize({ key: 'removeLargeStorageEntriesButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Remove")
 		});
 
@@ -512,9 +511,7 @@ registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
-if (product.quality !== 'stable') {
-	registerAction2(RemoveLargeStorageEntriesAction);
-}
+registerAction2(RemoveLargeStorageEntriesAction);
 
 // --- Configuration
 
