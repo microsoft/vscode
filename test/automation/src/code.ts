@@ -185,7 +185,7 @@ export class Code {
 
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
-						await new Promise(resolve => setTimeout(resolve, 500));
+						await this.wait(500);
 					} catch (error) {
 						done = true;
 						resolve();
@@ -255,7 +255,7 @@ export class Code {
 	}
 
 	wait(millis: number): Promise<void> {
-		return new Promise((resolve, reject) => setTimeout(resolve, millis));
+		return this.driver.wait(millis);
 	}
 
 	private async poll<T>(
@@ -289,7 +289,7 @@ export class Code {
 				lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 			}
 
-			await new Promise(resolve => setTimeout(resolve, retryInterval));
+			await this.wait(retryInterval);
 			trial++;
 		}
 	}
