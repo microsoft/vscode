@@ -18,6 +18,7 @@ import type * as vscode from 'vscode';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { TextEdit } from 'vs/editor/common/languages';
 
 class ProviderWrapper {
 
@@ -62,6 +63,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			message?: string;
 			autoSend?: boolean;
 			position?: vscode.Position;
+			edits?: extHostTypes.TextEdit[];
 		};
 
 		type InteractiveEditorRunOptions = {
@@ -70,6 +72,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			message?: string;
 			autoSend?: boolean;
 			position?: IPosition;
+			edits?: TextEdit[];
 		};
 
 		extHostCommands.registerApiCommand(new ApiCommand(
@@ -86,6 +89,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 					message: v.message,
 					autoSend: v.autoSend,
 					position: v.position ? typeConvert.Position.from(v.position) : undefined,
+					edits: v.edits ? v.edits.map(edit => typeConvert.TextEdit.from(edit)) : undefined,
 				};
 			})],
 			ApiCommandResult.Void
@@ -222,8 +226,10 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
-		const response = sessionData?.responses[responseId];
-		if (entry && response) {
+
+    // Allows to handle feedback on Edit Only triggers
+    const response = responseId === Number.MAX_VALUE ? { edits: [] } : sessionData?.responses[responseId];
+		if (entry && sessionData?.session && response) {
 			const apiKind = typeConvert.InteractiveEditorResponseFeedbackKind.to(kind);
 			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
 		}

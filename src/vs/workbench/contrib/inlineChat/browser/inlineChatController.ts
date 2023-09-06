@@ -71,6 +71,7 @@ export interface InlineChatRunOptions {
 	existingSession?: Session;
 	isUnstashed?: boolean;
 	position?: IPosition;
+	edits?: TextEdit[];
 }
 
 export class InlineChatController implements IEditorContribution {
@@ -189,6 +190,8 @@ export class InlineChatController implements IEditorContribution {
 	private _currentRun?: Promise<void>;
 
 	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
+		// Modifies the styling of inlineChat based on the mode of usage.
+		this._zone.value.widget.showEditOnlyActions(options.edits && options.edits.length > 0);
 		this.finishExistingSession();
 		if (this._currentRun) {
 			await this._currentRun;
@@ -366,6 +369,22 @@ export class InlineChatController implements IEditorContribution {
 				this.finishExistingSession();
 			}
 		}));
+
+		if (options.edits && options.edits.length > 0) {
+			this._activeSession.addExchange(new SessionExchange(
+				new SessionPrompt('edit'),
+				new EditResponse(
+					this._activeSession.textModelN.uri,
+					this._activeSession.textModelN.getAlternativeVersionId(),
+					{
+						id: Number.MAX_VALUE,
+						type: InlineChatResponseType.EditorEdit,
+						edits: options.edits
+					},
+					[]
+				)));
+			return State.APPLY_RESPONSE;
+		}
 
 		if (!this._activeSession.lastExchange) {
 			return State.WAIT_FOR_INPUT;
