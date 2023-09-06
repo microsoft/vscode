@@ -2245,14 +2245,6 @@ class TreeActionsProvider {
 
 		if (element instanceof TestCaseElement) {
 			const extId = element.test.item.extId;
-			primary.push(new Action(
-				'testing.outputPeek.goToFile',
-				localize('testing.goToFile', "Go to Source"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', extId),
-			));
-
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
@@ -2290,6 +2282,14 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
 				));
 			}
+
+			primary.push(new Action(
+				'testing.outputPeek.goToFile',
+				localize('testing.goToFile', "Go to Source"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				undefined,
+				() => this.commandService.executeCommand('vscode.revealTest', extId),
+			));
 		}
 
 		if (element instanceof TestMessageElement) {
