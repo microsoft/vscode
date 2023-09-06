@@ -11,9 +11,12 @@ import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposa
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 //#region extension point
 
@@ -102,30 +105,6 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 
 	constructor(@IExtensionService private readonly _extensionService: IExtensionService) {
 		super();
-		const contributions = this._register(new DisposableStore());
-
-		slashesExtPoint.setHandler(extensions => {
-			contributions.clear();
-
-			for (const entry of extensions) {
-				if (!isProposedApiEnabled(entry.description, 'chatSlashCommands')) {
-					entry.collector.error(`The ${slashesExtPoint.name} is proposed API`);
-					continue;
-				}
-
-				const { value } = entry;
-
-				for (const candidate of Iterable.wrap(value)) {
-
-					if (!isChatSlashData(candidate)) {
-						entry.collector.error(localize('invalid', "Invalid {0}: {1}", slashesExtPoint.name, JSON.stringify(candidate)));
-						continue;
-					}
-
-					contributions.add(this.registerSlashData({ ...candidate }));
-				}
-			}
-		});
 	}
 
 	override dispose(): void {
@@ -186,3 +165,34 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 		await data.command(prompt, progress, history, token);
 	}
 }
+
+class ChatSlashCommandContribution implements IWorkbenchContribution {
+	constructor(@IChatSlashCommandService slashCommandService: IChatSlashCommandService) {
+		const contributions = new DisposableStore();
+
+		slashesExtPoint.setHandler(extensions => {
+			contributions.clear();
+
+			for (const entry of extensions) {
+				if (!isProposedApiEnabled(entry.description, 'chatSlashCommands')) {
+					entry.collector.error(`The ${slashesExtPoint.name} is proposed API`);
+					continue;
+				}
+
+				const { value } = entry;
+
+				for (const candidate of Iterable.wrap(value)) {
+
+					if (!isChatSlashData(candidate)) {
+						entry.collector.error(localize('invalid', "Invalid {0}: {1}", slashesExtPoint.name, JSON.stringify(candidate)));
+						continue;
+					}
+
+					contributions.add(slashCommandService.registerSlashData({ ...candidate }));
+				}
+			}
+		});
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ChatSlashCommandContribution, LifecyclePhase.Restored);

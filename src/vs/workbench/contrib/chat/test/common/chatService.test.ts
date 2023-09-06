@@ -16,6 +16,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
@@ -67,30 +69,32 @@ suite('Chat', () => {
 
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
-			[IChatSlashCommandService, new SyncDescriptor<any>(ChatSlashCommandService)],
+			// [IChatSlashCommandService, new SyncDescriptor<any>(ChatSlashCommandService)],
 			[IChatVariablesService, new SyncDescriptor<any>(ChatVariablesService)]
 		)));
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IChatContributionService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
+		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 	});
 
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const provider1 = new SimpleTestProvider('provider1');
-		const provider2 = new SimpleTestProvider('provider2');
-		testService.registerProvider(provider1);
-		testService.registerProvider(provider2);
+		const provider1 = testDisposables.add(new SimpleTestProvider('provider1'));
+		const provider2 = testDisposables.add(new SimpleTestProvider('provider2'));
+		testDisposables.add(testService.registerProvider(provider1));
+		testDisposables.add(testService.registerProvider(provider2));
 
-		const session1 = testService.startSession('provider1', CancellationToken.None);
+		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
 		await session1.waitForInitialization();
 		session1!.addRequest('request 1');
 
-		const session2 = testService.startSession('provider2', CancellationToken.None);
+		const session2 = testDisposables.add(testService.startSession('provider2', CancellationToken.None));
 		await session2.waitForInitialization();
 		session2!.addRequest('request 2');
 
@@ -101,11 +105,11 @@ suite('Chat', () => {
 		storageService.flush();
 
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
-		testService2.registerProvider(provider1);
-		testService2.registerProvider(provider2);
-		const retrieved1 = testService2.getOrRestoreSession(session1.sessionId);
+		testDisposables.add(testService2.registerProvider(provider1));
+		testDisposables.add(testService2.registerProvider(provider2));
+		const retrieved1 = testDisposables.add(testService2.getOrRestoreSession(session1.sessionId)!);
 		await retrieved1!.waitForInitialization();
-		const retrieved2 = testService2.getOrRestoreSession(session2.sessionId);
+		const retrieved2 = testDisposables.add(testService2.getOrRestoreSession(session2.sessionId)!);
 		await retrieved2!.waitForInitialization();
 		assert.deepStrictEqual(provider1.lastInitialState, { state: 'provider1_state' });
 		assert.deepStrictEqual(provider2.lastInitialState, { state: 'provider2_state' });
@@ -131,16 +135,16 @@ suite('Chat', () => {
 
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const provider1 = getFailProvider('provider1');
-		testService.registerProvider(provider1);
+		testDisposables.add(testService.registerProvider(provider1));
 
-		const session1 = testService.startSession('provider1', CancellationToken.None);
+		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
 		await assert.rejects(() => session1.waitForInitialization());
 	});
 
 	test('Can\'t register same provider id twice', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		const id = 'testProvider';
-		testService.registerProvider({
+		testDisposables.add(testService.registerProvider({
 			id,
 			displayName: 'Test',
 			prepareSession: function (initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined> {
@@ -149,10 +153,10 @@ suite('Chat', () => {
 			provideReply: function (request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse> {
 				throw new Error('Function not implemented.');
 			}
-		});
+		}));
 
 		assert.throws(() => {
-			testService.registerProvider({
+			testDisposables.add(testService.registerProvider({
 				id,
 				displayName: 'Test',
 				prepareSession: function (initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined> {
@@ -161,13 +165,13 @@ suite('Chat', () => {
 				provideReply: function (request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse> {
 					throw new Error('Function not implemented.');
 				}
-			});
+			}));
 		}, 'Expected to throw for dupe provider');
 	});
 
 	test('getSlashCommands', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		const provider = new class extends SimpleTestProvider {
+		const provider = testDisposables.add(new class extends SimpleTestProvider {
 			constructor() {
 				super('testProvider');
 			}
@@ -181,11 +185,11 @@ suite('Chat', () => {
 					}
 				];
 			}
-		};
+		});
 
-		testService.registerProvider(provider);
+		testDisposables.add(testService.registerProvider(provider));
 
-		const model = testService.startSession('testProvider', CancellationToken.None);
+		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		const commands = await testService.getSlashCommands(model.sessionId, CancellationToken.None);
 
 		assert.strictEqual(commands?.length, 1);
@@ -196,9 +200,9 @@ suite('Chat', () => {
 
 	test('sendRequestToProvider', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		testService.registerProvider(new SimpleTestProvider('testProvider'));
+		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 
-		const model = testService.startSession('testProvider', CancellationToken.None);
+		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
 		await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
@@ -207,9 +211,9 @@ suite('Chat', () => {
 
 	test('addCompleteRequest', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-		testService.registerProvider(new SimpleTestProvider('testProvider'));
+		testDisposables.add(testService.registerProvider(testDisposables.add(new SimpleTestProvider('testProvider'))));
 
-		const model = testService.startSession('testProvider', CancellationToken.None);
+		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
 		await testService.addCompleteRequest(model.sessionId, 'test request', { message: 'test response' });
