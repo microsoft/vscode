@@ -98,7 +98,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		const shouldRenderInlineChatHint = inlineChatProviders.length > 0;
 		const shouldRenderDefaultHint = model?.getLanguageId() === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
 
-		if (model && (model.uri.scheme === Schemas.untitled && shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue === 'text') {
+		if (model && (model.uri.scheme === Schemas.untitled && shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue !== 'hidden') {
 			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
 				this.editorGroupsService,
