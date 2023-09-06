@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatSlashCommandsShape, ExtHostContext, MainContext, MainThreadChatSlashCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -42,7 +43,7 @@ export class MainThreadChatSlashCommands implements MainThreadChatSlashCommandsS
 			const requestId = Math.random();
 			this._pendingProgress.set(requestId, progress);
 			try {
-				await this._proxy.$executeCommand(handle, requestId, prompt, { history }, token);
+				return await this._proxy.$executeCommand(handle, requestId, prompt, { history }, token);
 			} finally {
 				this._pendingProgress.delete(requestId);
 			}
@@ -51,7 +52,7 @@ export class MainThreadChatSlashCommands implements MainThreadChatSlashCommandsS
 	}
 
 	async $handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void> {
-		this._pendingProgress.get(requestId)?.report(chunk);
+		this._pendingProgress.get(requestId)?.report(revive(chunk));
 	}
 
 	$unregisterCommand(handle: number): void {

@@ -62,7 +62,8 @@ export class DisposableTracker implements IDisposableTracker {
 	trackDisposable(d: IDisposable): void {
 		const data = this.getDisposableData(d);
 		if (!data.source) {
-			data.source = new Error().stack!;
+			data.source =
+				new Error().stack!;
 		}
 	}
 

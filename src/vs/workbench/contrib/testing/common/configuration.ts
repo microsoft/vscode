@@ -25,6 +25,7 @@ export const enum AutoOpenTesting {
 	NeverOpen = 'neverOpen',
 	OpenOnTestStart = 'openOnTestStart',
 	OpenOnTestFailure = 'openOnTestFailure',
+	OpenExplorerOnTestStart = 'openExplorerOnTestStart',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -132,11 +133,13 @@ export const testingConfiguration: IConfigurationNode = {
 				AutoOpenTesting.NeverOpen,
 				AutoOpenTesting.OpenOnTestStart,
 				AutoOpenTesting.OpenOnTestFailure,
+				AutoOpenTesting.OpenExplorerOnTestStart,
 			],
 			enumDescriptions: [
-				localize('testing.openTesting.neverOpen', 'Never automatically open the testing view'),
-				localize('testing.openTesting.openOnTestStart', 'Open the testing view when tests start'),
-				localize('testing.openTesting.openOnTestFailure', 'Open the testing view on any test failure'),
+				localize('testing.openTesting.neverOpen', 'Never automatically open the testing views'),
+				localize('testing.openTesting.openOnTestStart', 'Open the test results view when tests start'),
+				localize('testing.openTesting.openOnTestFailure', 'Open the test result view on any test failure'),
+				localize('testing.openTesting.openExplorerOnTestStart', 'Open the test explorer when tests start'),
 			],
 			default: 'openOnTestStart',
 			description: localize('testing.openTesting', "Controls when the testing view should open.")
