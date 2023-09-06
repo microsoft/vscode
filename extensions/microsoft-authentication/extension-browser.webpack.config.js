@@ -20,9 +20,6 @@ module.exports = withBrowserDefaults({
 	entry: {
 		extension: './src/extension.ts',
 	},
-	externals: {
-		'keytar': 'commonjs keytar',
-	},
 	resolve: {
 		alias: {
 			'./node/crypto': path.resolve(__dirname, 'src/browser/crypto'),

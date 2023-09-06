@@ -4,31 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { equals } from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mock } from 'vs/base/test/common/mock';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
 import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatService, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { mock } from 'vs/base/test/common/mock';
-import { Emitter, Event } from 'vs/base/common/event';
-import { equals } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
-import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 suite('InteractiveChatController', function () {
 
@@ -114,11 +113,11 @@ suite('InteractiveChatController', function () {
 			}]
 		);
 
-		instaService = workbenchInstantiationService(undefined, store).createChild(serviceCollection);
-		inlineChatSessionService = instaService.get(IInlineChatSessionService);
+		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
+		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
-		model = instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null);
-		editor = instantiateTestCodeEditor(instaService, model);
+		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
+		editor = store.add(instantiateTestCodeEditor(instaService, model));
 
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
@@ -142,11 +141,12 @@ suite('InteractiveChatController', function () {
 	});
 
 	teardown(function () {
-		editor.dispose();
-		model.dispose();
 		store.clear();
 		ctrl?.dispose();
 	});
+
+	// todo: re-enable this when earlier tests are fixed
+	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('creation, not showing anything', function () {
 		ctrl = instaService.createInstance(TestController, editor);
@@ -295,19 +295,8 @@ suite('InteractiveChatController', function () {
 					wholeRange: new Range(3, 1, 3, 3)
 				};
 			},
-			async provideResponse(session, request) {
-
-				// SLOW response
-				await timeout(50000);
-
-				return {
-					type: InlineChatResponseType.EditorEdit,
-					id: Math.random(),
-					edits: [{
-						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
-						text: `${request.prompt}\n${request.prompt}`
-					}]
-				};
+			provideResponse(session, request) {
+				return new Promise<never>(() => { });
 			}
 		});
 		store.add(d);

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IReader, autorunHandleChanges } from 'vs/base/common/observable';
+import { IObservable, IReader, autorunHandleChanges, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditorWidget2/overviewRulerPart';
 import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
@@ -16,6 +15,8 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DiffEditorOptions } from './diffEditorOptions';
+import { ITextModel } from 'vs/editor/common/model';
+import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;
@@ -23,6 +24,8 @@ export class DiffEditorEditors extends Disposable {
 
 	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
+
+	public readonly modifiedModel: IObservable<ITextModel | null>;
 
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
@@ -35,8 +38,10 @@ export class DiffEditorEditors extends Disposable {
 	) {
 		super();
 
-		this.original = this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {});
-		this.modified = this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {});
+		this.original = this._register(this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {}));
+		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
+
+		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => this.modified.getModel());
 
 		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
@@ -49,6 +54,8 @@ export class DiffEditorEditors extends Disposable {
 		}, (reader, changeSummary) => {
 			/** @description update editor options */
 			_options.editorOptions.read(reader);
+
+			this._options.renderSideBySide.read(reader);
 
 			this.modified.updateOptions(this._adjustOptionsForRightHandSide(reader, changeSummary));
 			this.original.updateOptions(this._adjustOptionsForLeftHandSide(reader, changeSummary));
@@ -93,7 +100,11 @@ export class DiffEditorEditors extends Disposable {
 			result.wordWrapOverride1 = 'off';
 			result.wordWrapOverride2 = 'off';
 			result.stickyScroll = { enabled: false };
+
+			// Disable unicode highlighting for the original side in inline mode, as they are not shown anyway.
+			result.unicodeHighlight = { nonBasicASCII: false, ambiguousCharacters: false, invisibleCharacters: false };
 		} else {
+			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight || {};
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
 		}
 		if (changedOptions.originalAriaLabel) {
@@ -141,7 +152,7 @@ export class DiffEditorEditors extends Disposable {
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
 
-		if (this._options.collapseUnchangedRegions.get()) {
+		if (this._options.hideUnchangedRegions.get()) {
 			clonedOptions.stickyScroll = { enabled: false };
 		} else {
 			clonedOptions.stickyScroll = this._options.editorOptions.get().stickyScroll;

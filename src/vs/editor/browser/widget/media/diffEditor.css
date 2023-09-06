@@ -81,7 +81,7 @@
 }
 
 .monaco-editor .line-insert, .monaco-diff-editor .line-insert {
-	background-color: var(--vscode-diffEditor-insertedLineBackground, --vscode-diffEditor-insertedTextBackground);
+	background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
 }
 
 .monaco-editor .line-insert,
@@ -106,7 +106,7 @@
 
 .monaco-editor .inline-added-margin-view-zone,
 .monaco-editor .gutter-insert, .monaco-diff-editor .gutter-insert {
-	background-color: var(--vscode-diffEditorGutter-insertedLineBackground, --vscode-diffEditor-insertedLineBackground, --vscode-diffEditor-insertedTextBackground);
+	background-color: var(--vscode-diffEditorGutter-insertedLineBackground, var(--vscode-diffEditor-insertedLineBackground), var(--vscode-diffEditor-insertedTextBackground));
 }
 
 .monaco-editor .char-delete, .monaco-diff-editor .char-delete {
@@ -114,12 +114,12 @@
 }
 
 .monaco-editor .line-delete, .monaco-diff-editor .line-delete {
-	background-color: var(--vscode-diffEditor-removedLineBackground, --vscode-diffEditor-removedTextBackground);
+	background-color: var(--vscode-diffEditor-removedLineBackground, var(--vscode-diffEditor-removedTextBackground));
 }
 
 .monaco-editor .inline-deleted-margin-view-zone,
 .monaco-editor .gutter-delete, .monaco-diff-editor .gutter-delete {
-	background-color: var(--vscode-diffEditorGutter-removedLineBackground, --vscode-diffEditor-removedLineBackground, --vscode-diffEditor-removedTextBackground);
+	background-color: var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedLineBackground), var(--vscode-diffEditor-removedTextBackground));
 }
 
 .monaco-diff-editor.side-by-side .editor.modified {

@@ -13,7 +13,7 @@ import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrow
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -39,7 +39,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		private readonly _getViewZoneId: () => string,
 		private readonly _marginDomNode: HTMLElement,
 		private readonly _modifiedEditor: CodeEditorWidget,
-		private readonly _diff: LineRangeMapping,
+		private readonly _diff: DetailedLineRangeMapping,
 		private readonly _editor: DiffEditorWidget2,
 		private readonly _viewLineCounts: number[],
 		private readonly _originalTextModel: ITextModel,
@@ -70,38 +70,38 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 				getAnchor: () => ({ x, y }),
 				getActions: () => {
 					const actions: Action[] = [];
-					const isDeletion = _diff.modifiedRange.isEmpty;
+					const isDeletion = _diff.modified.isEmpty;
 
 					// default action
 					actions.push(new Action(
 						'diff.clipboard.copyDeletedContent',
 						isDeletion
-							? (_diff.originalRange.length > 1
+							? (_diff.original.length > 1
 								? localize('diff.clipboard.copyDeletedLinesContent.label', "Copy deleted lines")
 								: localize('diff.clipboard.copyDeletedLinesContent.single.label', "Copy deleted line"))
-							: (_diff.originalRange.length > 1
+							: (_diff.original.length > 1
 								? localize('diff.clipboard.copyChangedLinesContent.label', "Copy changed lines")
 								: localize('diff.clipboard.copyChangedLinesContent.single.label', "Copy changed line")),
 						undefined,
 						true,
 						async () => {
-							const originalText = this._originalTextModel.getValueInRange(_diff.originalRange.toExclusiveRange());
+							const originalText = this._originalTextModel.getValueInRange(_diff.original.toExclusiveRange());
 							await this._clipboardService.writeText(originalText);
 						}
 					));
 
-					if (_diff.originalRange.length > 1) {
+					if (_diff.original.length > 1) {
 						actions.push(new Action(
 							'diff.clipboard.copyDeletedLineContent',
 							isDeletion
 								? localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})",
-									_diff.originalRange.startLineNumber + currentLineNumberOffset)
+									_diff.original.startLineNumber + currentLineNumberOffset)
 								: localize('diff.clipboard.copyChangedLineContent.label', "Copy changed line ({0})",
-									_diff.originalRange.startLineNumber + currentLineNumberOffset),
+									_diff.original.startLineNumber + currentLineNumberOffset),
 							undefined,
 							true,
 							async () => {
-								let lineContent = this._originalTextModel.getLineContent(_diff.originalRange.startLineNumber + currentLineNumberOffset);
+								let lineContent = this._originalTextModel.getLineContent(_diff.original.startLineNumber + currentLineNumberOffset);
 								if (lineContent === '') {
 									// empty line -> new line
 									const eof = this._originalTextModel.getEndOfLineSequence();

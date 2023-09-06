@@ -9,10 +9,9 @@ import { IObservable, IReader, autorun, derived, observableValue } from 'vs/base
 import { DiffEditorOptions } from './diffEditorOptions';
 
 export class DiffEditorSash extends Disposable {
-	private readonly _sashRatio = observableValue<number | undefined>('sashRatio', undefined);
+	private readonly _sashRatio = observableValue<number | undefined>(this, undefined);
 
-	public readonly sashLeft = derived(reader => {
-		/** @description sashLeft */
+	public readonly sashLeft = derived(this, reader => {
 		const ratio = this._sashRatio.read(reader) ?? this._options.splitViewDefaultRatio.read(reader);
 		return this._computeSashLeft(ratio, reader);
 	});

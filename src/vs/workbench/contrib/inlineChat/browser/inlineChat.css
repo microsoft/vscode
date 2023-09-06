@@ -38,7 +38,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 2px 2px 2px 4px;
+	padding: 2px 2px 2px 6px;
 	background-color: var(--vscode-inlineChatInput-background);
 	cursor: text;
 }
@@ -95,7 +95,7 @@
 /* status */
 
 .monaco-editor .inline-chat .status {
-	margin-top: 2px;
+	margin-top: 4px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -290,6 +290,7 @@
 }
 
 /* create zone */
+
 
 .monaco-editor .inline-chat-newfile-widget {
 	padding: 3px 0 6px 0;

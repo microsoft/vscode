@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export interface INativeCliOptions {
+	'cli-data-dir'?: string;
+	'disable-telemetry'?: boolean;
+	'telemetry-level'?: string;
+}
+
 /**
  * A list of command line arguments we support natively.
  */
 export interface NativeParsedArgs {
 	// subcommands
-	tunnel?: {
-		'cli-data-dir'?: string;
-		'disable-telemetry'?: boolean;
-		'telemetry-level'?: string;
+	tunnel?: INativeCliOptions & {
 		user: {
 			login: {
 				'access-token'?: string;
@@ -19,6 +22,7 @@ export interface NativeParsedArgs {
 			};
 		};
 	};
+	'serve-web'?: INativeCliOptions;
 	_: string[];
 	'folder-uri'?: string[]; // undefined or array of 1 or more
 	'file-uri'?: string[]; // undefined or array of 1 or more

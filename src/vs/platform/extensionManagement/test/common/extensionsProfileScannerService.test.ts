@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { ExtensionType, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { AbstractExtensionsProfileScannerService, ProfileExtensionsEvent } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -46,6 +47,10 @@ suite('ExtensionsProfileScannerService', () => {
 		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
 		instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
 	});
+
+	teardown(() => disposables.clear());
+
+	suiteTeardown(() => sinon.restore());
 
 	test('write extensions located in the same extensions folder', async () => {
 		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
@@ -442,7 +447,247 @@ suite('ExtensionsProfileScannerService', () => {
 		assert.deepStrictEqual(manifestContent, [{ identifier: extension.identifier, location: extension.location.toJSON(), relativeLocation: 'pub.a-1.0.0', version: extension.manifest.version }]);
 	});
 
-	function aExtension(id: string, location: URI, e?: Partial<IExtension>): IExtension {
+	test('add extension trigger events', async () => {
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const target1 = sinon.stub();
+		const target2 = sinon.stub();
+		testObject.onAddExtensions(target1);
+		testObject.onDidAddExtensions(target2);
+
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(ROOT, 'foo', 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
+
+		assert.ok(target1.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension.location.toString());
+
+		assert.ok(target2.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension.location.toString());
+	});
+
+	test('remove extension trigger events', async () => {
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const target1 = sinon.stub();
+		const target2 = sinon.stub();
+		testObject.onRemoveExtensions(target1);
+		testObject.onDidRemoveExtensions(target2);
+
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+		const extension = aExtension('pub.a', joinPath(ROOT, 'foo', 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
+		await testObject.removeExtensionFromProfile(extension, extensionsManifest);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.length, 0);
+
+		assert.ok(target1.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension.location.toString());
+
+		assert.ok(target2.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension.location.toString());
+	});
+
+	test('add extension with same id but different version', async () => {
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+
+		const extension1 = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension1, undefined]], extensionsManifest);
+
+		const target1 = sinon.stub();
+		const target2 = sinon.stub();
+		const target3 = sinon.stub();
+		const target4 = sinon.stub();
+		testObject.onAddExtensions(target1);
+		testObject.onRemoveExtensions(target2);
+		testObject.onDidAddExtensions(target3);
+		testObject.onDidRemoveExtensions(target4);
+		const extension2 = aExtension('pub.a', joinPath(ROOT, 'pub.a-2.0.0'), undefined, { version: '2.0.0' });
+		await testObject.addExtensionsToProfile([[extension2, undefined]], extensionsManifest);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension2.identifier, location: extension2.location.toJSON(), version: extension2.manifest.version, metadata: undefined }]);
+
+		assert.ok(target1.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension2.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension2.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension2.location.toString());
+
+		assert.ok(target2.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension1.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension1.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension1.location.toString());
+
+		assert.ok(target3.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension2.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension2.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension2.location.toString());
+
+		assert.ok(target4.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension1.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension1.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension1.location.toString());
+	});
+
+	test('add same extension', async () => {
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+
+		const extension = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
+
+		const target1 = sinon.stub();
+		const target2 = sinon.stub();
+		const target3 = sinon.stub();
+		const target4 = sinon.stub();
+		testObject.onAddExtensions(target1);
+		testObject.onRemoveExtensions(target2);
+		testObject.onDidAddExtensions(target3);
+		testObject.onDidRemoveExtensions(target4);
+		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
+		assert.ok(target1.notCalled);
+		assert.ok(target2.notCalled);
+		assert.ok(target3.notCalled);
+		assert.ok(target4.notCalled);
+	});
+
+	test('add same extension with different metadata', async () => {
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+
+		const extension = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
+
+		const target1 = sinon.stub();
+		const target2 = sinon.stub();
+		const target3 = sinon.stub();
+		const target4 = sinon.stub();
+		testObject.onAddExtensions(target1);
+		testObject.onRemoveExtensions(target2);
+		testObject.onDidAddExtensions(target3);
+		testObject.onDidRemoveExtensions(target4);
+		await testObject.addExtensionsToProfile([[extension, { isApplicationScoped: true }]], extensionsManifest);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON(), metadata: a.metadata })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: { isApplicationScoped: true } }]);
+		assert.ok(target1.notCalled);
+		assert.ok(target2.notCalled);
+		assert.ok(target3.notCalled);
+		assert.ok(target4.notCalled);
+	});
+
+	test('add extension with different version and metadata', async () => {
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+
+		const extension1 = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension1, undefined]], extensionsManifest);
+		const extension2 = aExtension('pub.a', joinPath(ROOT, 'pub.a-2.0.0'), undefined, { version: '2.0.0' });
+
+		const target1 = sinon.stub();
+		const target2 = sinon.stub();
+		const target3 = sinon.stub();
+		const target4 = sinon.stub();
+		testObject.onAddExtensions(target1);
+		testObject.onRemoveExtensions(target2);
+		testObject.onDidAddExtensions(target3);
+		testObject.onDidRemoveExtensions(target4);
+		await testObject.addExtensionsToProfile([[extension2, { isApplicationScoped: true }]], extensionsManifest);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON(), metadata: a.metadata })), [{ identifier: extension2.identifier, location: extension2.location.toJSON(), version: extension2.manifest.version, metadata: { isApplicationScoped: true } }]);
+
+		assert.ok(target1.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension2.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension2.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension2.location.toString());
+
+		assert.ok(target2.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension1.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension1.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension1.location.toString());
+
+		assert.ok(target3.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].identifier, extension2.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].version, extension2.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target1.args[0][0])).extensions[0].location.toString(), extension2.location.toString());
+
+		assert.ok(target4.calledOnce);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).profileLocation.toString(), extensionsManifest.toString());
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions.length, 1);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].identifier, extension1.identifier);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].version, extension1.manifest.version);
+		assert.deepStrictEqual((<ProfileExtensionsEvent>(target2.args[0][0])).extensions[0].location.toString(), extension1.location.toString());
+	});
+
+	test('add extension with same id and version located in the different folder', async () => {
+		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+
+		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
+
+		let extension = aExtension('pub.a', joinPath(ROOT, 'foo', 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
+
+		const target1 = sinon.stub();
+		const target2 = sinon.stub();
+		const target3 = sinon.stub();
+		const target4 = sinon.stub();
+		testObject.onAddExtensions(target1);
+		testObject.onRemoveExtensions(target2);
+		testObject.onDidAddExtensions(target3);
+		testObject.onDidRemoveExtensions(target4);
+		extension = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
+		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
+
+		const actual = await testObject.scanProfileExtensions(extensionsManifest);
+		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
+		assert.ok(target1.notCalled);
+		assert.ok(target2.notCalled);
+		assert.ok(target3.notCalled);
+		assert.ok(target4.notCalled);
+	});
+
+	function aExtension(id: string, location: URI, e?: Partial<IExtension>, manifest?: Partial<IExtensionManifest>): IExtension {
 		return {
 			identifier: { id },
 			location,
@@ -454,6 +699,7 @@ suite('ExtensionsProfileScannerService', () => {
 				publisher: 'publisher',
 				version: '1.0.0',
 				engines: { vscode: '1.0.0' },
+				...manifest,
 			},
 			isValid: true,
 			validations: [],

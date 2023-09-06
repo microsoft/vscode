@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ITextModel } from 'vs/editor/common/model';
 import { DiffAlgorithmName, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,9 +35,9 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 		this.diffAlgorithmOnDidChangeSubscription?.dispose();
 	}
 
-	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions): Promise<IDocumentDiff> {
+	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff> {
 		if (typeof this.diffAlgorithm !== 'string') {
-			return this.diffAlgorithm.computeDiff(original, modified, options);
+			return this.diffAlgorithm.computeDiff(original, modified, options, cancellationToken);
 		}
 
 		// This significantly speeds up the case when the original file is empty
@@ -52,7 +53,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 			return {
 				changes: [
-					new LineRangeMapping(
+					new DetailedLineRangeMapping(
 						new LineRange(1, 2),
 						new LineRange(1, modified.getLineCount() + 1),
 						[
@@ -83,17 +84,30 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 		this.telemetryService.publicLog2<{
 			timeMs: number;
 			timedOut: boolean;
+			detectedMoves: number;
 		}, {
 			owner: 'hediet';
 
 			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand if the new diff algorithm is slower/faster than the old one' };
 			timedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how often the new diff algorithm times out' };
+			detectedMoves: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how often the new diff algorithm detects moves' };
 
 			comment: 'This event gives insight about the performance of the new diff algorithm.';
 		}>('diffEditor.computeDiff', {
 			timeMs,
 			timedOut: result?.quitEarly ?? true,
+			detectedMoves: options.computeMoves ? (result?.moves.length ?? 0) : -1,
 		});
+
+		if (cancellationToken.isCancellationRequested) {
+			// Text models might be disposed!
+			return {
+				changes: [],
+				identical: false,
+				quitEarly: true,
+				moves: [],
+			};
+		}
 
 		if (!result) {
 			throw new Error('no diff result available');

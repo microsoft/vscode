@@ -50,7 +50,7 @@ export interface Tunnel {
 }
 
 export function parseAddress(address: string): { host: string; port: number } | undefined {
-	const matches = address.match(/^([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*:)?([0-9]+)$/);
+	const matches = address.match(/^([a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*:)?([0-9]+)$/);
 	if (!matches) {
 		return undefined;
 	}
@@ -404,6 +404,8 @@ export class TunnelModel extends Disposable {
 	public readonly configPortsAttributes: PortsAttributes;
 	private restoreListener: DisposableStore | undefined = undefined;
 	private knownPortsRestoreValue: string | undefined;
+	private restoreComplete = false;
+	private onRestoreComplete: Emitter<void> = new Emitter();
 	private unrestoredExtensionTunnels: Map<string, Tunnel> = new Map();
 	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
 
@@ -558,7 +560,7 @@ export class TunnelModel extends Disposable {
 					const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort);
 					// Extension forwarded ports should only be updated, not restored.
 					if ((tunnel.source.source !== TunnelSource.Extension && !alreadyForwarded) || (tunnel.source.source === TunnelSource.Extension && alreadyForwarded)) {
-						await this.forward({
+						await this.doForward({
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
 							name: tunnel.name,
@@ -572,6 +574,9 @@ export class TunnelModel extends Disposable {
 				}
 			}
 		}
+
+		this.restoreComplete = true;
+		this.onRestoreComplete.fire();
 
 		if (!this.restoreListener) {
 			// It's possible that at restore time the value hasn't synced.
@@ -620,6 +625,13 @@ export class TunnelModel extends Disposable {
 	}
 
 	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | string | undefined> {
+		if (!this.restoreComplete && this.environmentService.remoteAuthority) {
+			await Event.toPromise(this.onRestoreComplete.event);
+		}
+		return this.doForward(tunnelProperties, attributes);
+	}
+
+	private async doForward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | string | undefined> {
 		await this.extensionService.activateByEvent(ACTIVATION_EVENT);
 
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
@@ -721,7 +733,7 @@ export class TunnelModel extends Disposable {
 			}
 			case MergedAttributeAction.Reopen: {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort, TunnelCloseReason.User);
-				await this.forward(tunnelProperties, attributes);
+				await this.doForward(tunnelProperties, attributes);
 			}
 		}
 
@@ -874,7 +886,7 @@ export class TunnelModel extends Disposable {
 		for (const forwarded of tunnels) {
 			const attributes = allAttributes.get(forwarded.remotePort);
 			if ((attributes?.protocol || (forwarded.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== forwarded.protocol)) {
-				await this.forward({
+				await this.doForward({
 					remote: { host: forwarded.remoteHost, port: forwarded.remotePort },
 					local: forwarded.localPort,
 					name: forwarded.name,

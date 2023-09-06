@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
+import { debounce } from 'vs/base/common/decorators';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 export interface ITextAreaData {
 	content: string;
@@ -16,11 +18,14 @@ export interface ITextAreaData {
 
 export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	private _terminal: Terminal | undefined;
-	private _onCursorMoveListener = this._register(new MutableDisposable());
+	private _listeners = this._register(new MutableDisposable<DisposableStore>());
+	private _currentCommand: string | undefined;
+	private _cursorX: number | undefined;
+
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		if (this._accessibilityService.isScreenReaderOptimized()) {
-			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => this._refreshTextArea());
+			this._registerSyncListeners();
 		}
 	}
 
@@ -31,75 +36,77 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	) {
 		super();
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			if (this._accessibilityService.isScreenReaderOptimized() && this._terminal) {
-				this._refreshTextArea();
-				this._onCursorMoveListener.value = this._terminal.onCursorMove(() => this._refreshTextArea());
+			if (this._accessibilityService.isScreenReaderOptimized()) {
+				this._syncTextArea();
+				this._registerSyncListeners();
 			} else {
-				this._onCursorMoveListener.clear();
+				this._listeners.clear();
 			}
 		}));
 	}
 
-	private _refreshTextArea(focusChanged?: boolean): void {
+	private _registerSyncListeners(): void {
+		if (this._accessibilityService.isScreenReaderOptimized() && this._terminal?.textarea) {
+			this._listeners.value = new DisposableStore();
+			this._listeners.value.add(this._terminal.onCursorMove(() => this._syncTextArea()));
+			this._listeners.value.add(this._terminal.onData(() => this._syncTextArea()));
+			this._listeners.value.add(addDisposableListener(this._terminal.textarea, 'focus', () => this._syncTextArea()));
+		}
+	}
+
+	@debounce(50)
+	private _syncTextArea(): void {
+		this._logService.debug('TextAreaSyncAddon#syncTextArea');
+		const textArea = this._terminal?.textarea;
+		if (!textArea) {
+			this._logService.debug(`TextAreaSyncAddon#syncTextArea: no textarea`);
+			return;
+		}
+
+		this._updateCommandAndCursor();
+
+		if (this._currentCommand !== textArea.value) {
+			textArea.value = this._currentCommand || '';
+			this._logService.debug(`TextAreaSyncAddon#syncTextArea: text changed to "${this._currentCommand}"`);
+		} else if (!this._currentCommand) {
+			textArea.value = '';
+			this._logService.debug(`TextAreaSyncAddon#syncTextArea: text cleared`);
+		}
+
+		if (this._cursorX !== textArea.selectionStart) {
+			textArea.selectionStart = this._cursorX ?? 0;
+			textArea.selectionEnd = this._cursorX ?? 0;
+			this._logService.debug(`TextAreaSyncAddon#syncTextArea: selection start/end changed to ${this._cursorX}`);
+		}
+	}
+
+	private _updateCommandAndCursor(): void {
 		if (!this._terminal) {
 			return;
 		}
-		this._logService.debug('TextAreaSyncAddon#refreshTextArea');
 		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		const currentCommand = commandCapability?.currentCommand;
 		if (!currentCommand) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no currentCommand`);
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no current command`);
 			return;
 		}
 		const buffer = this._terminal.buffer.active;
-		const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
-		let commandStartX: number | undefined;
-		if (!line) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no line`);
+		const lineNumber = currentCommand.commandStartMarker?.line;
+		if (!lineNumber) {
 			return;
 		}
-		let content: string | undefined;
-		if (currentCommand.commandStartX) {
-			// Left prompt
-			content = line.substring(currentCommand.commandStartX);
-			commandStartX = currentCommand.commandStartX;
-		} else if (currentCommand.commandRightPromptStartX) {
-			// Right prompt
-			content = line.substring(0, currentCommand.commandRightPromptStartX);
-			commandStartX = 0;
-		}
-
-		if (!content) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no content`);
+		const commandLine = buffer.getLine(lineNumber)?.translateToString(true);
+		if (!commandLine) {
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
-
-		if (commandStartX === undefined) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no commandStartX`);
-			return;
+		if (currentCommand.commandStartX !== undefined) {
+			this._currentCommand = commandLine.substring(currentCommand.commandStartX);
+			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
+		} else {
+			this._currentCommand = undefined;
+			this._cursorX = undefined;
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no commandStartX`);
 		}
-
-		const textArea = this._terminal.textarea;
-		if (!textArea) {
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: no textarea`);
-			return;
-		}
-
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: content is "${content}"`);
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent is "${textArea.textContent}"`);
-		if (focusChanged || content !== textArea.textContent) {
-			textArea.textContent = content;
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: textContent changed to "${content}"`);
-		}
-
-		const cursorX = buffer.cursorX - commandStartX;
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: cursorX is ${cursorX}`);
-		this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selectionStart is ${textArea.selectionStart}`);
-		if (focusChanged || cursorX !== textArea.selectionStart) {
-			textArea.selectionStart = cursorX;
-			textArea.selectionEnd = cursorX;
-			this._logService.debug(`TextAreaSyncAddon#refreshTextArea: selectionStart changed to ${cursorX}`);
-		}
-		// TODO: cursorY?
 	}
 }

@@ -397,8 +397,8 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
-		return new Repository(this, repository, dotGit, logger);
+	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+		return new Repository(this, repositoryRoot, repositoryRootRealPath, dotGit, logger);
 	}
 
 	async init(repository: string, options: InitOptions = {}): Promise<void> {
@@ -481,7 +481,7 @@ export class Git {
 		const result = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--show-toplevel']);
 
 		// Keep trailing spaces which are part of the directory name
-		const repositoryRootPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		const repositoryRootPath = path.normalize(result.stdout.trimStart().replace(/[\r\n]+$/, ''));
 
 		if (isWindows) {
 			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
@@ -528,7 +528,7 @@ export class Git {
 			!isDescendant(pathInsidePossibleRepository, repositoryRootPath) &&
 			this.compareGitVersionTo('2.31.0') !== -1) {
 			const relativePathResult = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
-			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimStart().replace(/[\r\n]+$/, ''));
 		}
 
 		return repositoryRootPath;
@@ -956,6 +956,7 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
+		private repositoryRootRealPath: string | undefined,
 		readonly dotGit: { path: string; commonPath?: string },
 		private logger: LogOutputChannel
 	) { }
@@ -966,6 +967,10 @@ export class Repository {
 
 	get root(): string {
 		return this.repositoryRoot;
+	}
+
+	get rootRealPath(): string | undefined {
+		return this.repositoryRootRealPath;
 	}
 
 	async exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -1017,7 +1022,14 @@ export class Repository {
 
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.range) {
+			args.push(options.range);
+		}
+
+		args.push('--');
+
 		if (options?.path) {
 			args.push(options.path);
 		}

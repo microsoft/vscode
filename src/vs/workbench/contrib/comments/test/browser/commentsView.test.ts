@@ -54,7 +54,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 	getViewContainerByViewId(id: string): ViewContainer | null {
 		return {
 			id: 'comments',
-			title: 'Comments',
+			title: { value: 'Comments', original: 'Comments' },
 			ctorDescriptor: {} as any
 		};
 	}

@@ -195,10 +195,10 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				});
 			}
 		};
-		this.tunnelService.setTunnelProvider(tunnelProvider);
 		if (features) {
 			this.tunnelService.setTunnelFeatures(features);
 		}
+		this.tunnelService.setTunnelProvider(tunnelProvider);
 		// At this point we clearly want the ports view/features since we have a tunnel factory
 		this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
 	}

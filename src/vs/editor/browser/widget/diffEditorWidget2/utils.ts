@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDimension } from 'vs/base/browser/dom';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
@@ -55,7 +57,7 @@ export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelect
 export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 	const d = new DisposableStore();
 	const decorationsCollection = editor.createDecorationsCollection();
-	d.add(autorunOpts({ debugName: `Apply decorations from ${decorations.debugName}` }, reader => {
+	d.add(autorunOpts({ debugName: () => `Apply decorations from ${decorations.debugName}` }, reader => {
 		const d = decorations.read(reader);
 		decorationsCollection.set(d);
 	}));
@@ -98,8 +100,8 @@ export class ObservableElementSizeObserver extends Disposable {
 		super();
 
 		this.elementSizeObserver = this._register(new ElementSizeObserver(element, dimension));
-		this._width = observableValue('width', this.elementSizeObserver.getWidth());
-		this._height = observableValue('height', this.elementSizeObserver.getHeight());
+		this._width = observableValue(this, this.elementSizeObserver.getWidth());
+		this._height = observableValue(this, this.elementSizeObserver.getHeight());
 
 		this._register(this.elementSizeObserver.onDidChange(e => transaction(tx => {
 			/** @description Set width/height from elementSizeObserver */
@@ -212,8 +214,8 @@ export interface IObservableViewZone extends IViewZone {
 export class PlaceholderViewZone implements IObservableViewZone {
 	public readonly domNode = document.createElement('div');
 
-	private readonly _actualTop = observableValue<number | undefined>('actualTop', undefined);
-	private readonly _actualHeight = observableValue<number | undefined>('actualHeight', undefined);
+	private readonly _actualTop = observableValue<number | undefined>(this, undefined);
+	private readonly _actualHeight = observableValue<number | undefined>(this, undefined);
 
 	public readonly actualTop: IObservable<number | undefined> = this._actualTop;
 	public readonly actualHeight: IObservable<number | undefined> = this._actualHeight;
@@ -268,6 +270,8 @@ export interface CSSStyle {
 	top: number | string;
 	visibility: 'visible' | 'hidden' | 'collapse';
 	display: 'block' | 'inline' | 'inline-block' | 'flex' | 'none';
+	paddingLeft: number | string;
+	paddingRight: number | string;
 }
 
 export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof CSSStyle]: CSSStyle[TKey] | IObservable<CSSStyle[TKey] | undefined> | undefined }>) {
@@ -280,6 +284,7 @@ export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof
 			if (typeof val === 'number') {
 				val = `${val}px`;
 			}
+			key = key.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
 			domNode.style[key as any] = val as any;
 		}
 	});
@@ -291,28 +296,21 @@ export function readHotReloadableExport<T>(value: T, reader: IReader | undefined
 }
 
 export function observeHotReloadableExports(values: any[], reader: IReader | undefined): void {
-	const hotReload_deprecateExports = (globalThis as unknown as {
-		// This property it defined by the monaco editor playground server
-		$hotReload_deprecateExports: Set<(oldExports: Record<string, unknown>, newExports: Record<string, unknown>) => boolean>;
-	}).$hotReload_deprecateExports;
-	if (!hotReload_deprecateExports) {
-		return;
+	if (isHotReloadEnabled()) {
+		const o = observableSignalFromEvent(
+			'reload',
+			event => registerHotReloadHandler(oldExports => {
+				if (![...Object.values(oldExports)].some(v => values.includes(v))) {
+					return undefined;
+				}
+				return (_newExports) => {
+					event(undefined);
+					return true;
+				};
+			})
+		);
+		o.read(reader);
 	}
-
-	const o = observableSignalFromEvent('reload', e => {
-		function handleExports(oldExports: Record<string, unknown>, _newExports: Record<string, unknown>) {
-			if ([...Object.values(oldExports)].some(v => values.includes(v))) {
-				e(undefined);
-				return true;
-			}
-			return false;
-		}
-		hotReload_deprecateExports.add(handleExports);
-		return {
-			dispose() { hotReload_deprecateExports.delete(handleExports); }
-		};
-	});
-	o.read(reader);
 }
 
 export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void): IDisposable {
@@ -371,4 +369,10 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 	});
 
 	return store;
+}
+
+export class DisposableCancellationTokenSource extends CancellationTokenSource {
+	public override dispose() {
+		super.dispose(true);
+	}
 }

@@ -35,6 +35,9 @@ import { IAction } from 'vs/base/common/actions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -51,7 +54,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
 			accessibleViewService.show(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
-		}));
+		}, EditorContextKeys.focus));
 	}
 }
 
@@ -59,7 +62,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
 	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, ariaLabel: localize('editor-help', "editor accessibility help"), readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
 	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -93,20 +96,22 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
+		if (options.get(EditorOption.stickyScroll)) {
+			content.push(this._descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb));
+		}
+
 		if (options.get(EditorOption.tabFocusMode)) {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb));
 		} else {
 			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
 		}
-		return content.join('\n');
+		return content.join('\n\n');
 	}
 }
 
 export class HoverAccessibleViewContribution extends Disposable {
 	static ID: 'hoverAccessibleViewContribution';
-	private _options: IAccessibleViewOptions = {
-		ariaLabel: localize('hoverAccessibleView', "Hover Accessible View"), language: 'typescript', type: AccessibleViewType.View
-	};
+	private _options: IAccessibleViewOptions = { language: 'typescript', type: AccessibleViewType.View };
 	constructor() {
 		super();
 		this._register(AccessibleViewAction.addImplementation(95, 'hover', accessor => {
@@ -198,7 +203,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 				notification.onDidClose(() => accessibleViewService.next());
 				accessibleViewService.show({
 					provideContent: () => {
-						return localize('notification.accessibleView', '{0} Source: {1}', message, notification.source);
+						return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
 					},
 					onClose(): void {
 						focusList();
@@ -222,10 +227,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 						renderAccessibleView();
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
-					options: {
-						ariaLabel: localize('notification', "Notification Accessible View"),
-						type: AccessibleViewType.View
-					},
+					options: { type: AccessibleViewType.View },
 					actions: getActionsFromNotification(notification)
 				});
 				return true;
@@ -256,6 +258,10 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 			};
 		}
 	}
+	const manageExtension = actions?.find(a => a.label.includes('Manage Extension'));
+	if (manageExtension) {
+		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
+	}
 	if (actions) {
 		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });
 	}
@@ -276,3 +282,56 @@ export function alertFocusChange(index: number | undefined, length: number | und
 	return;
 }
 
+export class InlineCompletionsAccessibleViewContribution extends Disposable {
+	static ID: 'inlineCompletionsAccessibleViewContribution';
+	private _options: IAccessibleViewOptions = { type: AccessibleViewType.View };
+	constructor() {
+		super();
+		this._register(AccessibleViewAction.addImplementation(95, 'inline-completions', accessor => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const codeEditorService = accessor.get(ICodeEditorService);
+			const show = () => {
+				const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+				if (!editor) {
+					return false;
+				}
+				const model = InlineCompletionsController.get(editor)?.model.get();
+				const state = model?.state.get();
+				if (!model || !state) {
+					return false;
+				}
+				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
+				if (!lineText) {
+					return false;
+				}
+
+				const ghostText = state.ghostText.renderForScreenReader(lineText);
+				if (!ghostText) {
+					return false;
+				}
+				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
+				accessibleViewService.show({
+					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
+					provideContent() { return lineText + ghostText; },
+					onClose() {
+						model.stop();
+						editor.focus();
+					},
+					next() {
+						model.next();
+						setTimeout(() => show(), 50);
+					},
+					previous() {
+						model.previous();
+						setTimeout(() => show(), 50);
+					},
+					options: this._options
+				});
+				return true;
+			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
+			return show();
+		},
+		)
+		);
+	}
+}

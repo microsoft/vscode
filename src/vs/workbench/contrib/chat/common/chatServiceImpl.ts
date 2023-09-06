@@ -22,9 +22,9 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -450,9 +450,12 @@ export class ChatService extends Disposable implements IChatService {
 
 				gotProgress = true;
 				if ('content' in progress) {
-					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
+					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
 				} else if ('placeholder' in progress) {
 					this.trace('sendRequest', `Provider returned placeholder for session ${model.sessionId}, ${progress.placeholder}`);
+				} else if (isCompleteInteractiveProgressTreeData(progress)) {
+					// This isn't exposed in API
+					this.trace('sendRequest', `Provider returned tree data for session ${model.sessionId}, ${progress.treeData.label}`);
 				} else {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
@@ -461,7 +464,7 @@ export class ChatService extends Disposable implements IChatService {
 			};
 
 			const stopWatch = new StopWatch(false);
-			token.onCancellationRequested(() => {
+			const listener = token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
 				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					providerId: provider.id,
@@ -475,74 +478,91 @@ export class ChatService extends Disposable implements IChatService {
 
 				model.cancelRequest(request);
 			});
-			if (usedSlashCommand?.command) {
-				this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
-			}
 
-			let rawResponse: IChatResponse | null | undefined;
+			try {
+				if (usedSlashCommand?.command) {
+					this._onDidSubmitSlashCommand.fire({ slashCommand: usedSlashCommand.command, sessionId: model.sessionId });
+				}
 
-			if ((typeof resolvedCommand === 'string' && typeof message === 'string' && this.chatSlashCommandService.hasCommand(resolvedCommand))) {
-				// contributed slash commands
-				// TODO: spell this out in the UI
-				const history: IChatMessage[] = [];
-				for (const request of model.getRequests()) {
-					if (typeof request.message !== 'string' || !request.response) {
-						continue;
+				let rawResponse: IChatResponse | null | undefined;
+				let slashCommandFollowups: IChatFollowup[] | void = [];
+
+				if ((typeof resolvedCommand === 'string' && typeof message === 'string' && this.chatSlashCommandService.hasCommand(resolvedCommand))) {
+					// contributed slash commands
+					// TODO: spell this out in the UI
+					const history: IChatMessage[] = [];
+					for (const request of model.getRequests()) {
+						if (typeof request.message !== 'string' || !request.response) {
+							continue;
+						}
+						if (isMarkdownString(request.response.response.value)) {
+							history.push({ role: ChatMessageRole.User, content: request.message });
+							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
+						}
 					}
-					if (isMarkdownString(request.response.response.value)) {
-						history.push({ role: ChatMessageRole.User, content: request.message });
-						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
-					}
-				}
-				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => progressCallback(p)), history, token);
-				rawResponse = { session: model.session! };
+					const commandResult = await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
+						const { content } = p;
+						const data = isCompleteInteractiveProgressTreeData(content) ? content : { content };
+						progressCallback(data);
+					}), history, token);
+					slashCommandFollowups = commandResult?.followUp;
+					rawResponse = { session: model.session! };
 
-			} else {
-				const request: IChatRequest = {
-					session: model.session!,
-					message: resolvedCommand,
-					variables: {}
-				};
-
-				if (typeof request.message === 'string') {
-					request.variables = await this.chatVariablesService.resolveVariables(request.message, token);
-				}
-
-				rawResponse = await provider.provideReply(request, progressCallback, token);
-			}
-
-			if (token.isCancellationRequested) {
-				return;
-			} else {
-				if (!rawResponse) {
-					this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
-					rawResponse = { session: model.session!, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
-				}
-
-				const result = rawResponse.errorDetails?.responseIsFiltered ? 'filtered' :
-					rawResponse.errorDetails && gotProgress ? 'errorWithOutput' :
-						rawResponse.errorDetails ? 'error' :
-							'success';
-				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
-					providerId: provider.id,
-					timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
-					totalTime: rawResponse.timings?.totalElapsed ?? 0,
-					result,
-					requestType,
-					slashCommand: usedSlashCommand?.command
-				});
-				model.setResponse(request, rawResponse);
-				this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
-
-				// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
-				if (provider.provideFollowups) {
-					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
-						model.setFollowups(request, followups ?? undefined);
-						model.completeResponse(request);
-					});
 				} else {
-					model.completeResponse(request);
+					const request: IChatRequest = {
+						session: model.session!,
+						message: resolvedCommand,
+						variables: {}
+					};
+
+					if (typeof request.message === 'string') {
+						const varResult = await this.chatVariablesService.resolveVariables(request.message, model, token);
+						request.variables = varResult.variables;
+						request.message = varResult.prompt;
+					}
+
+					rawResponse = await provider.provideReply(request, progressCallback, token);
 				}
+
+				if (token.isCancellationRequested) {
+					return;
+				} else {
+					if (!rawResponse) {
+						this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
+						rawResponse = { session: model.session!, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+					}
+
+					const result = rawResponse.errorDetails?.responseIsFiltered ? 'filtered' :
+						rawResponse.errorDetails && gotProgress ? 'errorWithOutput' :
+							rawResponse.errorDetails ? 'error' :
+								'success';
+					this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+						providerId: provider.id,
+						timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
+						totalTime: rawResponse.timings?.totalElapsed ?? 0,
+						result,
+						requestType,
+						slashCommand: usedSlashCommand?.command
+					});
+					model.setResponse(request, rawResponse);
+					this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
+
+					// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
+					if (provider.provideFollowups) {
+						Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(providerFollowups => {
+							const allFollowups = providerFollowups?.concat(slashCommandFollowups ?? []);
+							model.setFollowups(request, allFollowups ?? undefined);
+							model.completeResponse(request);
+						});
+					} else if (slashCommandFollowups?.length) {
+						model.setFollowups(request, slashCommandFollowups);
+						model.completeResponse(request);
+					} else {
+						model.completeResponse(request);
+					}
+				}
+			} finally {
+				listener.dispose();
 			}
 		});
 		this._pendingRequests.set(model.sessionId, rawResponsePromise);
@@ -662,13 +682,22 @@ export class ChatService extends Disposable implements IChatService {
 
 		await model.waitForInitialization();
 		const request = model.addRequest(message);
-		model.acceptResponseProgress(request, {
-			content: response.message,
-		}, true);
+		if (typeof response.message === 'string') {
+			model.acceptResponseProgress(request, { content: response.message });
+		} else {
+			for (const part of response.message) {
+				const progress = isMarkdownString(part) ? { content: part.value } : { treeData: part };
+				model.acceptResponseProgress(request, progress, true);
+			}
+		}
 		model.setResponse(request, {
 			session: model.session!,
 			errorDetails: response.errorDetails,
 		});
+		if (response.followups !== undefined) {
+			model.setFollowups(request, response.followups);
+		}
+		model.completeResponse(request);
 	}
 
 	cancelCurrentRequestForSession(sessionId: string): void {

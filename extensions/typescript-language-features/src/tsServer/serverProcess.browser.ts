@@ -43,13 +43,15 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 		tsServerLog: TsServerLog | undefined,
 	) {
 		const tsServerPath = version.tsServerPath;
-		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, [
+		const launchArgs = [
 			...args,
-
-			// Explicitly give TS Server its path so it can
-			// load local resources
+			// Explicitly give TS Server its path so it can load local resources
 			'--executingFilePath', tsServerPath,
-		], tsServerLog, this._logger);
+		];
+		if (_configuration.webExperimentalTypeAcquisition) {
+			launchArgs.push('--experimentalTypeAcquisition');
+		}
+		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, launchArgs, tsServerLog, this._logger);
 	}
 }
 

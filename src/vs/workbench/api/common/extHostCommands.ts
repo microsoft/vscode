@@ -444,6 +444,16 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
+	static readonly StringArray = ApiCommandArgument.Arr(ApiCommandArgument.String);
+
+	static Arr<T, K = T>(element: ApiCommandArgument<T, K>) {
+		return new ApiCommandArgument(
+			`${element.name}_array`,
+			`Array of ${element.name}, ${element.description}`,
+			(v: unknown) => Array.isArray(v) && v.every(e => element.validate(e)),
+			(v: T[]) => v.map(e => element.convert(e))
+		);
+	}
 
 	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.from);
 	static readonly TypeHierarchyItem = new ApiCommandArgument('item', 'A type hierarchy item', v => v instanceof extHostTypes.TypeHierarchyItem, extHostTypeConverter.TypeHierarchyItem.from);

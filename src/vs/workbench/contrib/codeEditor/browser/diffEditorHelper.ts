@@ -10,7 +10,7 @@ import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensio
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { EmbeddedDiffEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,6 +23,8 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 	public static readonly ID = 'editor.contrib.diffEditorHelper';
@@ -37,7 +39,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 
 		this._register(createScreenReaderHelp());
 
-		const isEmbeddedDiffEditor = (this._diffEditor instanceof EmbeddedDiffEditorWidget) || (this._diffEditor instanceof EmbeddedDiffEditorWidget2);
+		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget2;
 
 		if (!isEmbeddedDiffEditor) {
 			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());
@@ -107,11 +109,11 @@ function createScreenReaderHelp(): IDisposable {
 				localize('msg1', "You are in a diff editor."),
 				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
 				localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
-			].join('\n'),
+			].join('\n\n'),
 			onClose: () => {
 				codeEditor.focus();
 			},
-			options: { type: AccessibleViewType.Help, ariaLabel: localize('chat-help-label', "Diff editor accessibility help") }
+			options: { type: AccessibleViewType.Help }
 		});
 	}, ContextKeyExpr.and(
 		ContextKeyEqualsExpr.create('diffEditorVersion', 2),
@@ -120,3 +122,14 @@ function createScreenReaderHelp(): IDisposable {
 }
 
 registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'diffEditor.experimental.collapseUnchangedRegions',
+		migrateFn: (value, accessor) => {
+			return [
+				['diffEditor.hideUnchangedRegions.enabled', { value }],
+				['diffEditor.experimental.collapseUnchangedRegions', { value: undefined }]
+			];
+		}
+	}]);

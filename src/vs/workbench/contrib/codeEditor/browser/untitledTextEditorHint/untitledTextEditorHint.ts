@@ -154,7 +154,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		const providerName = (providers.length === 1 ? providers[0].label : undefined) ?? this.productService.nameShort;
 
 		const inlineChatId = 'inlineChat.start';
-		let ariaLabel = `Ask ${providerName} to do something or start typing to dismiss.`;
+		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
 
 		const handleClick = () => {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {

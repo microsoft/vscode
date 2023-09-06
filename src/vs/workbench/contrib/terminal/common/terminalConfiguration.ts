@@ -607,8 +607,19 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
-			default: true
+			default: false
 		},
+		[TerminalSettingId.FocusAfterRun]: {
+			markdownDescription: localize('terminal.integrated.focusAfterRun', "Controls whether the terminal, accessible buffer, or neither will be focused after `Terminal: Run Selected Text In Active Terminal` has been run."),
+			enum: ['terminal', 'accessible-buffer', 'none'],
+			default: 'none',
+			tags: ['accessibility'],
+			markdownEnumDescriptions: [
+				localize('terminal.integrated.focusAfterRun.terminal', "Always focus the terminal."),
+				localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
+				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
+			]
+		}
 	}
 };
 

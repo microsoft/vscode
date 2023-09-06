@@ -36,7 +36,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -230,7 +230,7 @@ export class InlineChatWidget {
 		}));
 
 		const uri = URI.from({ scheme: 'vscode', authority: 'inline-chat', path: `/inline-chat/model${InlineChatWidget._modelPool++}.txt` });
-		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
+		this._inputModel = this._store.add(this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri));
 		this._inputEditor.setModel(this._inputModel);
 
 		// --- context keys
@@ -359,13 +359,13 @@ export class InlineChatWidget {
 		this._store.add(feedbackToolbar);
 
 		// preview editors
-		this._previewDiffEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
+		this._previewDiffEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
-		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor)));
+		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor))));
 
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
-		this._previewCreateEditor = new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor)));
+		this._previewCreateEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor))));
 
 		this._elements.message.tabIndex = 0;
 		this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
@@ -628,7 +628,7 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, allEdits: ISingleEditOperation[][], changes: readonly LineRangeMapping[]) {
+	showEditsPreview(textModelv0: ITextModel, allEdits: ISingleEditOperation[][], changes: readonly DetailedLineRangeMapping[]) {
 		if (changes.length === 0) {
 			this.hideEditsPreview();
 			return;
@@ -644,11 +644,11 @@ export class InlineChatWidget {
 		this._previewDiffEditor.value.setModel({ original: textModelv0, modified });
 
 		// joined ranges
-		let originalLineRange = changes[0].originalRange;
-		let modifiedLineRange = changes[0].modifiedRange;
+		let originalLineRange = changes[0].original;
+		let modifiedLineRange = changes[0].modified;
 		for (let i = 1; i < changes.length; i++) {
-			originalLineRange = originalLineRange.join(changes[i].originalRange);
-			modifiedLineRange = modifiedLineRange.join(changes[i].modifiedRange);
+			originalLineRange = originalLineRange.join(changes[i].original);
+			modifiedLineRange = modifiedLineRange.join(changes[i].modified);
 		}
 
 		// apply extra padding
@@ -772,7 +772,7 @@ export class InlineChatWidget {
 					this._slashCommandContentWidget.show();
 
 					// inject detail when otherwise empty
-					if (firstLine === `/${command.command} `) {
+					if (firstLine === `/${command.command}`) {
 						newDecorations.push({
 							range: new Range(1, withSlash.length + 1, 1, withSlash.length + 2),
 							options: {
