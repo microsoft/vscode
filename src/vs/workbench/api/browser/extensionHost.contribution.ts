@@ -42,7 +42,6 @@ import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystem';
 import './mainThreadFileSystemEventService';
-import './mainThreadKeytar';
 import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
 import './mainThreadLogService';
