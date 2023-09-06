@@ -644,6 +644,6 @@ export class InlineAccessibilityHelpContribution extends Disposable {
 				return;
 			}
 			runAccessibilityHelpAction(accessor, codeEditor, 'inlineChat');
-		}, ContextKeyExpr.or(CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_FOCUSED, CONTEXT_REQUEST)));
+		}, ContextKeyExpr.or(CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_FOCUSED)));
 	}
 }
