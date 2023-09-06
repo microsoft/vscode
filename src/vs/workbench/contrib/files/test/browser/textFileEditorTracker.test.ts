@@ -61,14 +61,16 @@ suite('Files - TextFileEditorTracker', () => {
 
 			instantiationService.stub(IConfigurationService, configurationService);
 
-			instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+			const fileService = disposables.add(new TestFileService());
+
+			instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 				<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 				configurationService,
 				new TestContextService(TestWorkspace),
 				TestEnvironmentService,
-				new UriIdentityService(new TestFileService()),
-				new TestFileService()
-			));
+				new UriIdentityService(fileService),
+				fileService
+			)));
 		}
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -76,7 +78,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService));
 		disposables.add(editorService);
 		instantiationService.stub(IEditorService, editorService);
 

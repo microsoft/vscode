@@ -45,7 +45,7 @@ suite('Workbench editor utils', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService = instantiationService.createInstance(EditorService);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
 
 		return instantiationService.createInstance(TestServiceAccessor);

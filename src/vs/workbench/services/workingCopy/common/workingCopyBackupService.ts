@@ -116,7 +116,7 @@ export class WorkingCopyBackupsModel {
 	}
 }
 
-export abstract class WorkingCopyBackupService implements IWorkingCopyBackupService {
+export abstract class WorkingCopyBackupService extends Disposable implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -127,6 +127,8 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		@IFileService protected fileService: IFileService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		this.impl = this.initialize(backupWorkspaceHome);
 	}
 

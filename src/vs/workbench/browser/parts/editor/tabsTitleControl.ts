@@ -807,13 +807,13 @@ export class TabsTitleControl extends TitleControl {
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
-		tabActionBar.onWillRun(e => {
+		const tabActionListener = tabActionBar.onWillRun(e => {
 			if (e.action.id === this.closeEditorAction.id) {
 				this.blockRevealActiveTabOnce();
 			}
 		});
 
-		const tabActionBarDisposable = combinedDisposable(tabActionBar, toDisposable(insert(this.tabActionBars, tabActionBar)));
+		const tabActionBarDisposable = combinedDisposable(tabActionBar, tabActionListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
 
 		// Tab Border Bottom
 		const tabBorderBottomContainer = document.createElement('div');

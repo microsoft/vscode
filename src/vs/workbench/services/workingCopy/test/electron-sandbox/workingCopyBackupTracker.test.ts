@@ -137,7 +137,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		return accessor.fileService.writeFile(workspacesJsonPath, VSBuffer.fromString(''));
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		disposables.dispose();
 	});
 
@@ -150,19 +150,19 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
 			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
 			disposables.add(new TestFileService())
-		));
+		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -170,8 +170,15 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const tracker = instantiationService.createInstance(TestWorkingCopyBackupTracker);
 
 		const cleanup = async () => {
-			// File changes could also schedule some backup operations so we need to wait for them before finishing the test
-			await accessor.workingCopyBackupService.waitForAllBackups();
+			await accessor.workingCopyBackupService.waitForAllBackups(); // File changes could also schedule some backup operations so we need to wait for them before finishing the test
+
+			for (const workingCopy of accessor.workingCopyService.workingCopies) {
+				await workingCopy.revert();
+			}
+
+			for (const group of part.groups) {
+				await group.closeAllEditors();
+			}
 
 			part.dispose();
 			tracker.dispose();
@@ -356,7 +363,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			constructor(resource: URI) {
 				super(resource);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				this._register(accessor.workingCopyService.registerWorkingCopy(this));
 			}
 
 			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
@@ -365,7 +372,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		const resource = toResource.call(this, '/path/custom.txt');
-		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+		const customWorkingCopy = disposables.add(new TestBackupWorkingCopy(resource));
 		customWorkingCopy.setDirty(true);
 
 		const event = new TestBeforeShutdownEvent();
@@ -389,7 +396,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			constructor(resource: URI) {
 				super(resource);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				this._register(accessor.workingCopyService.registerWorkingCopy(this));
 			}
 
 			override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
@@ -408,7 +415,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		const resource = toResource.call(this, '/path/custom.txt');
-		new TestBackupWorkingCopy(resource);
+		disposables.add(new TestBackupWorkingCopy(resource));
 
 		const event = new TestBeforeShutdownEvent();
 		event.reason = ShutdownReason.QUIT;
@@ -716,7 +723,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 				constructor(resource: URI) {
 					super(resource);
 
-					accessor.workingCopyService.registerWorkingCopy(this);
+					this._register(accessor.workingCopyService.registerWorkingCopy(this));
 				}
 
 				override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
@@ -747,7 +754,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
 
 			const resource = toResource.call(this, '/path/custom.txt');
-			new TestBackupWorkingCopy(resource);
+			disposables.add(new TestBackupWorkingCopy(resource));
 
 			const event = new TestBeforeShutdownEvent();
 			event.reason = shutdownReason;

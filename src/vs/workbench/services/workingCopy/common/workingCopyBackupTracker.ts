@@ -56,8 +56,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => (event as InternalBeforeShutdownEvent).finalVeto(() => this.onFinalBeforeShutdown(event.reason), 'veto.backups'));
-		this.lifecycleService.onWillShutdown(() => this.onWillShutdown());
+		this._register(this.lifecycleService.onBeforeShutdown(event => (event as InternalBeforeShutdownEvent).finalVeto(() => this.onFinalBeforeShutdown(event.reason), 'veto.backups')));
+		this._register(this.lifecycleService.onWillShutdown(() => this.onWillShutdown()));
 
 		// Once a handler registers, restore backups
 		this._register(this.workingCopyEditorService.onDidRegisterHandler(handler => this.restoreBackups(handler)));
@@ -206,7 +206,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Clear disposable unless we got canceled which would
 			// indicate another operation has started meanwhile
 			if (!cts.token.isCancellationRequested) {
-				this.pendingBackupOperations.delete(workingCopyIdentifier);
+				this.doCancelBackupOperation(workingCopyIdentifier);
 			}
 		}, this.getBackupScheduleDelay(workingCopy));
 
@@ -267,7 +267,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// Clear disposable unless we got canceled which would
 		// indicate another operation has started meanwhile
 		if (!cts.token.isCancellationRequested) {
-			this.pendingBackupOperations.delete(workingCopyIdentifier);
+			this.doCancelBackupOperation(workingCopyIdentifier);
 		}
 	}
 
@@ -287,9 +287,13 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		}
 
 		if (workingCopyIdentifier) {
-			dispose(this.pendingBackupOperations.get(workingCopyIdentifier));
-			this.pendingBackupOperations.delete(workingCopyIdentifier);
+			this.doCancelBackupOperation(workingCopyIdentifier);
 		}
+	}
+
+	private doCancelBackupOperation(workingCopyIdentifier: IWorkingCopyIdentifier): void {
+		dispose(this.pendingBackupOperations.get(workingCopyIdentifier));
+		this.pendingBackupOperations.delete(workingCopyIdentifier);
 	}
 
 	protected cancelBackupOperations(): void {

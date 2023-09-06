@@ -56,7 +56,7 @@ suite('WorkingCopyEditorService', () => {
 		instantiationService.stub(IEditorGroupsService, part);
 
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
-		const editorService = instantiationService.createInstance(EditorService);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const service = new WorkingCopyEditorService(editorService);

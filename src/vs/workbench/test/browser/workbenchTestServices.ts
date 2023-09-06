@@ -188,14 +188,14 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFile
 export class TestTextResourceEditor extends TextResourceEditor {
 
 	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
-		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+		this.editorControl = this._register(this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {}));
 	}
 }
 
 export class TestTextFileEditor extends TextFileEditor {
 
 	protected override createEditorControl(parent: HTMLElement, configuration: any): void {
-		this.editorControl = this.instantiationService.createInstance(TestCodeEditor, parent, configuration, { contributions: [] });
+		this.editorControl = this._register(this.instantiationService.createInstance(TestCodeEditor, parent, configuration, { contributions: [] }));
 	}
 
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {
@@ -243,7 +243,7 @@ export function workbenchInstantiationService(
 	},
 	disposables: Pick<DisposableStore, 'add'> = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()])));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, disposables.add(new TestLifecycleService())])));
 
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
 	instantiationService.stub(IWorkingCopyService, disposables.add(new TestWorkingCopyService()));
@@ -1246,26 +1246,26 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 	}
 }
 
-export class TestLifecycleService implements ILifecycleService {
+export class TestLifecycleService extends Disposable implements ILifecycleService {
 
 	declare readonly _serviceBrand: undefined;
 
 	phase!: LifecyclePhase;
 	startupKind!: StartupKind;
 
-	private readonly _onBeforeShutdown = new Emitter<InternalBeforeShutdownEvent>();
+	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
 	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
 
-	private readonly _onBeforeShutdownError = new Emitter<BeforeShutdownErrorEvent>();
+	private readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
 	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
 
-	private readonly _onShutdownVeto = new Emitter<void>();
+	private readonly _onShutdownVeto = this._register(new Emitter<void>());
 	get onShutdownVeto(): Event<void> { return this._onShutdownVeto.event; }
 
-	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
+	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
-	private readonly _onDidShutdown = new Emitter<void>();
+	private readonly _onDidShutdown = this._register(new Emitter<void>());
 	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
 
 	async when(): Promise<void> { }

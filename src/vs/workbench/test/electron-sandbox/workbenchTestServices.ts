@@ -224,8 +224,6 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 	discardedAllBackups: boolean;
 	private pendingBackupsArr: Promise<void>[];
 
-	private readonly disposables = new DisposableStore();
-
 	constructor() {
 		const environmentService = TestEnvironmentService;
 		const logService = new NullLogService();
@@ -233,9 +231,9 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const lifecycleService = new TestLifecycleService();
 		super(environmentService as any, fileService, logService, lifecycleService);
 
-		const inMemoryFileSystemProvider = new InMemoryFileSystemProvider();
-		fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider);
-		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService));
+		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());
+		this._register(fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider));
+		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService))));
 
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
@@ -243,7 +241,8 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		this.pendingBackupsArr = [];
 		this.discardedAllBackups = false;
 
-		this.disposables.add(fileService);
+		this._register(fileService);
+		this._register(lifecycleService);
 	}
 
 	testGetFileService(): IFileService {
@@ -298,9 +297,5 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const fileContents = await this.fileService.readFile(backupResource);
 
 		return fileContents.value.toString();
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
 	}
 }

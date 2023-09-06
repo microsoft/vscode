@@ -52,7 +52,7 @@ suite('EditorService', () => {
 
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
-		const editorService = instantiationService.createInstance(EditorService);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
 
 		return [part, editorService, instantiationService.createInstance(TestServiceAccessor)];

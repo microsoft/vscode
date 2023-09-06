@@ -31,6 +31,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import product from 'vs/platform/product/common/product';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const homeDir = URI.file('home').with({ scheme: Schemas.inMemory });
 const tmpDir = URI.file('tmp').with({ scheme: Schemas.inMemory });
@@ -171,6 +172,8 @@ suite('WorkingCopyBackupService', () => {
 	let service: NodeTestWorkingCopyBackupService;
 	let fileService: IFileService;
 
+	let disposables: DisposableStore;
+
 	const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 	const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
 	const customFile = URI.parse('customScheme://some/path');
@@ -180,17 +183,23 @@ suite('WorkingCopyBackupService', () => {
 	const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 
 	setup(async () => {
+		disposables = new DisposableStore();
+
 		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopybackupservice')).with({ scheme: Schemas.inMemory });
 		backupHome = joinPath(testDir, 'Backups');
 		workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
 		workspaceBackupPath = joinPath(backupHome, hash(workspaceResource.fsPath).toString(16));
 
-		service = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
+		service = disposables.add(new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath));
 		fileService = service._fileService;
 
 		await fileService.createFolder(backupHome);
 
 		return fileService.writeFile(workspacesJsonPath, VSBuffer.fromString(''));
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	suite('hashIdentifier', () => {
