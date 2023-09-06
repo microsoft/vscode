@@ -5,39 +5,37 @@
 
 /* Editor Label */
 
-.monaco-workbench .part.editor>.content .editor-group-container>.title {
+.monaco-workbench .part.editor > .content .editor-group-container > .title {
 	cursor: pointer;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container>.title .title-label,
-.monaco-workbench .part.editor>.content .editor-group-container>.title .tabs-container>.tab .tab-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	white-space: nowrap;
 	flex: 1;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container>.title .title-label a,
-.monaco-workbench .part.editor>.content .editor-group-container>.title .tabs-container>.tab .tab-label a {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
 	font-size: 13px;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container>.title .monaco-icon-label::before,
-.monaco-workbench .part.editor>.content .editor-group-container>.title .tabs-container>.tab .monaco-icon-label::before,
-.monaco-workbench .part.editor>.content .editor-group-container>.title .title-label a,
-.monaco-workbench .part.editor>.content .editor-group-container>.title .tabs-container>.tab .tab-label a,
-.monaco-workbench .part.editor>.content .editor-group-container>.title .title-label h2,
-.monaco-workbench .part.editor>.content .editor-group-container>.title .tabs-container>.tab .tab-label span {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .monaco-icon-label::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label h2,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label span {
 	cursor: pointer;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container>.title .monaco-icon-label::before {
-	height: var(--editor-group-title-height);
-	/* tweak the icon size of the editor labels when icons are enabled */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
+	height: var(--editor-group-title-height); /* tweak the icon size of the editor labels when icons are enabled */
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container>.title.breadcrumbs .monaco-icon-label::after,
-.monaco-workbench .part.editor>.content .editor-group-container>.title.tabs .monaco-icon-label::after {
-	margin-right: 0;
-	/* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .monaco-icon-label::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
+	margin-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
 }
 
 /* Drag and Drop */
