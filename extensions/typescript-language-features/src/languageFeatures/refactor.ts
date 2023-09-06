@@ -346,6 +346,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 		public readonly action: Proto.RefactorActionInfo,
 		public readonly range: vscode.Range,
 		public readonly bonus?: vscode.Command,
+		public readonly airename?: (x: Proto.RefactorEditInfo) => vscode.Command,
 	) {
 		super(action.description, InlinedCodeAction.getKind(action));
 
@@ -391,9 +392,10 @@ class InlinedCodeAction extends vscode.CodeAction {
 					command: CompositeCommand.ID,
 					title: '',
 					arguments: coalesce([
+						// TODO: this.bonus should really get renameLocation as well (at least most of the time)
 						this.bonus, // TODO: This should actually go second. Maybe?
 						this.command,
-						{
+						this.airename ? this.airename(response.body) : {
 							command: 'editor.action.rename',
 							arguments: [[
 								this.document.uri,
@@ -459,7 +461,7 @@ class InferTypesAction extends vscode.CodeAction {
 		this.command = {
 			title,
 			command: EditorChatReplacementCommand2.ID,
-			arguments: [<EditorChatReplacementCommand2.Args>{ message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.', document, rangeOrSelection }]
+			arguments: [<EditorChatReplacementCommand2.Args>{ message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.', document, range: rangeOrSelection }]
 		};
 	}
 }
@@ -595,19 +597,26 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
 			let bonus: vscode.Command | undefined
+			let airename: ((rename: Proto.RefactorEditInfo) => vscode.Command) | undefined
 			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix')) {
 				if (Extract_Constant.matches(action)
 					|| Extract_Function.matches(action)
 					|| Extract_Type.matches(action)
 					|| Extract_Interface.matches(action)
 					|| action.name.startsWith('Infer function return')) { // TODO: There's no CodeActionKind for infer function return; maybe that's why it doesn't work
-					const kind = Extract_Constant.matches(action) ? 'variable'
-						: Extract_Function.matches(action) ? 'function'
-						: Extract_Type.matches(action) ? 'type'
-						: Extract_Interface.matches(action) ? 'type'
-						: action.name.startsWith('Infer function return') ? 'return type'
+					// const keyword = Extract_Constant.matches(action) ? 'const'
+					// 	: Extract_Function.matches(action) ? 'function'
+					// 	: Extract_Type.matches(action) ? 'type'
+					// 	: Extract_Interface.matches(action) ? 'interface'
+					// 	: action.name.startsWith('Infer function return') ? 'return'
+					// 	: '';
+					const newName = Extract_Constant.matches(action) ? 'newLocal'
+						: Extract_Function.matches(action) ? 'newFunction'
+						: Extract_Type.matches(action) ? 'NewType'
+						: Extract_Interface.matches(action) ? 'NewInterface'
+						: action.name.startsWith('Infer function return') ? 'newReturnType'
 						: '';
-					bonus = {
+					bonus = undefined /*{
 						command: ChatPanelFollowup.ID,
 						arguments: [<ChatPanelFollowup.Args>{
 							prompt: `Suggest 5 ${kind} names for the code below:
@@ -618,11 +627,25 @@ ${document.getText(rangeOrSelection)}.
 							expand: 'navtree-function',
 							document }],
 						title: ''
-					}
-					if (action.name.startsWith('Infer function return')) console.log(JSON.stringify(bonus))
+					}*/
+					airename = refactorInfo => ({
+						title: '',
+						command: EditorChatReplacementCommand2.ID,
+						arguments: [<EditorChatReplacementCommand2.Args>{
+							expand: Extract_Constant.matches(action) ? 'navtree-function' : 'refactor-info',
+							refactor: refactorInfo,
+							message: `Rename ${newName} to a better name based on usage.`,
+							document,
+							// TODO: only start is used for everything but 'default'; refactor-info ignores it entirely
+							range: new vscode.Range(
+								typeConverters.Position.fromLocation(refactorInfo.renameLocation!),
+								typeConverters.Position.fromLocation({ ...refactorInfo.renameLocation!, offset: refactorInfo.renameLocation!.offset + 12 }))
+						}]
+					});
 				}
+
 			}
-			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, bonus);
+			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, bonus, airename);
 		}
 
 		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
