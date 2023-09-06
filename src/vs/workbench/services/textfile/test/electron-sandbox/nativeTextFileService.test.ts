@@ -19,7 +19,7 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 
 suite('Files - NativeTextFileService', function () {
 	const disposables = new DisposableStore();
@@ -52,7 +52,7 @@ suite('Files - NativeTextFileService', function () {
 	});
 
 	test('shutdown joins on pending saves', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
 
 		await model.resolve();
 
@@ -67,4 +67,6 @@ suite('Files - NativeTextFileService', function () {
 
 		assert.strictEqual(pendingSaveAwaited, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

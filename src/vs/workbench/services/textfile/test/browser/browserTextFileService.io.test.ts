@@ -22,6 +22,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 // optimization: we don't need to run this suite in native environment,
 // because we have nativeTextFileService.io.test.ts for it,
@@ -112,4 +113,6 @@ if (isWeb) {
 			}
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 }
