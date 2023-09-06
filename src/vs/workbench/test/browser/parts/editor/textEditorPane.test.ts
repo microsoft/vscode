@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -50,11 +50,11 @@ suite('TextEditorPane', () => {
 		assert.ok(pane && isEditorPaneWithSelection(pane));
 
 		const onDidFireSelectionEventOfEditType = new DeferredPromise<IEditorPaneSelectionChangeEvent>();
-		pane.onDidChangeSelection(e => {
+		disposables.add(pane.onDidChangeSelection(e => {
 			if (e.reason === EditorPaneSelectionChangeReason.EDIT) {
 				onDidFireSelectionEventOfEditType.complete(e);
 			}
-		});
+		}));
 
 		// Changing model reports selection change
 		// of EDIT kind
@@ -83,6 +83,10 @@ suite('TextEditorPane', () => {
 		const newSelection = pane.getSelection();
 		assert.ok(newSelection);
 		assert.strictEqual(newSelection.compare(selection), EditorPaneSelectionCompareResult.IDENTICAL);
+
+		await model.revert();
+		model.dispose();
+		await pane.group?.closeAllEditors();
 	});
 
 	test('TextEditorPaneSelection', function () {
@@ -96,4 +100,6 @@ suite('TextEditorPane', () => {
 		assert.strictEqual(sel1.compare(sel3), EditorPaneSelectionCompareResult.DIFFERENT);
 		assert.strictEqual(sel1.compare(sel4), EditorPaneSelectionCompareResult.DIFFERENT);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

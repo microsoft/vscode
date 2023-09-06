@@ -29,6 +29,7 @@ import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/works
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const NullThemeService = new TestThemeService();
 
@@ -37,8 +38,11 @@ const editorInputRegistry: IEditorFactoryRegistry = Registry.as(EditorExtensions
 
 class TestEditor extends EditorPane {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
-		super('TestEditor', NullTelemetryService, NullThemeService, new TestStorageService());
+	constructor() {
+		const disposables = new DisposableStore();
+		super('TestEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+
+		this._register(disposables);
 	}
 
 	override getId(): string { return 'testEditor'; }
@@ -48,8 +52,11 @@ class TestEditor extends EditorPane {
 
 export class OtherTestEditor extends EditorPane {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) {
-		super('testOtherEditor', NullTelemetryService, NullThemeService, new TestStorageService());
+	constructor() {
+		const disposables = new DisposableStore();
+		super('testOtherEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
+
+		this._register(disposables);
 	}
 
 	override getId(): string { return 'testOtherEditor'; }
@@ -106,8 +113,14 @@ class TestResourceEditorInput extends TextResourceEditorInput { }
 
 suite('EditorPane', () => {
 
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
 	test('EditorPane API', async () => {
-		const editor = new TestEditor(NullTelemetryService);
+		const editor = new TestEditor();
 		const input = new OtherTestInput();
 		const options = {};
 
@@ -120,15 +133,16 @@ suite('EditorPane', () => {
 		editor.setVisible(true, group);
 		assert(editor.isVisible());
 		assert.strictEqual(editor.group, group);
-		input.onWillDispose(() => {
+		disposables.add(input.onWillDispose(() => {
 			assert(false);
-		});
+		}));
 		editor.dispose();
 		editor.clearInput();
 		editor.setVisible(false, group);
 		assert(!editor.isVisible());
 		assert(!editor.input);
 		assert(!editor.getControl());
+		input.dispose();
 	});
 
 	test('EditorPaneDescriptor', () => {
@@ -150,8 +164,8 @@ suite('EditorPane', () => {
 		assert.strictEqual(editorRegistry.getEditorPanes().length, oldEditorsCnt + 2);
 		assert.strictEqual(editorRegistry.getEditors().length, oldInputCnt + 3);
 
-		assert.strictEqual(editorRegistry.getEditorPane(new TestInput()), editorDescriptor2);
-		assert.strictEqual(editorRegistry.getEditorPane(new OtherTestInput()), editorDescriptor2);
+		assert.strictEqual(editorRegistry.getEditorPane(disposables.add(new TestInput())), editorDescriptor2);
+		assert.strictEqual(editorRegistry.getEditorPane(disposables.add(new OtherTestInput())), editorDescriptor2);
 
 		assert.strictEqual(editorRegistry.getEditorPaneByType('id1'), editorDescriptor1);
 		assert.strictEqual(editorRegistry.getEditorPaneByType('id2'), editorDescriptor2);
@@ -170,10 +184,10 @@ suite('EditorPane', () => {
 
 		const inst = workbenchInstantiationService(undefined, disposables);
 
-		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		const editor = editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = editorRegistry.getEditorPane(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		const otherEditor = editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
 		disposables.dispose();
@@ -522,4 +536,6 @@ suite('EditorPane', () => {
 
 		dispose(disposables);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

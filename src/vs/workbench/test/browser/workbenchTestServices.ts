@@ -1488,12 +1488,14 @@ export class TestEditorInput extends EditorInput {
 }
 
 export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable {
+	const disposables = new DisposableStore();
+
 	class TestEditor extends EditorPane {
 
 		private _scopedContextKeyService: IContextKeyService;
 
 		constructor() {
-			super(id, NullTelemetryService, new TestThemeService(), new TestStorageService());
+			super(id, NullTelemetryService, new TestThemeService(), disposables.add(new TestStorageService()));
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 
@@ -1511,8 +1513,6 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			return this._scopedContextKeyService;
 		}
 	}
-
-	const disposables = new DisposableStore();
 
 	disposables.add(Registry.as<IEditorPaneRegistry>(Extensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
 
