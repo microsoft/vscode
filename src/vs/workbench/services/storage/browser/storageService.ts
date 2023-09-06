@@ -432,6 +432,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		return true;
 	}
 
+	async optimize(): Promise<void> {
+		// not suported in IndexedDB
+	}
+
 	async close(): Promise<void> {
 		const db = await this.whenConnected;
 
