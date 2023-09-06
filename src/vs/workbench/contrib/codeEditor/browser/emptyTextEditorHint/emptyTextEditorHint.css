@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .contentWidgets .untitled-hint {
+.monaco-editor .contentWidgets .empty-editor-hint {
 	color: var(--vscode-input-placeholderForeground);
 }
 
-.monaco-editor .contentWidgets .untitled-hint a {
+.monaco-editor .contentWidgets .empty-editor-hint a {
 	color: var(--vscode-textLink-foreground)
 }
