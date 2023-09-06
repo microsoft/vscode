@@ -112,7 +112,7 @@ if (isWeb) {
 				return null; // ignore errors (like file not found)
 			}
 		}
-	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+		ensureNoDisposablesAreLeakedInTestSuite();
+	});
 }
