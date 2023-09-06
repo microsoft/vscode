@@ -56,8 +56,8 @@ export interface IAccessibleContentProvider {
 	provideContent(): string;
 	onClose(): void;
 	onKeyUp?(e: IKeyboardEvent): void;
-	previous?(position?: Position): void;
-	next?(position?: Position): void;
+	previous?(): void;
+	next?(): void;
 	/**
 	 * When the language is markdown, this is provided by default.
 	 */
@@ -75,7 +75,8 @@ export interface IAccessibleViewService {
 	goToSymbol(): void;
 	disableHint(): void;
 	getPosition(): Position | undefined;
-	setPosition(position: Position): void;
+	setPosition(position: Position, reveal?: boolean): void;
+	getLastPosition(): Position | undefined;
 	/**
 	 * If the setting is enabled, provides the open accessible view hint as a localized string.
 	 * @param verbositySettingKey The setting key for the verbosity of the feature
@@ -234,23 +235,14 @@ export class AccessibleView extends Disposable {
 		if (!this._currentProvider) {
 			return;
 		}
-		this._currentProvider.previous?.(this._getCursorPosition());
+		this._currentProvider.previous?.();
 	}
 
 	next(): void {
 		if (!this._currentProvider) {
 			return;
 		}
-		this._currentProvider.next?.(this._getCursorPosition());
-	}
-
-	private _getCursorPosition(): Position | undefined {
-		const position = this.editorWidget.getPosition();
-		if (position) {
-			return position;
-		}
-		const modelLineCount = this.editorWidget.getModel()?.getLineCount();
-		return modelLineCount ? new Position(modelLineCount, 1) : undefined;
+		this._currentProvider.next?.();
 	}
 
 	goToSymbol(): void {
@@ -611,11 +603,17 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	getPosition(): Position | undefined {
 		return this._accessibleView?.editorWidget.getPosition() ?? undefined;
 	}
-	setPosition(position: Position): void {
+	getLastPosition(): Position | undefined {
+		const lastLine = this._accessibleView?.editorWidget.getModel()?.getLineCount();
+		return lastLine ? new Position(lastLine, 1) : undefined;
+	}
+	setPosition(position: Position, reveal?: boolean): void {
 		this._accessibleView?.editorWidget.setPosition(position);
+		if (reveal) {
+			this._accessibleView?.editorWidget.revealLine(position.lineNumber);
+		}
 	}
 }
-
 
 class AccessibleViewSymbolQuickPick {
 	constructor(private _accessibleView: AccessibleView, @IQuickInputService private readonly _quickInputService: IQuickInputService) {

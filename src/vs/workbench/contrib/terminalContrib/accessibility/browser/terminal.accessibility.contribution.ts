@@ -193,9 +193,13 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this._bufferTracker = this._instantiationService.createInstance(BufferContentTracker, this._xterm);
 		}
 		this._accessibleViewService.show(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
+		const lastPosition = this._accessibleViewService.getLastPosition();
+		if (lastPosition) {
+			this._accessibleViewService.setPosition(lastPosition, true);
+		}
 	}
 	navigateToCommand(type: NavigationType): void {
-		const currentLine = this._accessibleViewService.getPosition()?.lineNumber;
+		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;
 		const commands = this._getCommandsWithEditorLine();
 		if (!commands?.length || !currentLine) {
 			return;
@@ -205,7 +209,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		if (!filteredCommands.length) {
 			return;
 		}
-		this._accessibleViewService.setPosition(new Position(filteredCommands[0].lineNumber, 1));
+		this._accessibleViewService.setPosition(new Position(filteredCommands[0].lineNumber, 1), true);
 	}
 
 	private _getCommandsWithEditorLine(): ICommandWithEditorLine[] | undefined {
