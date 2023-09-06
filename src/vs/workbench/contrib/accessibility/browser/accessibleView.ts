@@ -305,13 +305,13 @@ export class AccessibleView extends Disposable {
 		if (!this._currentContent) {
 			return;
 		}
-		if (symbol.lineNumber) {
+		if (symbol.lineNumber !== undefined) {
 			this.show(provider);
 			this._editorWidget.revealLine(symbol.lineNumber);
 			this._editorWidget.setSelection({ startLineNumber: symbol.lineNumber, startColumn: 1, endLineNumber: symbol.lineNumber, endColumn: 1 });
 			return;
 		}
-		if (!symbol.markdownToParse) {
+		if (symbol.markdownToParse === undefined) {
 			return;
 		}
 		const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.markdownToParse!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
