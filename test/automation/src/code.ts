@@ -254,6 +254,10 @@ export class Code {
 		return this.driver.getLogs();
 	}
 
+	wait(millis: number): Promise<void> {
+		return new Promise((resolve, reject) => setTimeout(resolve, millis));
+	}
+
 	private async poll<T>(
 		fn: () => Promise<T>,
 		acceptFn: (result: T) => boolean,
