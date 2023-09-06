@@ -120,6 +120,8 @@ export interface TypeScriptServiceConfiguration {
 	readonly watchOptions: Proto.WatchOptions | undefined;
 	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	readonly enableTsServerTracing: boolean;
+	readonly localNodePath: string | null;
+	readonly globalNodePath: string | null;
 }
 
 export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
@@ -154,11 +156,15 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			watchOptions: this.readWatchOptions(configuration),
 			includePackageJsonAutoImports: this.readIncludePackageJsonAutoImports(configuration),
 			enableTsServerTracing: this.readEnableTsServerTracing(configuration),
+			localNodePath: this.readLocalNodePath(configuration),
+			globalNodePath: this.readGlobalNodePath(configuration),
 		};
 	}
 
 	protected abstract readGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
 	protected abstract readLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract readLocalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
+	protected abstract readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
 
 	protected readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
 		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
