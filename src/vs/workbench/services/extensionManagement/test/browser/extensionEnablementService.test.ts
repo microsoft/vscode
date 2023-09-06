@@ -36,6 +36,7 @@ import { TestContextService, TestProductService } from 'vs/workbench/test/common
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -70,7 +71,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			}, null, null));
 		const extensionManagementService = instantiationService.createInstance(ExtensionManagementService);
 		const workbenchExtensionManagementService = instantiationService.get(IWorkbenchExtensionManagementService) || instantiationService.stub(IWorkbenchExtensionManagementService, extensionManagementService);
-		const workspaceTrustManagementService = instantiationService.get(IWorkspaceTrustManagementService) || instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+		const disposables = new DisposableStore();
+		const workspaceTrustManagementService = instantiationService.get(IWorkspaceTrustManagementService) || instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 		super(
 			storageService,
 			new GlobalExtensionEnablementService(storageService, extensionManagementService),
@@ -90,6 +92,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService())),
 			instantiationService
 		);
+		this._register(disposables);
 	}
 
 	public async waitUntilInitialized(): Promise<void> {

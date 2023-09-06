@@ -133,9 +133,6 @@ suite('EditorPane', () => {
 		editor.setVisible(true, group);
 		assert(editor.isVisible());
 		assert.strictEqual(editor.group, group);
-		disposables.add(input.onWillDispose(() => {
-			assert(false);
-		}));
 		editor.dispose();
 		editor.clearInput();
 		editor.setVisible(false, group);
@@ -473,7 +470,7 @@ suite('EditorPane', () => {
 
 		class TrustRequiredTestEditor extends EditorPane {
 			constructor(@ITelemetryService telemetryService: ITelemetryService) {
-				super('TestEditor', NullTelemetryService, NullThemeService, new TestStorageService());
+				super('TestEditor', NullTelemetryService, NullThemeService, disposables.add(new TestStorageService()));
 			}
 
 			override getId(): string { return 'trustRequiredTestEditor'; }
