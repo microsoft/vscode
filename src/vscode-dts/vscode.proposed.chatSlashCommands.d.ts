@@ -24,12 +24,12 @@ declare module 'vscode' {
 	}
 
 	export interface SlashResponse {
-		message: MarkdownString;
+		message: MarkdownString | InteractiveProgressFileTree;
 		// edits?: TextEdit[] | WorkspaceEdit;
 	}
 
 	export interface SlashResult {
-		// followUp?: InteractiveSessionFollowup[];
+		followUp?: InteractiveSessionFollowup[];
 	}
 
 	export interface SlashCommandMetadata {
@@ -38,7 +38,7 @@ declare module 'vscode' {
 
 	export interface SlashCommand {
 
-		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult>;
+		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult | void>;
 	}
 
 	export namespace chat {

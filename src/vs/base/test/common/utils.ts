@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -62,7 +62,8 @@ export class DisposableTracker implements IDisposableTracker {
 	trackDisposable(d: IDisposable): void {
 		const data = this.getDisposableData(d);
 		if (!data.source) {
-			data.source = new Error().stack!;
+			data.source =
+				new Error().stack!;
 		}
 	}
 
@@ -111,7 +112,7 @@ export class DisposableTracker implements IDisposableTracker {
 			const firstLeaking = leaking.slice(0, count);
 			const remainingCount = leaking.length - count;
 
-			const separator = '--------------------\n\n';
+			const separator = '\n--------------------\n\n';
 			let s = firstLeaking.map(l => l.source).join(separator);
 			if (remainingCount > 0) {
 				s += `${separator}+ ${remainingCount} more`;
@@ -128,21 +129,34 @@ export class DisposableTracker implements IDisposableTracker {
  *
  * Use `markAsSingleton` if disposable singletons are created lazily that are allowed to outlive the test.
  * Make sure that the singleton properly registers all child disposables so that they are excluded too.
+ *
+ * @returns A {@link DisposableStore} that can optionally be used to track disposables in the test.
+ * This will be automatically disposed on test teardown.
 */
-export function ensureNoDisposablesAreLeakedInTestSuite() {
+export function ensureNoDisposablesAreLeakedInTestSuite(): Pick<DisposableStore, 'add'> {
 	let tracker: DisposableTracker | undefined;
+	let store: DisposableStore;
 	setup(() => {
+		store = new DisposableStore();
 		tracker = new DisposableTracker();
 		setDisposableTracker(tracker);
 	});
 
 	teardown(function (this: import('mocha').Context) {
+		store.dispose();
 		setDisposableTracker(null);
-
 		if (this.currentTest?.state !== 'failed') {
 			tracker!.ensureNoLeakingDisposables();
 		}
 	});
+
+	// Wrap store as the suite function is called before it's initialized
+	const testContext = {
+		add<T extends IDisposable>(o: T): T {
+			return store.add(o);
+		}
+	};
+	return testContext;
 }
 
 export function throwIfDisposablesAreLeaked(body: () => void): void {

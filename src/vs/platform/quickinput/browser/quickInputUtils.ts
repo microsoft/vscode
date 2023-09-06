@@ -67,11 +67,11 @@ export function renderQuickInputDescription(description: string, container: HTML
 
 			const onClick = actionHandler.disposables.add(new DomEmitter(anchor, dom.EventType.CLICK)).event;
 			const onKeydown = actionHandler.disposables.add(new DomEmitter(anchor, dom.EventType.KEY_DOWN)).event;
-			const onSpaceOrEnter = actionHandler.disposables.add(Event.chain(onKeydown)).filter(e => {
+			const onSpaceOrEnter = Event.chain(onKeydown, $ => $.filter(e => {
 				const event = new StandardKeyboardEvent(e);
 
 				return event.equals(KeyCode.Space) || event.equals(KeyCode.Enter);
-			}).event;
+			}));
 
 			actionHandler.disposables.add(Gesture.addTarget(anchor));
 			const onTap = actionHandler.disposables.add(new DomEmitter(anchor, GestureEventType.Tap)).event;

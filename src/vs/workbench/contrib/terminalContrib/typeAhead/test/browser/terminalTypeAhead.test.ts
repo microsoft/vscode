@@ -11,6 +11,8 @@ import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from '
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, IBeforeProcessDataEvent, ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const CSI = `\x1b[`;
 
@@ -20,18 +22,24 @@ const enum CursorMoveDirection {
 }
 
 suite('Workbench - Terminal Typeahead', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('PredictionStats', () => {
 		let stats: PredictionStats;
-		const add = new Emitter<IPrediction>();
-		const succeed = new Emitter<IPrediction>();
-		const fail = new Emitter<IPrediction>();
+		let add: Emitter<IPrediction>;
+		let succeed: Emitter<IPrediction>;
+		let fail: Emitter<IPrediction>;
 
 		setup(() => {
-			stats = new PredictionStats({
+			add = ds.add(new Emitter<IPrediction>());
+			succeed = ds.add(new Emitter<IPrediction>());
+			fail = ds.add(new Emitter<IPrediction>());
+
+			stats = ds.add(new PredictionStats({
 				onPredictionAdded: add.event,
 				onPredictionSucceeded: succeed.event,
 				onPredictionFailed: fail.event,
-			} as any);
+			} as any));
 		});
 
 		test('creates sane data', () => {
@@ -74,7 +82,7 @@ suite('Workbench - Terminal Typeahead', () => {
 	});
 
 	suite('timeline', () => {
-		const onBeforeProcessData = new Emitter<IBeforeProcessDataEvent>();
+		let onBeforeProcessData: Emitter<IBeforeProcessDataEvent>;
 		let publicLog: SinonStub;
 		let config: ITerminalConfiguration;
 		let addon: TestTypeAheadAddon;
@@ -94,6 +102,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		};
 
 		setup(() => {
+			onBeforeProcessData = ds.add(new Emitter<IBeforeProcessDataEvent>());
 			config = upcastPartial<ITerminalConfiguration>({
 				localEchoStyle: 'italic',
 				localEchoLatencyThreshold: 0,
@@ -113,14 +122,14 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('predicts a single character', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('o');
 			t.expectWritten(`${CSI}3mo${CSI}23m`);
 		});
 
 		test('validates character prediction', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed('o', predictedHelloo);
@@ -128,7 +137,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('validates zsh prediction (#112842)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed('o', predictedHelloo);
@@ -145,7 +154,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('does not validate zsh prediction on differing lookbehindn (#112842)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed('o', predictedHelloo);
@@ -163,7 +172,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('rolls back character prediction', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('o');
 
@@ -179,7 +188,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('handles left arrow when we hit the boundary', () => {
-			const t = createMockTerminal({ lines: ['|'] });
+			const t = ds.add(createMockTerminal({ lines: ['|'] }));
 			addon.activate(t.terminal);
 			addon.unlockNavigating();
 
@@ -198,7 +207,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('handles right arrow when we hit the boundary', () => {
-			const t = createMockTerminal({ lines: ['|'] });
+			const t = ds.add(createMockTerminal({ lines: ['|'] }));
 			addon.activate(t.terminal);
 			addon.unlockNavigating();
 
@@ -217,7 +226,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('internal cursor state is reset when all predictions are undone', () => {
-			const t = createMockTerminal({ lines: ['|'] });
+			const t = ds.add(createMockTerminal({ lines: ['|'] }));
 			addon.activate(t.terminal);
 			addon.unlockNavigating();
 
@@ -234,10 +243,10 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('restores cursor graphics mode', () => {
-			const t = createMockTerminal({
+			const t = ds.add(createMockTerminal({
 				lines: ['hello|'],
 				cursorAttrs: { isAttributeDefault: false, isBold: true, isFgPalette: true, getFgColor: 1 },
-			});
+			}));
 			addon.activate(t.terminal);
 			t.onData('o');
 
@@ -253,7 +262,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('validates against and applies graphics mode on predicted', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed(`${CSI}4mo`, [
@@ -268,7 +277,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('ignores cursor hides or shows', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('o');
 			expectProcessed(`${CSI}?25lo${CSI}?25h`, [
@@ -284,7 +293,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('matches backspace at EOL (bash style)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('\x7F');
 			expectProcessed(`\b${CSI}K`, `\b${CSI}K`);
@@ -292,7 +301,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('matches backspace at EOL (zsh style)', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('\x7F');
 			expectProcessed('\b \b', '\b \b');
@@ -300,7 +309,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('gradually matches backspace', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 			t.onData('\x7F');
 			expectProcessed('\b', '');
@@ -309,7 +318,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('restores old character after invalid backspace', () => {
-			const t = createMockTerminal({ lines: ['hel|lo'] });
+			const t = ds.add(createMockTerminal({ lines: ['hel|lo'] }));
 			addon.activate(t.terminal);
 			addon.unlockNavigating();
 			t.onData('\x7F');
@@ -319,7 +328,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('waits for validation before deleting to left of cursor', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 
 			// initially should not backspace (until the server confirms it)
@@ -340,7 +349,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('waits for first valid prediction on a line', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.lockMakingPredictions();
 			addon.activate(t.terminal);
 
@@ -353,7 +362,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('disables on title change', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.activate(t.terminal);
 
 			addon.reevaluateNow();
@@ -369,7 +378,7 @@ suite('Workbench - Terminal Typeahead', () => {
 		});
 
 		test('adds line wrap prediction even if behind a boundary', () => {
-			const t = createMockTerminal({ lines: ['hello|'] });
+			const t = ds.add(createMockTerminal({ lines: ['hello|'] }));
 			addon.lockMakingPredictions();
 			addon.activate(t.terminal);
 
@@ -441,11 +450,12 @@ function createMockTerminal({ lines, cursorAttrs }: {
 	lines: string[];
 	cursorAttrs?: any;
 }) {
+	const ds = new DisposableStore();
 	const written: string[] = [];
 	const cursor = { y: 1, x: 1 };
-	const onTitleChange = new Emitter<string>();
-	const onData = new Emitter<string>();
-	const csiEmitter = new Emitter<number[]>();
+	const onTitleChange = ds.add(new Emitter<string>());
+	const onData = ds.add(new Emitter<string>());
+	const csiEmitter = ds.add(new Emitter<number[]>());
 
 	for (let y = 0; y < lines.length; y++) {
 		const line = lines[y];
@@ -468,6 +478,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 		onData: (s: string) => onData.fire(s),
 		csiEmitter,
 		onTitleChange,
+		dispose: () => ds.dispose(),
 		terminal: {
 			cols: 80,
 			rows: 5,
@@ -476,7 +487,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 			onTitleChange: onTitleChange.event,
 			parser: {
 				registerCsiHandler(_: unknown, callback: () => void) {
-					csiEmitter.event(callback);
+					ds.add(csiEmitter.event(callback));
 				},
 			},
 			write(line: string) {
