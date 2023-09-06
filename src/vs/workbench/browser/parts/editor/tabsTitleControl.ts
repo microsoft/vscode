@@ -163,7 +163,9 @@ export class TabsTitleControl extends TitleControl {
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 	}
 
-	protected create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): void {
+		super.create(parent);
+
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
@@ -180,7 +182,6 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabSizingFixedDisposables = this._register(new DisposableStore());
 		this.updateTabSizing(false);
-		this.updateTabHeight();
 
 		// Tabs Scrollbar
 		this.tabsScrollbar = this.createTabsScrollbar(this.tabsContainer);
@@ -202,6 +203,7 @@ export class TabsTitleControl extends TitleControl {
 		breadcrumbsContainer.classList.add('tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
 		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, showPlaceholder: true });
+
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -267,7 +269,6 @@ export class TabsTitleControl extends TitleControl {
 			}
 		});
 	}
-
 
 	private getTabsScrollbarSizing(): number {
 		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
@@ -710,7 +711,8 @@ export class TabsTitleControl extends TitleControl {
 		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabActionBar));
 	}
 
-	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+		super.updateOptions(oldOptions, newOptions);
 
 		// A change to a label format options requires to recompute all labels
 		if (oldOptions.labelFormat !== newOptions.labelFormat) {
@@ -733,7 +735,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
-			this.updateTabHeight();
+			this.updateTitleHeight();
 		}
 
 		// Redraw tabs when other options change
@@ -1566,7 +1568,6 @@ export class TabsTitleControl extends TitleControl {
 
 		return { total, offset };
 	}
-
 
 	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): Dimension {
 

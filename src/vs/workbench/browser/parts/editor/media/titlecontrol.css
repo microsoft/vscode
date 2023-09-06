@@ -30,7 +30,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
-	height: var(--tab-height); /* tweak the icon size of the editor labels when icons are enabled */
+	height: var(--title-height); /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .monaco-icon-label::after,

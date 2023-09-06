@@ -734,7 +734,7 @@
 		"--tab-sizing-current-width",
 		"--tab-sizing-fixed-min-width",
 		"--tab-sizing-fixed-max-width",
-		"--tab-height",
+		"--title-height",
 		"--testMessageDecorationFontFamily",
 		"--testMessageDecorationFontSize",
 		"--title-border-bottom-color",

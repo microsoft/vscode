@@ -6,7 +6,7 @@
 /* Title Label */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container {
-	height: var(--tab-height);
+	height: var(--title-height);
 	display: flex;
 	justify-content: flex-start;
 	align-items: center;
@@ -15,7 +15,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label {
-	line-height: var(--tab-height);
+	line-height: var(--title-height);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	position: relative;
@@ -94,7 +94,7 @@
 	flex: initial;
 	opacity: 0.5;
 	padding-right: 8px;
-	height: var(--tab-height);
+	height: var(--title-height);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions .action-item {
