@@ -168,6 +168,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const renderedStickyLine = this._renderChildNode(index, line, layoutInfo, foldingModel);
+			if (!renderedStickyLine) {
+				continue;
+			}
 			this._linesDomNode.appendChild(renderedStickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(renderedStickyLine.lineNumberDomNode);
 			this._stickyLines.push(renderedStickyLine);
@@ -214,9 +217,12 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}));
 	}
 
-	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null | undefined): RenderedStickyLine {
+	private _renderChildNode(index: number, line: number, layoutInfo: EditorLayoutInfo, foldingModel: FoldingModel | null | undefined): RenderedStickyLine | undefined {
 		const viewModel = this._editor._getViewModel();
-		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
+		if (!viewModel) {
+			return;
+		}
+		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
 		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
