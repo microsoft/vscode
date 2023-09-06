@@ -61,7 +61,7 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
-import { accessibleViewCurrentProviderId, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -480,7 +480,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.Focus,
 		title: terminalStrings.focus,
 		keybinding: {
-			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, accessibleViewOnLastLine, accessibleViewCurrentProviderId.isEqualTo('terminal')),
+			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, accessibleViewOnLastLine, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)),
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
