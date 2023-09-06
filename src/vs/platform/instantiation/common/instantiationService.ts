@@ -6,7 +6,7 @@
 import { IdleValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
-import { toDisposable } from 'vs/base/common/lifecycle';
+import { isDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
@@ -41,6 +41,15 @@ export class InstantiationService implements IInstantiationService {
 
 		this._services.set(IInstantiationService, this);
 		this._globalGraph = _enableTracing ? _parent?._globalGraph ?? new Graph(e => e) : undefined;
+	}
+
+	dispose(): void {
+		for (const service of this._services.instances()) {
+			if (isDisposable(service)) {
+				service.dispose();
+			}
+		}
+		this._services.clear();
 	}
 
 	createChild(services: ServiceCollection): IInstantiationService {

@@ -130,7 +130,8 @@ export class TestInstantiationService extends InstantiationService implements ID
 		return new TestInstantiationService(services, false, this);
 	}
 
-	dispose() {
+	override dispose() {
+		super.dispose();
 		sinon.restore();
 	}
 }

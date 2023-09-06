@@ -16,6 +16,10 @@ export class ServiceCollection {
 		}
 	}
 
+	clear(): void {
+		this._entries.clear();
+	}
+
 	set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
 		const result = this._entries.get(id);
 		this._entries.set(id, instanceOrDescriptor);
@@ -28,5 +32,13 @@ export class ServiceCollection {
 
 	get<T>(id: ServiceIdentifier<T>): T | SyncDescriptor<T> {
 		return this._entries.get(id);
+	}
+
+	*instances(): Iterable<any> {
+		for (const value of this._entries.values()) {
+			if (!(value instanceof SyncDescriptor)) {
+				yield value;
+			}
+		}
 	}
 }
