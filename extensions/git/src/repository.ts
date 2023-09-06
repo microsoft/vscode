@@ -23,7 +23,6 @@ import { ActionButtonCommand } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
-import { Model } from './model';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -634,6 +633,14 @@ interface BranchProtectionMatcher {
 	exclude?: picomatch.Matcher;
 }
 
+export interface IRepositoryResolver {
+	getRepository(sourceControl: SourceControl): Repository | undefined;
+	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
+	getRepository(path: string): Repository | undefined;
+	getRepository(resource: Uri): Repository | undefined;
+	getRepository(hint: any): Repository | undefined;
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -785,7 +792,7 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
-		private readonly model: Model,
+		private readonly repositoryResolver: IRepositoryResolver,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
@@ -1013,8 +1020,7 @@ export class Repository implements Disposable {
 		}
 
 		// Ignore path that is not inside the current repository
-		const repository = this.model.getRepository(uri);
-		if (repository && !pathEquals(repository.root, this.repository.root)) {
+		if (this.repositoryResolver.getRepository(uri) !== this) {
 			return undefined;
 		}
 

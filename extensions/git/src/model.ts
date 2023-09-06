@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Repository, RepositoryState } from './repository';
+import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -170,7 +170,7 @@ class UnsafeRepositoriesManager {
 	}
 }
 
-export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
+export class Model implements IRepositoryResolver, IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
