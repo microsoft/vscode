@@ -26,6 +26,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookCell#Document', function () {
 
@@ -44,6 +45,8 @@ suite('NotebookCell#Document', function () {
 	teardown(function () {
 		disposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async function () {
 		rpcProtocol = new TestRPCProtocol();
