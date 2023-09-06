@@ -224,7 +224,9 @@ export default function createSuite(params: Params) {
 		const resolved = await service.readStream(resource);
 		assert.strictEqual(resolved.encoding, encoding);
 
-		assert.strictEqual(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false)), expectedContent);
+		const textBuffer = resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer;
+		assert.strictEqual(snapshotToString(textBuffer.createSnapshot(false)), expectedContent);
+		textBuffer.dispose();
 	}
 
 	test('write - use encoding (cp1252)', async () => {
@@ -252,18 +254,24 @@ export default function createSuite(params: Params) {
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
 		let resolved = await service.readStream(resource, { encoding });
-		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer = resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer;
+		const content = snapshotToString(textBuffer.createSnapshot(false));
+		textBuffer.dispose();
 		assert.strictEqual(content, expected);
 
 		await service.write(resource, content, { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		const textBuffer2 = resolved.value.create(DefaultEndOfLine.CRLF).textBuffer;
+		assert.strictEqual(snapshotToString(textBuffer2.createSnapshot(false)), content);
+		textBuffer2.dispose();
 
 		await service.write(resource, createTextModelSnapshot(content), { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		const textBuffer3 = resolved.value.create(DefaultEndOfLine.CRLF).textBuffer;
+		assert.strictEqual(snapshotToString(textBuffer3.createSnapshot(false)), content);
+		textBuffer3.dispose();
 	}
 
 	test('write - no encoding - content as string', async () => {
@@ -412,9 +420,11 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.size, (await stat(resource.fsPath)).size);
 
 		const content = (await readFile(resource.fsPath)).toString();
+		const textBuffer = result.value.create(DefaultEndOfLine.LF).textBuffer;
 		assert.strictEqual(
-			snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false)),
+			snapshotToString(textBuffer.createSnapshot(false)),
 			snapshotToString(createTextModelSnapshot(content, false)));
+		textBuffer.dispose();
 	}
 
 	test('read - small text', async () => {
@@ -541,7 +551,9 @@ export default function createSuite(params: Params) {
 		const result = await service.readStream(resource, { encoding });
 		assert.strictEqual(result.encoding, encoding);
 
-		let contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer = result.value.create(DefaultEndOfLine.LF).textBuffer;
+		let contents = snapshotToString(textBuffer.createSnapshot(false));
+		textBuffer.dispose();
 
 		assert.strictEqual(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);
@@ -557,7 +569,9 @@ export default function createSuite(params: Params) {
 
 		const factory = await createTextBufferFactoryFromStream(await service.getDecodedStream(resource, bufferToStream(rawFileVSBuffer), { encoding }));
 
-		contents = snapshotToString(factory.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer2 = factory.create(DefaultEndOfLine.LF).textBuffer;
+		contents = snapshotToString(textBuffer2.createSnapshot(false));
+		textBuffer2.dispose();
 
 		assert.strictEqual(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);
