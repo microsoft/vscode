@@ -10,6 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import * as editorRange from 'vs/editor/common/core/range';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -71,11 +72,17 @@ suite('ExtHost Testing', () => {
 		}
 	}
 
+	teardown(() => {
+		sinon.restore();
+	});
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let single: TestExtHostTestItemCollection;
 	setup(() => {
-		single = new TestExtHostTestItemCollection('ctrlId', 'root', {
+		single = ds.add(new TestExtHostTestItemCollection('ctrlId', 'root', {
 			getDocument: () => undefined,
-		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors);
+		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors));
 		single.resolveHandler = item => {
 			if (item === undefined) {
 				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
@@ -89,12 +96,7 @@ suite('ExtHost Testing', () => {
 			}
 		};
 
-		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
-	});
-
-	teardown(() => {
-		single.dispose();
-		sinon.restore();
+		ds.add(single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */)));
 	});
 
 	suite('OwnedTestCollection', () => {
@@ -623,7 +625,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('tracks a run started from a main thread request', () => {
-			const tracker = c.prepareForMainThreadTestRun(req, dto, ext, cts.token);
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
 			assert.strictEqual(tracker.hasRunningTasks, false);
 
 			const task1 = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
@@ -648,10 +650,10 @@ suite('ExtHost Testing', () => {
 		test('run cancel force ends after a timeout', () => {
 			const clock = sinon.useFakeTimers();
 			try {
-				const tracker = c.prepareForMainThreadTestRun(req, dto, ext, cts.token);
+				const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
 				const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
 				const onEnded = sinon.stub();
-				tracker.onEnd(onEnded);
+				ds.add(tracker.onEnd(onEnded));
 
 				assert.strictEqual(task.token.isCancellationRequested, false);
 				assert.strictEqual(tracker.hasRunningTasks, true);
@@ -673,10 +675,10 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('run cancel force ends on second cancellation request', () => {
-			const tracker = c.prepareForMainThreadTestRun(req, dto, ext, cts.token);
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
 			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
 			const onEnded = sinon.stub();
-			tracker.onEnd(onEnded);
+			ds.add(tracker.onEnd(onEnded));
 
 			assert.strictEqual(task.token.isCancellationRequested, false);
 			assert.strictEqual(tracker.hasRunningTasks, true);
@@ -753,6 +755,8 @@ suite('ExtHost Testing', () => {
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.end();
 		});
 
 		test('adds test messages to run', () => {
@@ -796,6 +800,8 @@ suite('ExtHost Testing', () => {
 					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
 				}]
 			]);
+
+			task.end();
 		});
 
 		test('guards calls after runs are ended', () => {
@@ -829,6 +835,7 @@ suite('ExtHost Testing', () => {
 				TestResultState.Passed,
 				undefined,
 			]]);
+			task.end();
 		});
 
 		test('sets state of test with identical local IDs (#131827)', () => {
@@ -856,6 +863,8 @@ suite('ExtHost Testing', () => {
 					[single.root, testB, childB].map(t => convert.TestItem.from(t as TestItemImpl)),
 				],
 			]);
+
+			task1.end();
 		});
 	});
 });

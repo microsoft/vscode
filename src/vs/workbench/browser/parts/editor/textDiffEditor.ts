@@ -13,7 +13,6 @@ import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDif
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -22,7 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -36,18 +34,15 @@ import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLar
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
  */
 export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> implements ITextDiffEditorPane {
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
-	private static widgetCounter = 0; // Just for debugging
 
 	private diffEditorControl: IDiffEditor | undefined = undefined;
-
-	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
 	private inputLifecycleStopWatch: StopWatch | undefined = undefined;
 
@@ -85,18 +80,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
-		TextDiffEditor.widgetCounter++;
-		let useVersion2 = this.textResourceConfigurationService.getValue(undefined, 'diffEditor.experimental.useVersion2');
-		if (useVersion2 === 'first') {
-			// This allows to have both the old and new diff editor next to each other - just for debugging
-			useVersion2 = TextDiffEditor.widgetCounter === 1;
-		}
-
-		if (useVersion2) {
-			this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget2, parent, configuration, {}));
-		} else {
-			this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
-		}
+		this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
 	}
 
 	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
@@ -111,7 +95,6 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 		// Cleanup previous things associated with the input
 		this.inputLifecycleStopWatch = undefined;
-		this.diffNavigatorDisposables.clear();
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -324,16 +307,13 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 			this.logInputLifecycleTelemetry(inputLifecycleElapsed, this.getControl()?.getModel()?.modified?.getLanguageId());
 		}
 
-		// Dispose previous diff navigator
-		this.diffNavigatorDisposables.clear();
-
 		// Clear Model
 		this.diffEditorControl?.setModel(null);
 	}
 
 	private logInputLifecycleTelemetry(duration: number, languageId: string | undefined): void {
 		let collapseUnchangedRegions = false;
-		if (this.diffEditorControl instanceof DiffEditorWidget2) {
+		if (this.diffEditorControl instanceof DiffEditorWidget) {
 			collapseUnchangedRegions = this.diffEditorControl.collapseUnchangedRegions;
 		}
 		this.telemetryService.publicLog2<{

@@ -21,7 +21,7 @@ import { localize } from 'vs/nls';
 import { IQuickInputButton, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Position } from 'vs/editor/common/core/position';
-import { findLast } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind;

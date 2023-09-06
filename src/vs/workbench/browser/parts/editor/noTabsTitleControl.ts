@@ -32,7 +32,9 @@ export class NoTabsTitleControl extends TitleControl {
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
-	protected create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): void {
+		super.create(parent);
+
 		const titleContainer = this.titleContainer = parent;
 		titleContainer.draggable = true;
 
@@ -197,7 +199,9 @@ export class NoTabsTitleControl extends TitleControl {
 		});
 	}
 
-	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+		super.updateOptions(oldOptions, newOptions);
+
 		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.decorations, newOptions.decorations)) {
 			this.redraw();
 		}
