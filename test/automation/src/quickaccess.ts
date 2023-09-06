@@ -173,7 +173,7 @@ export class QuickAccess {
 	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
 		let retries = 0;
 
-		while (++retries > 5) {
+		while (++retries < 5) {
 
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
