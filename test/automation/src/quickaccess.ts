@@ -172,13 +172,8 @@ export class QuickAccess {
 
 	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
 		let retries = 0;
-		let error;
 
-		while (true) {
-
-			if (++retries > 5) {
-				throw error ?? new Error(`Command: ${commandId} Not found`);
-			}
+		while (++retries > 5) {
 
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
@@ -195,22 +190,13 @@ export class QuickAccess {
 				continue;
 			}
 
-			try {
-				// wait and click on best choice
-				await this.quickInput.selectQuickInputElement(0, keepOpen);
-			} catch (err) {
-				if (keepOpen) {
-					throw err;
-				} else {
-					error = err;
-					this.code.logger.log(`QuickAccess: Probably no matching commands, will retry...`);
-					await this.quickInput.closeQuickInput();
-					continue;
-				}
-			}
+			// wait and click on best choice
+			await this.quickInput.selectQuickInputElement(0, keepOpen);
 
-			break;
+			return;
 		}
+
+		throw new Error(`Command: ${commandId} Not found`);
 
 	}
 
