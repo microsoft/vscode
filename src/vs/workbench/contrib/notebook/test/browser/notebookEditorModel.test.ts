@@ -10,6 +10,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -20,6 +21,7 @@ import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } fro
 import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookFileWorkingCopyModel', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;

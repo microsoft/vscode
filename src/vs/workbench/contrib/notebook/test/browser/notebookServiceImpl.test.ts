@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -21,6 +22,7 @@ import { IExtensionService, nullExtensionDescription } from 'vs/workbench/servic
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('NotebookProviderInfoStore', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Can\'t open untitled notebooks in test #119363', function () {
 		const disposables = new DisposableStore();

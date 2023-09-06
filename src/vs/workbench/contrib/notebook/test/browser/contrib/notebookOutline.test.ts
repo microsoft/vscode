@@ -17,8 +17,10 @@ import { IActiveNotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Notebook Outline', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
