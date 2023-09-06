@@ -104,7 +104,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	// Given https://github.com/microsoft/vscode/issues/158038, we explicitly
 	// do not store `IWorkingCopy` but the identifier in the map, since it
 	// looks like GC is not running for the working copy otherwise.
-	protected readonly pendingBackupOperations = new Map<IWorkingCopyIdentifier, { disposable: IDisposable; cts: CancellationTokenSource }>();
+	protected readonly pendingBackupOperations = new Map<IWorkingCopyIdentifier, { disposable: IDisposable; cancel: () => void }>();
 
 	private suspended = false;
 
@@ -206,16 +206,18 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Clear disposable unless we got canceled which would
 			// indicate another operation has started meanwhile
 			if (!cts.token.isCancellationRequested) {
-				this.doClearPendingBackupOperation(workingCopyIdentifier, { dispose: true, cancel: false });
+				this.doClearPendingBackupOperation(workingCopyIdentifier);
 			}
 		}, this.getBackupScheduleDelay(workingCopy));
 
 		// Keep in map for disposal as needed
 		this.pendingBackupOperations.set(workingCopyIdentifier, {
-			cts,
-			disposable: toDisposable(() => {
+			cancel: () => {
 				this.logService.trace(`[backup tracker] clearing pending backup creation`, workingCopy.resource.toString(), workingCopy.typeId);
 
+				cts.cancel();
+			},
+			disposable: toDisposable(() => {
 				cts.dispose();
 				clearTimeout(handle);
 			})
@@ -251,12 +253,12 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 		// Keep in map for disposal as needed
 		this.pendingBackupOperations.set(workingCopyIdentifier, {
-			cts,
-			disposable: toDisposable(() => {
+			cancel: () => {
 				this.logService.trace(`[backup tracker] clearing pending backup discard`, workingCopy.resource.toString(), workingCopy.typeId);
 
-				cts.dispose();
-			})
+				cts.cancel();
+			},
+			disposable: cts
 		});
 	}
 
@@ -273,7 +275,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// Clear disposable unless we got canceled which would
 		// indicate another operation has started meanwhile
 		if (!cts.token.isCancellationRequested) {
-			this.doClearPendingBackupOperation(workingCopyIdentifier, { dispose: true, cancel: false });
+			this.doClearPendingBackupOperation(workingCopyIdentifier);
 		}
 	}
 
@@ -293,30 +295,28 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		}
 
 		if (workingCopyIdentifier) {
-			this.doClearPendingBackupOperation(workingCopyIdentifier, { dispose: true, cancel: true });
+			this.doClearPendingBackupOperation(workingCopyIdentifier, { cancel: true });
 		}
 	}
 
-	private doClearPendingBackupOperation(workingCopyIdentifier: IWorkingCopyIdentifier, options: { dispose: boolean; cancel: boolean }): void {
+	private doClearPendingBackupOperation(workingCopyIdentifier: IWorkingCopyIdentifier, options?: { cancel: boolean }): void {
 		const pendingBackupOperation = this.pendingBackupOperations.get(workingCopyIdentifier);
 		if (!pendingBackupOperation) {
 			return;
 		}
 
-		if (options.cancel) {
-			pendingBackupOperation.cts.cancel();
+		if (options?.cancel) {
+			pendingBackupOperation.cancel();
 		}
 
-		if (options.dispose) {
-			pendingBackupOperation.disposable.dispose();
-		}
+		pendingBackupOperation.disposable.dispose();
 
 		this.pendingBackupOperations.delete(workingCopyIdentifier);
 	}
 
 	protected cancelBackupOperations(): void {
 		for (const [, operation] of this.pendingBackupOperations) {
-			operation.cts.cancel();
+			operation.cancel();
 			operation.disposable.dispose();
 		}
 
