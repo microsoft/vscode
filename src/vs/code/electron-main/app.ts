@@ -31,7 +31,6 @@ import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
@@ -97,7 +96,6 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
@@ -964,9 +962,6 @@ export class CodeApplication extends Disposable {
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
 
-		// Credentials
-		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
-
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
@@ -1094,10 +1089,6 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
-
-		// Credentials
-		const credentialsChannel = ProxyChannel.fromService(accessor.get(ICredentialsMainService));
-		mainProcessElectronServer.registerChannel('credentials', credentialsChannel);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService));

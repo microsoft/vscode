@@ -98,6 +98,11 @@ export interface IStorageMain extends IDisposable {
 	isInMemory(): boolean;
 
 	/**
+	 * Attempts to reduce the DB size via optimization commands if supported.
+	 */
+	optimize(): Promise<void>;
+
+	/**
 	 * Close the storage connection.
 	 */
 	close(): Promise<void>;
@@ -214,6 +219,10 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	delete(key: string): Promise<void> {
 		return this._storage.delete(key);
+	}
+
+	optimize(): Promise<void> {
+		return this._storage.optimize();
 	}
 
 	async close(): Promise<void> {

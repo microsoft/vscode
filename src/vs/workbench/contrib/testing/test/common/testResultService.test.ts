@@ -6,7 +6,8 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
@@ -27,7 +28,6 @@ suite('Workbench - Test Results Service', () => {
 	let r: TestLiveTestResult;
 	let changed = new Set<TestResultItemChange>();
 	let tests: TestTestCollection;
-	let ds: DisposableStore;
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
 		targets: [{
@@ -53,8 +53,9 @@ suite('Workbench - Test Results Service', () => {
 		}
 	}
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
-		ds = new DisposableStore();
 		changed = new Set();
 		r = ds.add(new TestLiveTestResult(
 			'foo',
@@ -62,14 +63,16 @@ suite('Workbench - Test Results Service', () => {
 			defaultOpts(['id-a']),
 		));
 
-		r.onChange(e => changed.add(e));
+		ds.add(r.onChange(e => changed.add(e)));
 		r.addTask({ id: 't', name: undefined, running: true });
 
 		tests = ds.add(testStubs.nested());
+		const cts = ds.add(new CancellationTokenSource());
 		const ok = await Promise.race([
 			Promise.resolve(tests.expand(tests.root.id, Infinity)).then(() => true),
-			timeout(1000).then(() => false),
+			timeout(1000, cts.token).then(() => false),
 		]);
+		cts.cancel();
 
 		// todo@connor4312: debug for tests #137853:
 		if (!ok) {
@@ -86,10 +89,6 @@ suite('Workbench - Test Results Service', () => {
 			tests.root.children.get('id-a')!.toTestItem(),
 			tests.root.children.get('id-a')!.children.get('id-ab')!.toTestItem(),
 		]);
-	});
-
-	teardown(() => {
-		ds.dispose();
 	});
 
 	// ensureNoDisposablesAreLeakedInTestSuite(); todo@connor4312
@@ -209,7 +208,7 @@ suite('Workbench - Test Results Service', () => {
 
 		setup(() => {
 			storage = ds.add(new InMemoryResultStorage(ds.add(new TestStorageService()), new NullLogService()));
-			results = new TestTestResultService(new MockContextKeyService(), storage, ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))));
+			results = ds.add(new TestTestResultService(new MockContextKeyService(), storage, ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService())))));
 		});
 
 		test('pushes new result', () => {
@@ -223,11 +222,11 @@ suite('Workbench - Test Results Service', () => {
 			r.markComplete();
 			await timeout(10); // allow persistImmediately async to happen
 
-			results = new TestResultService(
+			results = ds.add(new TestResultService(
 				new MockContextKeyService(),
 				storage,
 				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
-			);
+			));
 
 			assert.strictEqual(0, results.results.length);
 			await timeout(10); // allow load promise to resolve
