@@ -18,6 +18,7 @@ import * as nls from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asTextOrError, IRequestService } from 'vs/platform/request/common/request';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
@@ -50,7 +51,8 @@ export class ReleaseNotesManager {
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService
 	) {
 		TokenizationRegistry.onDidChange(async () => {
 			if (!this._currentReleaseNotes || !this._lastText) {
@@ -71,6 +73,8 @@ export class ReleaseNotesManager {
 		this._lastText = releaseNoteText;
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
+
+		this._nativeHostService.updateAudibleState(false);
 
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
@@ -108,6 +112,7 @@ export class ReleaseNotesManager {
 			disposables.add(this._currentReleaseNotes.onWillDispose(() => {
 				disposables.dispose();
 				this._currentReleaseNotes = undefined;
+				this._nativeHostService.updateAudibleState(true);
 			}));
 
 			this._currentReleaseNotes.webview.setHtml(html);

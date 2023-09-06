@@ -784,6 +784,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+	//#region Audio
+
+	async updateAudibleState(windowId: number | undefined, enabled: boolean): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window?.win) {
+			window.win.webContents.setAudioMuted(!enabled);
+		}
+	}
+
+	//#endregion
+
 	private windowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
