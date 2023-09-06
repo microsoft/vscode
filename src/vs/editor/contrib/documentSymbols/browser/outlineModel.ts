@@ -235,6 +235,7 @@ export class OutlineModel extends TreeElement {
 			}
 		}).finally(() => {
 			listener.dispose();
+			cts.dispose();
 		});
 	}
 

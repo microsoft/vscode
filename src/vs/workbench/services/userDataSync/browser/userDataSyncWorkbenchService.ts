@@ -30,7 +30,6 @@ import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncStoreTypeSynchronizer } from 'vs/platform/userDataSync/common/globalStateSync';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { CancellationError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -105,7 +104,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -172,7 +170,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async initialize(): Promise<void> {
 		if (isWeb) {
-			const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
+			const authenticationSession = await getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService);
 			if (this.currentSessionId === undefined && authenticationSession?.id) {
 				if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider && this.environmentService.options.settingsSyncOptions.enabled) {
 					this.currentSessionId = authenticationSession.id;

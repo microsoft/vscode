@@ -17,44 +17,43 @@ export class DiffEditorOptions {
 
 	constructor(options: Readonly<IDiffEditorConstructionOptions>, private readonly diffEditorWidth: IObservable<number>) {
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
-		this._options = observableValue('options', optionsCopy);
+		this._options = observableValue(this, optionsCopy);
 	}
 
-	public readonly couldShowInlineViewBecauseOfSize = derived(reader => /** @description couldShowInlineViewBecauseOfSize */ this._options.read(reader).renderSideBySide && this.diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
+	public readonly couldShowInlineViewBecauseOfSize = derived(this, reader => this._options.read(reader).renderSideBySide && this.diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
 	);
 
-	public readonly renderOverviewRuler = derived(reader => /** @description renderOverviewRuler */ this._options.read(reader).renderOverviewRuler);
-	public readonly renderSideBySide = derived(reader => /** @description renderSideBySide */ this._options.read(reader).renderSideBySide
+	public readonly renderOverviewRuler = derived(this, reader => this._options.read(reader).renderOverviewRuler);
+	public readonly renderSideBySide = derived(this, reader => this._options.read(reader).renderSideBySide
 		&& !(this._options.read(reader).useInlineViewWhenSpaceIsLimited && this.couldShowInlineViewBecauseOfSize.read(reader))
 	);
-	public readonly readOnly = derived(reader => /** @description readOnly */ this._options.read(reader).readOnly);
+	public readonly readOnly = derived(this, reader => this._options.read(reader).readOnly);
 
-	public readonly shouldRenderRevertArrows = derived(reader => {
-		/** @description shouldRenderRevertArrows */
+	public readonly shouldRenderRevertArrows = derived(this, reader => {
 		if (!this._options.read(reader).renderMarginRevertIcon) { return false; }
 		if (!this.renderSideBySide.read(reader)) { return false; }
 		if (this.readOnly.read(reader)) { return false; }
 		return true;
 	});
-	public readonly renderIndicators = derived(reader => /** @description renderIndicators */ this._options.read(reader).renderIndicators);
-	public readonly enableSplitViewResizing = derived(reader => /** @description enableSplitViewResizing */ this._options.read(reader).enableSplitViewResizing);
-	public readonly splitViewDefaultRatio = derived(reader => /** @description splitViewDefaultRatio */ this._options.read(reader).splitViewDefaultRatio);
-	public readonly ignoreTrimWhitespace = derived(reader => /** @description ignoreTrimWhitespace */ this._options.read(reader).ignoreTrimWhitespace);
-	public readonly maxComputationTimeMs = derived(reader => /** @description maxComputationTime */ this._options.read(reader).maxComputationTime);
-	public readonly showMoves = derived(reader => /** @description showMoves */ this._options.read(reader).experimental.showMoves! && this.renderSideBySide.read(reader));
-	public readonly isInEmbeddedEditor = derived(reader => /** @description isInEmbeddedEditor */ this._options.read(reader).isInEmbeddedEditor);
-	public readonly diffWordWrap = derived(reader => /** @description diffWordWrap */ this._options.read(reader).diffWordWrap);
-	public readonly originalEditable = derived(reader => /** @description originalEditable */ this._options.read(reader).originalEditable);
-	public readonly diffCodeLens = derived(reader => /** @description diffCodeLens */ this._options.read(reader).diffCodeLens);
-	public readonly accessibilityVerbose = derived(reader => /** @description accessibilityVerbose */ this._options.read(reader).accessibilityVerbose);
-	public readonly diffAlgorithm = derived(reader => /** @description diffAlgorithm */ this._options.read(reader).diffAlgorithm);
-	public readonly showEmptyDecorations = derived(reader => /** @description showEmptyDecorations */ this._options.read(reader).experimental.showEmptyDecorations!);
-	public readonly onlyShowAccessibleDiffViewer = derived(reader => /** @description onlyShowAccessibleDiffViewer */ this._options.read(reader).onlyShowAccessibleDiffViewer);
+	public readonly renderIndicators = derived(this, reader => this._options.read(reader).renderIndicators);
+	public readonly enableSplitViewResizing = derived(this, reader => this._options.read(reader).enableSplitViewResizing);
+	public readonly splitViewDefaultRatio = derived(this, reader => this._options.read(reader).splitViewDefaultRatio);
+	public readonly ignoreTrimWhitespace = derived(this, reader => this._options.read(reader).ignoreTrimWhitespace);
+	public readonly maxComputationTimeMs = derived(this, reader => this._options.read(reader).maxComputationTime);
+	public readonly showMoves = derived(this, reader => this._options.read(reader).experimental.showMoves! && this.renderSideBySide.read(reader));
+	public readonly isInEmbeddedEditor = derived(this, reader => this._options.read(reader).isInEmbeddedEditor);
+	public readonly diffWordWrap = derived(this, reader => this._options.read(reader).diffWordWrap);
+	public readonly originalEditable = derived(this, reader => this._options.read(reader).originalEditable);
+	public readonly diffCodeLens = derived(this, reader => this._options.read(reader).diffCodeLens);
+	public readonly accessibilityVerbose = derived(this, reader => this._options.read(reader).accessibilityVerbose);
+	public readonly diffAlgorithm = derived(this, reader => this._options.read(reader).diffAlgorithm);
+	public readonly showEmptyDecorations = derived(this, reader => this._options.read(reader).experimental.showEmptyDecorations!);
+	public readonly onlyShowAccessibleDiffViewer = derived(this, reader => this._options.read(reader).onlyShowAccessibleDiffViewer);
 
-	public readonly hideUnchangedRegions = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.enabled!);
-	public readonly hideUnchangedRegionsRevealLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.revealLineCount!);
-	public readonly hideUnchangedRegionsContextLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.contextLineCount!);
-	public readonly hideUnchangedRegionsminimumLineCount = derived(reader => /** @description hideUnchangedRegions */ this._options.read(reader).hideUnchangedRegions.minimumLineCount!);
+	public readonly hideUnchangedRegions = derived(this, reader => this._options.read(reader).hideUnchangedRegions.enabled!);
+	public readonly hideUnchangedRegionsRevealLineCount = derived(this, reader => this._options.read(reader).hideUnchangedRegions.revealLineCount!);
+	public readonly hideUnchangedRegionsContextLineCount = derived(this, reader => this._options.read(reader).hideUnchangedRegions.contextLineCount!);
+	public readonly hideUnchangedRegionsMinimumLineCount = derived(this, reader => this._options.read(reader).hideUnchangedRegions.minimumLineCount!);
 
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());

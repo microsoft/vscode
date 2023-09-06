@@ -40,8 +40,12 @@ export class TestingProgressTrigger extends Disposable {
 			return;
 		}
 
+		if (cfg === AutoOpenTesting.OpenExplorerOnTestStart) {
+			return this.openExplorerView();
+		}
+
 		if (cfg === AutoOpenTesting.OpenOnTestStart) {
-			return this.openTestView();
+			return this.openResultsView();
 		}
 
 		// open on failure
@@ -49,13 +53,17 @@ export class TestingProgressTrigger extends Disposable {
 		disposable.add(result.onComplete(() => disposable.dispose()));
 		disposable.add(result.onChange(e => {
 			if (e.reason === TestResultItemChangeReason.OwnStateChange && isFailedState(e.item.ownComputedState)) {
-				this.openTestView();
+				this.openResultsView();
 				disposable.dispose();
 			}
 		}));
 	}
 
-	private openTestView() {
+	private openExplorerView() {
+		this.viewsService.openView(Testing.ExplorerViewId, false);
+	}
+
+	private openResultsView() {
 		this.viewsService.openView(Testing.ResultsViewId, false);
 	}
 }

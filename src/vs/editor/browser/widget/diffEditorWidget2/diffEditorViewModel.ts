@@ -7,10 +7,12 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, ITransaction, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditorWidget2/diffProviderFactoryService';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
-import { AdvancedLinesDiffComputer } from 'vs/editor/common/diff/advancedLinesDiffComputer';
-import { IDocumentDiff, IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
+import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
+import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
@@ -20,19 +22,18 @@ import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextMod
 import { DiffEditorOptions } from './diffEditorOptions';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
-	private readonly _isDiffUpToDate = observableValue<boolean>('isDiffUpToDate', false);
+	private readonly _isDiffUpToDate = observableValue<boolean>(this, false);
 	public readonly isDiffUpToDate: IObservable<boolean> = this._isDiffUpToDate;
 
 	private _lastDiff: IDocumentDiff | undefined;
-	private readonly _diff = observableValue<DiffState | undefined>('diff', undefined);
+	private readonly _diff = observableValue<DiffState | undefined>(this, undefined);
 	public readonly diff: IObservable<DiffState | undefined> = this._diff;
 
 	private readonly _unchangedRegions = observableValue<{ regions: UnchangedRegion[]; originalDecorationIds: string[]; modifiedDecorationIds: string[] }>(
-		'unchangedRegion',
+		this,
 		{ regions: [], originalDecorationIds: [], modifiedDecorationIds: [] }
 	);
-	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived(r => {
-		/** @description unchangedRegions */
+	public readonly unchangedRegions: IObservable<UnchangedRegion[]> = derived(this, r => {
 		if (this._options.hideUnchangedRegions.read(r)) {
 			return this._unchangedRegions.read(r).regions;
 		} else {
@@ -47,13 +48,13 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 	);
 
-	public readonly movedTextToCompare = observableValue<MovedText | undefined>('movedTextToCompare', undefined);
+	public readonly movedTextToCompare = observableValue<MovedText | undefined>(this, undefined);
 
-	private readonly _activeMovedText = observableValue<MovedText | undefined>('activeMovedText', undefined);
-	private readonly _hoveredMovedText = observableValue<MovedText | undefined>('hoveredMovedText', undefined);
+	private readonly _activeMovedText = observableValue<MovedText | undefined>(this, undefined);
+	private readonly _hoveredMovedText = observableValue<MovedText | undefined>(this, undefined);
 
 
-	public readonly activeMovedText = derived(r => this.movedTextToCompare.read(r) ?? this._hoveredMovedText.read(r) ?? this._activeMovedText.read(r));
+	public readonly activeMovedText = derived(this, r => this.movedTextToCompare.read(r) ?? this._hoveredMovedText.read(r) ?? this._activeMovedText.read(r));
 
 	public setActiveMovedText(movedText: MovedText | undefined): void {
 		this._activeMovedText.set(movedText, undefined);
@@ -65,10 +66,22 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 	private readonly _cancellationTokenSource = new CancellationTokenSource();
 
+	private readonly _diffProvider = derived(this, reader => {
+		const diffProvider = this._diffProviderFactoryService.createDiffProvider(this._editor, {
+			diffAlgorithm: this._options.diffAlgorithm.read(reader)
+		});
+		const onChangeSignal = observableSignalFromEvent('onDidChange', diffProvider.onDidChange);
+		return {
+			diffProvider,
+			onChangeSignal,
+		};
+	});
+
 	constructor(
 		public readonly model: IDiffEditorModel,
 		private readonly _options: DiffEditorOptions,
-		documentDiffProvider: IDocumentDiffProvider,
+		private readonly _editor: IDiffEditor,
+		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 	) {
 		super();
 
@@ -82,7 +95,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				result.changes,
 				model.original.getLineCount(),
 				model.modified.getLineCount(),
-				this._options.hideUnchangedRegionsminimumLineCount.read(reader),
+				this._options.hideUnchangedRegionsMinimumLineCount.read(reader),
 				this._options.hideUnchangedRegionsContextLineCount.read(reader),
 			);
 
@@ -99,18 +112,18 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 			const originalDecorationIds = model.original.deltaDecorations(
 				lastUnchangedRegions.originalDecorationIds,
-				newUnchangedRegions.map(r => ({ range: r.originalRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
+				newUnchangedRegions.map(r => ({ range: r.originalUnchangedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
 			);
 			const modifiedDecorationIds = model.modified.deltaDecorations(
 				lastUnchangedRegions.modifiedDecorationIds,
-				newUnchangedRegions.map(r => ({ range: r.modifiedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
+				newUnchangedRegions.map(r => ({ range: r.modifiedUnchangedRange.toInclusiveRange()!, options: { description: 'unchanged' } }))
 			);
 
 
 			for (const r of newUnchangedRegions) {
 				for (let i = 0; i < lastUnchangedRegions.regions.length; i++) {
-					if (r.originalRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
-						&& r.modifiedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
+					if (r.originalUnchangedRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
+						&& r.modifiedUnchangedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
 						r.setHiddenModifiedRange(lastUnchangedRegions.regions[i].getHiddenModifiedRange(undefined), tx);
 						break;
 					}
@@ -163,19 +176,19 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			debouncer.schedule();
 		}));
 
-		const documentDiffProviderOptionChanged = observableSignalFromEvent('documentDiffProviderOptionChanged', documentDiffProvider.onDidChange);
-
 		this._register(autorunWithStore(async (reader, store) => {
 			/** @description compute diff */
 
 			// So that they get recomputed when these settings change
-			this._options.hideUnchangedRegionsminimumLineCount.read(reader);
+			this._options.hideUnchangedRegionsMinimumLineCount.read(reader);
 			this._options.hideUnchangedRegionsContextLineCount.read(reader);
 
 			debouncer.cancel();
 			contentChangedSignal.read(reader);
-			documentDiffProviderOptionChanged.read(reader);
-			readHotReloadableExport(AdvancedLinesDiffComputer, reader);
+			const documentDiffProvider = this._diffProvider.read(reader);
+			documentDiffProvider.onChangeSignal.read(reader);
+
+			readHotReloadableExport(DefaultLinesDiffComputer, reader);
 
 			this._isDiffUpToDate.set(false, undefined);
 
@@ -191,7 +204,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				modifiedTextEditInfos = combineTextEditInfos(modifiedTextEditInfos, edits);
 			}));
 
-			let result = await documentDiffProvider.computeDiff(model.original, model.modified, {
+			let result = await documentDiffProvider.diffProvider.computeDiff(model.original, model.modified, {
 				ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
 				maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
 				computeMoves: this._options.showMoves.read(reader),
@@ -260,7 +273,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		transaction(tx => {
 			for (const r of regions.regions) {
 				for (const range of ranges) {
-					if (r.modifiedRange.intersect(range)) {
+					if (r.modifiedUnchangedRange.intersect(range)) {
 						r.setHiddenModifiedRange(range, tx);
 						break;
 					}
@@ -357,23 +370,24 @@ export class UnchangedRegion {
 		return result;
 	}
 
-	public get originalRange(): LineRange {
+	public get originalUnchangedRange(): LineRange {
 		return LineRange.ofLength(this.originalLineNumber, this.lineCount);
 	}
 
-	public get modifiedRange(): LineRange {
+	public get modifiedUnchangedRange(): LineRange {
 		return LineRange.ofLength(this.modifiedLineNumber, this.lineCount);
 	}
 
-	private readonly _visibleLineCountTop = observableValue<number>('visibleLineCountTop', 0);
+	private readonly _visibleLineCountTop = observableValue<number>(this, 0);
 	public readonly visibleLineCountTop: ISettableObservable<number> = this._visibleLineCountTop;
 
-	private readonly _visibleLineCountBottom = observableValue<number>('visibleLineCountBottom', 0);
+	private readonly _visibleLineCountBottom = observableValue<number>(this, 0);
 	public readonly visibleLineCountBottom: ISettableObservable<number> = this._visibleLineCountBottom;
 
-	private readonly _shouldHideControls = derived(reader => /** @description isVisible */ this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
+	private readonly _shouldHideControls = derived(this, reader => /** @description isVisible */
+		this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
 
-	public readonly isDragged = observableValue<boolean>('isDragged', false);
+	public readonly isDragged = observableValue<boolean>(this, false);
 
 	constructor(
 		public readonly originalLineNumber: number,

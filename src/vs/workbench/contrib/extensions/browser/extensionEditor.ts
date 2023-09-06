@@ -398,10 +398,12 @@ export class ExtensionEditor extends EditorPane {
 			this._register(disposable);
 		}
 
-		this._register(Event.chain(extensionActionBar.onDidRun)
-			.map(({ error }) => error)
-			.filter(error => !!error)
-			.on(this.onError, this));
+		const onError = Event.chain(extensionActionBar.onDidRun, $ =>
+			$.map(({ error }) => error)
+				.filter(error => !!error)
+		);
+
+		this._register(onError(this.onError, this));
 
 		const body = append(root, $('.body'));
 		const navbar = new NavBar(body);

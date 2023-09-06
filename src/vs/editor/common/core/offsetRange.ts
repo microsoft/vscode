@@ -144,6 +144,12 @@ export class OffsetRange {
 		}
 		return result;
 	}
+
+	public forEach(f: (offset: number) => void): void {
+		for (let i = this.start; i < this.endExclusive; i++) {
+			f(i);
+		}
+	}
 }
 
 export class OffsetRangeSet {

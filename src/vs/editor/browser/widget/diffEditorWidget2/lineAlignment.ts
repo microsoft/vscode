@@ -39,14 +39,14 @@ import { DiffEditorOptions } from './diffEditorOptions';
  * Synchronizes scrolling.
  */
 export class ViewZoneManager extends Disposable {
-	private readonly _originalTopPadding = observableValue('originalTopPadding', 0);
+	private readonly _originalTopPadding = observableValue(this, 0);
 	private readonly _originalScrollTop: IObservable<number>;
-	private readonly _originalScrollOffset = observableValue<number, boolean>('originalScrollOffset', 0);
+	private readonly _originalScrollOffset = observableValue<number, boolean>(this, 0);
 	private readonly _originalScrollOffsetAnimated = animatedObservable(this._originalScrollOffset, this._store);
 
-	private readonly _modifiedTopPadding = observableValue('modifiedTopPadding', 0);
+	private readonly _modifiedTopPadding = observableValue(this, 0);
 	private readonly _modifiedScrollTop: IObservable<number>;
-	private readonly _modifiedScrollOffset = observableValue<number, boolean>('modifiedScrollOffset', 0);
+	private readonly _modifiedScrollOffset = observableValue<number, boolean>(this, 0);
 	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._modifiedScrollOffset, this._store);
 
 	constructor(
