@@ -129,7 +129,7 @@ export abstract class WorkingCopyBackupService extends Disposable implements IWo
 	) {
 		super();
 
-		this.impl = this.initialize(backupWorkspaceHome);
+		this.impl = this._register(this.initialize(backupWorkspaceHome));
 	}
 
 	private initialize(backupWorkspaceHome: URI | undefined): WorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService {
@@ -535,13 +535,15 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 	}
 }
 
-export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupService {
+export class InMemoryWorkingCopyBackupService extends Disposable implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
 
-	constructor() { }
+	constructor() {
+		super();
+	}
 
 	async hasBackups(): Promise<boolean> {
 		return this.backups.size > 0;

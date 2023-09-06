@@ -293,7 +293,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IUriIdentityService, disposables.add(uriIdentityService));
 	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService())));
 	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService)));
-	instantiationService.stub(IWorkingCopyBackupService, overrides?.workingCopyBackupService ? overrides?.workingCopyBackupService(instantiationService) : new TestWorkingCopyBackupService());
+	instantiationService.stub(IWorkingCopyBackupService, overrides?.workingCopyBackupService ? overrides?.workingCopyBackupService(instantiationService) : disposables.add(new TestWorkingCopyBackupService()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
@@ -1207,6 +1207,8 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
+
+		this._register(disposables);
 	}
 
 	testGetFileService(): IFileService {
