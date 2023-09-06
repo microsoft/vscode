@@ -12,14 +12,15 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+import { NotebookDto } from 'vs/workbench/api/common/mainThreadNotebookDto';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData, NotebookExtensionDescription, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
-
+import { IIncompleteNotebookFileMatch, reviveIClosedNotebookCellMatch } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { IRelativePattern } from 'vs/base/common/glob';
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
 
@@ -81,6 +82,31 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					resource: uri
 				};
 			},
+			searchInNotebooks: async (textQuery, token): Promise<IIncompleteNotebookFileMatch<URI>[]> => {
+				let fileNames = data?.filenamePattern;
+				if (!fileNames) {
+					const contributedType = this._notebookService.getContributedNotebookType(viewType);
+					if (!contributedType) {
+						return [];
+					}
+					fileNames = contributedType.selectors;
+				}
+
+				const includes = fileNames.map((selector) => {
+					const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as IRelativePattern | string;
+					return globPattern.toString();
+				});
+
+				const results = await this._proxy.$searchInNotebooks(handle, includes, textQuery, token);
+				const revivedResults: IIncompleteNotebookFileMatch<URI>[] = results.map(result => {
+					const resource = URI.revive(result.resource);
+					return {
+						resource,
+						cellResults: result.cellResults.map(e => reviveIClosedNotebookCellMatch(e))
+					};
+				});
+				return revivedResults;
+			}
 		}));
 
 		if (data) {

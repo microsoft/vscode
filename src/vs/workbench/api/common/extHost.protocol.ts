@@ -77,6 +77,7 @@ import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } fr
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { RelatedInformationResult, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { IRawClosedNotebookFileMatch } from 'vs/workbench/contrib/search/common/cellSearchModel';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1697,6 +1698,7 @@ export interface ExtHostSearchShape {
 	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$clearCache(cacheKey: string): Promise<void>;
+	$doInternalFileSearchWithCustomCallback(query: search.IFileQuery, token: CancellationToken, handleFileMatch: (data: UriComponents[]) => void): Promise<search.ISearchCompleteStats>;
 }
 
 export interface ExtHostExtensionServiceShape {
@@ -2376,6 +2378,8 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;
 	$saveNotebook(handle: number, uri: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata>;
+
+	$searchInNotebooks(handle: number, filenamePattern: string[], textQuery: search.ITextQuery, token: CancellationToken): Promise<IRawClosedNotebookFileMatch[]>;
 }
 
 export interface ExtHostNotebookDocumentSaveParticipantShape {

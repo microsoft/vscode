@@ -5,7 +5,7 @@
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -79,14 +79,14 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		return super.$provideFileSearchResults(handle, session, rawQuery, token);
 	}
 
-	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
+	override $doInternalFileSearchWithCustomCallback(rawQuery: IFileQuery, token: vscode.CancellationToken, handleFileMatch: (data: UriComponents[]) => void): Promise<ISearchCompleteStats> {
 		const onResult = (ev: ISerializedSearchProgressItem) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
 			}
 
 			if (Array.isArray(ev)) {
-				this._proxy.$handleFileMatch(handle, session, ev.map(m => URI.file(m.path)));
+				handleFileMatch(ev.map(m => URI.file(m.path)));
 				return;
 			}
 
@@ -100,6 +100,12 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		}
 
 		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
+	}
+
+	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
+		return this.$doInternalFileSearchWithCustomCallback(rawQuery, token, (data) => {
+			this._proxy.$handleFileMatch(handle, session, data);
+		});
 	}
 
 	override $clearCache(cacheKey: string): Promise<void> {

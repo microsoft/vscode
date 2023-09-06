@@ -37,7 +37,8 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { CellSearchModel, ICellMatch, contentMatchesToTextSearchMatches, isIFileMatchWithCells, rawCellPrefix, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, ICompleteNotebookCellMatch, isICompleteNotebookFileMatch, isICompleteNotebookCellMatch, getIDFromINotebookCellMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { IIncompleteNotebookCellMatch, isIIncompleteNotebookFileMatch, rawCellPrefix } from 'vs/workbench/contrib/search/common/cellSearchModel';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
@@ -187,7 +188,7 @@ export class CellMatch {
 
 	constructor(
 		private readonly _parent: FileMatch,
-		private _cell: ICellViewModel | CellSearchModel,
+		private _cell: ICellViewModel | undefined,
 		private readonly _cellIndex: number,
 	) {
 
@@ -236,7 +237,7 @@ export class CellMatch {
 	}
 
 	public addContext(textSearchMatches: ITextSearchMatch[]) {
-		if (this.cell instanceof CellSearchModel) {
+		if (!this.cell) {
 			// todo: get closed notebook results in search editor
 			return;
 		}
@@ -266,14 +267,14 @@ export class CellMatch {
 	}
 
 	get id(): string {
-		return this._cell.id;
+		return this._cell?.id ?? `${rawCellPrefix}${this.cellIndex}`;
 	}
 
 	get cellIndex(): number {
 		return this._cellIndex;
 	}
 
-	get cell(): ICellViewModel | CellSearchModel {
+	get cell(): ICellViewModel | undefined {
 		return this._cell;
 	}
 
@@ -437,11 +438,11 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._cellMatches.get(cellID);
 	}
 
-	addCellMatch(rawCell: ICellMatch) {
-		const cellMatch = new CellMatch(this, rawCell.cell, rawCell.index);
+	addCellMatch(rawCell: IIncompleteNotebookCellMatch | ICompleteNotebookCellMatch) {
+		const cellMatch = new CellMatch(this, isICompleteNotebookCellMatch(rawCell) ? rawCell.cell : undefined, rawCell.index);
 		this._cellMatches.set(cellMatch.id, cellMatch);
-		this.addWebviewMatchesToCell(rawCell.cell.id, rawCell.webviewResults);
-		this.addContentMatchesToCell(rawCell.cell.id, rawCell.contentResults);
+		this.addWebviewMatchesToCell(cellMatch.id, rawCell.webviewResults);
+		this.addContentMatchesToCell(cellMatch.id, rawCell.contentResults);
 	}
 
 	get closestRoot(): FolderMatchWorkspaceRoot | null {
@@ -472,7 +473,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 					});
 			}
 
-			if (isIFileMatchWithCells(this.rawMatch)) {
+			if (isICompleteNotebookFileMatch(this.rawMatch) || isIIncompleteNotebookFileMatch(this.rawMatch)) {
 				this.rawMatch.cellResults?.forEach(cell => this.addCellMatch(cell));
 				this.setNotebookFindMatchDecorationsUsingCellMatches(this.cellMatches());
 				this._onChange.fire({ forceUpdateModel: true });
@@ -880,7 +881,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private async highlightCurrentFindMatchDecoration(match: MatchInNotebook): Promise<number | null> {
-		if (!this._findMatchDecorationModel || match.cell instanceof CellSearchModel) {
+		if (!this._findMatchDecorationModel || !match.cell) {
 			// match cell should never be a CellSearchModel if the notebook is open
 			return null;
 		}
@@ -892,7 +893,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private revealCellRange(match: MatchInNotebook, outputOffset: number | null) {
-		if (!this._notebookEditorWidget || match.cell instanceof CellSearchModel) {
+		if (!this._notebookEditorWidget || !match.cell) {
 			// match cell should never be a CellSearchModel if the notebook is open
 			return;
 		}
@@ -1154,9 +1155,9 @@ export class FolderMatch extends Disposable {
 				}
 
 				// add cell matches
-				if (isIFileMatchWithCells(rawFileMatch)) {
+				if (isICompleteNotebookFileMatch(rawFileMatch) || isIIncompleteNotebookFileMatch(rawFileMatch)) {
 					rawFileMatch.cellResults?.forEach(rawCellMatch => {
-						const existingCellMatch = existingFileMatch.getCellMatch(rawCellMatch.cell.id);
+						const existingCellMatch = existingFileMatch.getCellMatch(getIDFromINotebookCellMatch(rawCellMatch));
 						if (existingCellMatch) {
 							existingCellMatch.addContentMatches(rawCellMatch.contentResults);
 							existingCellMatch.addWebviewMatches(rawCellMatch.webviewResults);

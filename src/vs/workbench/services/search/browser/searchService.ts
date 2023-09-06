@@ -101,7 +101,13 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 
 				const reviveMatch = (result: IFileMatch<UriComponents>): IFileMatch => ({
 					resource: URI.revive(result.resource),
-					results: result.results
+					results: result.results?.map(r => {
+						return {
+							...r,
+							...{ uri: URI.revive(r.uri) }
+						};
+
+					})
 				});
 
 				queryDisposables.add(this.onDidReceiveTextSearchMatch(e => {

@@ -9,7 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -32,8 +32,12 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
-
-
+import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+import { NotebookDataCache } from 'vs/workbench/api/common/notebookDataCache';
+import { CellSearchModel, IIncompleteNotebookCellMatch, ICellSearchModel, IIncompleteNotebookFileMatch, IRawClosedNotebookFileMatch } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -46,6 +50,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
+	private readonly _notebookDataCache: NotebookDataCache;
 
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>({ onListenerError: onUnexpectedExternalError });
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
@@ -74,12 +79,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		commands: ExtHostCommands,
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _textDocuments: ExtHostDocuments,
-		private _extHostFileSystem: IExtHostConsumerFileSystem
+		private _extHostFileSystem: IExtHostConsumerFileSystem,
+		private _extHostSearch: IExtHostSearch
 	) {
 		this._notebookProxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
 		this._notebookEditorsProxy = mainContext.getProxy(MainContext.MainThreadNotebookEditors);
 		this._commandsConverter = commands.converter;
+		this._notebookDataCache = new NotebookDataCache(_extHostFileSystem);
 
 		commands.registerArgumentProcessor({
 			// Serialized INotebookCellActionContext
@@ -371,6 +378,95 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		return fileStats;
 	}
+
+	async $searchInNotebooks(handle: number, filenamePattern: string[], textQuery: ITextQuery, token: CancellationToken): Promise<IRawClosedNotebookFileMatch[]> {
+
+		const serializer = this._notebookSerializer.get(handle)?.serializer;
+		if (!serializer) {
+			return [];
+		}
+
+		const runFileQueries = async (includes: (string)[], token: CancellationToken, textQuery: ITextQuery): Promise<URI[]> => {
+			const uris = new ResourceSet();
+			await Promise.all(includes.map(include => {
+				const query: IFileQuery = {
+					type: QueryType.File,
+					filePattern: include,
+					folderQueries: textQuery.folderQueries,
+					maxResults: textQuery.maxResults,
+				};
+				return this._extHostSearch.$doInternalFileSearchWithCustomCallback(query, token, (data) => {
+					data.forEach(e => {
+						uris.add(URI.revive(e));
+					});
+				});
+			}));
+
+			return Array.from(uris.keys());
+		};
+
+		const filesToScan = await runFileQueries(filenamePattern, token, textQuery);
+
+		const results = new ResourceMap<IIncompleteNotebookFileMatch>();
+		const promises = filesToScan.map(async (uri) => {
+			const cellMatches: IIncompleteNotebookCellMatch[] = [];
+
+			try {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				const notebook = await this._notebookDataCache.getNotebookData(uri, async (data: VSBuffer) => {
+					return await this.$dataToNotebook(handle, data, token);
+				});
+				const cells = notebook.cells;
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				cells.forEach((cell, index) => {
+					const target = textQuery.contentPattern.pattern;
+					const cellModel: ICellSearchModel = cell instanceof NotebookCellTextModel ? new CellSearchModel('', cell.textBuffer, cell.outputs.flatMap(value => value.outputs)) : new CellSearchModel(cell.source, undefined, cell.outputs.flatMap(value => value.outputs));
+
+					const inputMatches = cellModel.findInInputs(target);
+					const outputMatches = cellModel.findInOutputs(target);
+					const webviewResults = outputMatches
+						.flatMap(outputMatch =>
+							genericCellMatchesToTextSearchMatches(outputMatch.matches, outputMatch.textBuffer))
+						.map((textMatch, index) => {
+							textMatch.webviewIndex = index;
+							return textMatch;
+						});
+
+					if (inputMatches.length > 0 || outputMatches.length > 0) {
+						const cellMatch: IIncompleteNotebookCellMatch = {
+							index: index,
+							contentResults: genericCellMatchesToTextSearchMatches(inputMatches, cellModel.inputTextBuffer),
+							webviewResults
+						};
+						cellMatches.push(cellMatch);
+					}
+				});
+
+				if (cellMatches.length > 0) {
+					const fileMatch = {
+						resource: uri, cellResults: cellMatches
+					};
+					results.set(uri, fileMatch);
+				}
+				return;
+
+			} catch (e) {
+				return;
+			}
+
+		});
+
+		await Promise.all(promises);
+		return [...results.values()];
+	}
+
+
 
 	private async _validateWriteFile(uri: URI, options: files.IWriteFileOptions) {
 		const stat = await this._extHostFileSystem.value.stat(uri);

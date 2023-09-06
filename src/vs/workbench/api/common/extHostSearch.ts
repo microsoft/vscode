@@ -14,6 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
@@ -86,6 +87,12 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		} else {
 			throw new Error('unknown provider: ' + handle);
 		}
+	}
+
+	$doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: UriComponents[]) => void): Promise<ISearchCompleteStats> {
+		return Promise.resolve({
+			messages: []
+		});
 	}
 
 	$clearCache(cacheKey: string): Promise<void> {

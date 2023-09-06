@@ -509,7 +509,11 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 
 			const uri = URI.revive(p.resource);
-			p.results!.forEach(result => {
+			p.results!.forEach(rawResult => {
+				const result = {
+					...rawResult,
+					uri: URI.revive(rawResult.uri)
+				};
 				if (resultIsMatch(result)) {
 					callback(<vscode.TextSearchMatch>{
 						uri,

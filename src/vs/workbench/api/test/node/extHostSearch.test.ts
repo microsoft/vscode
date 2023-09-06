@@ -118,11 +118,15 @@ suite('ExtHostSearch', () => {
 		}
 
 		await rpcProtocol.sync();
-		const results = (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
-			...r,
-			...{
-				resource: URI.revive(r.resource)
-			}
+		const results: IFileMatch[] = (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
+			results: r.results?.map(match => {
+				return {
+					...match,
+					uri: URI.revive(match.uri)
+				};
+			}),
+			resource: URI.revive(r.resource)
+
 		}));
 
 		return { results, stats: stats! };

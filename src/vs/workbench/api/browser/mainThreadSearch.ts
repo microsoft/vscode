@@ -162,7 +162,12 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 			if ((<IRawFileMatch2>result).results) {
 				searchOp.addMatch({
 					resource: URI.revive((<IRawFileMatch2>result).resource),
-					results: (<IRawFileMatch2>result).results
+					results: (<IRawFileMatch2>result).results?.map(match => {
+						return {
+							...match,
+							...{ uri: URI.revive(match.uri) }
+						};
+					})
 				});
 			} else {
 				searchOp.addMatch({

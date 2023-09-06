@@ -11,7 +11,7 @@ import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, toDisp
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+import { NotebookDto } from 'vs/workbench/api/common/mainThreadNotebookDto';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
