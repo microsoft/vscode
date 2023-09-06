@@ -862,10 +862,12 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		Event.chain(model.onDidChange)
-			.filter(e => e.diff.length > 0)
-			.map(e => e.diff)
-			.event(this.onDidModelChange, this, disposables);
+		const onDidModelChange = Event.chain(model.onDidChange, $ =>
+			$.filter(e => e.diff.length > 0)
+				.map(e => e.diff)
+		);
+
+		onDidModelChange(this.onDidModelChange, this, disposables);
 
 		disposables.add(this.widget);
 		disposables.add(toDisposable(() => {

@@ -7,7 +7,7 @@ import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -71,11 +71,12 @@ const isRunningTests = (service: ITestResultService) =>
 
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
-export class TestResultService implements ITestResultService {
+export class TestResultService extends Disposable implements ITestResultService {
 	declare _serviceBrand: undefined;
-	private changeResultEmitter = new Emitter<ResultChangeEvent>();
+	private changeResultEmitter = this._register(new Emitter<ResultChangeEvent>());
 	private _results: ITestResult[] = [];
-	private testChangeEmitter = new Emitter<TestResultItemChange>();
+	private readonly _resultsDisposables: DisposableStore[] = [];
+	private testChangeEmitter = this._register(new Emitter<TestResultItemChange>());
 
 	/**
 	 * @inheritdoc
@@ -110,6 +111,8 @@ export class TestResultService implements ITestResultService {
 		@ITestResultStorage private readonly storage: ITestResultStorage,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 	) {
+		super();
+		this._register(toDisposable(() => dispose(this._resultsDisposables)));
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 		this.hasAnyResults = TestingContextKeys.hasAnyResults.bindTo(contextKeyService);
 	}
@@ -177,10 +180,14 @@ export class TestResultService implements ITestResultService {
 		this.hasAnyResults.set(true);
 		if (this.results.length > RETAIN_MAX_RESULTS) {
 			this.results.pop();
+			this._resultsDisposables.pop()?.dispose();
 		}
 
+		const ds = new DisposableStore();
+		this._resultsDisposables.push(ds);
+
 		if (result instanceof LiveTestResult) {
-			const ds = new DisposableStore();
+			ds.add(result);
 			ds.add(result.onComplete(() => this.onComplete(result)));
 			ds.add(result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter));
 			this.isRunning.set(true);

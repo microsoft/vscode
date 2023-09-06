@@ -525,10 +525,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			locationView.focus();
 		}
 
-		// if (options?.activate) {
-		// 	this.doSetGroupActive(group);
-		// }
-
 		return group;
 	}
 
