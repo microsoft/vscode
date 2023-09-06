@@ -606,6 +606,11 @@ class TestRunTracker extends Disposable {
 
 		this.proxy.$addTestsToRun(this.dto.controllerId, this.dto.id, chain);
 	}
+
+	public override dispose(): void {
+		this.markEnded();
+		super.dispose();
+	}
 }
 
 /**
@@ -676,7 +681,7 @@ export class TestRunCoordinator {
 		});
 
 		const tracker = this.getTracker(request, dto, extension);
-		tracker.onEnd(() => {
+		Event.once(tracker.onEnd)(() => {
 			this.proxy.$finishedExtensionTestRun(dto.id);
 			tracker.dispose();
 		});
@@ -687,7 +692,7 @@ export class TestRunCoordinator {
 	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, extension: IRelaxedExtensionDescription, token?: CancellationToken) {
 		const tracker = new TestRunTracker(dto, this.proxy, extension, token);
 		this.tracked.set(req, tracker);
-		tracker.onEnd(() => this.tracked.delete(req));
+		Event.once(tracker.onEnd)(() => this.tracked.delete(req));
 		return tracker;
 	}
 }

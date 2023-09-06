@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn } from 'vs/base/common/assert';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, markAsDisposed, toDisposable, trackDisposable } from 'vs/base/common/lifecycle';
 import { IReader, IObservable, IObserver, IChangeContext, getFunctionName } from 'vs/base/common/observableInternal/base';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -115,6 +115,8 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		this.changeSummary = this.createChangeSummary?.();
 		getLogger()?.handleAutorunCreated(this);
 		this._runIfNeeded();
+
+		trackDisposable(this);
 	}
 
 	public dispose(): void {
@@ -123,6 +125,8 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 			o.removeObserver(this);
 		}
 		this.dependencies.clear();
+
+		markAsDisposed(this);
 	}
 
 	private _runIfNeeded() {
