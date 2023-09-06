@@ -178,7 +178,7 @@ export function workbenchInstantiationService(overrides?: {
 	textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 }, disposables = new DisposableStore()): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
-		workingCopyBackupService: (instantiationService: IInstantiationService) => disposables.add(new TestNativeWorkingCopyBackupService()),
+		workingCopyBackupService: () => disposables.add(new TestNativeWorkingCopyBackupService()),
 		...overrides
 	}, disposables);
 

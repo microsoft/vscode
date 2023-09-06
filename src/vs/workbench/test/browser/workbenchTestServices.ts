@@ -1195,10 +1195,11 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 	discardedBackups: IWorkingCopyIdentifier[];
 
 	constructor() {
+		const disposables = new DisposableStore();
 		const environmentService = TestEnvironmentService;
 		const logService = new NullLogService();
-		const fileService = new FileService(logService);
-		fileService.registerProvider(Schemas.file, new InMemoryFileSystemProvider());
+		const fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, new InMemoryFileSystemProvider()));
 		fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider());
 
 		super(new TestContextService(TestWorkspace), environmentService, fileService, logService);

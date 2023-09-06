@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -28,12 +29,12 @@ suite('WorkingCopyEditorService', () => {
 	});
 
 	test('registry - basics', () => {
-		const service = new WorkingCopyEditorService(new TestEditorService());
+		const service = disposables.add(new WorkingCopyEditorService(new TestEditorService()));
 
 		let handlerEvent: IWorkingCopyEditorHandler | undefined = undefined;
-		service.onDidRegisterHandler(handler => {
+		disposables.add(service.onDidRegisterHandler(handler => {
 			handlerEvent = handler;
-		});
+		}));
 
 		const editorHandler: IWorkingCopyEditorHandler = {
 			handles: workingCopy => false,
@@ -59,10 +60,10 @@ suite('WorkingCopyEditorService', () => {
 		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		const service = new WorkingCopyEditorService(editorService);
+		const service = disposables.add(new WorkingCopyEditorService(editorService));
 
 		const resource = URI.parse('custom://some/folder/custom.txt');
-		const testWorkingCopy = new TestWorkingCopy(resource, false, 'testWorkingCopyTypeId1');
+		const testWorkingCopy = disposables.add(new TestWorkingCopy(resource, false, 'testWorkingCopyTypeId1'));
 
 		assert.strictEqual(service.findEditor(testWorkingCopy), undefined);
 
@@ -74,8 +75,8 @@ suite('WorkingCopyEditorService', () => {
 
 		disposables.add(service.registerHandler(editorHandler));
 
-		const editor1 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
-		const editor2 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+		const editor1 = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
+		const editor2 = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 
 		await editorService.openEditors([{ editor: editor1 }, { editor: editor2 }]);
 
@@ -83,4 +84,6 @@ suite('WorkingCopyEditorService', () => {
 
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
