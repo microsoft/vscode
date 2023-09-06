@@ -33,9 +33,8 @@ suite('Files - NativeTextFileService', function () {
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 
-		const fileProvider = new InMemoryFileSystemProvider();
+		const fileProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.add(fileProvider);
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);

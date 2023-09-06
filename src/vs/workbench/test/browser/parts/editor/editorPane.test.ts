@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -121,7 +121,7 @@ suite('EditorPane', () => {
 
 	test('EditorPane API', async () => {
 		const editor = new TestEditor();
-		const input = new OtherTestInput();
+		const input = disposables.add(new OtherTestInput());
 		const options = {};
 
 		assert(!editor.isVisible());
@@ -139,7 +139,6 @@ suite('EditorPane', () => {
 		assert(!editor.isVisible());
 		assert(!editor.input);
 		assert(!editor.getControl());
-		input.dispose();
 	});
 
 	test('EditorPaneDescriptor', () => {
@@ -155,8 +154,8 @@ suite('EditorPane', () => {
 		const oldEditorsCnt = editorRegistry.getEditorPanes().length;
 		const oldInputCnt = editorRegistry.getEditors().length;
 
-		const dispose1 = editorRegistry.registerEditorPane(editorDescriptor1, [new SyncDescriptor(TestInput)]);
-		const dispose2 = editorRegistry.registerEditorPane(editorDescriptor2, [new SyncDescriptor(TestInput), new SyncDescriptor(OtherTestInput)]);
+		disposables.add(editorRegistry.registerEditorPane(editorDescriptor1, [new SyncDescriptor(TestInput)]));
+		disposables.add(editorRegistry.registerEditorPane(editorDescriptor2, [new SyncDescriptor(TestInput), new SyncDescriptor(OtherTestInput)]));
 
 		assert.strictEqual(editorRegistry.getEditorPanes().length, oldEditorsCnt + 2);
 		assert.strictEqual(editorRegistry.getEditors().length, oldInputCnt + 3);
@@ -167,8 +166,6 @@ suite('EditorPane', () => {
 		assert.strictEqual(editorRegistry.getEditorPaneByType('id1'), editorDescriptor1);
 		assert.strictEqual(editorRegistry.getEditorPaneByType('id2'), editorDescriptor2);
 		assert(!editorRegistry.getEditorPaneByType('id3'));
-
-		dispose([dispose1, dispose2]);
 	});
 
 	test('Editor Pane Lookup favors specific class over superclass (match on specific class)', function () {
@@ -495,8 +492,6 @@ suite('EditorPane', () => {
 			}
 		}
 
-		const disposables = new DisposableStore();
-
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const workspaceTrustService = disposables.add(instantiationService.createInstance(TestWorkspaceTrustManagementService));
 		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
@@ -532,8 +527,6 @@ suite('EditorPane', () => {
 		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredPlaceholderEditor.ID);
 
 		await group.closeAllEditors();
-
-		dispose(disposables);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

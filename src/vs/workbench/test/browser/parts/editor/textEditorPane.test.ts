@@ -59,7 +59,7 @@ suite('TextEditorPane', () => {
 		// Changing model reports selection change
 		// of EDIT kind
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		const model = disposables.add(await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel);
 		model.textEditorModel.setValue('Hello World');
 
 		const event = await onDidFireSelectionEventOfEditType.p;
@@ -85,7 +85,6 @@ suite('TextEditorPane', () => {
 		assert.strictEqual(newSelection.compare(selection), EditorPaneSelectionCompareResult.IDENTICAL);
 
 		await model.revert();
-		model.dispose();
 		await pane.group?.closeAllEditors();
 	});
 

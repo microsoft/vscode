@@ -93,9 +93,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		}
 	}
 
-	async function createTracker(): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; workingCopyBackupService: InMemoryTestWorkingCopyBackupService; instantiationService: IInstantiationService; cleanup: () => Promise<void> }> {
-		const disposables = new DisposableStore();
-
+	async function createTracker(): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; workingCopyBackupService: InMemoryTestWorkingCopyBackupService; instantiationService: IInstantiationService }> {
 		const workingCopyBackupService = disposables.add(new InMemoryTestWorkingCopyBackupService());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
@@ -114,19 +112,11 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		const tracker = disposables.add(instantiationService.createInstance(TestWorkingCopyBackupTracker));
 
-		return {
-			accessor, part, tracker, workingCopyBackupService: workingCopyBackupService, instantiationService, cleanup: async () => {
-				for (const group of accessor.editorGroupService.groups) {
-					await group.closeAllEditors();
-				}
-
-				disposables.dispose();
-			}
-		};
+		return { accessor, part, tracker, workingCopyBackupService: workingCopyBackupService, instantiationService };
 	}
 
 	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = { resource: undefined }): Promise<void> {
-		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
+		const { accessor, workingCopyBackupService } = await createTracker();
 
 		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
 
@@ -145,8 +135,6 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		await workingCopyBackupService.joinDiscardBackup();
 
 		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), false);
-
-		return cleanup();
 	}
 
 	test('Track backups (untitled)', function () {
@@ -158,7 +146,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	});
 
 	test('Track backups (custom)', async function () {
-		const { accessor, tracker, cleanup, workingCopyBackupService } = await createTracker();
+		const { accessor, tracker, workingCopyBackupService } = await createTracker();
 
 		class TestBackupWorkingCopy extends TestWorkingCopy {
 
@@ -206,7 +194,6 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		assert.strictEqual(workingCopyBackupService.hasBackupSync(customWorkingCopy), false);
 
 		customWorkingCopy.dispose();
-		return cleanup();
 	});
 
 	async function restoreBackupsInit(): Promise<[TestWorkingCopyBackupTracker, TestServiceAccessor, DisposableStore]> {
