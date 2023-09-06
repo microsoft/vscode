@@ -5,11 +5,13 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { LineRangeMapping, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from './rangeMapping';
 import { ITextModel } from 'vs/editor/common/model';
 
 /**
  * A document diff provider computes the diff between two text models.
+ * @internal
  */
 export interface IDocumentDiffProvider {
 	/**
@@ -26,6 +28,7 @@ export interface IDocumentDiffProvider {
 
 /**
  * Options for the diff computation.
+ * @internal
  */
 export interface IDocumentDiffProviderOptions {
 	/**
@@ -46,6 +49,7 @@ export interface IDocumentDiffProviderOptions {
 
 /**
  * Represents a diff between two text models.
+ * @internal
  */
 export interface IDocumentDiff {
 	/**
@@ -61,7 +65,7 @@ export interface IDocumentDiff {
 	/**
 	 * Maps all modified line ranges in the original to the corresponding line ranges in the modified text model.
 	 */
-	readonly changes: readonly LineRangeMapping[];
+	readonly changes: readonly DetailedLineRangeMapping[];
 
 	/**
 	 * Sorted by original line ranges.

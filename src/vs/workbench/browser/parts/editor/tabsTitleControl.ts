@@ -2077,6 +2077,10 @@ registerThemingParticipant((theme, collector) => {
 				outline-offset: -5px;
 			}
 
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:focus {
+				outline-style: dashed;
+			}
+
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
 				outline: 1px dotted;
 				outline-offset: -5px;

@@ -25,6 +25,7 @@ use crate::download_cache::DownloadCache;
 use crate::log;
 use crate::options::Quality;
 use crate::state::{LauncherPaths, PersistedState};
+use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
@@ -98,12 +99,20 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		async move { Ok::<_, Infallible>(service) }
 	};
 
+	let mut shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
 	let r = if let Some(s) = args.socket_path {
-		let socket = listen_socket_rw_stream(&PathBuf::from(&s)).await?;
-		ctx.log.result(format!("Web UI available on {}", s));
-		Server::builder(socket.into_pollable())
+		let s = PathBuf::from(&s);
+		let socket = listen_socket_rw_stream(&s).await?;
+		ctx.log
+			.result(format!("Web UI available on {}", s.display()));
+		let r = Server::builder(socket.into_pollable())
 			.serve(make_service_fn(|_| make_svc()))
-			.await
+			.with_graceful_shutdown(async {
+				let _ = shutdown.wait().await;
+			})
+			.await;
+		let _ = std::fs::remove_file(&s); // cleanup
+		r
 	} else {
 		let addr: SocketAddr = match &args.host {
 			Some(h) => {
@@ -120,6 +129,9 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 
 		Server::bind(&addr)
 			.serve(make_service_fn(|_| make_svc()))
+			.with_graceful_shutdown(async {
+				let _ = shutdown.wait().await;
+			})
 			.await
 	};
 

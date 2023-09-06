@@ -6,10 +6,11 @@
 import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { booleanComparator, compareBy, findMaxIdxBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
+import { booleanComparator, compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
+import { findMaxIdxBy } from 'vs/base/common/arraysFind';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, constObservable, derived, derivedWithStore, keepAlive, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
@@ -29,7 +30,7 @@ export class MovedBlocksLinesPart extends Disposable {
 	private readonly _modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 	private readonly _viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
-	public readonly width = observableValue('width', 0);
+	public readonly width = observableValue(this, 0);
 
 	constructor(
 		private readonly _rootElement: HTMLElement,
@@ -58,7 +59,7 @@ export class MovedBlocksLinesPart extends Disposable {
 			this._element.style.width = `${info.verticalScrollbarWidth + info.contentLeft - MovedBlocksLinesPart.movedCodeBlockPadding + this.width.read(reader)}px`;
 		}));
 
-		this._register(keepAlive(this._state, true));
+		this._register(recomputeInitiallyAndOnChange(this._state));
 
 		const movedBlockViewZones = derived(reader => {
 			const model = this._diffModel.read(reader);
@@ -82,19 +83,50 @@ export class MovedBlocksLinesPart extends Disposable {
 			}
 		}));
 
-		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
-			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.original.contains(e.position.lineNumber));
-			if (movedText !== m.movedTextToCompare.get()) {
-				m.movedTextToCompare.set(undefined, undefined);
+		const originalCursorPosition = observableFromEvent(this._editors.original.onDidChangeCursorPosition, () => this._editors.original.getPosition());
+		const modifiedCursorPosition = observableFromEvent(this._editors.modified.onDidChangeCursorPosition, () => this._editors.modified.getPosition());
+		const originalHasFocus = observableSignalFromEvent(
+			'original.onDidFocusEditorWidget',
+			e => this._editors.original.onDidFocusEditorWidget(() => setTimeout(() => e(undefined), 0))
+		);
+		const modifiedHasFocus = observableSignalFromEvent(
+			'modified.onDidFocusEditorWidget',
+			e => this._editors.modified.onDidFocusEditorWidget(() => setTimeout(() => e(undefined), 0))
+		);
+
+		let lastChangedEditor: 'original' | 'modified' = 'modified';
+
+		this._register(autorunHandleChanges({
+			createEmptyChangeSummary: () => undefined,
+			handleChange: (ctx, summary) => {
+				if (ctx.didChange(originalHasFocus)) { lastChangedEditor = 'original'; }
+				if (ctx.didChange(modifiedHasFocus)) { lastChangedEditor = 'modified'; }
+				return true;
 			}
-			m.setActiveMovedText(movedText);
-		}));
-		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			const m = this._diffModel.get();
+		}, reader => {
+			originalHasFocus.read(reader);
+			modifiedHasFocus.read(reader);
+
+			const m = this._diffModel.read(reader);
 			if (!m) { return; }
-			const movedText = m.diff.get()!.movedTexts.find(m => m.lineRangeMapping.modified.contains(e.position.lineNumber));
+			const diff = m.diff.read(reader);
+
+			let movedText: MovedText | undefined = undefined;
+
+			if (diff && lastChangedEditor === 'original') {
+				const originalPos = originalCursorPosition.read(reader);
+				if (originalPos) {
+					movedText = diff.movedTexts.find(m => m.lineRangeMapping.original.contains(originalPos.lineNumber));
+				}
+			}
+
+			if (diff && lastChangedEditor === 'modified') {
+				const modifiedPos = modifiedCursorPosition.read(reader);
+				if (modifiedPos) {
+					movedText = diff.movedTexts.find(m => m.lineRangeMapping.modified.contains(modifiedPos.lineNumber));
+				}
+			}
+
 			if (movedText !== m.movedTextToCompare.get()) {
 				m.movedTextToCompare.set(undefined, undefined);
 			}
@@ -105,8 +137,8 @@ export class MovedBlocksLinesPart extends Disposable {
 	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
 
-	private readonly _state = derivedWithStore('state', (reader, store) => {
-		/** @description update moved blocks lines */
+	private readonly _state = derivedWithStore((reader, store) => {
+		/** @description state */
 
 		this._element.replaceChildren();
 		const model = this._diffModel.read(reader);
@@ -324,7 +356,7 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 			true,
 			() => {
 				this._editor.focus();
-				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() ? undefined : this._move, undefined);
+				this._diffModel.movedTextToCompare.set(this._diffModel.movedTextToCompare.get() === _move ? undefined : this._move, undefined);
 			},
 		);
 		this._register(autorun(reader => {

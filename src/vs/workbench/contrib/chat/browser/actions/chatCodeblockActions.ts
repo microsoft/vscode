@@ -11,8 +11,10 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
+import { RelatedContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -31,8 +33,6 @@ import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/comm
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { WorkspaceEdit, RelatedContextItem } from 'vs/editor/common/languages';
 
 export interface IChatCodeBlockActionContext {
 	code: string;
@@ -89,6 +89,11 @@ export function registerChatCodeBlockActions() {
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const context = args[0];
 			if (!isCodeBlockActionContext(context)) {
+				return;
+			}
+
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
 				return;
 			}
 
@@ -182,6 +187,11 @@ export function registerChatCodeBlockActions() {
 		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
 			const editorService = accessor.get(IEditorService);
 			const textFileService = accessor.get(ITextFileService);
+
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
+				return;
+			}
 
 			if (editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
 				return this.handleNotebookEditor(accessor, editorService.activeEditorPane.getControl() as INotebookEditor, context);
@@ -312,6 +322,11 @@ export function registerChatCodeBlockActions() {
 		}
 
 		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
+				return;
+			}
+
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
@@ -358,6 +373,11 @@ export function registerChatCodeBlockActions() {
 		}
 
 		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
+				return;
+			}
+
 			const chatService = accessor.get(IChatService);
 			const terminalService = accessor.get(ITerminalService);
 			const editorService = accessor.get(IEditorService);

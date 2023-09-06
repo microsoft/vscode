@@ -27,8 +27,7 @@ export class DiffEditorDecorations extends Disposable {
 		this._register(applyObservableDecorations(this._editors.modified, this._decorations.map(d => d?.modifiedDecorations || [])));
 	}
 
-	private readonly _decorations = derived((reader) => {
-		/** @description _decorations */
+	private readonly _decorations = derived(this, (reader) => {
 		const diff = this._diffModel.read(reader)?.diff.read(reader);
 		if (!diff) {
 			return null;
@@ -42,45 +41,45 @@ export class DiffEditorDecorations extends Disposable {
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
 		if (!movedTextToCompare) {
 			for (const m of diff.mappings) {
-				if (!m.lineRangeMapping.originalRange.isEmpty) {
-					originalDecorations.push({ range: m.lineRangeMapping.originalRange.toInclusiveRange()!, options: renderIndicators ? diffLineDeleteDecorationBackgroundWithIndicator : diffLineDeleteDecorationBackground });
+				if (!m.lineRangeMapping.original.isEmpty) {
+					originalDecorations.push({ range: m.lineRangeMapping.original.toInclusiveRange()!, options: renderIndicators ? diffLineDeleteDecorationBackgroundWithIndicator : diffLineDeleteDecorationBackground });
 				}
-				if (!m.lineRangeMapping.modifiedRange.isEmpty) {
-					modifiedDecorations.push({ range: m.lineRangeMapping.modifiedRange.toInclusiveRange()!, options: renderIndicators ? diffLineAddDecorationBackgroundWithIndicator : diffLineAddDecorationBackground });
+				if (!m.lineRangeMapping.modified.isEmpty) {
+					modifiedDecorations.push({ range: m.lineRangeMapping.modified.toInclusiveRange()!, options: renderIndicators ? diffLineAddDecorationBackgroundWithIndicator : diffLineAddDecorationBackground });
 				}
 
-				if (m.lineRangeMapping.modifiedRange.isEmpty || m.lineRangeMapping.originalRange.isEmpty) {
-					if (!m.lineRangeMapping.originalRange.isEmpty) {
-						originalDecorations.push({ range: m.lineRangeMapping.originalRange.toInclusiveRange()!, options: diffWholeLineDeleteDecoration });
+				if (m.lineRangeMapping.modified.isEmpty || m.lineRangeMapping.original.isEmpty) {
+					if (!m.lineRangeMapping.original.isEmpty) {
+						originalDecorations.push({ range: m.lineRangeMapping.original.toInclusiveRange()!, options: diffWholeLineDeleteDecoration });
 					}
-					if (!m.lineRangeMapping.modifiedRange.isEmpty) {
-						modifiedDecorations.push({ range: m.lineRangeMapping.modifiedRange.toInclusiveRange()!, options: diffWholeLineAddDecoration });
+					if (!m.lineRangeMapping.modified.isEmpty) {
+						modifiedDecorations.push({ range: m.lineRangeMapping.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
 					}
 				} else {
 					for (const i of m.lineRangeMapping.innerChanges || []) {
 						// Don't show empty markers outside the line range
-						if (m.lineRangeMapping.originalRange.contains(i.originalRange.startLineNumber)) {
+						if (m.lineRangeMapping.original.contains(i.originalRange.startLineNumber)) {
 							originalDecorations.push({ range: i.originalRange, options: (i.originalRange.isEmpty() && showEmptyDecorations) ? diffDeleteDecorationEmpty : diffDeleteDecoration });
 						}
-						if (m.lineRangeMapping.modifiedRange.contains(i.modifiedRange.startLineNumber)) {
+						if (m.lineRangeMapping.modified.contains(i.modifiedRange.startLineNumber)) {
 							modifiedDecorations.push({ range: i.modifiedRange, options: (i.modifiedRange.isEmpty() && showEmptyDecorations) ? diffAddDecorationEmpty : diffAddDecoration });
 						}
 					}
 				}
 
-				if (!m.lineRangeMapping.modifiedRange.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !movedTextToCompare) {
-					modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modifiedRange.startLineNumber, 1)), options: arrowRevertChange });
+				if (!m.lineRangeMapping.modified.isEmpty && this._options.shouldRenderRevertArrows.read(reader) && !movedTextToCompare) {
+					modifiedDecorations.push({ range: Range.fromPositions(new Position(m.lineRangeMapping.modified.startLineNumber, 1)), options: arrowRevertChange });
 				}
 			}
 		}
 
 		if (movedTextToCompare) {
 			for (const m of movedTextToCompare.changes) {
-				const fullRangeOriginal = m.originalRange.toInclusiveRange();
+				const fullRangeOriginal = m.original.toInclusiveRange();
 				if (fullRangeOriginal) {
 					originalDecorations.push({ range: fullRangeOriginal, options: renderIndicators ? diffLineDeleteDecorationBackgroundWithIndicator : diffLineDeleteDecorationBackground });
 				}
-				const fullRangeModified = m.modifiedRange.toInclusiveRange();
+				const fullRangeModified = m.modified.toInclusiveRange();
 				if (fullRangeModified) {
 					modifiedDecorations.push({ range: fullRangeModified, options: renderIndicators ? diffLineAddDecorationBackgroundWithIndicator : diffLineAddDecorationBackground });
 				}

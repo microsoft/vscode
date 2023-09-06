@@ -52,6 +52,7 @@ const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSIO
 #[clap(
    help_template = INTEGRATED_TEMPLATE,
    long_about = None,
+	 name = constants::APPLICATION_NAME,
    version = VERSION,
  )]
 pub struct IntegratedCli {
@@ -84,6 +85,7 @@ pub struct CliCore {
    help_template = STANDALONE_TEMPLATE,
    long_about = None,
    version = VERSION,
+	 name = constants::APPLICATION_NAME,
  )]
 pub struct StandaloneCli {
 	#[clap(flatten)]
@@ -173,6 +175,7 @@ pub enum Commands {
 	Version(VersionArgs),
 
 	/// Runs a local web version of VS Code.
+	#[clap(about = concatcp!("Runs a local web version of ", constants::PRODUCT_NAME_LONG))]
 	ServeWeb(ServeWebArgs),
 
 	/// Runs the control server on process stdin/stdout

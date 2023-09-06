@@ -320,7 +320,8 @@ suite('EditorGroupsService', () => {
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 
 		await rootGroup.openEditor(input, { pinned: true });
-		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT, { activate: true });
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		part.activateGroup(rightGroup);
 		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
 		assert.strictEqual(groupAddedCounter, 2);
 		assert.strictEqual(downGroup.count, 1);

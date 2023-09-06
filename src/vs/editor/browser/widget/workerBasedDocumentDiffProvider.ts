@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ITextModel } from 'vs/editor/common/model';
 import { DiffAlgorithmName, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -53,7 +53,7 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 			return {
 				changes: [
-					new LineRangeMapping(
+					new DetailedLineRangeMapping(
 						new LineRange(1, 2),
 						new LineRange(1, modified.getLineCount() + 1),
 						[

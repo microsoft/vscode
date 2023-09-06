@@ -311,13 +311,12 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequestOnStartup(async () => {
 
 			let titleString: string | undefined;
-			let checkboxString: string | undefined;
 			let learnMoreString: string | undefined;
 			let trustOption: string | undefined;
 			let dontTrustOption: string | undefined;
-			if (await this.isAiGeneratedWorkspace() && this.productService.aiGeneratedWorkspaceTrust) {
+			const isAiGeneratedWorkspace = await this.isAiGeneratedWorkspace();
+			if (isAiGeneratedWorkspace && this.productService.aiGeneratedWorkspaceTrust) {
 				titleString = this.productService.aiGeneratedWorkspaceTrust.title;
-				checkboxString = this.productService.aiGeneratedWorkspaceTrust.checkboxText;
 				learnMoreString = this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore;
 				trustOption = this.productService.aiGeneratedWorkspaceTrust.trustOption;
 				dontTrustOption = this.productService.aiGeneratedWorkspaceTrust.dontTrustOption;
@@ -333,9 +332,9 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace());
 			const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 			const isEmptyWindow = isEmptyWorkspaceIdentifier(workspaceIdentifier);
-			if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
+			if (!isAiGeneratedWorkspace && this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 				const name = basename(uriDirname((workspaceIdentifier as ISingleFolderWorkspaceIdentifier).uri));
-				checkboxText = checkboxString ?? localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
+				checkboxText = localize('checkboxString', "Trust the authors of all files in the parent folder '{0}'", name);
 			}
 
 			// Show Workspace Trust Start Dialog

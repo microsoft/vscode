@@ -160,7 +160,7 @@ class AccessibleViewDisableHintAction extends Action2 {
 				primary: KeyMod.Alt | KeyCode.F6,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			icon: Codicon.treeFilterClear,
+			icon: Codicon.bellSlash,
 			menu: [
 				commandPalette,
 				{

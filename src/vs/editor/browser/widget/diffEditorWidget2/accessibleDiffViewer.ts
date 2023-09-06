@@ -4,24 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, addStandardDisposableListener, reset } from 'vs/base/browser/dom';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Action } from 'vs/base/common/actions';
+import { forEachAdjacent, groupAdjacentBy } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, keepAlive, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, recomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
 import { applyStyle } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
-import { DiffReview } from 'vs/editor/browser/widget/diffReview';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { LineRangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
@@ -38,6 +39,8 @@ const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codico
 const accessibleDiffViewerCloseIcon = registerIcon('diff-review-close', Codicon.close, localize('accessibleDiffViewerCloseIcon', 'Icon for \'Close\' in accessible diff viewer.'));
 
 export class AccessibleDiffViewer extends Disposable {
+	public static _ttPolicy = createTrustedTypesPolicy('diffReview', { createHTML: value => value });
+
 	constructor(
 		private readonly _parentNode: HTMLElement,
 		private readonly _visible: IObservable<boolean>,
@@ -45,15 +48,15 @@ export class AccessibleDiffViewer extends Disposable {
 		private readonly _canClose: IObservable<boolean>,
 		private readonly _width: IObservable<number>,
 		private readonly _height: IObservable<number>,
-		private readonly _diffs: IObservable<LineRangeMapping[] | undefined>,
+		private readonly _diffs: IObservable<DetailedLineRangeMapping[] | undefined>,
 		private readonly _editors: DiffEditorEditors,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(keepAlive(this.model, true));
+		this._register(recomputeInitiallyAndOnChange(this.model));
 	}
 
-	private readonly model = derivedWithStore('model', (reader, store) => {
+	private readonly model = derivedWithStore(this, (reader, store) => {
 		const visible = this._visible.read(reader);
 		this._parentNode.style.visibility = visible ? 'visible' : 'hidden';
 		if (!visible) {
@@ -92,9 +95,9 @@ export class AccessibleDiffViewer extends Disposable {
 }
 
 class ViewModel extends Disposable {
-	private readonly _groups = observableValue<ViewElementGroup[]>('groups', []);
-	private readonly _currentGroupIdx = observableValue('currentGroupIdx', 0);
-	private readonly _currentElementIdx = observableValue('currentElementIdx', 0);
+	private readonly _groups = observableValue<ViewElementGroup[]>(this, []);
+	private readonly _currentGroupIdx = observableValue(this, 0);
+	private readonly _currentElementIdx = observableValue(this, 0);
 
 	public readonly groups: IObservable<ViewElementGroup[]> = this._groups;
 	public readonly currentGroup: IObservable<ViewElementGroup | undefined>
@@ -105,7 +108,7 @@ class ViewModel extends Disposable {
 		= this._currentElementIdx.map((idx, r) => this.currentGroup.read(r)?.lines[idx]);
 
 	constructor(
-		private readonly _diffs: IObservable<LineRangeMapping[] | undefined>,
+		private readonly _diffs: IObservable<DetailedLineRangeMapping[] | undefined>,
 		private readonly _editors: DiffEditorEditors,
 		private readonly _setVisible: (visible: boolean, tx: ITransaction | undefined) => void,
 		public readonly canClose: IObservable<boolean>,
@@ -154,7 +157,7 @@ class ViewModel extends Disposable {
 			// This ensures editor commands (like revert/stage) work
 			const currentViewItem = this.currentElement.read(reader);
 			if (currentViewItem && currentViewItem.type !== LineType.Header) {
-				const lineNumber = currentViewItem.modifiedLineNumber ?? currentViewItem.diff.modifiedRange.startLineNumber;
+				const lineNumber = currentViewItem.modifiedLineNumber ?? currentViewItem.diff.modified.startLineNumber;
 				this._editors.modified.setSelection(Range.fromPositions(new Position(lineNumber, 1)));
 			}
 		}));
@@ -221,44 +224,44 @@ class ViewModel extends Disposable {
 
 const viewElementGroupLineMargin = 3;
 
-function computeViewElementGroups(diffs: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): ViewElementGroup[] {
+function computeViewElementGroups(diffs: DetailedLineRangeMapping[], originalLineCount: number, modifiedLineCount: number): ViewElementGroup[] {
 	const result: ViewElementGroup[] = [];
 
-	for (const g of group(diffs, (a, b) => (b.modifiedRange.startLineNumber - a.modifiedRange.endLineNumberExclusive < 2 * viewElementGroupLineMargin))) {
+	for (const g of groupAdjacentBy(diffs, (a, b) => (b.modified.startLineNumber - a.modified.endLineNumberExclusive < 2 * viewElementGroupLineMargin))) {
 		const viewElements: ViewElement[] = [];
 		viewElements.push(new HeaderViewElement());
 
 		const origFullRange = new LineRange(
-			Math.max(1, g[0].originalRange.startLineNumber - viewElementGroupLineMargin),
-			Math.min(g[g.length - 1].originalRange.endLineNumberExclusive + viewElementGroupLineMargin, originalLineCount + 1)
+			Math.max(1, g[0].original.startLineNumber - viewElementGroupLineMargin),
+			Math.min(g[g.length - 1].original.endLineNumberExclusive + viewElementGroupLineMargin, originalLineCount + 1)
 		);
 		const modifiedFullRange = new LineRange(
-			Math.max(1, g[0].modifiedRange.startLineNumber - viewElementGroupLineMargin),
-			Math.min(g[g.length - 1].modifiedRange.endLineNumberExclusive + viewElementGroupLineMargin, modifiedLineCount + 1)
+			Math.max(1, g[0].modified.startLineNumber - viewElementGroupLineMargin),
+			Math.min(g[g.length - 1].modified.endLineNumberExclusive + viewElementGroupLineMargin, modifiedLineCount + 1)
 		);
 
-		forEachAdjacentItems(g, (a, b) => {
-			const origRange = new LineRange(a ? a.originalRange.endLineNumberExclusive : origFullRange.startLineNumber, b ? b.originalRange.startLineNumber : origFullRange.endLineNumberExclusive);
-			const modifiedRange = new LineRange(a ? a.modifiedRange.endLineNumberExclusive : modifiedFullRange.startLineNumber, b ? b.modifiedRange.startLineNumber : modifiedFullRange.endLineNumberExclusive);
+		forEachAdjacent(g, (a, b) => {
+			const origRange = new LineRange(a ? a.original.endLineNumberExclusive : origFullRange.startLineNumber, b ? b.original.startLineNumber : origFullRange.endLineNumberExclusive);
+			const modifiedRange = new LineRange(a ? a.modified.endLineNumberExclusive : modifiedFullRange.startLineNumber, b ? b.modified.startLineNumber : modifiedFullRange.endLineNumberExclusive);
 
 			origRange.forEach(origLineNumber => {
 				viewElements.push(new UnchangedLineViewElement(origLineNumber, modifiedRange.startLineNumber + (origLineNumber - origRange.startLineNumber)));
 			});
 
 			if (b) {
-				b.originalRange.forEach(origLineNumber => {
+				b.original.forEach(origLineNumber => {
 					viewElements.push(new DeletedLineViewElement(b, origLineNumber));
 				});
-				b.modifiedRange.forEach(modifiedLineNumber => {
+				b.modified.forEach(modifiedLineNumber => {
 					viewElements.push(new AddedLineViewElement(b, modifiedLineNumber));
 				});
 			}
 		});
 
-		const modifiedRange = g[0].modifiedRange.join(g[g.length - 1].modifiedRange);
-		const originalRange = g[0].originalRange.join(g[g.length - 1].originalRange);
+		const modifiedRange = g[0].modified.join(g[g.length - 1].modified);
+		const originalRange = g[0].original.join(g[g.length - 1].original);
 
-		result.push(new ViewElementGroup(new SimpleLineRangeMapping(modifiedRange, originalRange), viewElements));
+		result.push(new ViewElementGroup(new LineRangeMapping(modifiedRange, originalRange), viewElements));
 	}
 	return result;
 }
@@ -272,7 +275,7 @@ enum LineType {
 
 class ViewElementGroup {
 	constructor(
-		public readonly range: SimpleLineRangeMapping,
+		public readonly range: LineRangeMapping,
 		public readonly lines: readonly ViewElement[],
 	) { }
 }
@@ -289,7 +292,7 @@ class DeletedLineViewElement {
 	public readonly modifiedLineNumber = undefined;
 
 	constructor(
-		public readonly diff: LineRangeMapping,
+		public readonly diff: DetailedLineRangeMapping,
 		public readonly originalLineNumber: number,
 	) {
 	}
@@ -301,7 +304,7 @@ class AddedLineViewElement {
 	public readonly originalLineNumber = undefined;
 
 	constructor(
-		public readonly diff: LineRangeMapping,
+		public readonly diff: DetailedLineRangeMapping,
 		public readonly modifiedLineNumber: number,
 	) {
 	}
@@ -589,15 +592,15 @@ class View extends Disposable {
 		let lineContent: string;
 		if (item.modifiedLineNumber !== undefined) {
 			let html: string | TrustedHTML = this._getLineHtml(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, item.modifiedLineNumber, this._languageService.languageIdCodec);
-			if (DiffReview._ttPolicy) {
-				html = DiffReview._ttPolicy.createHTML(html as string);
+			if (AccessibleDiffViewer._ttPolicy) {
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = modifiedModel.getLineContent(item.modifiedLineNumber);
 		} else {
 			let html: string | TrustedHTML = this._getLineHtml(originalModel, originalOptions, originalModelOpts.tabSize, item.originalLineNumber, this._languageService.languageIdCodec);
-			if (DiffReview._ttPolicy) {
-				html = DiffReview._ttPolicy.createHTML(html as string);
+			if (AccessibleDiffViewer._ttPolicy) {
+				html = AccessibleDiffViewer._ttPolicy.createHTML(html as string);
 			}
 			cell.insertAdjacentHTML('beforeend', html as string);
 			lineContent = originalModel.getLineContent(item.originalLineNumber);
@@ -657,33 +660,5 @@ class View extends Disposable {
 		));
 
 		return r.html;
-	}
-}
-
-function forEachAdjacentItems<T>(items: T[], callback: (item1: T | undefined, item2: T | undefined) => void) {
-	let last: T | undefined;
-	for (const item of items) {
-		callback(last, item);
-		last = item;
-	}
-	callback(last, undefined);
-}
-
-function* group<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => boolean): Iterable<T[]> {
-	let currentGroup: T[] | undefined;
-	let last: T | undefined;
-	for (const item of items) {
-		if (last !== undefined && shouldBeGrouped(last, item)) {
-			currentGroup!.push(item);
-		} else {
-			if (currentGroup) {
-				yield currentGroup;
-			}
-			currentGroup = [item];
-		}
-		last = item;
-	}
-	if (currentGroup) {
-		yield currentGroup;
 	}
 }

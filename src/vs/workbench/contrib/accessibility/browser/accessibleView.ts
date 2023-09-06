@@ -506,9 +506,9 @@ class AccessibleView extends Disposable {
 		let hint = '';
 		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.DisableVerbosityHint, this._contextKeyService)?.getAriaLabel();
 		if (disableKeybinding) {
-			hint = localize('acessibleViewDisableHint', "Disable the aria label hint to open this ({0}).\n", disableKeybinding);
+			hint = localize('acessibleViewDisableHint', "Disable accessibility verbosity for this feature ({0}). This will disable the hint to open the accessible view for example.\n", disableKeybinding);
 		} else {
-			hint = localize('accessibleViewDisableHintNoKb', "Add a keybinding for the command Disable Accessible View Hint to disable this hint.\n");
+			hint = localize('accessibleViewDisableHintNoKb', "Add a keybinding for the command Disable Accessible View Hint, which disables accessibility verbosity for this feature.\n");
 		}
 		return hint;
 	}

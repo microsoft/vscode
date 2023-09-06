@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMatch } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -15,8 +15,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
+import { IKeyMods, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -73,6 +73,19 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
+	}
+
+	override dispose(): void {
+		this.searchModel.dispose();
+		super.dispose();
+	}
+
+	override provide(picker: IQuickPick<IPickerQuickAccessItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+		const disposables = new DisposableStore();
+		disposables.add(super.provide(picker, token, runOptions));
+		disposables.add(picker.onDidHide(() => this.searchModel.searchResult.toggleHighlights(false)));
+		disposables.add(picker.onDidAccept(() => this.searchModel.searchResult.toggleHighlights(false)));
+		return disposables;
 	}
 
 	private get configuration() {
@@ -247,6 +260,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		}
 		const matches = allMatches.syncResults;
 		const syncResult = this._getPicksFromMatches(matches, MAX_FILES_SHOWN);
+		if (syncResult.length > 0) {
+			this.searchModel.searchResult.toggleHighlights(true);
+		}
 
 		if (matches.length >= MAX_FILES_SHOWN) {
 			return syncResult;
@@ -254,9 +270,14 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		return {
 			picks: syncResult,
-			additionalPicks: allMatches.asyncResults.then((asyncResults) => {
-				return this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length);
-			})
+			additionalPicks: allMatches.asyncResults
+				.then(asyncResults => this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length))
+				.then(picks => {
+					if (picks.length > 0) {
+						this.searchModel.searchResult.toggleHighlights(true);
+					}
+					return picks;
+				})
 		};
 
 	}

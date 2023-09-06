@@ -13,7 +13,6 @@ import { Constants } from 'vs/base/common/uint';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
@@ -817,7 +816,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -2799,7 +2798,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.scrollWithEditor': {
 					type: 'boolean',
 					default: defaults.scrollWithEditor,
-					description: nls.localize('editor.stickyScroll.scrollWithEditor', "When enabled it is possible to scroll the sticky scroll widget with the editor horizontal scrollbar.")
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of the sticky scroll widget with the editor's horizontal scrollbar.")
 				},
 			}
 		);

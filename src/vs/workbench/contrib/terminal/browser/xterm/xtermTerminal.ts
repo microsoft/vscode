@@ -120,6 +120,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 	readonly raw: RawXtermTerminal;
 	private _core: IXtermCore;
 	private static _suggestedRendererType: 'canvas' | 'dom' | undefined = undefined;
+	private static _checkedWebglCompatible = false;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 
@@ -677,6 +678,25 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		if (!this.raw.element || this._webglAddon) {
 			return;
 		}
+
+		// Check if the the WebGL renderer is compatible with xterm.js:
+		// - https://github.com/microsoft/vscode/issues/190195
+		// - https://github.com/xtermjs/xterm.js/issues/4665
+		// - https://bugs.chromium.org/p/chromium/issues/detail?id=1476475
+		if (!XtermTerminal._checkedWebglCompatible) {
+			XtermTerminal._checkedWebglCompatible = true;
+			const checkCanvas = document.createElement('canvas');
+			const checkGl = checkCanvas.getContext('webgl2');
+			const debugInfo = checkGl?.getExtension('WEBGL_debug_renderer_info');
+			if (checkGl && debugInfo) {
+				const renderer = checkGl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+				if (renderer.startsWith('ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)')) {
+					this._disableWebglForThisSession();
+					return;
+				}
+			}
+		}
+
 		const Addon = await this._getWebglAddonConstructor();
 		this._webglAddon = new Addon();
 		this._disposeOfCanvasRenderer();
@@ -701,10 +721,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
-			XtermTerminal._suggestedRendererType = 'canvas';
-			this._disposeOfWebglRenderer();
-			this._enableCanvasRenderer();
+			this._disableWebglForThisSession();
 		}
+	}
+
+	private _disableWebglForThisSession() {
+		XtermTerminal._suggestedRendererType = 'canvas';
+		this._disposeOfWebglRenderer();
+		this._enableCanvasRenderer();
 	}
 
 	private async _enableCanvasRenderer(): Promise<void> {

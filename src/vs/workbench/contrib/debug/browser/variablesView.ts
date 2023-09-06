@@ -149,6 +149,7 @@ export class VariablesView extends ViewPane {
 			forgetScopes = true;
 			this.tree.updateChildren();
 		}));
+		this._register(this.tree);
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this._register(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
 

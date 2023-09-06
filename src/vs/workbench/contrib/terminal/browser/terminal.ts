@@ -590,6 +590,7 @@ export interface ITerminalInstance {
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
+	onDidRunText: Event<void>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.

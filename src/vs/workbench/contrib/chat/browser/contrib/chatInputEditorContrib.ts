@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
@@ -44,6 +45,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) {
 		super();
 
@@ -175,21 +177,22 @@ class InputEditorDecorations extends Disposable {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
 		}
 
-		// const variables = this.chatVariablesService.getVariables();
+		const variables = this.chatVariablesService.getVariables();
 		const variableReg = /(^|\s)@(\w+)(:\d+)?(?=(\s|$))/ig;
 		let match: RegExpMatchArray | null;
 		const varDecorations: IDecorationOptions[] = [];
 		while (match = variableReg.exec(inputValue)) {
-			// const candidate = match[2];
-			// if (Iterable.find(variables, v => v.name === candidate))
-			varDecorations.push({
-				range: {
-					startLineNumber: 1,
-					endLineNumber: 1,
-					startColumn: match.index! + match[1].length + 1,
-					endColumn: match.index! + match[0].length + 1
-				}
-			});
+			const varName = match[2];
+			if (Iterable.find(variables, v => v.name === varName)) {
+				varDecorations.push({
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: match.index! + match[1].length + 1,
+						endColumn: match.index! + match[0].length + 1
+					}
+				});
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
