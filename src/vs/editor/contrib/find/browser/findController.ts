@@ -71,15 +71,13 @@ export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor:
 		return null;
 	}
 
-	if (range.isEmpty() && allowUnselectedWord) {
-		const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-		if (wordAtPosition) {
-			return wordAtPosition.word;
-		}
-	}
-
 	if (range.isEmpty()) {
-		return null;
+		if (allowUnselectedWord) {
+			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
+			return wordAtPosition?.word ?? null;
+		} else {
+			return null;
+		}
 	}
 
 	let searchText = '';
