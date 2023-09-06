@@ -34,7 +34,7 @@ import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLar
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -80,7 +80,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): void {
-		this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget2, parent, configuration, {}));
+		this.diffEditorControl = this._register(this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {}));
 	}
 
 	protected updateEditorControlOptions(options: ICodeEditorOptions): void {
@@ -313,7 +313,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 	private logInputLifecycleTelemetry(duration: number, languageId: string | undefined): void {
 		let collapseUnchangedRegions = false;
-		if (this.diffEditorControl instanceof DiffEditorWidget2) {
+		if (this.diffEditorControl instanceof DiffEditorWidget) {
 			collapseUnchangedRegions = this.diffEditorControl.collapseUnchangedRegions;
 		}
 		this.telemetryService.publicLog2<{
