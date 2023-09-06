@@ -113,7 +113,7 @@ export class NotebookCellOutlineProvider {
 					promises.push(this._outlineEntryFactory.cacheSymbols(cell.textModel, this._outlineModelService, cancelToken));
 				}
 			}
-			Promise.allSettled(promises);
+			await Promise.allSettled(promises);
 		}
 
 		this._recomputeState();
