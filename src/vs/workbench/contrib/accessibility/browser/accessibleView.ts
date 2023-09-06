@@ -264,10 +264,15 @@ export class AccessibleView extends Disposable {
 			// Symbols haven't been provided and we cannot parse this language
 			return;
 		}
-		const tokens: marked.TokensList | undefined = marked.lexer(this._currentContent);
-		if (!tokens) {
+		const markdownTokens: marked.TokensList | undefined = marked.lexer(this._currentContent);
+		if (!markdownTokens) {
 			return;
 		}
+		this._convertTokensToSymbols(markdownTokens, symbols);
+		return symbols.length ? symbols : undefined;
+	}
+
+	private _convertTokensToSymbols(tokens: marked.TokensList, symbols: IAccessibleViewSymbol[]): void {
 		let firstListItem: string | undefined;
 		for (const token of tokens) {
 			let label: string | undefined = undefined;
@@ -294,7 +299,6 @@ export class AccessibleView extends Disposable {
 				firstListItem = undefined;
 			}
 		}
-		return symbols.length ? symbols : undefined;
 	}
 
 	showSymbol(provider: IAccessibleContentProvider, symbol: IAccessibleViewSymbol): void {
