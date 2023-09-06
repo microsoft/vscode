@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/workerBasedDocumentDiffProvider';
+import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/diffEditor/workerBasedDocumentDiffProvider';
 import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';

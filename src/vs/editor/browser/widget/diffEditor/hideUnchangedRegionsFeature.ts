@@ -14,11 +14,11 @@ import { IObservable, IReader, autorun, autorunWithStore, derived, derivedWithSt
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
-import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorOptions';
-import { DiffEditorViewModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
-import { OutlineModel } from 'vs/editor/browser/widget/diffEditorWidget2/outlineModel';
-import { DisposableCancellationTokenSource, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
+import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
+import { DiffEditorViewModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
+import { OutlineModel } from 'vs/editor/browser/widget/diffEditor/outlineModel';
+import { DisposableCancellationTokenSource, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
