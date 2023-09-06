@@ -24,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -483,6 +483,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			let rawResponse: IChatResponse | null | undefined;
+			let slashCommandFollowups: IChatFollowup[] | void = [];
 
 			if ((typeof resolvedCommand === 'string' && typeof message === 'string' && this.chatSlashCommandService.hasCommand(resolvedCommand))) {
 				// contributed slash commands
@@ -497,7 +498,12 @@ export class ChatService extends Disposable implements IChatService {
 						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
 					}
 				}
-				await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => progressCallback(p)), history, token);
+				const commandResult = await this.chatSlashCommandService.executeCommand(resolvedCommand, message.substring(resolvedCommand.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
+					const { content } = p;
+					const data = isCompleteInteractiveProgressTreeData(content) ? content : { content };
+					progressCallback(data);
+				}), history, token);
+				slashCommandFollowups = commandResult?.followUp;
 				rawResponse = { session: model.session! };
 
 			} else {
@@ -541,10 +547,14 @@ export class ChatService extends Disposable implements IChatService {
 
 				// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
 				if (provider.provideFollowups) {
-					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
-						model.setFollowups(request, followups ?? undefined);
+					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(providerFollowups => {
+						const allFollowups = providerFollowups?.concat(slashCommandFollowups ?? []);
+						model.setFollowups(request, allFollowups ?? undefined);
 						model.completeResponse(request);
 					});
+				} else if (slashCommandFollowups?.length) {
+					model.setFollowups(request, slashCommandFollowups);
+					model.completeResponse(request);
 				} else {
 					model.completeResponse(request);
 				}
