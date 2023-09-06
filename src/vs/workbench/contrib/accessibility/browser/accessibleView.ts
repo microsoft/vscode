@@ -305,21 +305,23 @@ export class AccessibleView extends Disposable {
 		if (!this._currentContent) {
 			return;
 		}
-		if (symbol.lineNumber !== undefined) {
-			this.show(provider);
-			this._editorWidget.revealLine(symbol.lineNumber);
-			this._editorWidget.setSelection({ startLineNumber: symbol.lineNumber, startColumn: 1, endLineNumber: symbol.lineNumber, endColumn: 1 });
+		let lineNumber: number | undefined = symbol.lineNumber;
+		if (lineNumber === undefined && symbol.markdownToParse === undefined) {
+			// No symbols provided and we cannot parse this language
+			return;
+		} else if (lineNumber === undefined) {
+			// Parse the markdown to find the line number
+			const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.markdownToParse!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
+			if (index >= 0) {
+				lineNumber = index + 1;
+			}
+		}
+		if (lineNumber === undefined) {
 			return;
 		}
-		if (symbol.markdownToParse === undefined) {
-			return;
-		}
-		const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.markdownToParse!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
-		if (index >= 0) {
-			this.show(provider);
-			this._editorWidget.revealLine(index + 1);
-			this._editorWidget.setSelection({ startLineNumber: index + 1, startColumn: 1, endLineNumber: index + 1, endColumn: 1 });
-		}
+		this.show(provider);
+		this._editorWidget.revealLine(lineNumber);
+		this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 		this._updateContextKeys(provider, true);
 	}
 
