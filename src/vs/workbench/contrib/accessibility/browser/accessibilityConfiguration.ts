@@ -107,7 +107,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
-			description: localize('verbosity.untitledhint', 'Provide information about relevant actions in an untitled text editor.'),
+			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseProperty
 		}
 	}
