@@ -83,7 +83,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			super.dispose();
 
 			for (const [_, pending] of this.pendingBackupOperations) {
-				pending.cts.cancel();
+				pending.cancel();
 				pending.disposable.dispose();
 			}
 		}
