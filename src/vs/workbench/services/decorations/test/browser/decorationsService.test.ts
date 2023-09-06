@@ -14,13 +14,13 @@ import { mock } from 'vs/base/test/common/mock';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('DecorationsService', function () {
 
 	let service: DecorationsService;
 
 	setup(function () {
-		service?.dispose();
 		service = new DecorationsService(
 			new class extends mock<IUriIdentityService>() {
 				override extUri = resources.extUri;
@@ -28,6 +28,12 @@ suite('DecorationsService', function () {
 			new TestThemeService()
 		);
 	});
+
+	teardown(function () {
+		service.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Async provider, async/evented result', function () {
 

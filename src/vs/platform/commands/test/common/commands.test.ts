@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { combinedDisposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 suite('Command Tests', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('register command - no handler', function () {
 		assert.throws(() => CommandsRegistry.registerCommand('foo', null!));
@@ -49,15 +53,15 @@ suite('Command Tests', function () {
 
 	test('command with description', function () {
 
-		CommandsRegistry.registerCommand('test', function (accessor, args) {
+		const r1 = CommandsRegistry.registerCommand('test', function (accessor, args) {
 			assert.ok(typeof args === 'string');
 		});
 
-		CommandsRegistry.registerCommand('test2', function (accessor, args) {
+		const r2 = CommandsRegistry.registerCommand('test2', function (accessor, args) {
 			assert.ok(typeof args === 'string');
 		});
 
-		CommandsRegistry.registerCommand({
+		const r3 = CommandsRegistry.registerCommand({
 			id: 'test3',
 			handler: function (accessor, args) {
 				return true;
@@ -73,5 +77,6 @@ suite('Command Tests', function () {
 		assert.throws(() => CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 'string']));
 		assert.strictEqual(CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 1]), true);
 
+		combinedDisposable(r1, r2, r3).dispose();
 	});
 });
