@@ -47,6 +47,8 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		// this partition for shared memory.
 		// Refs https://github.com/microsoft/vscode/issues/152143
 		args.push('--disable-dev-shm-usage');
+		// Refs https://github.com/microsoft/vscode/issues/192206
+		args.push('--disable-gpu');
 	}
 
 	if (process.platform === 'darwin') {
