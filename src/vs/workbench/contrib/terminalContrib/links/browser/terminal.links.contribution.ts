@@ -114,11 +114,16 @@ registerActiveInstanceAction({
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
-	keybinding: {
+	keybinding: [{
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal)))
+		when: TerminalContextKeys.focus
+	}, {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))
 	},
+	],
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.showLinkQuickpick()
 });
 registerActiveInstanceAction({
