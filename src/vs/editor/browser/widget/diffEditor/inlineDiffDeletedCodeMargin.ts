@@ -11,7 +11,7 @@ import { isIOS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
@@ -40,7 +40,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		private readonly _marginDomNode: HTMLElement,
 		private readonly _modifiedEditor: CodeEditorWidget,
 		private readonly _diff: DetailedLineRangeMapping,
-		private readonly _editor: DiffEditorWidget2,
+		private readonly _editor: DiffEditorWidget,
 		private readonly _viewLineCounts: number[],
 		private readonly _originalTextModel: ITextModel,
 		private readonly _contextMenuService: IContextMenuService,
