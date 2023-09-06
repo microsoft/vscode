@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -42,10 +42,12 @@ suite('SettingsSync - Auto', () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
 
-	teardown(() => disposableStore.clear());
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+		disposableStore.clear();
+	});
 
 	test('when settings file does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const fileService = client.instantiationService.get(IFileService);
@@ -536,10 +538,13 @@ suite('SettingsSync - Manual', () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp(true);
 		testObject = client.getSynchronizer(SyncResource.Settings) as SettingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
 
-	teardown(() => disposableStore.clear());
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+		disposableStore.clear();
+	});
+
 
 	test('do not sync ignored settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const settingsContent =

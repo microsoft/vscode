@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction } from 'vs/base/common/actions';
-import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
+import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -588,7 +589,7 @@ export class CommentController implements IEditorContribution {
 			return 0;
 		});
 
-		const idx = findFirstInSorted(sortedWidgets, widget => {
+		const idx = findFirstIdxMonotonousOrArrLen(sortedWidgets, widget => {
 			const lineValueOne = reverse ? after.lineNumber : (widget.commentThread.range?.startLineNumber ?? 0);
 			const lineValueTwo = reverse ? (widget.commentThread.range?.startLineNumber ?? 0) : after.lineNumber;
 			const columnValueOne = reverse ? after.column : (widget.commentThread.range?.startColumn ?? 0);

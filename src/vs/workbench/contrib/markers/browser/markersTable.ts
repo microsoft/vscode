@@ -326,11 +326,11 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
 
 		// mouseover/mouseleave event handlers
-		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event)
-			.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
-			.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
-			.map(e => parseInt(e.getAttribute('data-index')!))
-			.event;
+		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
+			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
+				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
+				.map(e => parseInt(e.getAttribute('data-index')!))
+		);
 
 		const onListLeave = Event.map(this._register(new DomEmitter(list, 'mouseleave')).event, () => -1);
 

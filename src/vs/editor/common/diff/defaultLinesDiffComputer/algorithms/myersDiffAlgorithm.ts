@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { DiffAlgorithmResult, IDiffAlgorithm, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { DiffAlgorithmResult, IDiffAlgorithm, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
 
 /**
  * An O(ND) diff algorithm that has a quadratic space worst-case complexity.

@@ -241,7 +241,7 @@ export function workbenchInstantiationService(
 		contextKeyService?: (instantiationService: IInstantiationService) => IContextKeyService;
 		textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 	},
-	disposables: DisposableStore = new DisposableStore()
+	disposables: Pick<DisposableStore, 'add'> = new DisposableStore()
 ): TestInstantiationService {
 	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()])));
 

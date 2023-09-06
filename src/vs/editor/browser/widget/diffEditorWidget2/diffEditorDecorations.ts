@@ -27,8 +27,7 @@ export class DiffEditorDecorations extends Disposable {
 		this._register(applyObservableDecorations(this._editors.modified, this._decorations.map(d => d?.modifiedDecorations || [])));
 	}
 
-	private readonly _decorations = derived((reader) => {
-		/** @description _decorations */
+	private readonly _decorations = derived(this, (reader) => {
 		const diff = this._diffModel.read(reader)?.diff.read(reader);
 		if (!diff) {
 			return null;
