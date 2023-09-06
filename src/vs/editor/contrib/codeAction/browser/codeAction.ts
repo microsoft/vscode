@@ -103,8 +103,8 @@ export async function getCodeActions(
 
 	const cts = new TextModelCancellationTokenSource(model, token);
 	// if the trigger is auto (autosave, lightbulb, etc), we should exclude notebook codeActions
-	const nbCodeActionExcludeCheck = (trigger.type === languages.CodeActionTriggerType.Auto && model.uri.scheme === Schemas.vscodeNotebookCell);
-	const providers = getCodeActionProviders(registry, model, (nbCodeActionExcludeCheck) ? notebookFilter : filter);
+	const excludeNotebookCodeActions = (trigger.type === languages.CodeActionTriggerType.Auto && model.uri.scheme === Schemas.vscodeNotebookCell);
+	const providers = getCodeActionProviders(registry, model, (excludeNotebookCodeActions) ? notebookFilter : filter);
 
 
 	const disposables = new DisposableStore();
