@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 
@@ -19,22 +19,24 @@ export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnabl
 	}
 }
 
-export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
+export class TestWorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
-	private _onDidChangeTrust = new Emitter<boolean>();
+	private _onDidChangeTrust = this._register(new Emitter<boolean>());
 	onDidChangeTrust = this._onDidChangeTrust.event;
 
-	private _onDidChangeTrustedFolders = new Emitter<void>();
+	private _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	private _onDidInitiateWorkspaceTrustRequestOnStartup = new Emitter<void>();
+	private _onDidInitiateWorkspaceTrustRequestOnStartup = this._register(new Emitter<void>());
 	onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
 
 
 	constructor(
 		private trusted: boolean = true
-	) { }
+	) {
+		super();
+	}
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
 		throw new Error('Method not implemented.');

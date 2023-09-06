@@ -501,7 +501,7 @@ suite('EditorPane', () => {
 		const disposables = new DisposableStore();
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const workspaceTrustService = instantiationService.createInstance(TestWorkspaceTrustManagementService);
+		const workspaceTrustService = disposables.add(instantiationService.createInstance(TestWorkspaceTrustManagementService));
 		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustService);
 		workspaceTrustService.setWorkspaceTrust(false);
 
@@ -516,7 +516,7 @@ suite('EditorPane', () => {
 		const editorDescriptor = EditorPaneDescriptor.create(TrustRequiredTestEditor, 'id1', 'name');
 		disposables.add(editorRegistry.registerEditorPane(editorDescriptor, [new SyncDescriptor(TrustRequiredTestInput)]));
 
-		const testInput = new TrustRequiredTestInput();
+		const testInput = disposables.add(new TrustRequiredTestInput());
 
 		await group.openEditor(testInput);
 		assert.strictEqual(group.activeEditorPane?.getId(), WorkspaceTrustRequiredPlaceholderEditor.ID);
@@ -533,6 +533,8 @@ suite('EditorPane', () => {
 
 		workspaceTrustService.setWorkspaceTrust(false);
 		assert.strictEqual(await getEditorPaneIdAsync(), WorkspaceTrustRequiredPlaceholderEditor.ID);
+
+		await group.closeAllEditors();
 
 		dispose(disposables);
 	});
