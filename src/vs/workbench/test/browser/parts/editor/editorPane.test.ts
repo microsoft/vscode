@@ -184,10 +184,10 @@ suite('EditorPane', () => {
 
 		const inst = workbenchInstantiationService(undefined, disposables);
 
-		const editor = editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst);
+		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst);
+		const otherEditor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
 		disposables.dispose();
@@ -199,7 +199,7 @@ suite('EditorPane', () => {
 		const inst = workbenchInstantiationService(undefined, disposables);
 
 		disposables.add(registerTestResourceEditor());
-		const editor = editorRegistry.getEditorPane(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
+		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
 
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 
@@ -208,7 +208,7 @@ suite('EditorPane', () => {
 
 	test('Editor Input Serializer', function () {
 		const disposables = new DisposableStore();
-		const testInput = new TestEditorInput(URI.file('/fake'), 'testTypeId');
+		const testInput = disposables.add(new TestEditorInput(URI.file('/fake'), 'testTypeId'));
 		workbenchInstantiationService(undefined, disposables).invokeFunction(accessor => editorInputRegistry.start(accessor));
 		disposables.add(editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer));
 
@@ -242,7 +242,7 @@ suite('EditorPane', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+		let memento = disposables.add(new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService));
 
 		let res = memento.loadEditorState(testGroup0, URI.file('/A'));
 		assert.ok(!res);
@@ -277,7 +277,7 @@ suite('EditorPane', () => {
 
 		memento.saveState();
 
-		memento = new EditorMemento('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+		memento = disposables.add(new EditorMemento('id', 'key', rawMemento, 3, editorGroupService, configurationService));
 		assert.ok(memento.loadEditorState(testGroup0, URI.file('/C')));
 		assert.ok(memento.loadEditorState(testGroup0, URI.file('/D')));
 		assert.ok(memento.loadEditorState(testGroup0, URI.file('/E')));
@@ -303,7 +303,7 @@ suite('EditorPane', () => {
 		interface TestViewState { line: number }
 
 		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+		const memento = disposables.add(new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService));
 
 		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-1.txt'), { line: 1 });
 		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-2.txt'), { line: 2 });
@@ -346,9 +346,9 @@ suite('EditorPane', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService());
+		const memento = disposables.add(new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService()));
 
-		const testInputA = new TestEditorInput(URI.file('/A'));
+		const testInputA = disposables.add(new TestEditorInput(URI.file('/A')));
 
 		let res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(!res);
@@ -384,9 +384,9 @@ suite('EditorPane', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService());
+		const memento = disposables.add(new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService(), new TestTextResourceConfigurationService()));
 
-		const testInputA = new TestEditorInput(URI.file('/A'));
+		const testInputA = disposables.add(new TestEditorInput(URI.file('/A')));
 
 		let res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(!res);
@@ -402,7 +402,7 @@ suite('EditorPane', () => {
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
 
-		const testInputB = new TestEditorInput(URI.file('/B'));
+		const testInputB = disposables.add(new TestEditorInput(URI.file('/B')));
 
 		res = memento.loadEditorState(testGroup0, testInputB);
 		assert.ok(!res);
@@ -436,7 +436,7 @@ suite('EditorPane', () => {
 		interface TestViewState { line: number }
 
 		const rawMemento = Object.create(null);
-		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
+		const memento = disposables.add(new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService));
 
 		const resource = URI.file('/some/folder/file-1.txt');
 		memento.saveEditorState(testGroup0, resource, { line: 1 });
