@@ -93,8 +93,10 @@ export abstract class TitleControl extends Themable {
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
-	private static readonly EDITOR_TITLE_NORMAL = 35;
-	private static readonly EDITOR_TITLE_COMPACT = 22;
+	private static readonly EDITOR_TITLE_HEIGHT = {
+		normal: 35,
+		compact: 22
+	};
 
 	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
 
@@ -118,7 +120,7 @@ export abstract class TitleControl extends Themable {
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
-		protected parent: HTMLElement,
+		private parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected group: IEditorGroupView,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
@@ -427,12 +429,12 @@ export abstract class TitleControl extends Themable {
 		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
 	}
 
-	protected get tabHeight() {
-		return this.accessor.partOptions.tabHeight !== 'compact' ? TitleControl.EDITOR_TITLE_NORMAL : TitleControl.EDITOR_TITLE_COMPACT;
+	protected get titleHeight() {
+		return this.accessor.partOptions.tabHeight !== 'compact' ? TitleControl.EDITOR_TITLE_HEIGHT.normal : TitleControl.EDITOR_TITLE_HEIGHT.compact;
 	}
 
 	protected updateTitleHeight(): void {
-		this.parent.style.setProperty('--title-height', `${this.tabHeight}px`);
+		this.parent.style.setProperty('--editor-group-title-height', `${this.titleHeight}px`);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {

@@ -203,7 +203,6 @@ export class TabsTitleControl extends TitleControl {
 		breadcrumbsContainer.classList.add('tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
 		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, showPlaceholder: true });
-
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -731,11 +730,6 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.tabSizing !== newOptions.tabSizing
 		) {
 			this.updateTabSizing(true);
-		}
-
-		// Update tab height
-		if (oldOptions.tabHeight !== newOptions.tabHeight) {
-			this.updateTitleHeight();
 		}
 
 		// Redraw tabs when other options change
@@ -1556,7 +1550,7 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			total = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			total = this.tabHeight;
+			total = this.titleHeight;
 		}
 
 		const offset = total;
@@ -1714,7 +1708,7 @@ export class TabsTitleControl extends TitleControl {
 			if (tabsWrapMultiLine) {
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.tabHeight) ||	// if wrapping is not needed anymore
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.titleHeight) ||	// if wrapping is not needed anymore
 					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);
