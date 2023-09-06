@@ -201,7 +201,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		const disposables = new DisposableStore();
 
-		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
+		const workingCopyBackupService = disposables.add(new InMemoryTestWorkingCopyBackupService());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
