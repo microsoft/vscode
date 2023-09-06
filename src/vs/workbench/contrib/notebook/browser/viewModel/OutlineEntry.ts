@@ -9,6 +9,7 @@ import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBr
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { SymbolKind, SymbolKinds } from 'vs/editor/common/languages';
 
 
 export interface IOutlineMarkerInfo {
@@ -22,6 +23,9 @@ export class OutlineEntry {
 	private _markerInfo: IOutlineMarkerInfo | undefined;
 
 	get icon(): ThemeIcon {
+		if (this.symbolKind) {
+			return SymbolKinds.toIcon(this.symbolKind);
+		}
 		return this.isExecuting && this.isPaused ? executingStateIcon :
 			this.isExecuting ? ThemeIcon.modify(executingStateIcon, 'spin') :
 				this.cell.cellKind === CellKind.Markup ? Codicon.markdown : Codicon.code;
@@ -35,6 +39,7 @@ export class OutlineEntry {
 		readonly isExecuting: boolean,
 		readonly isPaused: boolean,
 		readonly position?: Range,
+		readonly symbolKind?: SymbolKind,
 	) { }
 
 	addChild(entry: OutlineEntry) {

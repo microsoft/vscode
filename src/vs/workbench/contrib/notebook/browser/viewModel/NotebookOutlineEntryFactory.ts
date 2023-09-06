@@ -14,11 +14,13 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
+import { SymbolKind } from 'vs/editor/common/languages';
 
 type entryDesc = {
 	name: string;
 	position: Range;
 	level: number;
+	kind: SymbolKind;
 };
 
 export class NotebookOutlineEntryFactory {
@@ -71,7 +73,7 @@ export class NotebookOutlineEntryFactory {
 				// So symbols need to be precached before this function is called to get the full list.
 				if (cachedEntries) {
 					cachedEntries.forEach((cached) => {
-						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.position));
+						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.position, cached.kind));
 					});
 
 				}
@@ -110,7 +112,7 @@ function createOutlineEntries(symbols: documentSymbol[], level: number): entryDe
 			symbol.selectionRange.startColumn,
 			symbol.selectionRange.startLineNumber,
 			symbol.selectionRange.startColumn);
-		entries.push({ name: symbol.name, position, level });
+		entries.push({ name: symbol.name, position, level, kind: symbol.kind });
 		if (symbol.children) {
 			entries.push(...createOutlineEntries(symbol.children, level + 1));
 		}

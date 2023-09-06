@@ -158,14 +158,16 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		}
 		const result: IQuickPickOutlineElement<OutlineEntry>[] = [];
 		const { hasFileIcons } = this._themeService.getFileIconTheme();
+
 		for (const element of bucket) {
+			const useFileIcon = hasFileIcons && !element.symbolKind;
 			// todo@jrieken it is fishy that codicons cannot be used with iconClasses
 			// but file icons can...
 			result.push({
 				element,
-				label: hasFileIcons ? element.label : `$(${element.icon.id}) ${element.label}`,
+				label: useFileIcon ? element.label : `$(${element.icon.id}) ${element.label}`,
 				ariaLabel: element.label,
-				iconClasses: hasFileIcons ? getIconClassesForLanguageId(element.cell.language ?? '') : undefined,
+				iconClasses: useFileIcon ? getIconClassesForLanguageId(element.cell.language ?? '') : undefined,
 			});
 		}
 		return result;
