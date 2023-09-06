@@ -4,20 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from './descriptors';
-import { ServiceIdentifier, IConstructorSignature0 } from './instantiation';
+import { BrandedService, ServiceIdentifier } from './instantiation';
 
+const _registry: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
 
-export interface IServiceContribution<T> {
-	id: ServiceIdentifier<T>;
-	descriptor: SyncDescriptor<T>;
+export const enum InstantiationType {
+	/**
+	 * Instantiate this service as soon as a consumer depends on it. _Note_ that this
+	 * is more costly as some upfront work is done that is likely not needed
+	 */
+	Eager = 0,
+
+	/**
+	 * Instantiate this service as soon as a consumer uses it. This is the _better_
+	 * way of registering a service.
+	 */
+	Delayed = 1
 }
 
-const _registry: IServiceContribution<any>[] = [];
+export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctor: new (...services: Services) => T, supportsDelayedInstantiation: InstantiationType): void;
+export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, descriptor: SyncDescriptor<any>): void;
+export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctorOrDescriptor: { new(...services: Services): T } | SyncDescriptor<any>, supportsDelayedInstantiation?: boolean | InstantiationType): void {
+	if (!(ctorOrDescriptor instanceof SyncDescriptor)) {
+		ctorOrDescriptor = new SyncDescriptor<T>(ctorOrDescriptor as new (...args: any[]) => T, [], Boolean(supportsDelayedInstantiation));
+	}
 
-export function registerSingleton<T>(id: ServiceIdentifier<T>, ctor: IConstructorSignature0<T>, supportsDelayedInstantiation?: boolean): void {
-	_registry.push({ id, descriptor: new SyncDescriptor<T>(ctor, [], supportsDelayedInstantiation) });
+	_registry.push([id, ctorOrDescriptor]);
 }
 
-export function getServices(): IServiceContribution<any>[] {
+export function getSingletonServiceDescriptors(): [ServiceIdentifier<any>, SyncDescriptor<any>][] {
 	return _registry;
 }

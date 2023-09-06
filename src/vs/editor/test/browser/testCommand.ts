@@ -4,63 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
+import { instantiateTestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export function testCommand(
 	lines: string[],
-	languageIdentifier: LanguageIdentifier | null,
+	languageId: string | null,
 	selection: Selection,
-	commandFactory: (selection: Selection) => editorCommon.ICommand,
+	commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand,
 	expectedLines: string[],
-	expectedSelection: Selection
+	expectedSelection: Selection,
+	forceTokenization?: boolean,
+	prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void
 ): void {
-	let model = TextModel.createFromString(lines.join('\n'), undefined, languageIdentifier);
-	withTestCodeEditor('', { model: model }, (_editor, cursor) => {
-		if (!cursor) {
-			return;
-		}
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables);
+	if (prepare) {
+		instantiationService.invokeFunction(prepare, disposables);
+	}
+	const model = disposables.add(instantiateTextModel(instantiationService, lines.join('\n'), languageId));
+	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
+	const viewModel = editor.getViewModel()!;
 
-		cursor.setSelections('tests', [selection]);
+	if (forceTokenization) {
+		model.tokenization.forceTokenization(model.getLineCount());
+	}
 
-		cursor.trigger('tests', editorCommon.Handler.ExecuteCommand, commandFactory(cursor.getSelection()));
+	viewModel.setSelections('tests', [selection]);
 
-		assert.deepEqual(model.getLinesContent(), expectedLines);
+	const command = instantiationService.invokeFunction((accessor) => commandFactory(accessor, viewModel.getSelection()));
+	viewModel.executeCommand(command, 'tests');
 
-		let actualSelection = cursor.getSelection();
-		assert.deepEqual(actualSelection.toString(), expectedSelection.toString());
+	assert.deepStrictEqual(model.getLinesContent(), expectedLines);
 
-	});
-	model.dispose();
+	const actualSelection = viewModel.getSelection();
+	assert.deepStrictEqual(actualSelection.toString(), expectedSelection.toString());
+
+	disposables.dispose();
 }
 
 /**
  * Extract edit operations if command `command` were to execute on model `model`
  */
-export function getEditOperation(model: ITextModel, command: editorCommon.ICommand): IIdentifiedSingleEditOperation[] {
-	let operations: IIdentifiedSingleEditOperation[] = [];
-	let editOperationBuilder: editorCommon.IEditOperationBuilder = {
-		addEditOperation: (range: Range, text: string) => {
+export function getEditOperation(model: ITextModel, command: ICommand): ISingleEditOperation[] {
+	const operations: ISingleEditOperation[] = [];
+	const editOperationBuilder: IEditOperationBuilder = {
+		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 
-		addTrackedEditOperation: (range: Range, text: string) => {
+		addTrackedEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({
 				range: range,
-				text: text
+				text: text,
+				forceMoveMarkers: forceMoveMarkers
 			});
 		},
 
 
-		trackSelection: (selection: Selection) => {
+		trackSelection: (selection: ISelection) => {
 			return '';
 		}
 	};

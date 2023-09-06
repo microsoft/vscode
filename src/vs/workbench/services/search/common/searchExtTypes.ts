@@ -17,10 +17,10 @@ export class Position {
 	isEqual(other: Position): boolean { return false; }
 	compareTo(other: Position): number { return 0; }
 	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number }): Position;
 	translate(_?: any, _2?: any): Position { return new Position(0, 0); }
 	with(line?: number, character?: number): Position;
-	with(change: { line?: number; character?: number; }): Position;
+	with(change: { line?: number; character?: number }): Position;
 	with(_: any): Position { return new Position(0, 0); }
 }
 
@@ -33,15 +33,15 @@ export class Range {
 		this.end = new Position(endLine, endCol);
 	}
 
-	isEmpty: boolean;
-	isSingleLine: boolean;
+	isEmpty = false;
+	isSingleLine = false;
 	contains(positionOrRange: Position | Range): boolean { return false; }
 	isEqual(other: Range): boolean { return false; }
 	intersection(range: Range): Range | undefined { return undefined; }
 	union(other: Range): Range { return new Range(0, 0, 0, 0); }
 
 	with(start?: Position, end?: Position): Range;
-	with(change: { start?: Position, end?: Position }): Range;
+	with(change: { start?: Position; end?: Position }): Range;
 	with(_: any): Range { return new Range(0, 0, 0, 0); }
 }
 
@@ -71,13 +71,13 @@ export interface RelativePattern {
 
 /**
  * A file glob pattern to match file paths against. This can either be a glob pattern string
- * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+ * (like `** /*.{ts,js}` without space before / or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
  *
  * Glob patterns can have the following syntax:
- * * `*` to match one or more characters in a path segment
+ * * `*` to match zero or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
- * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
+ * * `{}` to group conditions (e.g. `** /*.{ts,js}` without space before / matches all TypeScript and JavaScript files)
  * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
  * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
  *
@@ -161,6 +161,12 @@ export interface SearchOptions {
 	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 	 */
 	useGlobalIgnoreFiles: boolean;
+
+	/**
+	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+	 * See the vscode setting `"search.useParentIgnoreFiles"`.
+	 */
+	useParentIgnoreFiles: boolean;
 }
 
 /**
@@ -217,6 +223,32 @@ export interface TextSearchOptions extends SearchOptions {
 }
 
 /**
+ * Represents the severity of a TextSearchComplete message.
+ */
+export enum TextSearchCompleteMessageType {
+	Information = 1,
+	Warning = 2,
+}
+
+/**
+ * A message regarding a completed search.
+ */
+export interface TextSearchCompleteMessage {
+	/**
+	 * Markdown text of the message.
+	 */
+	text: string;
+	/**
+	 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
+	 */
+	trusted?: boolean;
+	/**
+	 * The message type, this affects how the message will be rendered.
+	 */
+	type: TextSearchCompleteMessageType;
+}
+
+/**
  * Information collected when text search is complete.
  */
 export interface TextSearchComplete {
@@ -228,6 +260,15 @@ export interface TextSearchComplete {
 	 * - If search hits an internal limit which is less than `maxResults`, this should be true.
 	 */
 	limitHit?: boolean;
+
+	/**
+	 * Additional information regarding the state of the completed search.
+	 *
+	 * Supports links in markdown syntax:
+	 * - Click to [run a command](command:workbench.action.OpenQuickPick)
+	 * - Click to [open a website](https://aka.ms)
+	 */
+	message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 }
 
 /**
@@ -316,12 +357,12 @@ export interface TextSearchContext {
 export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
 /**
- * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
+ * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickaccess or other extensions.
  *
  * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
  * all files that match the user's query.
  *
- * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
+ * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
 export interface FileSearchProvider {
@@ -383,6 +424,12 @@ export interface FindTextInFilesOptions {
 	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 	 */
 	useGlobalIgnoreFiles?: boolean;
+
+	/**
+	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+	 * See the vscode setting `"search.useParentIgnoreFiles"`.
+	 */
+	useParentIgnoreFiles: boolean;
 
 	/**
 	 * Whether symlinks should be followed while searching.

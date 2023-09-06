@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChildProcess, fork } from 'child_process';
+import { Limiter } from 'vs/base/common/async';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/path';
+import { Promises } from 'vs/base/node/pfs';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
-import { fork, ChildProcess } from 'child_process';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { join } from 'vs/base/common/path';
-import { Limiter } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { rimraf } from 'vs/base/node/pfs';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class ExtensionsLifecycle extends Disposable {
 
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		private environmentService: IEnvironmentService,
-		private logService: ILogService
+		@IUserDataProfilesService private userDataProfilesService: IUserDataProfilesService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -30,14 +30,25 @@ export class ExtensionsLifecycle extends Disposable {
 		const script = this.parseScript(extension, 'uninstall');
 		if (script) {
 			this.logService.info(extension.identifier.id, extension.manifest.version, `Running post uninstall script`);
-			await this.processesLimiter.queue(() =>
-				this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension)
-					.then(() => this.logService.info(extension.identifier.id, extension.manifest.version, `Finished running post uninstall script`), err => this.logService.error(extension.identifier.id, extension.manifest.version, `Failed to run post uninstall script: ${err}`)));
+			await this.processesLimiter.queue(async () => {
+				try {
+					await this.runLifecycleHook(script.script, 'uninstall', script.args, true, extension);
+					this.logService.info(`Finished running post uninstall script`, extension.identifier.id, extension.manifest.version);
+				} catch (error) {
+					this.logService.error('Failed to run post uninstall script', extension.identifier.id, extension.manifest.version);
+					this.logService.error(error);
+				}
+			});
 		}
-		return rimraf(this.getExtensionStoragePath(extension)).then(undefined, e => this.logService.error('Error while removing extension storage path', e));
+		try {
+			await Promises.rm(this.getExtensionStoragePath(extension));
+		} catch (error) {
+			this.logService.error('Error while removing extension storage path', extension.identifier.id);
+			this.logService.error(error);
+		}
 	}
 
-	private parseScript(extension: ILocalExtension, type: string): { script: string, args: string[] } | null {
+	private parseScript(extension: ILocalExtension, type: string): { script: string; args: string[] } | null {
 		const scriptKey = `vscode:${type}`;
 		if (extension.location.scheme === Schemas.file && extension.manifest && extension.manifest['scripts'] && typeof extension.manifest['scripts'][scriptKey] === 'string') {
 			const script = (<string>extension.manifest['scripts'][scriptKey]).split(' ');
@@ -97,12 +108,12 @@ export class ExtensionsLifecycle extends Disposable {
 		const extensionUninstallProcess = fork(uninstallHook, [`--type=extension-post-${lifecycleType}`, ...args], opts);
 
 		// Catch all output coming from the process
-		type Output = { data: string, format: string[] };
-		extensionUninstallProcess.stdout.setEncoding('utf8');
-		extensionUninstallProcess.stderr.setEncoding('utf8');
+		type Output = { data: string; format: string[] };
+		extensionUninstallProcess.stdout!.setEncoding('utf8');
+		extensionUninstallProcess.stderr!.setEncoding('utf8');
 
-		const onStdout = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stdout, 'data');
-		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr, 'data');
+		const onStdout = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stdout!, 'data');
+		const onStderr = Event.fromNodeEventEmitter<string>(extensionUninstallProcess.stderr!, 'data');
 
 		// Log output
 		onStdout(data => this.logService.info(extension.identifier.id, extension.manifest.version, `post-${lifecycleType}`, data));
@@ -130,6 +141,6 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return join(this.environmentService.globalStorageHome, extension.identifier.id.toLowerCase());
+		return join(this.userDataProfilesService.defaultProfile.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
 	}
 }

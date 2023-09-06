@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/1b05209b483f81f42270bdda5514590e013e4896",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/1d4c0b541959995db098df751ffc129da39a294b",
 	"name": "Makefile",
 	"scopeName": "source.makefile",
 	"patterns": [
@@ -18,18 +18,22 @@
 			"include": "#variable-assignment"
 		},
 		{
-			"include": "#target"
+			"include": "#directives"
 		},
 		{
 			"include": "#recipe"
 		},
 		{
-			"include": "#directives"
+			"include": "#target"
 		}
 	],
 	"repository": {
+		"comma": {
+			"match": ",",
+			"name": "punctuation.separator.delimeter.comma.makefile"
+		},
 		"comment": {
-			"begin": "(^[ \\t]+)?(?=#)",
+			"begin": "(^[ ]+)?((?<!\\\\)(\\\\\\\\)*)(?=#)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.makefile"
@@ -131,9 +135,6 @@
 							"include": "#variables"
 						},
 						{
-							"include": "#comment"
-						},
-						{
 							"include": "#directives"
 						}
 					]
@@ -195,37 +196,7 @@
 					]
 				},
 				{
-					"begin": "^\\s*(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
-					"captures": {
-						"1": {
-							"name": "keyword.control.$1.makefile"
-						},
-						"2": {
-							"name": "variable.other.makefile"
-						},
-						"3": {
-							"name": "punctuation.separator.key-value.makefile"
-						}
-					},
-					"end": "^\\s*(endif)\\b",
-					"name": "meta.scope.conditional.makefile",
-					"patterns": [
-						{
-							"begin": "\\G(?!\\n)",
-							"end": "^",
-							"patterns": [
-								{
-									"include": "#comment"
-								}
-							]
-						},
-						{
-							"include": "$self"
-						}
-					]
-				},
-				{
-					"begin": "^\\s*(ifeq|ifneq)(?=\\s)",
+					"begin": "^\\s*(ifeq|ifneq|ifdef|ifndef)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
@@ -240,6 +211,9 @@
 							"name": "meta.scope.condition.makefile",
 							"patterns": [
 								{
+									"include": "#comma"
+								},
+								{
 									"include": "#variables"
 								},
 								{
@@ -248,13 +222,24 @@
 							]
 						},
 						{
-							"begin": "^\\s*else(?=\\s)",
+							"begin": "^\\s*else(?=\\s)\\s*(ifeq|ifneq|ifdef|ifndef)*(?=\\s)",
 							"beginCaptures": {
 								"0": {
 									"name": "keyword.control.else.makefile"
 								}
 							},
-							"end": "^"
+							"end": "^",
+							"patterns": [
+								{
+									"include": "#comma"
+								},
+								{
+									"include": "#variables"
+								},
+								{
+									"include": "#comment"
+								}
+							]
 						},
 						{
 							"include": "$self"
@@ -342,7 +327,7 @@
 			]
 		},
 		"variable-assignment": {
-			"begin": "(^[ ]*|\\G\\s*)([^\\s]+)\\s*((?<![?:+!])=|\\?=|:=|\\+=|!=)",
+			"begin": "(^[ ]*|\\G\\s*)([^\\s:#=]+)\\s*((?<![?:+!])=|\\?=|:=|\\+=|!=)",
 			"beginCaptures": {
 				"2": {
 					"name": "variable.other.makefile",
@@ -516,6 +501,9 @@
 					"name": "meta.scope.function-call.makefile",
 					"patterns": [
 						{
+							"include": "#comma"
+						},
+						{
 							"include": "#variables"
 						},
 						{
@@ -545,6 +533,9 @@
 					"end": "(?=}|((?<!\\\\)\\n))",
 					"name": "meta.scope.function-call.makefile",
 					"patterns": [
+						{
+							"include": "#comma"
+						},
 						{
 							"include": "#variables"
 						},

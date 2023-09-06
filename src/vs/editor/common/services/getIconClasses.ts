@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
+import { DataUri } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
 
-export function getIconClasses(modelService: IModelService, modeService: IModeService, resource: uri | undefined, fileKind?: FileKind): string[] {
+const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
+
+export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
 	// we always set these base classes even if we do not have a path
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
@@ -23,7 +25,16 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			const metadata = DataUri.parseMetaData(resource);
 			name = metadata.get(DataUri.META_DATA_LABEL);
 		} else {
-			name = cssEscape(basenameOrAuthority(resource).toLowerCase());
+			const match = resource.path.match(fileIconDirectoryRegex);
+			if (match) {
+				name = cssEscape(match[2].toLowerCase());
+				if (match[1]) {
+					classes.push(`${cssEscape(match[1].toLowerCase())}-name-dir-icon`); // parent directory
+				}
+
+			} else {
+				name = cssEscape(resource.authority.toLowerCase());
+			}
 		}
 
 		// Folders
@@ -37,29 +48,39 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 			// Name & Extension(s)
 			if (name) {
 				classes.push(`${name}-name-file-icon`);
-				const dotSegments = name.split('.');
-				for (let i = 1; i < dotSegments.length; i++) {
-					classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+				classes.push(`name-file-icon`); // extra segment to increase file-name score
+				// Avoid doing an explosive combination of extensions for very long filenames
+				// (most file systems do not allow files > 255 length) with lots of `.` characters
+				// https://github.com/microsoft/vscode/issues/116199
+				if (name.length <= 255) {
+					const dotSegments = name.split('.');
+					for (let i = 1; i < dotSegments.length; i++) {
+						classes.push(`${dotSegments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
+					}
 				}
 				classes.push(`ext-file-icon`); // extra segment to increase file-ext score
 			}
 
 			// Detected Mode
-			const detectedModeId = detectModeId(modelService, modeService, resource);
-			if (detectedModeId) {
-				classes.push(`${cssEscape(detectedModeId)}-lang-file-icon`);
+			const detectedLanguageId = detectLanguageId(modelService, languageService, resource);
+			if (detectedLanguageId) {
+				classes.push(`${cssEscape(detectedLanguageId)}-lang-file-icon`);
 			}
 		}
 	}
 	return classes;
 }
 
-export function detectModeId(modelService: IModelService, modeService: IModeService, resource: uri): string | null {
+export function getIconClassesForLanguageId(languageId: string): string[] {
+	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
+}
+
+function detectLanguageId(modelService: IModelService, languageService: ILanguageService, resource: uri): string | null {
 	if (!resource) {
 		return null; // we need a resource at least
 	}
 
-	let modeId: string | null = null;
+	let languageId: string | null = null;
 
 	// Data URI: check for encoded metadata
 	if (resource.scheme === Schemas.data) {
@@ -67,7 +88,7 @@ export function detectModeId(modelService: IModelService, modeService: IModeServ
 		const mime = metadata.get(DataUri.META_DATA_MIME);
 
 		if (mime) {
-			modeId = modeService.getModeId(mime);
+			languageId = languageService.getLanguageIdByMimeType(mime);
 		}
 	}
 
@@ -75,31 +96,19 @@ export function detectModeId(modelService: IModelService, modeService: IModeServ
 	else {
 		const model = modelService.getModel(resource);
 		if (model) {
-			modeId = model.getModeId();
+			languageId = model.getLanguageId();
 		}
 	}
 
-	// only take if the mode is specific (aka no just plain text)
-	if (modeId && modeId !== PLAINTEXT_MODE_ID) {
-		return modeId;
+	// only take if the language id is specific (aka no just plain text)
+	if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
+		return languageId;
 	}
 
 	// otherwise fallback to path based detection
-	let path: string | undefined;
-	if (resource.scheme === Schemas.data) {
-		const metadata = DataUri.parseMetaData(resource);
-		path = metadata.get(DataUri.META_DATA_LABEL);
-	} else {
-		path = resource.path.toLowerCase();
-	}
-
-	if (path) {
-		return modeService.getModeIdByFilepathOrFirstLine(path);
-	}
-
-	return null; // finally - we do not know the mode id
+	return languageService.guessLanguageIdByFilepathOrFirstLine(resource);
 }
 
-export function cssEscape(val: string): string {
-	return val.replace(/\s/g, '\\$&'); // make sure to not introduce CSS classes from files that contain whitespace
+function cssEscape(str: string): string {
+	return str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
 }

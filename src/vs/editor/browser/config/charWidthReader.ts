@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export const enum CharWidthRequestType {
@@ -68,33 +69,21 @@ class DomCharWidthReader {
 		container.style.width = '50000px';
 
 		const regularDomNode = document.createElement('div');
-		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
-		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
-		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		regularDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		regularDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
+		applyFontInfo(regularDomNode, this._bareFontInfo);
 		container.appendChild(regularDomNode);
 
 		const boldDomNode = document.createElement('div');
-		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
+		applyFontInfo(boldDomNode, this._bareFontInfo);
 		boldDomNode.style.fontWeight = 'bold';
-		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		boldDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		boldDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
 		container.appendChild(boldDomNode);
 
 		const italicDomNode = document.createElement('div');
-		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
-		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
-		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
-		italicDomNode.style.lineHeight = this._bareFontInfo.lineHeight + 'px';
-		italicDomNode.style.letterSpacing = this._bareFontInfo.letterSpacing + 'px';
+		applyFontInfo(italicDomNode, this._bareFontInfo);
 		italicDomNode.style.fontStyle = 'italic';
 		container.appendChild(italicDomNode);
 
 		const testElements: HTMLSpanElement[] = [];
-		for (let i = 0, len = this._requests.length; i < len; i++) {
-			const request = this._requests[i];
+		for (const request of this._requests) {
 
 			let parent: HTMLElement;
 			if (request.type === CharWidthRequestType.Regular) {
@@ -113,7 +102,7 @@ class DomCharWidthReader {
 			DomCharWidthReader._render(testElement, request);
 			parent!.appendChild(testElement);
 
-			testElements[i] = testElement;
+			testElements.push(testElement);
 		}
 
 		this._container = container;
@@ -122,12 +111,12 @@ class DomCharWidthReader {
 
 	private static _render(testElement: HTMLElement, request: CharWidthRequest): void {
 		if (request.chr === ' ') {
-			let htmlString = '&nbsp;';
+			let htmlString = '\u00a0';
 			// Repeat character 256 (2^8) times
 			for (let i = 0; i < 8; i++) {
 				htmlString += htmlString;
 			}
-			testElement.innerHTML = htmlString;
+			testElement.innerText = htmlString;
 		} else {
 			let testString = request.chr;
 			// Repeat character 256 (2^8) times

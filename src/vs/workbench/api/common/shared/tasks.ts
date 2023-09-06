@@ -5,13 +5,14 @@
 
 import { UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import type { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
-export interface TaskDefinitionDTO {
+export interface ITaskDefinitionDTO {
 	type: string;
 	[name: string]: any;
 }
 
-export interface TaskPresentationOptionsDTO {
+export interface ITaskPresentationOptionsDTO {
 	reveal?: number;
 	echo?: boolean;
 	focus?: boolean;
@@ -19,27 +20,28 @@ export interface TaskPresentationOptionsDTO {
 	showReuseMessage?: boolean;
 	clear?: boolean;
 	group?: string;
+	close?: boolean;
 }
 
-export interface RunOptionsDTO {
+export interface IRunOptionsDTO {
 	reevaluateOnRerun?: boolean;
 }
 
-export interface ExecutionOptionsDTO {
+export interface IExecutionOptionsDTO {
 	cwd?: string;
 	env?: { [key: string]: string };
 }
 
-export interface ProcessExecutionOptionsDTO extends ExecutionOptionsDTO {
+export interface IProcessExecutionOptionsDTO extends IExecutionOptionsDTO {
 }
 
-export interface ProcessExecutionDTO {
+export interface IProcessExecutionDTO {
 	process: string;
 	args: string[];
-	options?: ProcessExecutionOptionsDTO;
+	options?: IProcessExecutionOptionsDTO;
 }
 
-export interface ShellQuotingOptionsDTO {
+export interface IShellQuotingOptionsDTO {
 	escape?: string | {
 		escapeChar: string;
 		charsToEscape: string;
@@ -48,80 +50,89 @@ export interface ShellQuotingOptionsDTO {
 	weak?: string;
 }
 
-export interface ShellExecutionOptionsDTO extends ExecutionOptionsDTO {
+export interface IShellExecutionOptionsDTO extends IExecutionOptionsDTO {
 	executable?: string;
 	shellArgs?: string[];
-	shellQuoting?: ShellQuotingOptionsDTO;
+	shellQuoting?: IShellQuotingOptionsDTO;
 }
 
-export interface ShellQuotedStringDTO {
+export interface IShellQuotedStringDTO {
 	value: string;
 	quoting: number;
 }
 
-export interface ShellExecutionDTO {
+export interface IShellExecutionDTO {
 	commandLine?: string;
-	command?: string | ShellQuotedStringDTO;
-	args?: Array<string | ShellQuotedStringDTO>;
-	options?: ShellExecutionOptionsDTO;
+	command?: string | IShellQuotedStringDTO;
+	args?: Array<string | IShellQuotedStringDTO>;
+	options?: IShellExecutionOptionsDTO;
 }
 
-export interface CustomExecutionDTO {
+export interface ICustomExecutionDTO {
 	customExecution: 'customExecution';
 }
 
-export interface TaskSourceDTO {
+export interface ITaskSourceDTO {
 	label: string;
 	extensionId?: string;
 	scope?: number | UriComponents;
+	color?: string;
+	icon?: string;
+	hide?: boolean;
 }
 
-export interface TaskHandleDTO {
+export interface ITaskHandleDTO {
 	id: string;
-	workspaceFolder: UriComponents;
+	workspaceFolder: UriComponents | string;
 }
 
-export interface TaskDTO {
+export interface ITaskGroupDTO {
+	isDefault?: boolean;
+	_id: string;
+}
+
+export interface ITaskDTO {
 	_id: string;
 	name?: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomExecutionDTO | undefined;
-	definition: TaskDefinitionDTO;
+	execution: IProcessExecutionDTO | IShellExecutionDTO | ICustomExecutionDTO | undefined;
+	definition: ITaskDefinitionDTO;
 	isBackground?: boolean;
-	source: TaskSourceDTO;
-	group?: string;
-	presentationOptions?: TaskPresentationOptionsDTO;
+	source: ITaskSourceDTO;
+	group?: ITaskGroupDTO;
+	detail?: string;
+	presentationOptions?: ITaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
-	runOptions?: RunOptionsDTO;
+	runOptions?: IRunOptionsDTO;
 }
 
-export interface TaskSetDTO {
-	tasks: TaskDTO[];
-	extension: IExtensionDescription;
+export interface ITaskSetDTO {
+	tasks: ITaskDTO[];
+	extension: Dto<IExtensionDescription>;
 }
 
-export interface TaskExecutionDTO {
+export interface ITaskExecutionDTO {
 	id: string;
-	task: TaskDTO | undefined;
+	task: ITaskDTO | undefined;
 }
 
-export interface TaskProcessStartedDTO {
+export interface ITaskProcessStartedDTO {
 	id: string;
 	processId: number;
 }
 
-export interface TaskProcessEndedDTO {
+export interface ITaskProcessEndedDTO {
 	id: string;
-	exitCode: number;
+	exitCode: number | undefined;
 }
 
 
-export interface TaskFilterDTO {
+export interface ITaskFilterDTO {
 	version?: string;
 	type?: string;
 }
 
-export interface TaskSystemInfoDTO {
+export interface ITaskSystemInfoDTO {
 	scheme: string;
 	authority: string;
 	platform: string;

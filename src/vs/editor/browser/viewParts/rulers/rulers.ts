@@ -6,17 +6,16 @@
 import 'vs/css!./rulers';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { editorRuler } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { EditorOption, IRulerOption } from 'vs/editor/common/config/editorOptions';
 
 export class Rulers extends ViewPart {
 
 	public domNode: FastDomNode<HTMLElement>;
 	private readonly _renderedRulers: FastDomNode<HTMLElement>[];
-	private _rulers: number[];
+	private _rulers: IRulerOption[];
 	private _typicalHalfwidthCharacterWidth: number;
 
 	constructor(context: ViewContext) {
@@ -26,25 +25,24 @@ export class Rulers extends ViewPart {
 		this.domNode.setAttribute('aria-hidden', 'true');
 		this.domNode.setClassName('view-rulers');
 		this._renderedRulers = [];
-		this._rulers = this._context.configuration.editor.viewInfo.rulers;
-		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		const options = this._context.configuration.options;
+		this._rulers = options.get(EditorOption.rulers);
+		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo || e.layoutInfo || e.fontInfo) {
-			this._rulers = this._context.configuration.editor.viewInfo.rulers;
-			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
-			return true;
-		}
-		return false;
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
+		this._rulers = options.get(EditorOption.rulers);
+		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollHeightChanged;
 	}
 
@@ -64,7 +62,7 @@ export class Rulers extends ViewPart {
 		}
 
 		if (currentCount < desiredCount) {
-			const { tabSize } = this._context.model.getOptions();
+			const { tabSize } = this._context.viewModel.model.getOptions();
 			const rulerWidth = tabSize;
 			let addCount = desiredCount - currentCount;
 			while (addCount > 0) {
@@ -92,16 +90,11 @@ export class Rulers extends ViewPart {
 
 		for (let i = 0, len = this._rulers.length; i < len; i++) {
 			const node = this._renderedRulers[i];
+			const ruler = this._rulers[i];
 
+			node.setBoxShadow(ruler.color ? `1px 0 0 0 ${ruler.color} inset` : ``);
 			node.setHeight(Math.min(ctx.scrollHeight, 1000000));
-			node.setLeft(this._rulers[i] * this._typicalHalfwidthCharacterWidth);
+			node.setLeft(ruler.column * this._typicalHalfwidthCharacterWidth);
 		}
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const rulerColor = theme.getColor(editorRuler);
-	if (rulerColor) {
-		collector.addRule(`.monaco-editor .view-ruler { box-shadow: 1px 0 0 0 ${rulerColor} inset; }`);
-	}
-});

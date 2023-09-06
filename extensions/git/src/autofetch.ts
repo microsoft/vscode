@@ -3,17 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri } from 'vscode';
-import { Repository, Operation } from './repository';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget, Uri, ConfigurationChangeEvent, l10n, env } from 'vscode';
+import { Repository } from './repository';
 import { eventToPromise, filterEvent, onceEvent } from './util';
-import * as nls from 'vscode-nls';
 import { GitErrorCodes } from './api/git';
-
-const localize = nls.loadMessageBundle();
-
-function isRemoteOperation(operation: Operation): boolean {
-	return operation === Operation.Pull || operation === Operation.Push || operation === Operation.Sync || operation === Operation.Fetch;
-}
 
 export class AutoFetcher {
 
@@ -23,6 +16,7 @@ export class AutoFetcher {
 	private onDidChange = this._onDidChange.event;
 
 	private _enabled: boolean = false;
+	private _fetchAll: boolean = false;
 	get enabled(): boolean { return this._enabled; }
 	set enabled(enabled: boolean) { this._enabled = enabled; this._onDidChange.fire(enabled); }
 
@@ -32,7 +26,7 @@ export class AutoFetcher {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
 		this.onConfiguration();
 
-		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && isRemoteOperation(operation));
+		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && operation.remote);
 		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
 		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
 	}
@@ -50,10 +44,10 @@ export class AutoFetcher {
 			return;
 		}
 
-		const yes: MessageItem = { title: localize('yes', "Yes") };
-		const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
-		const askLater: MessageItem = { title: localize('not now', "Ask Me Later") };
-		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like Code to [periodically run 'git fetch']({0})?", 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
+		const yes: MessageItem = { title: l10n.t('Yes') };
+		const no: MessageItem = { isCloseAffordance: true, title: l10n.t('No') };
+		const askLater: MessageItem = { title: l10n.t('Ask Me Later') };
+		const result = await window.showInformationMessage(l10n.t('Would you like {0} to [periodically run "git fetch"]({1})?', env.appName, 'https://go.microsoft.com/fwlink/?linkid=865294'), yes, no, askLater);
 
 		if (result === askLater) {
 			return;
@@ -67,13 +61,26 @@ export class AutoFetcher {
 		this.globalState.update(AutoFetcher.DidInformUser, true);
 	}
 
-	private onConfiguration(): void {
-		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+	private onConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e !== undefined && !e.affectsConfiguration('git.autofetch')) {
+			return;
+		}
 
-		if (gitConfig.get<boolean>('autofetch') === false) {
-			this.disable();
-		} else {
-			this.enable();
+		const gitConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		switch (gitConfig.get<boolean | 'all'>('autofetch')) {
+			case true:
+				this._fetchAll = false;
+				this.enable();
+				break;
+			case 'all':
+				this._fetchAll = true;
+				this.enable();
+				break;
+			case false:
+			default:
+				this._fetchAll = false;
+				this.disable();
+				break;
 		}
 	}
 
@@ -99,7 +106,11 @@ export class AutoFetcher {
 			}
 
 			try {
-				await this.repository.fetchDefault();
+				if (this._fetchAll) {
+					await this.repository.fetchAll({ silent: true });
+				} else {
+					await this.repository.fetchDefault({ silent: true });
+				}
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.AuthenticationFailed) {
 					this.disable();

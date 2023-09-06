@@ -34,30 +34,28 @@
 	animation-name: progress;
 	animation-duration: 4s;
 	animation-iteration-count: infinite;
+	transform: translate3d(0px, 0px, 0px);
 	animation-timing-function: linear;
-	-ms-animation-name: progress;
-	-ms-animation-duration: 4s;
-	-ms-animation-iteration-count: infinite;
-	-ms-animation-timing-function: linear;
-	-webkit-animation-name: progress;
-	-webkit-animation-duration: 4s;
-	-webkit-animation-iteration-count: infinite;
-	-webkit-animation-timing-function: linear;
-	-moz-animation-name: progress;
-	-moz-animation-duration: 4s;
-	-moz-animation-iteration-count: infinite;
-	-moz-animation-timing-function: linear;
-	will-change: transform;
+}
+
+.monaco-progress-container.infinite.infinite-long-running .progress-bit {
+	/*
+		The more smooth `linear` timing function can cause
+		higher GPU consumption as indicated in
+		https://github.com/microsoft/vscode/issues/97900 &
+		https://github.com/microsoft/vscode/issues/138396
+	*/
+	animation-timing-function: steps(100);
 }
 
 /**
  * The progress bit has a width: 2% (1/50) of the parent container. The animation moves it from 0% to 100% of
  * that container. Since translateX is relative to the progress bit size, we have to multiple it with
  * its relative size to the parent container:
- *  50%: 50 * 50 = 2500%
- * 100%: 50 * 100 - 50 (do not overflow): 4950%
+ * parent width: 5000%
+ *    bit width: 100%
+ * translateX should be as follow:
+ *  50%: 5000% * 50% - 50% (set to center) = 2450%
+ * 100%: 5000% * 100% - 100% (do not overflow) = 4900%
  */
-@keyframes progress { from { transform: translateX(0%) scaleX(1) } 50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4950%) scaleX(1) } }
-@-ms-keyframes progress { from { transform: translateX(0%) scaleX(1) }	50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4950%) scaleX(1) } }
-@-webkit-keyframes progress { from { transform: translateX(0%) scaleX(1) }	50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4950%) scaleX(1) } }
-@-moz-keyframes progress { from { transform: translateX(0%) scaleX(1) }	50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4950%) scaleX(1) } }
+@keyframes progress { from { transform: translateX(0%) scaleX(1) } 50% { transform: translateX(2500%) scaleX(3) } to { transform: translateX(4900%) scaleX(1) } }

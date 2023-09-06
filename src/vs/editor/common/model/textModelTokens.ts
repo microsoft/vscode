@@ -3,505 +3,553 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IdleDeadline, runWhenIdle } from 'vs/base/common/async';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
+import { setTimeout0 } from 'vs/base/common/platform';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { ITextBuffer } from 'vs/editor/common/model';
-import { IModelTokensChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { ColorId, FontStyle, IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
-import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport } from 'vs/editor/common/languages';
+import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
+import { ITextModel } from 'vs/editor/common/model';
+import { FixedArray } from 'vs/editor/common/model/fixedArray';
+import { IModelContentChange } from 'vs/editor/common/textModelEvents';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
-function getDefaultMetadata(topLevelLanguageId: LanguageId): number {
-	return (
-		(topLevelLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
-		| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
-		| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
-	) >>> 0;
+const enum Constants {
+	CHEAP_TOKENIZATION_LENGTH_LIMIT = 2048
 }
 
-const EMPTY_LINE_TOKENS = (new Uint32Array(0)).buffer;
+export class TokenizerWithStateStore<TState extends IState = IState> {
+	private readonly initialState = this.tokenizationSupport.getInitialState() as TState;
 
-class ModelLineTokens {
-	_state: IState | null;
-	_lineTokens: ArrayBuffer | null;
-	_invalid: boolean;
+	public readonly store: TrackingTokenizationStateStore<TState>;
 
-	constructor(state: IState | null) {
-		this._state = state;
-		this._lineTokens = null;
-		this._invalid = true;
+	constructor(
+		lineCount: number,
+		public readonly tokenizationSupport: ITokenizationSupport
+	) {
+		this.store = new TrackingTokenizationStateStore<TState>(lineCount);
 	}
 
-	public deleteBeginning(toChIndex: number): void {
-		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS) {
-			return;
-		}
-		this.delete(0, toChIndex);
+	public getStartState(lineNumber: number): TState | null {
+		return this.store.getStartState(lineNumber, this.initialState);
 	}
 
-	public deleteEnding(fromChIndex: number): void {
-		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS) {
-			return;
-		}
-
-		const tokens = new Uint32Array(this._lineTokens);
-		const lineTextLength = tokens[tokens.length - 2];
-		this.delete(fromChIndex, lineTextLength);
-	}
-
-	public delete(fromChIndex: number, toChIndex: number): void {
-		if (this._lineTokens === null || this._lineTokens === EMPTY_LINE_TOKENS || fromChIndex === toChIndex) {
-			return;
-		}
-
-		const tokens = new Uint32Array(this._lineTokens);
-		const tokensCount = (tokens.length >>> 1);
-
-		// special case: deleting everything
-		if (fromChIndex === 0 && tokens[tokens.length - 2] === toChIndex) {
-			this._lineTokens = EMPTY_LINE_TOKENS;
-			return;
-		}
-
-		const fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, fromChIndex);
-		const fromTokenStartOffset = (fromTokenIndex > 0 ? tokens[(fromTokenIndex - 1) << 1] : 0);
-		const fromTokenEndOffset = tokens[fromTokenIndex << 1];
-
-		if (toChIndex < fromTokenEndOffset) {
-			// the delete range is inside a single token
-			const delta = (toChIndex - fromChIndex);
-			for (let i = fromTokenIndex; i < tokensCount; i++) {
-				tokens[i << 1] -= delta;
-			}
-			return;
-		}
-
-		let dest: number;
-		let lastEnd: number;
-		if (fromTokenStartOffset !== fromChIndex) {
-			tokens[fromTokenIndex << 1] = fromChIndex;
-			dest = ((fromTokenIndex + 1) << 1);
-			lastEnd = fromChIndex;
-		} else {
-			dest = (fromTokenIndex << 1);
-			lastEnd = fromTokenStartOffset;
-		}
-
-		const delta = (toChIndex - fromChIndex);
-		for (let tokenIndex = fromTokenIndex + 1; tokenIndex < tokensCount; tokenIndex++) {
-			const tokenEndOffset = tokens[tokenIndex << 1] - delta;
-			if (tokenEndOffset > lastEnd) {
-				tokens[dest++] = tokenEndOffset;
-				tokens[dest++] = tokens[(tokenIndex << 1) + 1];
-				lastEnd = tokenEndOffset;
-			}
-		}
-
-		if (dest === tokens.length) {
-			// nothing to trim
-			return;
-		}
-
-		let tmp = new Uint32Array(dest);
-		tmp.set(tokens.subarray(0, dest), 0);
-		this._lineTokens = tmp.buffer;
-	}
-
-	public append(_otherTokens: ArrayBuffer | null): void {
-		if (_otherTokens === EMPTY_LINE_TOKENS) {
-			return;
-		}
-		if (this._lineTokens === EMPTY_LINE_TOKENS) {
-			this._lineTokens = _otherTokens;
-			return;
-		}
-		if (this._lineTokens === null) {
-			return;
-		}
-		if (_otherTokens === null) {
-			// cannot determine combined line length...
-			this._lineTokens = null;
-			return;
-		}
-		const myTokens = new Uint32Array(this._lineTokens);
-		const otherTokens = new Uint32Array(_otherTokens);
-		const otherTokensCount = (otherTokens.length >>> 1);
-
-		let result = new Uint32Array(myTokens.length + otherTokens.length);
-		result.set(myTokens, 0);
-		let dest = myTokens.length;
-		const delta = myTokens[myTokens.length - 2];
-		for (let i = 0; i < otherTokensCount; i++) {
-			result[dest++] = otherTokens[(i << 1)] + delta;
-			result[dest++] = otherTokens[(i << 1) + 1];
-		}
-		this._lineTokens = result.buffer;
-	}
-
-	public insert(chIndex: number, textLength: number): void {
-		if (!this._lineTokens) {
-			// nothing to do
-			return;
-		}
-
-		const tokens = new Uint32Array(this._lineTokens);
-		const tokensCount = (tokens.length >>> 1);
-
-		let fromTokenIndex = LineTokens.findIndexInTokensArray(tokens, chIndex);
-		if (fromTokenIndex > 0) {
-			const fromTokenStartOffset = tokens[(fromTokenIndex - 1) << 1];
-			if (fromTokenStartOffset === chIndex) {
-				fromTokenIndex--;
-			}
-		}
-		for (let tokenIndex = fromTokenIndex; tokenIndex < tokensCount; tokenIndex++) {
-			tokens[tokenIndex << 1] += textLength;
-		}
+	public getFirstInvalidLine(): { lineNumber: number; startState: TState } | null {
+		return this.store.getFirstInvalidLine(this.initialState);
 	}
 }
 
-export class ModelLinesTokens {
-
-	public readonly languageIdentifier: LanguageIdentifier;
-	public readonly tokenizationSupport: ITokenizationSupport | null;
-	private _tokens: ModelLineTokens[];
-	private _invalidLineStartIndex: number;
-	private _lastState: IState | null;
-
-	constructor(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null) {
-		this.languageIdentifier = languageIdentifier;
-		this.tokenizationSupport = tokenizationSupport;
-		this._tokens = [];
-		if (this.tokenizationSupport) {
-			let initialState: IState | null = null;
-			try {
-				initialState = this.tokenizationSupport.getInitialState();
-			} catch (e) {
-				onUnexpectedError(e);
-				this.tokenizationSupport = null;
-			}
-
-			if (initialState) {
-				this._tokens[0] = new ModelLineTokens(initialState);
-			}
-		}
-
-		this._invalidLineStartIndex = 0;
-		this._lastState = null;
+export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState> extends TokenizerWithStateStore<TState> {
+	constructor(
+		lineCount: number,
+		tokenizationSupport: ITokenizationSupport,
+		public readonly _textModel: ITextModel,
+		public readonly _languageIdCodec: ILanguageIdCodec
+	) {
+		super(lineCount, tokenizationSupport);
 	}
 
-	public get inValidLineStartIndex() {
-		return this._invalidLineStartIndex;
+	public updateTokensUntilLine(builder: ContiguousMultilineTokensBuilder, lineNumber: number): void {
+		const languageId = this._textModel.getLanguageId();
+
+		while (true) {
+			const lineToTokenize = this.getFirstInvalidLine();
+			if (!lineToTokenize || lineToTokenize.lineNumber > lineNumber) {
+				break;
+			}
+
+			const text = this._textModel.getLineContent(lineToTokenize.lineNumber);
+
+			const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, text, true, lineToTokenize.startState);
+			builder.add(lineToTokenize.lineNumber, r.tokens);
+			this.store.setEndState(lineToTokenize.lineNumber, r.endState as TState);
+		}
 	}
 
-	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
-		let rawLineTokens: ArrayBuffer | null = null;
-		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			rawLineTokens = this._tokens[lineIndex]._lineTokens;
+	/** assumes state is up to date */
+	public getTokenTypeIfInsertingCharacter(position: Position, character: string): StandardTokenType {
+		// TODO@hediet: use tokenizeLineWithEdit
+		const lineStartState = this.getStartState(position.lineNumber);
+		if (!lineStartState) {
+			return StandardTokenType.Other;
 		}
 
-		if (rawLineTokens !== null && rawLineTokens !== EMPTY_LINE_TOKENS) {
-			return new LineTokens(new Uint32Array(rawLineTokens), lineText);
+		const languageId = this._textModel.getLanguageId();
+		const lineContent = this._textModel.getLineContent(position.lineNumber);
+
+		// Create the text as if `character` was inserted
+		const text = (
+			lineContent.substring(0, position.column - 1)
+			+ character
+			+ lineContent.substring(position.column - 1)
+		);
+
+		const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, text, true, lineStartState);
+		const lineTokens = new LineTokens(r.tokens, text, this._languageIdCodec);
+		if (lineTokens.getCount() === 0) {
+			return StandardTokenType.Other;
 		}
 
-		let lineTokens = new Uint32Array(2);
-		lineTokens[0] = lineText.length;
-		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
-		return new LineTokens(lineTokens, lineText);
+		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+		return lineTokens.getStandardTokenType(tokenIndex);
+	}
+
+	/** assumes state is up to date */
+	public tokenizeLineWithEdit(position: Position, length: number, newText: string): LineTokens | null {
+		const lineNumber = position.lineNumber;
+		const column = position.column;
+
+		const lineStartState = this.getStartState(lineNumber);
+		if (!lineStartState) {
+			return null;
+		}
+
+		const curLineContent = this._textModel.getLineContent(lineNumber);
+		const newLineContent = curLineContent.substring(0, column - 1)
+			+ newText + curLineContent.substring(column - 1 + length);
+
+		const languageId = this._textModel.getLanguageIdAtPosition(lineNumber, 0);
+		const result = safeTokenize(
+			this._languageIdCodec,
+			languageId,
+			this.tokenizationSupport,
+			newLineContent,
+			true,
+			lineStartState
+		);
+
+		const lineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
+		return lineTokens;
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
-		const firstInvalidLineNumber = this._invalidLineStartIndex + 1;
-		return (firstInvalidLineNumber >= lineNumber);
-	}
-
-	public hasLinesToTokenize(buffer: ITextBuffer): boolean {
-		return (this._invalidLineStartIndex < buffer.getLineCount());
-	}
-
-	public invalidateLine(lineIndex: number): void {
-		this._setIsInvalid(lineIndex, true);
-		if (lineIndex < this._invalidLineStartIndex) {
-			this._setIsInvalid(this._invalidLineStartIndex, true);
-			this._invalidLineStartIndex = lineIndex;
+		const firstInvalidLineNumber = this.store.getFirstInvalidEndStateLineNumberOrMax();
+		if (lineNumber < firstInvalidLineNumber) {
+			return true;
 		}
-	}
-
-	_setIsInvalid(lineIndex: number, invalid: boolean): void {
-		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			this._tokens[lineIndex]._invalid = invalid;
-		}
-	}
-
-	_isInvalid(lineIndex: number): boolean {
-		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			return this._tokens[lineIndex]._invalid;
-		}
-		return true;
-	}
-
-	_getState(lineIndex: number): IState | null {
-		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			return this._tokens[lineIndex]._state;
-		}
-		return null;
-	}
-
-	_setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, tokens: Uint32Array): void {
-		let target: ModelLineTokens;
-		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			target = this._tokens[lineIndex];
-		} else {
-			target = new ModelLineTokens(null);
-			this._tokens[lineIndex] = target;
+		if (lineNumber === firstInvalidLineNumber
+			&& this._textModel.getLineLength(lineNumber) < Constants.CHEAP_TOKENIZATION_LENGTH_LIMIT) {
+			return true;
 		}
 
-		if (lineTextLength === 0) {
-			let hasDifferentLanguageId = false;
-			if (tokens && tokens.length > 1) {
-				hasDifferentLanguageId = (TokenMetadata.getLanguageId(tokens[1]) !== topLevelLanguageId);
+		return false;
+	}
+
+	/**
+	 * The result is not cached.
+	 */
+	public tokenizeHeuristically(builder: ContiguousMultilineTokensBuilder, startLineNumber: number, endLineNumber: number): { heuristicTokens: boolean } {
+		if (endLineNumber <= this.store.getFirstInvalidEndStateLineNumberOrMax()) {
+			// nothing to do
+			return { heuristicTokens: false };
+		}
+
+		if (startLineNumber <= this.store.getFirstInvalidEndStateLineNumberOrMax()) {
+			// tokenization has reached the viewport start...
+			this.updateTokensUntilLine(builder, endLineNumber);
+			return { heuristicTokens: false };
+		}
+
+		let state = this.guessStartState(startLineNumber);
+		const languageId = this._textModel.getLanguageId();
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			const text = this._textModel.getLineContent(lineNumber);
+			const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, text, true, state);
+			builder.add(lineNumber, r.tokens);
+			state = r.endState;
+		}
+
+		return { heuristicTokens: true };
+	}
+
+	private guessStartState(lineNumber: number): IState {
+		let nonWhitespaceColumn = this._textModel.getLineFirstNonWhitespaceColumn(lineNumber);
+		const likelyRelevantLines: string[] = [];
+		let initialState: IState | null = null;
+		for (let i = lineNumber - 1; nonWhitespaceColumn > 1 && i >= 1; i--) {
+			const newNonWhitespaceIndex = this._textModel.getLineFirstNonWhitespaceColumn(i);
+			// Ignore lines full of whitespace
+			if (newNonWhitespaceIndex === 0) {
+				continue;
 			}
-
-			if (!hasDifferentLanguageId) {
-				target._lineTokens = EMPTY_LINE_TOKENS;
-				return;
-			}
-		}
-
-		if (!tokens || tokens.length === 0) {
-			tokens = new Uint32Array(2);
-			tokens[0] = 0;
-			tokens[1] = getDefaultMetadata(topLevelLanguageId);
-		}
-
-		LineTokens.convertToEndOffset(tokens, lineTextLength);
-
-		target._lineTokens = tokens.buffer;
-	}
-
-	_setState(lineIndex: number, state: IState): void {
-		if (lineIndex < this._tokens.length && this._tokens[lineIndex]) {
-			this._tokens[lineIndex]._state = state;
-		} else {
-			const tmp = new ModelLineTokens(state);
-			this._tokens[lineIndex] = tmp;
-		}
-	}
-
-	//#region Editing
-
-	public applyEdits(range: Range, eolCount: number, firstLineLength: number): void {
-
-		const deletingLinesCnt = range.endLineNumber - range.startLineNumber;
-		const insertingLinesCnt = eolCount;
-		const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
-
-		for (let j = editingLinesCnt; j >= 0; j--) {
-			this.invalidateLine(range.startLineNumber + j - 1);
-		}
-
-		this._acceptDeleteRange(range);
-		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
-	}
-
-	private _acceptDeleteRange(range: Range): void {
-
-		const firstLineIndex = range.startLineNumber - 1;
-		if (firstLineIndex >= this._tokens.length) {
-			return;
-		}
-
-		if (range.startLineNumber === range.endLineNumber) {
-			if (range.startColumn === range.endColumn) {
-				// Nothing to delete
-				return;
-			}
-
-			this._tokens[firstLineIndex].delete(range.startColumn - 1, range.endColumn - 1);
-			return;
-		}
-
-		const firstLine = this._tokens[firstLineIndex];
-		firstLine.deleteEnding(range.startColumn - 1);
-
-		const lastLineIndex = range.endLineNumber - 1;
-		let lastLineTokens: ArrayBuffer | null = null;
-		if (lastLineIndex < this._tokens.length) {
-			const lastLine = this._tokens[lastLineIndex];
-			lastLine.deleteBeginning(range.endColumn - 1);
-			lastLineTokens = lastLine._lineTokens;
-		}
-
-		// Take remaining text on last line and append it to remaining text on first line
-		firstLine.append(lastLineTokens);
-
-		// Delete middle lines
-		this._tokens.splice(range.startLineNumber, range.endLineNumber - range.startLineNumber);
-	}
-
-	private _acceptInsertText(position: Position, eolCount: number, firstLineLength: number): void {
-
-		if (eolCount === 0 && firstLineLength === 0) {
-			// Nothing to insert
-			return;
-		}
-
-		const lineIndex = position.lineNumber - 1;
-		if (lineIndex >= this._tokens.length) {
-			return;
-		}
-
-		if (eolCount === 0) {
-			// Inserting text on one line
-			this._tokens[lineIndex].insert(position.column - 1, firstLineLength);
-			return;
-		}
-
-		const line = this._tokens[lineIndex];
-		line.deleteEnding(position.column - 1);
-		line.insert(position.column - 1, firstLineLength);
-
-		let insert: ModelLineTokens[] = new Array<ModelLineTokens>(eolCount);
-		for (let i = eolCount - 1; i >= 0; i--) {
-			insert[i] = new ModelLineTokens(null);
-		}
-		this._tokens = arrays.arrayInsert(this._tokens, position.lineNumber, insert);
-	}
-
-	//#endregion
-
-	//#region Tokenization
-
-	public _tokenizeOneLine(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder): number {
-		if (!this.hasLinesToTokenize(buffer)) {
-			return buffer.getLineCount() + 1;
-		}
-		const lineNumber = this._invalidLineStartIndex + 1;
-		this._updateTokensUntilLine(buffer, eventBuilder, lineNumber);
-		return lineNumber;
-	}
-
-	public _tokenizeText(buffer: ITextBuffer, text: string, state: IState): TokenizationResult2 {
-		let r: TokenizationResult2 | null = null;
-
-		if (this.tokenizationSupport) {
-			try {
-				r = this.tokenizationSupport.tokenize2(text, state, 0);
-			} catch (e) {
-				onUnexpectedError(e);
+			if (newNonWhitespaceIndex < nonWhitespaceColumn) {
+				likelyRelevantLines.push(this._textModel.getLineContent(i));
+				nonWhitespaceColumn = newNonWhitespaceIndex;
+				initialState = this.getStartState(i);
+				if (initialState) {
+					break;
+				}
 			}
 		}
 
-		if (!r) {
-			r = nullTokenize2(this.languageIdentifier.id, text, state, 0);
+		if (!initialState) {
+			initialState = this.tokenizationSupport.getInitialState();
 		}
+		likelyRelevantLines.reverse();
+
+		const languageId = this._textModel.getLanguageId();
+		let state = initialState;
+		for (const line of likelyRelevantLines) {
+			const r = safeTokenize(this._languageIdCodec, languageId, this.tokenizationSupport, line, false, state);
+			state = r.endState;
+		}
+		return state;
+	}
+}
+
+/**
+ * **Invariant:**
+ * If the text model is retokenized from line 1 to {@link getFirstInvalidEndStateLineNumber}() - 1,
+ * then the recomputed end state for line l will be equal to {@link getEndState}(l).
+ */
+export class TrackingTokenizationStateStore<TState extends IState> {
+	private readonly _tokenizationStateStore = new TokenizationStateStore<TState>();
+	private readonly _invalidEndStatesLineNumbers = new RangePriorityQueueImpl();
+
+	constructor(private lineCount: number) {
+		this._invalidEndStatesLineNumbers.addRange(new OffsetRange(1, lineCount + 1));
+	}
+
+	public getEndState(lineNumber: number): TState | null {
+		return this._tokenizationStateStore.getEndState(lineNumber);
+	}
+
+	/**
+	 * @returns if the end state has changed.
+	 */
+	public setEndState(lineNumber: number, state: TState): boolean {
+		if (!state) {
+			throw new BugIndicatingError('Cannot set null/undefined state');
+		}
+
+		this._invalidEndStatesLineNumbers.delete(lineNumber);
+		const r = this._tokenizationStateStore.setEndState(lineNumber, state);
+		if (r && lineNumber < this.lineCount) {
+			// because the state changed, we cannot trust the next state anymore and have to invalidate it.
+			this._invalidEndStatesLineNumbers.addRange(new OffsetRange(lineNumber + 1, lineNumber + 2));
+		}
+
 		return r;
 	}
 
-	public _updateTokensUntilLine(buffer: ITextBuffer, eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
-		if (!this.tokenizationSupport) {
-			this._invalidLineStartIndex = buffer.getLineCount();
-			return;
-		}
-
-		const linesLength = buffer.getLineCount();
-		const endLineIndex = lineNumber - 1;
-
-		// Validate all states up to and including endLineIndex
-		for (let lineIndex = this._invalidLineStartIndex; lineIndex <= endLineIndex; lineIndex++) {
-			const endStateIndex = lineIndex + 1;
-			const text = buffer.getLineContent(lineIndex + 1);
-			const lineStartState = this._getState(lineIndex);
-
-			let r: TokenizationResult2 | null = null;
-
-			try {
-				// Tokenize only the first X characters
-				let freshState = lineStartState!.clone();
-				r = this.tokenizationSupport.tokenize2(text, freshState, 0);
-			} catch (e) {
-				onUnexpectedError(e);
-			}
-
-			if (!r) {
-				r = nullTokenize2(this.languageIdentifier.id, text, lineStartState, 0);
-			}
-			this._setTokens(this.languageIdentifier.id, lineIndex, text.length, r.tokens);
-			eventBuilder.registerChangedTokens(lineIndex + 1);
-			this._setIsInvalid(lineIndex, false);
-
-			if (endStateIndex < linesLength) {
-				const previousEndState = this._getState(endStateIndex);
-				if (previousEndState !== null && r.endState.equals(previousEndState)) {
-					// The end state of this line remains the same
-					let nextInvalidLineIndex = lineIndex + 1;
-					while (nextInvalidLineIndex < linesLength) {
-						if (this._isInvalid(nextInvalidLineIndex)) {
-							break;
-						}
-						if (nextInvalidLineIndex + 1 < linesLength) {
-							if (this._getState(nextInvalidLineIndex + 1) === null) {
-								break;
-							}
-						} else {
-							if (this._lastState === null) {
-								break;
-							}
-						}
-						nextInvalidLineIndex++;
-					}
-					this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, nextInvalidLineIndex);
-					lineIndex = nextInvalidLineIndex - 1; // -1 because the outer loop increments it
-				} else {
-					this._setState(endStateIndex, r.endState);
-				}
-			} else {
-				this._lastState = r.endState;
-			}
-		}
-		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
+	public acceptChange(range: LineRange, newLineCount: number): void {
+		this.lineCount += newLineCount - range.length;
+		this._tokenizationStateStore.acceptChange(range, newLineCount);
+		this._invalidEndStatesLineNumbers.addRangeAndResize(new OffsetRange(range.startLineNumber, range.endLineNumberExclusive), newLineCount);
 	}
 
-	// #endregion
+	public acceptChanges(changes: IModelContentChange[]) {
+		for (const c of changes) {
+			const [eolCount] = countEOL(c.text);
+			this.acceptChange(new LineRange(c.range.startLineNumber, c.range.endLineNumber + 1), eolCount + 1);
+		}
+	}
+
+	public invalidateEndStateRange(range: LineRange): void {
+		this._invalidEndStatesLineNumbers.addRange(new OffsetRange(range.startLineNumber, range.endLineNumberExclusive));
+	}
+
+	public getFirstInvalidEndStateLineNumber(): number | null { return this._invalidEndStatesLineNumbers.min; }
+
+	public getFirstInvalidEndStateLineNumberOrMax(): number {
+		return this.getFirstInvalidEndStateLineNumber() || Number.MAX_SAFE_INTEGER;
+	}
+
+	public allStatesValid(): boolean { return this._invalidEndStatesLineNumbers.min === null; }
+
+	public getStartState(lineNumber: number, initialState: TState): TState | null {
+		if (lineNumber === 1) { return initialState; }
+		return this.getEndState(lineNumber - 1);
+	}
+
+	public getFirstInvalidLine(initialState: TState): { lineNumber: number; startState: TState } | null {
+		const lineNumber = this.getFirstInvalidEndStateLineNumber();
+		if (lineNumber === null) {
+			return null;
+		}
+		const startState = this.getStartState(lineNumber, initialState);
+		if (!startState) {
+			throw new BugIndicatingError('Start state must be defined');
+		}
+
+		return { lineNumber, startState };
+	}
 }
 
-export class ModelTokensChangedEventBuilder {
+export class TokenizationStateStore<TState extends IState> {
+	private readonly _lineEndStates = new FixedArray<TState | null>(null);
 
-	private readonly _ranges: { fromLineNumber: number; toLineNumber: number; }[];
-
-	constructor() {
-		this._ranges = [];
+	public getEndState(lineNumber: number): TState | null {
+		return this._lineEndStates.get(lineNumber);
 	}
 
-	public registerChangedTokens(lineNumber: number): void {
-		const ranges = this._ranges;
-		const rangesLength = ranges.length;
-		const previousRange = rangesLength > 0 ? ranges[rangesLength - 1] : null;
+	public setEndState(lineNumber: number, state: TState): boolean {
+		const oldState = this._lineEndStates.get(lineNumber);
+		if (oldState && oldState.equals(state)) {
+			return false;
+		}
 
-		if (previousRange && previousRange.toLineNumber === lineNumber - 1) {
-			// extend previous range
-			previousRange.toLineNumber++;
-		} else {
-			// insert new range
-			ranges[rangesLength] = {
-				fromLineNumber: lineNumber,
-				toLineNumber: lineNumber
-			};
+		this._lineEndStates.set(lineNumber, state);
+		return true;
+	}
+
+	public acceptChange(range: LineRange, newLineCount: number): void {
+		let length = range.length;
+		if (newLineCount > 0 && length > 0) {
+			// Keep the last state, even though it is unrelated.
+			// But if the new state happens to agree with this last state, then we know we can stop tokenizing.
+			length--;
+			newLineCount--;
+		}
+
+		this._lineEndStates.replace(range.startLineNumber, length, newLineCount);
+	}
+
+	public acceptChanges(changes: IModelContentChange[]) {
+		for (const c of changes) {
+			const [eolCount] = countEOL(c.text);
+			this.acceptChange(new LineRange(c.range.startLineNumber, c.range.endLineNumber + 1), eolCount + 1);
 		}
 	}
+}
 
-	public build(): IModelTokensChangedEvent | null {
+interface RangePriorityQueue {
+	get min(): number | null;
+	removeMin(): number | null;
+
+	addRange(range: OffsetRange): void;
+
+	addRangeAndResize(range: OffsetRange, newLength: number): void;
+}
+
+export class RangePriorityQueueImpl implements RangePriorityQueue {
+	private readonly _ranges: OffsetRange[] = [];
+
+	public getRanges(): OffsetRange[] {
+		return this._ranges;
+	}
+
+	public get min(): number | null {
 		if (this._ranges.length === 0) {
 			return null;
 		}
-		return {
-			tokenizationSupportChanged: false,
-			ranges: this._ranges
+		return this._ranges[0].start;
+	}
+
+	public removeMin(): number | null {
+		if (this._ranges.length === 0) {
+			return null;
+		}
+		const range = this._ranges[0];
+		if (range.start + 1 === range.endExclusive) {
+			this._ranges.shift();
+		} else {
+			this._ranges[0] = new OffsetRange(range.start + 1, range.endExclusive);
+		}
+		return range.start;
+	}
+
+	public delete(value: number): void {
+		const idx = this._ranges.findIndex(r => r.contains(value));
+		if (idx !== -1) {
+			const range = this._ranges[idx];
+			if (range.start === value) {
+				if (range.endExclusive === value + 1) {
+					this._ranges.splice(idx, 1);
+				} else {
+					this._ranges[idx] = new OffsetRange(value + 1, range.endExclusive);
+				}
+			} else {
+				if (range.endExclusive === value + 1) {
+					this._ranges[idx] = new OffsetRange(range.start, value);
+				} else {
+					this._ranges.splice(idx, 1, new OffsetRange(range.start, value), new OffsetRange(value + 1, range.endExclusive));
+				}
+			}
+		}
+	}
+
+	public addRange(range: OffsetRange): void {
+		OffsetRange.addRange(range, this._ranges);
+	}
+
+	public addRangeAndResize(range: OffsetRange, newLength: number): void {
+		let idxFirstMightBeIntersecting = 0;
+		while (!(idxFirstMightBeIntersecting >= this._ranges.length || range.start <= this._ranges[idxFirstMightBeIntersecting].endExclusive)) {
+			idxFirstMightBeIntersecting++;
+		}
+		let idxFirstIsAfter = idxFirstMightBeIntersecting;
+		while (!(idxFirstIsAfter >= this._ranges.length || range.endExclusive < this._ranges[idxFirstIsAfter].start)) {
+			idxFirstIsAfter++;
+		}
+		const delta = newLength - range.length;
+
+		for (let i = idxFirstIsAfter; i < this._ranges.length; i++) {
+			this._ranges[i] = this._ranges[i].delta(delta);
+		}
+
+		if (idxFirstMightBeIntersecting === idxFirstIsAfter) {
+			const newRange = new OffsetRange(range.start, range.start + newLength);
+			if (!newRange.isEmpty) {
+				this._ranges.splice(idxFirstMightBeIntersecting, 0, newRange);
+			}
+		} else {
+			const start = Math.min(range.start, this._ranges[idxFirstMightBeIntersecting].start);
+			const endEx = Math.max(range.endExclusive, this._ranges[idxFirstIsAfter - 1].endExclusive);
+
+			const newRange = new OffsetRange(start, endEx + delta);
+			if (!newRange.isEmpty) {
+				this._ranges.splice(idxFirstMightBeIntersecting, idxFirstIsAfter - idxFirstMightBeIntersecting, newRange);
+			} else {
+				this._ranges.splice(idxFirstMightBeIntersecting, idxFirstIsAfter - idxFirstMightBeIntersecting);
+			}
+		}
+	}
+
+	toString() {
+		return this._ranges.map(r => r.toString()).join(' + ');
+	}
+}
+
+
+function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
+	let r: EncodedTokenizationResult | null = null;
+
+	if (tokenizationSupport) {
+		try {
+			r = tokenizationSupport.tokenizeEncoded(text, hasEOL, state.clone());
+		} catch (e) {
+			onUnexpectedError(e);
+		}
+	}
+
+	if (!r) {
+		r = nullTokenizeEncoded(languageIdCodec.encodeLanguageId(languageId), state);
+	}
+
+	LineTokens.convertToEndOffset(r.tokens, text.length);
+	return r;
+}
+
+export class DefaultBackgroundTokenizer implements IBackgroundTokenizer {
+	private _isDisposed = false;
+
+	constructor(
+		private readonly _tokenizerWithStateStore: TokenizerWithStateStoreAndTextModel,
+		private readonly _backgroundTokenStore: IBackgroundTokenizationStore,
+	) {
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
+	}
+
+	public handleChanges(): void {
+		this._beginBackgroundTokenization();
+	}
+
+	private _isScheduled = false;
+	private _beginBackgroundTokenization(): void {
+		if (this._isScheduled || !this._tokenizerWithStateStore._textModel.isAttachedToEditor() || !this._hasLinesToTokenize()) {
+			return;
+		}
+
+		this._isScheduled = true;
+		runWhenIdle((deadline) => {
+			this._isScheduled = false;
+
+			this._backgroundTokenizeWithDeadline(deadline);
+		});
+	}
+
+	/**
+	 * Tokenize until the deadline occurs, but try to yield every 1-2ms.
+	 */
+	private _backgroundTokenizeWithDeadline(deadline: IdleDeadline): void {
+		// Read the time remaining from the `deadline` immediately because it is unclear
+		// if the `deadline` object will be valid after execution leaves this function.
+		const endTime = Date.now() + deadline.timeRemaining();
+
+		const execute = () => {
+			if (this._isDisposed || !this._tokenizerWithStateStore._textModel.isAttachedToEditor() || !this._hasLinesToTokenize()) {
+				// disposed in the meantime or detached or finished
+				return;
+			}
+
+			this._backgroundTokenizeForAtLeast1ms();
+
+			if (Date.now() < endTime) {
+				// There is still time before reaching the deadline, so yield to the browser and then
+				// continue execution
+				setTimeout0(execute);
+			} else {
+				// The deadline has been reached, so schedule a new idle callback if necessary
+				this._beginBackgroundTokenization();
+			}
 		};
+		execute();
+	}
+
+	/**
+	 * Tokenize for at least 1ms.
+	 */
+	private _backgroundTokenizeForAtLeast1ms(): void {
+		const lineCount = this._tokenizerWithStateStore._textModel.getLineCount();
+		const builder = new ContiguousMultilineTokensBuilder();
+		const sw = StopWatch.create(false);
+
+		do {
+			if (sw.elapsed() > 1) {
+				// the comparison is intentionally > 1 and not >= 1 to ensure that
+				// a full millisecond has elapsed, given how microseconds are rounded
+				// to milliseconds
+				break;
+			}
+
+			const tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
+
+			if (tokenizedLineNumber >= lineCount) {
+				break;
+			}
+		} while (this._hasLinesToTokenize());
+
+		this._backgroundTokenStore.setTokens(builder.finalize());
+		this.checkFinished();
+	}
+
+	private _hasLinesToTokenize(): boolean {
+		if (!this._tokenizerWithStateStore) {
+			return false;
+		}
+		return !this._tokenizerWithStateStore.store.allStatesValid();
+	}
+
+	private _tokenizeOneInvalidLine(builder: ContiguousMultilineTokensBuilder): number {
+		const firstInvalidLine = this._tokenizerWithStateStore?.getFirstInvalidLine();
+		if (!firstInvalidLine) {
+			return this._tokenizerWithStateStore._textModel.getLineCount() + 1;
+		}
+		this._tokenizerWithStateStore.updateTokensUntilLine(builder, firstInvalidLine.lineNumber);
+		return firstInvalidLine.lineNumber;
+	}
+
+	public checkFinished(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		if (this._tokenizerWithStateStore.store.allStatesValid()) {
+			this._backgroundTokenStore.backgroundTokenizationFinished();
+		}
+	}
+
+	public requestTokens(startLineNumber: number, endLineNumberExclusive: number): void {
+		this._tokenizerWithStateStore.store.invalidateEndStateRange(new LineRange(startLineNumber, endLineNumberExclusive));
 	}
 }

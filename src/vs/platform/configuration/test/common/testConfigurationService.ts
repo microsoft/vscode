@@ -3,16 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TernarySearchTree } from 'vs/base/common/map';
+import { Emitter } from 'vs/base/common/event';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationValue, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class TestConfigurationService implements IConfigurationService {
-	public _serviceBrand: any;
+	public _serviceBrand: undefined;
 
-	private configuration = Object.create(null);
+	private configuration: any;
+	readonly onDidChangeConfigurationEmitter = new Emitter<IConfigurationChangeEvent>();
+	readonly onDidChangeConfiguration = this.onDidChangeConfigurationEmitter.event;
 
-	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
+	constructor(configuration?: any) {
+		this.configuration = configuration || Object.create(null);
+	}
+
+	private configurationByRoot: TernarySearchTree<string, any> = TernarySearchTree.forPaths<any>();
 
 	public reloadConfiguration<T>(): Promise<T> {
 		return Promise.resolve(this.getValue());
@@ -28,12 +37,12 @@ export class TestConfigurationService implements IConfigurationService {
 		}
 		configuration = configuration ? configuration : this.configuration;
 		if (arg1 && typeof arg1 === 'string') {
-			return getConfigurationValue(configuration, arg1);
+			return configuration[arg1] ?? getConfigurationValue(configuration, arg1);
 		}
 		return configuration;
 	}
 
-	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
+	public updateValue(key: string, value: any): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 
@@ -49,33 +58,25 @@ export class TestConfigurationService implements IConfigurationService {
 		return Promise.resolve(undefined);
 	}
 
-	public onDidChangeConfiguration() {
-		return { dispose() { } };
+	private overrideIdentifiers: Map<string, string[]> = new Map();
+	public setOverrideIdentifiers(key: string, identifiers: string[]): void {
+		this.overrideIdentifiers.set(key, identifiers);
 	}
 
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		userLocal?: T,
-		userRemote?: T,
-		workspace?: T,
-		workspaceFolder?: T
-		value: T,
-	} {
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),
-			default: getConfigurationValue<T>(config, key),
-			user: getConfigurationValue<T>(config, key),
-			workspace: undefined,
-			workspaceFolder: undefined
+			defaultValue: getConfigurationValue<T>(config, key),
+			userValue: getConfigurationValue<T>(config, key),
+			overrideIdentifiers: this.overrideIdentifiers.get(key)
 		};
 	}
 
 	public keys() {
 		return {
-			default: getConfigurationKeys(),
+			default: Object.keys(Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()),
 			user: Object.keys(this.configuration),
 			workspace: [],
 			workspaceFolder: []

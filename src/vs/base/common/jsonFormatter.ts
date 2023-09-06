@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createScanner, SyntaxKind, ScanError } from './json';
+import { createScanner, ScanError, SyntaxKind } from './json';
 
 export interface FormattingOptions {
 	/**
@@ -202,6 +202,19 @@ export function format(documentText: string, range: Range | undefined, options: 
 	return editOperations;
 }
 
+/**
+ * Creates a formatted string out of the object passed as argument, using the given formatting options
+ * @param any The object to stringify and format
+ * @param options The formatting options to use
+ */
+export function toFormattedString(obj: any, options: FormattingOptions) {
+	const content = JSON.stringify(obj, undefined, options.insertSpaces ? options.tabSize || 4 : '\t');
+	if (options.eol !== undefined) {
+		return content.replace(/\r\n|\r|\n/g, options.eol);
+	}
+	return content;
+}
+
 function repeat(s: string, count: number): string {
 	let result = '';
 	for (let i = 0; i < count; i++) {
@@ -228,7 +241,7 @@ function computeIndentLevel(content: string, options: FormattingOptions): number
 	return Math.floor(nChars / tabSize);
 }
 
-function getEOL(options: FormattingOptions, text: string): string {
+export function getEOL(options: FormattingOptions, text: string): string {
 	for (let i = 0; i < text.length; i++) {
 		const ch = text.charAt(i);
 		if (ch === '\r') {

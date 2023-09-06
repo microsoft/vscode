@@ -123,26 +123,33 @@ Visual Studio-like style based on original C# coloring by Jason Diamond <jason@d
 */
 
 .vscode-light .hljs-function,
-.vscode-light .hljs-params {
+.vscode-light .hljs-params,
+.vscode-light .hljs-number,
+.vscode-light .hljs-class  {
 	color: inherit;
 }
 
 .vscode-light .hljs-comment,
 .vscode-light .hljs-quote,
+.vscode-light .hljs-number,
+.vscode-light .hljs-class,
 .vscode-light .hljs-variable {
 	color: #008000;
 }
 
 .vscode-light .hljs-keyword,
 .vscode-light .hljs-selector-tag,
-.vscode-light .hljs-built_in,
 .vscode-light .hljs-name,
 .vscode-light .hljs-tag {
 	color: #00f;
 }
 
+.vscode-light .hljs-built_in,
+.vscode-light .hljs-builtin-name {
+	color: #007acc;
+}
+
 .vscode-light .hljs-string,
-.vscode-light .hljs-title,
 .vscode-light .hljs-section,
 .vscode-light .hljs-attribute,
 .vscode-light .hljs-literal,
@@ -154,10 +161,12 @@ Visual Studio-like style based on original C# coloring by Jason Diamond <jason@d
 
 .vscode-light .hljs-selector-attr,
 .vscode-light .hljs-selector-pseudo,
-.vscode-light .hljs-meta {
+.vscode-light .hljs-meta,
+.vscode-light .hljs-meta-keyword {
 	color: #2b91af;
 }
 
+.vscode-light .hljs-title,
 .vscode-light .hljs-doctag {
 	color: #808080;
 }

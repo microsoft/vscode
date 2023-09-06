@@ -3,17 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { equals } from 'vs/base/common/objects';
+import { ThemeColor } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { TextChange } from 'vs/editor/common/core/textChange';
+import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { FormattingOptions } from 'vs/editor/common/languages';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
+import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
+import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
+import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -26,19 +35,45 @@ export enum OverviewRulerLane {
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Vertical Lane in the glyph margin of the editor.
  */
-export interface IModelDecorationOverviewRulerOptions {
+export enum GlyphMarginLane {
+	Left = 1,
+	Right = 2
+}
+
+/**
+ * Position in the minimap to render the decoration.
+ */
+export enum MinimapPosition {
+	Inline = 1,
+	Gutter = 2
+}
+
+export interface IDecorationOptions {
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	color: string | ThemeColor | undefined;
 	/**
-	 * CSS color to render in the overview ruler.
+	 * CSS color to render.
 	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
 	darkColor?: string | ThemeColor;
+}
+
+export interface IModelDecorationGlyphMarginOptions {
+	/**
+	 * The position in the glyph margin.
+	 */
+	position: GlyphMarginLane;
+}
+
+/**
+ * Options for rendering a model decoration in the overview ruler.
+ */
+export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions {
 	/**
 	 * The position in the overview ruler.
 	 */
@@ -46,9 +81,24 @@ export interface IModelDecorationOverviewRulerOptions {
 }
 
 /**
+ * Options for rendering a model decoration in the minimap.
+ */
+export interface IModelDecorationMinimapOptions extends IDecorationOptions {
+	/**
+	 * The position in the minimap.
+	 */
+	position: MinimapPosition;
+}
+
+/**
  * Options for a model decoration.
  */
 export interface IModelDecorationOptions {
+	/**
+	 * A debug description that can be used for inspecting model decorations.
+	 * @internal
+	 */
+	description: string;
 	/**
 	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
@@ -58,6 +108,19 @@ export interface IModelDecorationOptions {
 	 * CSS class name describing the decoration.
 	 */
 	className?: string | null;
+	/**
+	 * Indicates whether the decoration should span across the entire line when it continues onto the next line.
+	 */
+	shouldFillLineOnLineBreak?: boolean | null;
+	blockClassName?: string | null;
+	/**
+	 * Indicates if this block should be rendered after the last line.
+	 * In this case, the range must be empty and set to the last line.
+	 */
+	blockIsAfterEnd?: boolean | null;
+	blockDoesNotCollapse?: boolean | null;
+	blockPadding?: [top: number, right: number, bottom: number, left: number] | null;
+
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
 	 */
@@ -72,7 +135,6 @@ export interface IModelDecorationOptions {
 	isWholeLine?: boolean;
 	/**
 	 * Always render the decoration (even when the range it encompasses is collapsed).
-	 * @internal
 	 */
 	showIfCollapsed?: boolean;
 	/**
@@ -82,7 +144,8 @@ export interface IModelDecorationOptions {
 	collapseOnReplaceEdit?: boolean;
 	/**
 	 * Specifies the stack order of a decoration.
-	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 * A decoration with greater stack order is always in front of a decoration with
+	 * a lower stack order when the decorations are on the same line.
 	 */
 	zIndex?: number;
 	/**
@@ -90,13 +153,26 @@ export interface IModelDecorationOptions {
 	 */
 	overviewRuler?: IModelDecorationOverviewRulerOptions | null;
 	/**
+	 * If set, render this decoration in the minimap.
+	 */
+	minimap?: IModelDecorationMinimapOptions | null;
+	/**
 	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 	 */
 	glyphMarginClassName?: string | null;
 	/**
+	 * If set and the decoration has {@link glyphMarginClassName} set, render this decoration
+	 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
+	 */
+	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
+	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string | null;
+	/**
+	 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
+	 */
+	firstLineDecorationClassName?: string | null;
 	/**
 	 * If set, the decoration will be rendered in the margin (covering its full width) with this CSS class name.
 	 */
@@ -119,6 +195,66 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered after the text with this CSS class name.
 	 */
 	afterContentClassName?: string | null;
+	/**
+	 * If set, text will be injected in the view after the range.
+	 */
+	after?: InjectedTextOptions | null;
+
+	/**
+	 * If set, text will be injected in the view before the range.
+	 */
+	before?: InjectedTextOptions | null;
+
+	/**
+	 * If set, this decoration will not be rendered for comment tokens.
+	 * @internal
+	*/
+	hideInCommentTokens?: boolean | null;
+
+	/**
+	 * If set, this decoration will not be rendered for string tokens.
+	 * @internal
+	*/
+	hideInStringTokens?: boolean | null;
+}
+
+/**
+ * Configures text that is injected into the view without changing the underlying document.
+*/
+export interface InjectedTextOptions {
+	/**
+	 * Sets the text to inject. Must be a single line.
+	 */
+	readonly content: string;
+
+	/**
+	 * If set, the decoration will be rendered inline with the text with this CSS class name.
+	 */
+	readonly inlineClassName?: string | null;
+
+	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	readonly inlineClassNameAffectsLetterSpacing?: boolean;
+
+	/**
+	 * This field allows to attach data to this injected text.
+	 * The data can be read when injected texts at a given position are queried.
+	 */
+	readonly attachedData?: unknown;
+
+	/**
+	 * Configures cursor stops around injected text.
+	 * Defaults to {@link InjectedTextCursorStops.Both}.
+	*/
+	readonly cursorStops?: InjectedTextCursorStops | null;
+}
+
+export enum InjectedTextCursorStops {
+	Both,
+	Right,
+	Left,
+	None
 }
 
 /**
@@ -195,25 +331,7 @@ export interface IModelDecorationsChangeAccessor {
 	 * @param newDecorations Array describing what decorations should result after the call.
 	 * @return An array containing the new decorations identifiers.
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
-}
-
-/**
- * Word inside a model.
- */
-export interface IWordAtPosition {
-	/**
-	 * The word.
-	 */
-	readonly word: string;
-	/**
-	 * The column where the word starts.
-	 */
-	readonly startColumn: number;
-	/**
-	 * The column where the word ends.
-	 */
-	readonly endColumn: number;
+	deltaDecorations(oldDecorations: readonly string[], newDecorations: readonly IModelDeltaDecoration[]): string[];
 }
 
 /**
@@ -264,6 +382,7 @@ export const enum EndOfLineSequence {
 
 /**
  * An identifier for a single edit operation.
+ * @internal
  */
 export interface ISingleEditOperationIdentifier {
 	/**
@@ -277,47 +396,14 @@ export interface ISingleEditOperationIdentifier {
 }
 
 /**
- * A single edit operation, that acts as a simple replace.
- * i.e. Replace text at `range` with `text` in model.
- */
-export interface ISingleEditOperation {
-	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
-	 */
-	range: IRange;
-	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
-	 */
-	text: string | null;
-	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-	 */
-	forceMoveMarkers?: boolean;
-}
-
-/**
  * A single edit operation, that has an identifier.
  */
-export interface IIdentifiedSingleEditOperation {
+export interface IIdentifiedSingleEditOperation extends ISingleEditOperation {
 	/**
 	 * An identifier associated with this single edit operation.
 	 * @internal
 	 */
 	identifier?: ISingleEditOperationIdentifier | null;
-	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
-	 */
-	range: Range;
-	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
-	 */
-	text: string | null;
-	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-	 */
-	forceMoveMarkers?: boolean;
 	/**
 	 * This indicates that this operation is inserting automatic whitespace
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
@@ -331,6 +417,26 @@ export interface IIdentifiedSingleEditOperation {
 	_isTracked?: boolean;
 }
 
+export interface IValidEditOperation {
+	/**
+	 * An identifier associated with this single edit operation.
+	 * @internal
+	 */
+	identifier: ISingleEditOperationIdentifier | null;
+	/**
+	 * The range to replace. This can be empty to emulate a simple insert.
+	 */
+	range: Range;
+	/**
+	 * The text to replace with. This can be empty to emulate a simple delete.
+	 */
+	text: string;
+	/**
+	 * @internal
+	 */
+	textChange: TextChange;
+}
+
 /**
  * A callback that can compute the cursor state after applying a series of edit operations.
  */
@@ -338,33 +444,47 @@ export interface ICursorStateComputer {
 	/**
 	 * A callback that can compute the resulting cursors state after some edit operations have been executed.
 	 */
-	(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] | null;
+	(inverseEditOperations: IValidEditOperation[]): Selection[] | null;
 }
 
 export class TextModelResolvedOptions {
-	_textModelResolvedOptionsBrand: void;
+	_textModelResolvedOptionsBrand: void = undefined;
 
 	readonly tabSize: number;
 	readonly indentSize: number;
+	private readonly _indentSizeIsTabSize: boolean;
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
+	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
+
+	public get originalIndentSize(): number | 'tabSize' {
+		return this._indentSizeIsTabSize ? 'tabSize' : this.indentSize;
+	}
 
 	/**
 	 * @internal
 	 */
 	constructor(src: {
 		tabSize: number;
-		indentSize: number;
+		indentSize: number | 'tabSize';
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
+		bracketPairColorizationOptions: BracketPairColorizationOptions;
 	}) {
-		this.tabSize = src.tabSize | 0;
-		this.indentSize = src.tabSize | 0;
+		this.tabSize = Math.max(1, src.tabSize | 0);
+		if (src.indentSize === 'tabSize') {
+			this.indentSize = this.tabSize;
+			this._indentSizeIsTabSize = true;
+		} else {
+			this.indentSize = Math.max(1, src.indentSize | 0);
+			this._indentSizeIsTabSize = false;
+		}
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
 	}
 
 	/**
@@ -373,10 +493,12 @@ export class TextModelResolvedOptions {
 	public equals(other: TextModelResolvedOptions): boolean {
 		return (
 			this.tabSize === other.tabSize
+			&& this._indentSizeIsTabSize === other._indentSizeIsTabSize
 			&& this.indentSize === other.indentSize
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& equals(this.bracketPairColorizationOptions, other.bracketPairColorizationOptions)
 		);
 	}
 
@@ -398,24 +520,31 @@ export class TextModelResolvedOptions {
  */
 export interface ITextModelCreationOptions {
 	tabSize: number;
-	indentSize: number;
+	indentSize: number | 'tabSize';
 	insertSpaces: boolean;
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
+	bracketPairColorizationOptions: BracketPairColorizationOptions;
+}
+
+export interface BracketPairColorizationOptions {
+	enabled: boolean;
+	independentColorPoolPerBracketType: boolean;
 }
 
 export interface ITextModelUpdateOptions {
 	tabSize?: number;
-	indentSize?: number;
+	indentSize?: number | 'tabSize';
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
+	bracketColorizationOptions?: BracketPairColorizationOptions;
 }
 
 export class FindMatch {
-	_findMatchBrand: void;
+	_findMatchBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly matches: string[] | null;
@@ -430,16 +559,6 @@ export class FindMatch {
 }
 
 /**
- * @internal
- */
-export interface IFoundBracket {
-	range: Range;
-	open: string;
-	close: string;
-	isOpen: boolean;
-}
-
-/**
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
@@ -451,23 +570,19 @@ export const enum TrackedRangeStickiness {
 }
 
 /**
- * @internal
- */
-export interface IActiveIndentGuideInfo {
-	startLineNumber: number;
-	endLineNumber: number;
-	indent: number;
-}
-
-/**
  * Text snapshot that works like an iterator.
  * Will try to return chunks of roughly ~64KB size.
  * Will return null when finished.
- *
- * @internal
  */
 export interface ITextSnapshot {
 	read(): string | null;
+}
+
+/**
+ * @internal
+ */
+export function isITextSnapshot(obj: any): obj is ITextSnapshot {
+	return (obj && typeof obj.read === 'function');
 }
 
 /**
@@ -497,6 +612,18 @@ export interface ITextModel {
 	 * @internal
 	 */
 	mightContainRTL(): boolean;
+
+	/**
+	 * If true, the text model might contain LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
+	 * If false, the text model definitely does not contain these.
+	 * @internal
+	 */
+	mightContainUnusualLineTerminators(): boolean;
+
+	/**
+	 * @internal
+	 */
+	removeUnusualLineTerminators(selections?: Selection[]): void;
 
 	/**
 	 * If true, the text model might contain non basic ASCII.
@@ -533,13 +660,7 @@ export interface ITextModel {
 	/**
 	 * Replace the entire text buffer value contained in this model.
 	 */
-	setValue(newValue: string): void;
-
-	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * @internal
-	 */
-	setValueFromTextBuffer(newValue: ITextBuffer): void;
+	setValue(newValue: string | ITextSnapshot): void;
 
 	/**
 	 * Get the text stored in this model.
@@ -553,7 +674,6 @@ export interface ITextModel {
 	 * Get the text stored in this model.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
 	 * @return The text snapshot (it is safe to consume it asynchronously).
-	 * @internal
 	 */
 	createSnapshot(preserveBOM?: boolean): ITextSnapshot;
 
@@ -569,6 +689,12 @@ export interface ITextModel {
 	equalsTextBuffer(other: ITextBuffer): boolean;
 
 	/**
+	 * Get the underling text buffer.
+	 * @internal
+	 */
+	getTextBuffer(): ITextBuffer;
+
+	/**
 	 * Get the text in a certain range.
 	 * @param range The range describing what text to get.
 	 * @param eol The end of line character preference. This will only be used for multiline ranges. Defaults to `EndOfLinePreference.TextDefined`.
@@ -581,7 +707,13 @@ export interface ITextModel {
 	 * @param range The range describing what text length to get.
 	 * @return The text length.
 	 */
-	getValueLengthInRange(range: IRange): number;
+	getValueLengthInRange(range: IRange, eol?: EndOfLinePreference): number;
+
+	/**
+	 * Get the character count of text in a certain range.
+	 * @param range The range describing what text length to get.
+	 */
+	getCharacterCountInRange(range: IRange, eol?: EndOfLinePreference): number;
 
 	/**
 	 * Splits characters in two buckets. First bucket (A) is of characters that
@@ -619,6 +751,11 @@ export interface ITextModel {
 	getEOL(): string;
 
 	/**
+	 * Get the end of line sequence predominantly used in the text buffer.
+	 */
+	getEndOfLineSequence(): EndOfLineSequence;
+
+	/**
 	 * Get the minimum legal column for line at `lineNumber`
 	 */
 	getLineMinColumn(lineNumber: number): number;
@@ -641,7 +778,7 @@ export interface ITextModel {
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 
 	/**
-	 * Create a valid position,
+	 * Create a valid position.
 	 */
 	validatePosition(position: IPosition): Position;
 
@@ -681,7 +818,7 @@ export interface ITextModel {
 	getPositionAt(offset: number): Position;
 
 	/**
-	 * Get a range covering the entire model
+	 * Get a range covering the entire model.
 	 */
 	getFullModelRange(): Range;
 
@@ -689,11 +826,6 @@ export interface ITextModel {
 	 * Returns if the model was disposed or not.
 	 */
 	isDisposed(): boolean;
-
-	/**
-	 * @internal
-	 */
-	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
 
 	/**
 	 * This model is so large that it would not be a good idea to sync it over
@@ -723,7 +855,7 @@ export interface ITextModel {
 	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
-	 * @param searchScope Limit the searching to only search inside this range.
+	 * @param searchScope Limit the searching to only search inside these ranges.
 	 * @param isRegex Used to indicate that `searchString` is a regular expression.
 	 * @param matchCase Force the matching to match lower/upper case exactly.
 	 * @param wordSeparators Force the matching to match entire words only. Pass null otherwise.
@@ -731,7 +863,7 @@ export interface ITextModel {
 	 * @param limitResultCount Limit the number of results
 	 * @return The ranges where the matches are. It is empty if no matches have been found.
 	 */
-	findMatches(searchString: string, searchScope: IRange, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
+	findMatches(searchString: string, searchScope: IRange | IRange[], isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount?: number): FindMatch[];
 	/**
 	 * Search the model for the next match. Loops to the beginning of the model if needed.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
@@ -755,62 +887,34 @@ export interface ITextModel {
 	 */
 	findPreviousMatch(searchString: string, searchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean): FindMatch | null;
 
-	/**
-	 * Flush all tokenization state.
-	 * @internal
-	 */
-	flushTokens(): void;
-
-	/**
-	 * Force tokenization information for `lineNumber` to be accurate.
-	 * @internal
-	 */
-	forceTokenization(lineNumber: number): void;
-
-	/**
-	 * If it is cheap, force tokenization information for `lineNumber` to be accurate.
-	 * This is based on a heuristic.
-	 * @internal
-	 */
-	tokenizeIfCheap(lineNumber: number): void;
-
-	/**
-	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
-	 * This is based on a heuristic.
-	 * @internal
-	 */
-	isCheapToTokenize(lineNumber: number): boolean;
-
-	/**
-	 * Get the tokens for the line `lineNumber`.
-	 * The tokens might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
-	 * @internal
-	 */
-	getLineTokens(lineNumber: number): LineTokens;
-
-	/**
-	 * Get the language associated with this model.
-	 * @internal
-	 */
-	getLanguageIdentifier(): LanguageIdentifier;
 
 	/**
 	 * Get the language associated with this model.
 	 */
-	getModeId(): string;
+	getLanguageId(): string;
 
 	/**
 	 * Set the current language mode associated with the model.
+	 * @param languageId The new language.
+	 * @param source The source of the call that set the language.
 	 * @internal
 	 */
-	setMode(languageIdentifier: LanguageIdentifier): void;
+	setLanguage(languageId: string, source?: string): void;
+
+	/**
+	 * Set the current language mode associated with the model.
+	 * @param languageSelection The new language selection.
+	 * @param source The source of the call that set the language.
+	 * @internal
+	 */
+	setLanguage(languageSelection: ILanguageSelection, source?: string): void;
 
 	/**
 	 * Returns the real (inner-most) language mode at a given position.
 	 * The result might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
 	 */
-	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
+	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -825,49 +929,6 @@ export interface ITextModel {
 	 * @return The word under or besides `position`. Will never be null.
 	 */
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
-
-	/**
-	 * Find the matching bracket of `request` up, counting brackets.
-	 * @param request The bracket we're searching for
-	 * @param position The position at which to start the search.
-	 * @return The range of the matching bracket, or null if the bracket match was not found.
-	 * @internal
-	 */
-	findMatchingBracketUp(bracket: string, position: IPosition): Range | null;
-
-	/**
-	 * Find the first bracket in the model before `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket before `position`, or null if there are no more brackets before `positions`.
-	 * @internal
-	 */
-	findPrevBracket(position: IPosition): IFoundBracket | null;
-
-	/**
-	 * Find the first bracket in the model after `position`.
-	 * @param position The position at which to start the search.
-	 * @return The info for the first bracket after `position`, or null if there are no more brackets after `positions`.
-	 * @internal
-	 */
-	findNextBracket(position: IPosition): IFoundBracket | null;
-
-	/**
-	 * Given a `position`, if the position is on top or near a bracket,
-	 * find the matching bracket of that bracket and return the ranges of both brackets.
-	 * @param position The position at which to look for a bracket.
-	 * @internal
-	 */
-	matchBracket(position: IPosition): [Range, Range] | null;
-
-	/**
-	 * @internal
-	 */
-	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
-
-	/**
-	 * @internal
-	 */
-	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 
 	/**
 	 * Change the decorations. The callback will be called with a change accessor
@@ -937,9 +998,11 @@ export interface ITextModel {
 	 * @param range The range to search in
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * @param onlyMinimapDecorations If set, it will return only decorations that render in the minimap.
+	 * @param onlyMarginDecorations If set, it will return only decorations that render in the glyph margin.
 	 * @return An array with the decorations
 	 */
-	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations as an array.
@@ -949,11 +1012,23 @@ export interface ITextModel {
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 
 	/**
+	 * Gets all decorations that render in the glyph margin as an array.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getAllMarginDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
 	 * Gets all the decorations that should be rendered in the overview ruler as an array.
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 */
 	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * Gets all the decorations that contain injected text.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
 	 * @internal
@@ -985,11 +1060,16 @@ export interface ITextModel {
 	detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
 
 	/**
-	 * Push a stack element onto the undo stack. This acts as an undo/redo point.
-	 * The idea is to use `pushEditOperations` to edit the model and then to
-	 * `pushStackElement` to create an undo/redo stop point.
+	 * Close the current undo-redo element.
+	 * This offers a way to create an undo/redo stop point.
 	 */
 	pushStackElement(): void;
+
+	/**
+	 * Open the current undo-redo element.
+	 * This offers a way to remove the current undo/redo stop point.
+	 */
+	popStackElement(): void;
 
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
@@ -999,7 +1079,11 @@ export interface ITextModel {
 	 * @param cursorStateComputer A callback that can compute the resulting cursors state after the edit operations have been executed.
 	 * @return The cursor state returned by the `cursorStateComputer`.
 	 */
-	pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] | null;
+	/**
+	 * @internal
+	 */
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1011,9 +1095,11 @@ export interface ITextModel {
 	 * Edit the model without adding the edits to the undo stack.
 	 * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
 	 * @param operations The edit operations.
-	 * @return The inverse edit operations, that, when applied, will bring the model back to the previous state.
+	 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 	 */
-	applyEdits(operations: IIdentifiedSingleEditOperation[]): IIdentifiedSingleEditOperation[];
+	applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
+	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+	applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 
 	/**
 	 * Change the end of line sequence without recording in the undo stack.
@@ -1022,11 +1108,21 @@ export interface ITextModel {
 	setEOL(eol: EndOfLineSequence): void;
 
 	/**
-	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
+	 * @internal
+	 */
+	_applyUndo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
+
+	/**
+	 * @internal
+	 */
+	_applyRedo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
+
+	/**
+	 * Undo edit operations until the previous undo/redo point.
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
-	undo(): Selection[] | null;
+	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
@@ -1035,11 +1131,11 @@ export interface ITextModel {
 	canUndo(): boolean;
 
 	/**
-	 * Redo edit operations until the next stop point created by `pushStackElement`.
+	 * Redo edit operations until the next undo/redo point.
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
-	redo(): Selection[] | null;
+	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?
@@ -1053,14 +1149,7 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
-	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
-	 * @event
-	 */
-	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	readonly onDidChangeContentOrInjectedText: Event<InternalModelContentChangeEvent | ModelInjectedTextChangedEvent>;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
@@ -1070,53 +1159,56 @@ export interface ITextModel {
 	 * An event emitted when decorations of the model have changed.
 	 * @event
 	 */
-	onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+	readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event
 	 */
-	onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+	readonly onDidChangeOptions: Event<IModelOptionsChangedEvent>;
 	/**
 	 * An event emitted when the language associated with the model has changed.
 	 * @event
 	 */
-	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+	readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent>;
 	/**
 	 * An event emitted when the language configuration associated with the model has changed.
 	 * @event
 	 */
-	onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+	readonly onDidChangeLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent>;
 	/**
 	 * An event emitted when the tokens associated with the model have changed.
 	 * @event
 	 * @internal
 	 */
-	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
+	readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
+	/**
+	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+	 * @event
+	 */
+	readonly onDidChangeAttached: Event<void>;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event
 	 */
-	onWillDispose(listener: () => void): IDisposable;
+	readonly onWillDispose: Event<void>;
 
 	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
+	 * Destroy this model.
 	 */
 	dispose(): void;
 
 	/**
 	 * @internal
 	 */
-	onBeforeAttached(): void;
+	onBeforeAttached(): IAttachedView;
 
 	/**
 	 * @internal
 	 */
-	onBeforeDetached(): void;
+	onBeforeDetached(view: IAttachedView): void;
 
 	/**
 	 * Returns if this model is attached to an editor or not.
-	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
 
@@ -1125,6 +1217,82 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getAttachedEditorCount(): number;
+
+	/**
+	 * Among all positions that are projected to the same position in the underlying text model as
+	 * the given position, select a unique position as indicated by the affinity.
+	 *
+	 * PositionAffinity.Left:
+	 * The normalized position must be equal or left to the requested position.
+	 *
+	 * PositionAffinity.Right:
+	 * The normalized position must be equal or right to the requested position.
+	 *
+	 * @internal
+	 */
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
+
+	/**
+	 * Returns an object that can be used to query brackets.
+	 * @internal
+	*/
+	readonly bracketPairs: IBracketPairsTextModelPart;
+
+	/**
+	 * Returns an object that can be used to query indent guides.
+	 * @internal
+	*/
+	readonly guides: IGuidesTextModelPart;
+
+	/**
+	 * @internal
+	 */
+	readonly tokenization: ITokenizationTextModelPart;
+}
+
+/**
+ * @internal
+ */
+export interface IAttachedView {
+	/**
+	 * @param stabilized Indicates if the visible lines are probably going to change soon or can be considered stable.
+	 * Is true on reveal range and false on scroll.
+	 * Tokenizers should tokenize synchronously if stabilized is true.
+	 */
+	setVisibleLines(visibleLines: { startLineNumber: number; endLineNumber: number }[], stabilized: boolean): void;
+}
+
+export const enum PositionAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
+
+	/**
+	 * No preference.
+	*/
+	None = 2,
+
+	/**
+	 * If the given position is on injected text, prefers the position left of it.
+	*/
+	LeftOfInjectedText = 3,
+
+	/**
+	 * If the given position is on injected text, prefers the position right of it.
+	*/
+	RightOfInjectedText = 4,
 }
 
 /**
@@ -1139,16 +1307,42 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable };
 	getFirstLineText(lengthLimit: number): string;
 }
 
 /**
  * @internal
  */
-export interface ITextBuffer {
+export const enum ModelConstants {
+	FIRST_LINE_DETECTION_LENGTH_LIMIT = 1000
+}
+
+/**
+ * @internal
+ */
+export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperation {
+	constructor(
+		public readonly identifier: ISingleEditOperationIdentifier | null,
+		public readonly range: Range,
+		public readonly text: string | null,
+		public readonly forceMoveMarkers: boolean,
+		public readonly isAutoWhitespaceEdit: boolean,
+		public readonly _isTracked: boolean,
+	) { }
+}
+
+/**
+ * @internal
+ *
+ * `lineNumber` is 1 based.
+ */
+export interface IReadonlyTextBuffer {
+	onDidChangeContent: Event<void>;
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
+	mightContainUnusualLineTerminators(): boolean;
+	resetMightContainUnusualLineTerminators(): void;
 	mightContainNonBasicASCII(): boolean;
 	getBOM(): string;
 	getEOL(): string;
@@ -1160,18 +1354,50 @@ export interface ITextBuffer {
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 	createSnapshot(preserveBOM: boolean): ITextSnapshot;
 	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number;
+	getCharacterCountInRange(range: Range, eol: EndOfLinePreference): number;
 	getLength(): number;
 	getLineCount(): number;
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
 	getLineCharCode(lineNumber: number, index: number): number;
+	getCharCode(offset: number): number;
 	getLineLength(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-
-	setEOL(newEOL: '\r\n' | '\n'): void;
-	applyEdits(rawOperations: IIdentifiedSingleEditOperation[], recordTrimAutoWhitespace: boolean): ApplyEditsResult;
 	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
+}
+
+/**
+ * @internal
+ */
+export class SearchData {
+
+	/**
+	 * The regex to search for. Always defined.
+	 */
+	public readonly regex: RegExp;
+	/**
+	 * The word separator classifier.
+	 */
+	public readonly wordSeparators: WordCharacterClassifier | null;
+	/**
+	 * The simple string to search for (if possible).
+	 */
+	public readonly simpleSearch: string | null;
+
+	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null) {
+		this.regex = regex;
+		this.wordSeparators = wordSeparators;
+		this.simpleSearch = simpleSearch;
+	}
+}
+
+/**
+ * @internal
+ */
+export interface ITextBuffer extends IReadonlyTextBuffer {
+	setEOL(newEOL: '\r\n' | '\n'): void;
+	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
 }
 
 /**
@@ -1180,7 +1406,7 @@ export interface ITextBuffer {
 export class ApplyEditsResult {
 
 	constructor(
-		public readonly reverseEdits: IIdentifiedSingleEditOperation[],
+		public readonly reverseEdits: IValidEditOperation[] | null,
 		public readonly changes: IInternalModelContentChange[],
 		public readonly trimAutoWhitespaceLineNumbers: number[] | null
 	) { }
@@ -1193,4 +1419,13 @@ export class ApplyEditsResult {
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
 	forceMoveMarkers: boolean;
+}
+
+/**
+ * @internal
+ */
+export function shouldSynchronizeModel(model: ITextModel): boolean {
+	return (
+		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
+	);
 }

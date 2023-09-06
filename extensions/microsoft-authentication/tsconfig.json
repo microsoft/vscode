@@ -1,0 +1,27 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"experimentalDecorators": true,
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"noFallthroughCasesInSwitch": true,
+		"noUnusedLocals": false,
+		"outDir": "dist",
+		"resolveJsonModule": true,
+		"rootDir": "src",
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"lib": [
+			"WebWorker"
+		]
+	},
+	"exclude": [
+		"node_modules"
+	],
+	"include": [
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.idToken.d.ts"
+	]
+}

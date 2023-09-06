@@ -3,80 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileQuery, IFolderQuery, IRawFileQuery, IRawQuery, IRawTextQuery, ISearchCompleteStats, ITextQuery, isSerializedFileMatch, ISerializedSearchProgressItem } from 'vs/workbench/services/search/common/search';
-import { FileSearchManager } from 'vs/workbench/services/search/node/fileSearchManager';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IFileQuery, IRawFileQuery, ISearchCompleteStats, ISerializedSearchProgressItem, isSerializedFileMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { TextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import * as vscode from 'vscode';
-import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
-import { IURITransformer } from 'vs/base/common/uriIpc';
+import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
+import type * as vscode from 'vscode';
 
-export class ExtHostSearch implements ExtHostSearchShape {
+export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
-	private readonly _proxy: MainThreadSearchShape;
-	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider>();
-	private readonly _textSearchUsedSchemes = new Set<string>();
-	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider>();
-	private readonly _fileSearchUsedSchemes = new Set<string>();
-	private _handlePool: number = 0;
+	protected _pfs: typeof pfs = pfs; // allow extending for tests
 
-	private _internalFileSearchHandle: number;
-	private _internalFileSearchProvider: SearchService | null;
+	private _internalFileSearchHandle: number = -1;
+	private _internalFileSearchProvider: SearchService | null = null;
 
-	private _fileSearchManager: FileSearchManager;
+	private _registeredEHSearchProvider = false;
 
-	constructor(mainContext: IMainContext, private _uriTransformer: IURITransformer | null, private _logService: ILogService, private _pfs = pfs) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
-		this._fileSearchManager = new FileSearchManager();
-	}
+	private _disposables = new DisposableStore();
 
-	private _transformScheme(scheme: string): string {
-		if (this._uriTransformer) {
-			return this._uriTransformer.transformOutgoingScheme(scheme);
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
+		@IURITransformerService _uriTransformer: IURITransformerService,
+		@ILogService _logService: ILogService,
+	) {
+		super(extHostRpc, _uriTransformer, _logService);
+
+		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
+		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel)));
+		if (initData.remote.isRemote && initData.remote.authority) {
+			this._registerEHSearchProviders();
 		}
-		return scheme;
 	}
 
-	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable {
-		if (this._textSearchUsedSchemes.has(scheme)) {
-			throw new Error(`a text search provider for the scheme '${scheme}' is already registered`);
-		}
-
-		this._textSearchUsedSchemes.add(scheme);
-		const handle = this._handlePool++;
-		this._textSearchProvider.set(handle, provider);
-		this._proxy.$registerTextSearchProvider(handle, this._transformScheme(scheme));
-		return toDisposable(() => {
-			this._textSearchUsedSchemes.delete(scheme);
-			this._textSearchProvider.delete(handle);
-			this._proxy.$unregisterProvider(handle);
-		});
+	dispose(): void {
+		this._disposables.dispose();
 	}
 
-	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable {
-		if (this._fileSearchUsedSchemes.has(scheme)) {
-			throw new Error(`a file search provider for the scheme '${scheme}' is already registered`);
+	override $enableExtensionHostSearch(): void {
+		this._registerEHSearchProviders();
+	}
+
+	private _registerEHSearchProviders(): void {
+		if (this._registeredEHSearchProvider) {
+			return;
 		}
 
-		this._fileSearchUsedSchemes.add(scheme);
-		const handle = this._handlePool++;
-		this._fileSearchProvider.set(handle, provider);
-		this._proxy.$registerFileSearchProvider(handle, this._transformScheme(scheme));
-		return toDisposable(() => {
-			this._fileSearchUsedSchemes.delete(scheme);
-			this._fileSearchProvider.delete(handle);
-			this._proxy.$unregisterProvider(handle);
-		});
+		this._registeredEHSearchProvider = true;
+		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
+		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel)));
+		this._disposables.add(this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider')));
 	}
 
-	registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
+	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
 		const handle = this._handlePool++;
 		this._internalFileSearchProvider = provider;
 		this._internalFileSearchHandle = handle;
@@ -87,23 +76,16 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
+	override $provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const query = reviveQuery(rawQuery);
 		if (handle === this._internalFileSearchHandle) {
 			return this.doInternalFileSearch(handle, session, query, token);
-		} else {
-			const provider = this._fileSearchProvider.get(handle);
-			if (provider) {
-				return this._fileSearchManager.fileSearch(query, provider, batch => {
-					this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
-				}, token);
-			} else {
-				throw new Error('unknown provider: ' + handle);
-			}
 		}
+
+		return super.$provideFileSearchResults(handle, session, rawQuery, token);
 	}
 
-	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
+	private doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const onResult = (ev: ISerializedSearchProgressItem) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
@@ -126,48 +108,13 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
 	}
 
-	$clearCache(cacheKey: string): Promise<void> {
-		if (this._internalFileSearchProvider) {
-			this._internalFileSearchProvider.clearCache(cacheKey);
-		}
+	override $clearCache(cacheKey: string): Promise<void> {
+		this._internalFileSearchProvider?.clearCache(cacheKey);
 
-		this._fileSearchManager.clearCache(cacheKey);
-
-		return Promise.resolve(undefined);
+		return super.$clearCache(cacheKey);
 	}
 
-	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: CancellationToken): Promise<ISearchCompleteStats> {
-		const provider = this._textSearchProvider.get(handle);
-		if (!provider || !provider.provideTextSearchResults) {
-			throw new Error(`Unknown provider ${handle}`);
-		}
-
-		const query = reviveQuery(rawQuery);
-		const engine = new TextSearchManager(query, provider, this._pfs);
-		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
+	protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+		return new NativeTextSearchManager(query, provider, undefined, 'textSearchProvider');
 	}
 }
-
-export function registerEHSearchProviders(extHostSearch: ExtHostSearch, logService: ILogService): void {
-	const outputChannel = new OutputChannel(logService);
-	extHostSearch.registerTextSearchProvider('file', new RipgrepSearchProvider(outputChannel));
-	extHostSearch.registerInternalFileSearchProvider('file', new SearchService());
-}
-
-function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
-	return {
-		...<any>rawQuery, // TODO
-		...{
-			folderQueries: rawQuery.folderQueries && rawQuery.folderQueries.map(reviveFolderQuery),
-			extraFileResources: rawQuery.extraFileResources && rawQuery.extraFileResources.map(components => URI.revive(components))
-		}
-	};
-}
-
-function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...rawFolderQuery,
-		folder: URI.revive(rawFolderQuery.folder)
-	};
-}
-

@@ -4,68 +4,87 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { MainThreadStorageShape, MainContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
+import { IExtensionIdWithVersion, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { migrateExtensionStorage } from 'vs/workbench/services/extensions/common/extensionStorageMigration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
-	private readonly _storageService: IStorageService;
 	private readonly _proxy: ExtHostStorageShape;
-	private readonly _storageListener: IDisposable;
+	private readonly _storageListener = new DisposableStore();
 	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IStorageService storageService: IStorageService
+		@IExtensionStorageService private readonly _extensionStorageService: IExtensionStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
-		this._storageService = storageService;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
-		this._storageListener = this._storageService.onDidChangeStorage(e => {
-			const shared = e.scope === StorageScope.GLOBAL;
-			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
-				try {
-					this._proxy.$acceptValue(shared, e.key, this._getValue(shared, e.key));
-				} catch (error) {
-					// ignore parsing errors that can happen
+		this._storageListener.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._storageListener)(e => {
+			if (this._sharedStorageKeysToWatch.has(e.key)) {
+				const rawState = this._extensionStorageService.getExtensionStateRaw(e.key, true);
+				if (typeof rawState === 'string') {
+					this._proxy.$acceptValue(true, e.key, rawState);
 				}
 			}
-		});
+		}));
 	}
 
 	dispose(): void {
 		this._storageListener.dispose();
 	}
 
-	$getValue<T>(shared: boolean, key: string): Promise<T | undefined> {
+	async $initializeExtensionStorage(shared: boolean, extensionId: string): Promise<string | undefined> {
+
+		await this.checkAndMigrateExtensionStorage(extensionId, shared);
+
 		if (shared) {
-			this._sharedStorageKeysToWatch.set(key, true);
+			this._sharedStorageKeysToWatch.set(extensionId, true);
 		}
+		return this._extensionStorageService.getExtensionStateRaw(extensionId, shared);
+	}
+
+	async $setValue(shared: boolean, key: string, value: object): Promise<void> {
+		this._extensionStorageService.setExtensionState(key, value, shared);
+	}
+
+	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
+		this._extensionStorageService.setKeysForSync(extension, keys);
+	}
+
+	private async checkAndMigrateExtensionStorage(extensionId: string, shared: boolean): Promise<void> {
 		try {
-			return Promise.resolve(this._getValue<T>(shared, key));
+			let sourceExtensionId = this._extensionStorageService.getSourceExtensionToMigrate(extensionId);
+
+			// TODO: @sandy081 - Remove it after 6 months
+			// If current extension does not have any migration requested
+			// Then check if the extension has to be migrated for using lower case in web
+			// If so, migrate the extension state from lower case id to its normal id.
+			if (!sourceExtensionId && isWeb && extensionId !== extensionId.toLowerCase()) {
+				sourceExtensionId = extensionId.toLowerCase();
+			}
+
+			if (sourceExtensionId) {
+				// TODO: @sandy081 - Remove it after 6 months
+				// In Web, extension state was used to be stored in lower case extension id.
+				// Hence check that if the lower cased source extension was not yet migrated in web
+				// If not take the lower cased source extension id for migration
+				if (isWeb && sourceExtensionId !== sourceExtensionId.toLowerCase() && this._extensionStorageService.getExtensionState(sourceExtensionId.toLowerCase(), shared) && !this._extensionStorageService.getExtensionState(sourceExtensionId, shared)) {
+					sourceExtensionId = sourceExtensionId.toLowerCase();
+				}
+				await migrateExtensionStorage(sourceExtensionId, extensionId, shared, this._instantiationService);
+			}
 		} catch (error) {
-			return Promise.reject(error);
+			this._logService.error(error);
 		}
-	}
-
-	private _getValue<T>(shared: boolean, key: string): T | undefined {
-		const jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
-		if (!jsonValue) {
-			return undefined;
-		}
-		return JSON.parse(jsonValue);
-	}
-
-	$setValue(shared: boolean, key: string, value: object): Promise<void> {
-		let jsonValue: string;
-		try {
-			jsonValue = JSON.stringify(value);
-			this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
-		} catch (err) {
-			return Promise.reject(err);
-		}
-		return Promise.resolve(undefined);
 	}
 }

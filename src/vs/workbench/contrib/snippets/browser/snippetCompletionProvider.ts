@@ -4,166 +4,209 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare } from 'vs/base/common/strings';
+import { compare, compareSubstring, firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel, Command } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
+import { isPatternInWord } from 'vs/base/common/filters';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+
+
+const markSnippetAsUsed = '_snippet.markAsUsed';
+
+CommandsRegistry.registerCommand(markSnippetAsUsed, (accessor, ...args) => {
+	const snippetsService = accessor.get(ISnippetsService);
+	const [first] = args;
+	if (first instanceof Snippet) {
+		snippetsService.updateUsageTimestamp(first);
+	}
+});
 
 export class SnippetCompletion implements CompletionItem {
 
-	label: string;
+	label: CompletionItemLabel;
 	detail: string;
 	insertText: string;
-	documentation: MarkdownString;
-	range: IRange;
+	documentation?: MarkdownString;
+	range: IRange | { insert: IRange; replace: IRange };
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
+	extensionId?: ExtensionIdentifier;
+	command?: Command;
 
 	constructor(
 		readonly snippet: Snippet,
-		range: IRange
+		range: IRange | { insert: IRange; replace: IRange },
 	) {
-		this.label = snippet.prefix;
+		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
-		this.insertText = snippet.body;
+		this.insertText = snippet.codeSnippet;
+		this.extensionId = snippet.extensionId;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
 		this.insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
+		this.command = { id: markSnippetAsUsed, title: '', arguments: [snippet] };
 	}
 
 	resolve(): this {
-		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
-		this.insertText = this.snippet.codeSnippet;
+		this.documentation = new MarkdownString().appendCodeblock('', SnippetParser.asInsertText(this.snippet.codeSnippet));
 		return this;
 	}
 
 	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
-		return compare(a.label, b.label);
+		return compare(a.label.label, b.label.label);
 	}
-}
-
-export function matches(pattern: string, patternStart: number, word: string, wordStart: number): boolean {
-	while (patternStart < pattern.length && wordStart < word.length) {
-		if (pattern[patternStart] === word[wordStart]) {
-			patternStart += 1;
-		}
-		wordStart += 1;
-	}
-	return patternStart === pattern.length;
 }
 
 export class SnippetCompletionProvider implements CompletionItemProvider {
 
-	private static readonly _maxPrefix = 10000;
+	readonly _debugDisplayName = 'snippetCompletions';
 
 	constructor(
-		@IModeService
-		private readonly _modeService: IModeService,
-		@ISnippetsService
-		private readonly _snippets: ISnippetsService
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@ISnippetsService private readonly _snippets: ISnippetsService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		//
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> | undefined {
+	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
-		if (position.column >= SnippetCompletionProvider._maxPrefix) {
-			return undefined;
-		}
-
-		if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter === ' ') {
-			// no snippets when suggestions have been triggered by space
-			return undefined;
-		}
-
+		const sw = new StopWatch();
 		const languageId = this._getLanguageIdAtPosition(model, position);
-		return this._snippets.getSnippets(languageId).then(snippets => {
+		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
+		const snippets = new Set(await this._snippets.getSnippets(languageId));
 
-			let suggestions: SnippetCompletion[];
-			let pos = { lineNumber: position.lineNumber, column: 1 };
-			let lineOffsets: number[] = [];
-			let linePrefixLow = model.getLineContent(position.lineNumber).substr(0, position.column - 1).toLowerCase();
-			let endsInWhitespace = linePrefixLow.match(/\s$/);
+		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
+		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 
-			while (pos.column < position.column) {
-				let word = model.getWordAtPosition(pos);
-				if (word) {
-					// at a word
-					lineOffsets.push(word.startColumn - 1);
-					pos.column = word.endColumn + 1;
-					if (word.endColumn - 1 < linePrefixLow.length && !/\s/.test(linePrefixLow[word.endColumn - 1])) {
-						lineOffsets.push(word.endColumn - 1);
+		const suggestions: SnippetCompletion[] = [];
+		const columnOffset = position.column - 1;
+
+		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
+
+
+		snippet: for (const snippet of snippets) {
+
+			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
+				// strict -> when having trigger characters they must prefix-match
+				continue snippet;
+			}
+
+			const word = getWordAtText(1, languageConfig.getWordDefinition(), snippet.prefixLow, 0);
+
+			if (wordUntil && word && !isPatternInWord(wordUntil, 0, wordUntil.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
+				// when at a word the snippet prefix must match
+				continue snippet;
+			}
+
+			// don't eat into leading whitespace unless the snippet prefix starts with whitespace
+			const minPos = firstNonWhitespaceIndex(snippet.prefixLow) === 0
+				? Math.max(0, model.getLineFirstNonWhitespaceColumn(position.lineNumber) - 1)
+				: 0;
+
+			column: for (let pos = Math.max(minPos, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
+
+				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
+					continue column;
+				}
+
+				const prefixRestLen = snippet.prefixLow.length - (columnOffset - pos);
+				const endsWithPrefixRest = compareSubstring(lineContentLow, snippet.prefixLow, columnOffset, columnOffset + prefixRestLen, columnOffset - pos);
+				const startPosition = position.with(undefined, pos + 1);
+
+				if (wordUntil && position.equals(startPosition)) {
+					// at word-end but no overlap
+					continue snippet;
+				}
+
+				let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
+
+				// First check if there is anything to the right of the cursor
+				if (columnOffset < lineContentLow.length) {
+					const autoClosingPairs = languageConfig.getAutoClosingPairs();
+					const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
+					// If the character to the right of the cursor is a closing character of an autoclosing pair
+					if (standardAutoClosingPairConditionals?.some(p =>
+						// and the start position is the opening character of an autoclosing pair
+						p.open === lineContentLow[startPosition.column - 1] &&
+						// and the snippet prefix contains the opening and closing pair at its edges
+						snippet.prefix.startsWith(p.open) &&
+						snippet.prefix[snippet.prefix.length - 1] === p.close)
+					) {
+						// Eat the character that was likely inserted because of auto-closing pairs
+						endColumn++;
 					}
 				}
-				else if (!/\s/.test(linePrefixLow[pos.column - 1])) {
-					// at a none-whitespace character
-					lineOffsets.push(pos.column - 1);
-					pos.column += 1;
-				}
-				else {
-					// always advance!
-					pos.column += 1;
-				}
-			}
 
-			let availableSnippets = new Set<Snippet>();
-			snippets.forEach(availableSnippets.add, availableSnippets);
-			suggestions = [];
-			for (let start of lineOffsets) {
-				availableSnippets.forEach(snippet => {
-					if (matches(linePrefixLow, start, snippet.prefixLow, 0)) {
-						suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position.delta(0, -(linePrefixLow.length - start)), position)));
-						availableSnippets.delete(snippet);
-					}
-				});
+				const replace = Range.fromPositions(startPosition, { lineNumber: position.lineNumber, column: endColumn });
+				const insert = replace.setEndPosition(position.lineNumber, position.column);
+
+				suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
+				snippets.delete(snippet);
+				break;
 			}
-			if (endsInWhitespace || lineOffsets.length === 0) {
-				// add remaing snippets when the current prefix ends in whitespace or when no
-				// interesting positions have been found
-				availableSnippets.forEach(snippet => {
-					suggestions.push(new SnippetCompletion(snippet, Range.fromPositions(position)));
-				});
-			}
+		}
 
 
-			// dismbiguate suggestions with same labels
-			suggestions.sort(SnippetCompletion.compareByLabel);
-			for (let i = 0; i < suggestions.length; i++) {
-				let item = suggestions[i];
-				let to = i + 1;
-				for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-					suggestions[to].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label, suggestions[to].snippet.name);
-				}
-				if (to > i + 1) {
-					suggestions[i].label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label, suggestions[i].snippet.name);
-					i = to;
+		// add remaing snippets when the current prefix ends in whitespace or when line is empty
+		// and when not having a trigger character
+		if (!triggerCharacterLow) {
+			const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
+			if (endsInWhitespace || !lineContentLow /*empty line*/) {
+				for (const snippet of snippets) {
+					const insert = Range.fromPositions(position);
+					const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
+					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
 				}
 			}
-			return { suggestions };
-		});
+		}
+
+
+		// dismbiguate suggestions with same labels
+		suggestions.sort(SnippetCompletion.compareByLabel);
+		for (let i = 0; i < suggestions.length; i++) {
+			const item = suggestions[i];
+			let to = i + 1;
+			for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
+				suggestions[to].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.label, suggestions[to].snippet.name);
+			}
+			if (to > i + 1) {
+				suggestions[i].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.label, suggestions[i].snippet.name);
+				i = to;
+			}
+		}
+
+		return {
+			suggestions,
+			duration: sw.elapsed()
+		};
 	}
 
-	resolveCompletionItem?(model: ITextModel, position: Position, item: CompletionItem): CompletionItem {
+	resolveCompletionItem(item: CompletionItem): CompletionItem {
 		return (item instanceof SnippetCompletion) ? item.resolve() : item;
 	}
 
-	private _getLanguageIdAtPosition(model: ITextModel, position: Position): LanguageId {
+	private _getLanguageIdAtPosition(model: ITextModel, position: Position): string {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier && !this._modeService.getLanguageName(languageIdentifier.language)) {
-			languageId = model.getLanguageIdentifier().id;
+		if (!this._languageService.getLanguageName(languageId)) {
+			languageId = model.getLanguageId();
 		}
 		return languageId;
 	}

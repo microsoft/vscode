@@ -3,391 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./actionbar';
-import * as platform from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
-import * as types from 'vs/base/common/types';
-import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { ActionRunner, IAction, IActionRunner, IRunEvent, Separator } from 'vs/base/common/actions';
+import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { Event, Emitter } from 'vs/base/common/event';
-import { asArray } from 'vs/base/common/arrays';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import * as types from 'vs/base/common/types';
+import 'vs/css!./actionbar';
 
-export interface IActionViewItem {
+export interface IActionViewItem extends IDisposable {
+	action: IAction;
 	actionRunner: IActionRunner;
-	setActionContext(context: any): void;
+	setActionContext(context: unknown): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;
-	focus(fromRight?: boolean): void;
+	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
-	dispose(): void;
 }
 
-export interface IBaseActionViewItemOptions {
-	draggable?: boolean;
-	isMenu?: boolean;
-}
-
-export class BaseActionViewItem extends Disposable implements IActionViewItem {
-
-	element?: HTMLElement;
-	_context: any;
-	_action: IAction;
-
-	private _actionRunner: IActionRunner;
-
-	constructor(context: any, action: IAction, protected options?: IBaseActionViewItemOptions) {
-		super();
-
-		this._context = context || this;
-		this._action = action;
-
-		if (action instanceof Action) {
-			this._register(action.onDidChange(event => {
-				if (!this.element) {
-					// we have not been rendered yet, so there
-					// is no point in updating the UI
-					return;
-				}
-
-				this.handleActionChangeEvent(event);
-			}));
-		}
-	}
-
-	private handleActionChangeEvent(event: IActionChangeEvent): void {
-		if (event.enabled !== undefined) {
-			this.updateEnabled();
-		}
-
-		if (event.checked !== undefined) {
-			this.updateChecked();
-		}
-
-		if (event.class !== undefined) {
-			this.updateClass();
-		}
-
-		if (event.label !== undefined) {
-			this.updateLabel();
-			this.updateTooltip();
-		}
-
-		if (event.tooltip !== undefined) {
-			this.updateTooltip();
-		}
-	}
-
-	set actionRunner(actionRunner: IActionRunner) {
-		this._actionRunner = actionRunner;
-	}
-
-	get actionRunner(): IActionRunner {
-		return this._actionRunner;
-	}
-
-	getAction(): IAction {
-		return this._action;
-	}
-
-	isEnabled(): boolean {
-		return this._action.enabled;
-	}
-
-	setActionContext(newContext: any): void {
-		this._context = newContext;
-	}
-
-	render(container: HTMLElement): void {
-		this.element = container;
-		Gesture.addTarget(container);
-
-		const enableDragging = this.options && this.options.draggable;
-		if (enableDragging) {
-			container.draggable = true;
-		}
-
-		this._register(DOM.addDisposableListener(this.element, EventType.Tap, e => this.onClick(e)));
-
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.MOUSE_DOWN, e => {
-			if (!enableDragging) {
-				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
-			}
-
-			if (this._action.enabled && e.button === 0 && this.element) {
-				DOM.addClass(this.element, 'active');
-			}
-		}));
-
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.CLICK, e => {
-			DOM.EventHelper.stop(e, true);
-			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
-			// > Writing to the clipboard
-			// > You can use the "cut" and "copy" commands without any special
-			// permission if you are using them in a short-lived event handler
-			// for a user action (for example, a click handler).
-
-			// => to get the Copy and Paste context menu actions working on Firefox,
-			// there should be no timeout here
-			if (this.options && this.options.isMenu) {
-				this.onClick(e);
-			} else {
-				platform.setImmediate(() => this.onClick(e));
-			}
-		}));
-
-		this._register(DOM.addDisposableListener(this.element, DOM.EventType.DBLCLICK, e => {
-			DOM.EventHelper.stop(e, true);
-		}));
-
-		[DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT].forEach(event => {
-			this._register(DOM.addDisposableListener(this.element!, event, e => {
-				DOM.EventHelper.stop(e);
-				DOM.removeClass(this.element!, 'active');
-			}));
-		});
-	}
-
-	onClick(event: DOM.EventLike): void {
-		DOM.EventHelper.stop(event, true);
-
-		let context: any;
-		if (types.isUndefinedOrNull(this._context)) {
-			context = event;
-		} else {
-			context = this._context;
-
-			if (types.isObject(context)) {
-				context.event = event;
-			}
-		}
-
-		this._actionRunner.run(this._action, context);
-	}
-
-	focus(): void {
-		if (this.element) {
-			this.element.focus();
-			DOM.addClass(this.element, 'focused');
-		}
-	}
-
-	blur(): void {
-		if (this.element) {
-			this.element.blur();
-			DOM.removeClass(this.element, 'focused');
-		}
-	}
-
-	protected updateEnabled(): void {
-		// implement in subclass
-	}
-
-	protected updateLabel(): void {
-		// implement in subclass
-	}
-
-	protected updateTooltip(): void {
-		// implement in subclass
-	}
-
-	protected updateClass(): void {
-		// implement in subclass
-	}
-
-	protected updateChecked(): void {
-		// implement in subclass
-	}
-
-	dispose(): void {
-		if (this.element) {
-			DOM.removeNode(this.element);
-			this.element = undefined;
-		}
-
-		super.dispose();
-	}
-}
-
-export class Separator extends Action {
-
-	static readonly ID = 'vs.actions.separator';
-
-	constructor(label?: string) {
-		super(Separator.ID, label, label ? 'separator text' : 'separator');
-		this.checked = false;
-		this.radio = false;
-		this.enabled = false;
-	}
-}
-
-export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
-	icon?: boolean;
-	label?: boolean;
-	keybinding?: string | null;
-}
-
-export class ActionViewItem extends BaseActionViewItem {
-
-	protected label: HTMLElement;
-	protected options: IActionViewItemOptions;
-
-	private cssClass?: string;
-
-	constructor(context: any, action: IAction, options: IActionViewItemOptions = {}) {
-		super(context, action, options);
-
-		this.options = options;
-		this.options.icon = options.icon !== undefined ? options.icon : false;
-		this.options.label = options.label !== undefined ? options.label : true;
-		this.cssClass = '';
-	}
-
-	render(container: HTMLElement): void {
-		super.render(container);
-
-		if (this.element) {
-			this.label = DOM.append(this.element, DOM.$('a.action-label'));
-		}
-		if (this._action.id === Separator.ID) {
-			this.label.setAttribute('role', 'presentation'); // A separator is a presentation item
-		} else {
-			if (this.options.isMenu) {
-				this.label.setAttribute('role', 'menuitem');
-			} else {
-				this.label.setAttribute('role', 'button');
-
-				// TODO @misolori remove before shipping stable
-				this.label.setAttribute('data-title', this._action.id);
-			}
-		}
-
-		if (this.options.label && this.options.keybinding && this.element) {
-			DOM.append(this.element, DOM.$('span.keybinding')).textContent = this.options.keybinding;
-		}
-
-		this.updateClass();
-		this.updateLabel();
-		this.updateTooltip();
-		this.updateEnabled();
-		this.updateChecked();
-	}
-
-	focus(): void {
-		super.focus();
-
-		this.label.focus();
-	}
-
-	updateLabel(): void {
-		if (this.options.label) {
-			this.label.textContent = this.getAction().label;
-		}
-	}
-
-	updateTooltip(): void {
-		let title: string | null = null;
-
-		if (this.getAction().tooltip) {
-			title = this.getAction().tooltip;
-
-		} else if (!this.options.label && this.getAction().label && this.options.icon) {
-			title = this.getAction().label;
-
-			if (this.options.keybinding) {
-				title = nls.localize({ key: 'titleLabel', comment: ['action title', 'action keybinding'] }, "{0} ({1})", title, this.options.keybinding);
-			}
-		}
-
-		if (title) {
-			this.label.title = title;
-		}
-	}
-
-	updateClass(): void {
-		if (this.cssClass) {
-			DOM.removeClasses(this.label, this.cssClass);
-		}
-
-		if (this.options.icon) {
-			this.cssClass = this.getAction().class;
-			DOM.addClass(this.label, 'icon');
-			if (this.cssClass) {
-				DOM.addClasses(this.label, this.cssClass);
-			}
-
-			this.updateEnabled();
-		} else {
-			DOM.removeClass(this.label, 'icon');
-		}
-	}
-
-	updateEnabled(): void {
-		if (this.getAction().enabled) {
-			this.label.removeAttribute('aria-disabled');
-			if (this.element) {
-				DOM.removeClass(this.element, 'disabled');
-			}
-			DOM.removeClass(this.label, 'disabled');
-			this.label.tabIndex = 0;
-		} else {
-			this.label.setAttribute('aria-disabled', 'true');
-			if (this.element) {
-				DOM.addClass(this.element, 'disabled');
-			}
-			DOM.addClass(this.label, 'disabled');
-			DOM.removeTabIndexAndUpdateFocus(this.label);
-		}
-	}
-
-	updateChecked(): void {
-		if (this.getAction().checked) {
-			DOM.addClass(this.label, 'checked');
-		} else {
-			DOM.removeClass(this.label, 'checked');
-		}
-	}
+export interface IActionViewItemProvider {
+	(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;
 }
 
 export const enum ActionsOrientation {
 	HORIZONTAL,
-	HORIZONTAL_REVERSE,
 	VERTICAL,
-	VERTICAL_REVERSE,
 }
 
 export interface ActionTrigger {
-	keys: KeyCode[];
+	keys?: KeyCode[];
 	keyDown: boolean;
 }
 
-export interface IActionViewItemProvider {
-	(action: IAction): IActionViewItem | undefined;
-}
-
 export interface IActionBarOptions {
-	orientation?: ActionsOrientation;
-	context?: any;
-	actionViewItemProvider?: IActionViewItemProvider;
-	actionRunner?: IActionRunner;
-	ariaLabel?: string;
-	animated?: boolean;
-	triggerKeys?: ActionTrigger;
+	readonly orientation?: ActionsOrientation;
+	readonly context?: unknown;
+	readonly actionViewItemProvider?: IActionViewItemProvider;
+	readonly actionRunner?: IActionRunner;
+	readonly ariaLabel?: string;
+	readonly ariaRole?: string;
+	readonly animated?: boolean;
+	readonly triggerKeys?: ActionTrigger;
+	readonly allowContextMenu?: boolean;
+	readonly preventLoopNavigation?: boolean;
+	readonly focusOnlyEnabledItems?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
+	/**
+	 * If true, toggled primary items are highlighted with a background color.
+	 * Some action bars exclusively use icon states, we don't want to enable this for them.
+	 * Thus, this is opt-in.
+	 */
+	readonly highlightToggledItems?: boolean;
 }
-
-const defaultOptions: IActionBarOptions = {
-	orientation: ActionsOrientation.HORIZONTAL,
-	context: null,
-	triggerKeys: {
-		keys: [KeyCode.Enter, KeyCode.Space],
-		keyDown: false
-	}
-};
 
 export interface IActionOptions extends IActionViewItemOptions {
 	index?: number;
@@ -395,51 +65,66 @@ export interface IActionOptions extends IActionViewItemOptions {
 
 export class ActionBar extends Disposable implements IActionRunner {
 
-	options: IActionBarOptions;
+	private readonly options: IActionBarOptions;
 
 	private _actionRunner: IActionRunner;
-	private _context: any;
+	private readonly _actionRunnerDisposables = this._register(new DisposableStore());
+	private _context: unknown;
+	private readonly _orientation: ActionsOrientation;
+	private readonly _triggerKeys: {
+		keys: KeyCode[];
+		keyDown: boolean;
+	};
 
 	// View Items
 	viewItems: IActionViewItem[];
+	private readonly viewItemDisposables = this._register(new DisposableMap<IActionViewItem>());
+	private previouslyFocusedItem?: number;
 	protected focusedItem?: number;
 	private focusTracker: DOM.IFocusTracker;
 
+	// Trigger Key Tracking
+	private triggerKeyDown: boolean = false;
+
+	private focusable: boolean = true;
+
 	// Elements
 	domNode: HTMLElement;
-	protected actionsList: HTMLElement;
+	protected readonly actionsList: HTMLElement;
 
-	private _onDidBlur = this._register(new Emitter<void>());
-	get onDidBlur(): Event<void> { return this._onDidBlur.event; }
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidCancel = this._register(new Emitter<void>());
-	get onDidCancel(): Event<void> { return this._onDidCancel.event; }
+	private readonly _onDidCancel = this._register(new Emitter<void>({ onWillAddFirstListener: () => this.cancelHasListener = true }));
+	readonly onDidCancel = this._onDidCancel.event;
+	private cancelHasListener = false;
 
-	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	get onDidRun(): Event<IRunEvent> { return this._onDidRun.event; }
+	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
+	readonly onDidRun = this._onDidRun.event;
 
-	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	get onDidBeforeRun(): Event<IRunEvent> { return this._onDidBeforeRun.event; }
+	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
+	readonly onWillRun = this._onWillRun.event;
 
-	constructor(container: HTMLElement, options: IActionBarOptions = defaultOptions) {
+	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
 
 		this.options = options;
-		this._context = options.context;
-
-		if (!this.options.triggerKeys) {
-			this.options.triggerKeys = defaultOptions.triggerKeys;
-		}
+		this._context = options.context ?? null;
+		this._orientation = this.options.orientation ?? ActionsOrientation.HORIZONTAL;
+		this._triggerKeys = {
+			keyDown: this.options.triggerKeys?.keyDown ?? false,
+			keys: this.options.triggerKeys?.keys ?? [KeyCode.Enter, KeyCode.Space]
+		};
 
 		if (this.options.actionRunner) {
 			this._actionRunner = this.options.actionRunner;
 		} else {
 			this._actionRunner = new ActionRunner();
-			this._register(this._actionRunner);
+			this._actionRunnerDisposables.add(this._actionRunner);
 		}
 
-		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
-		this._register(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
+		this._actionRunnerDisposables.add(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
+		this._actionRunnerDisposables.add(this._actionRunner.onWillRun(e => this._onWillRun.fire(e)));
 
 		this.viewItems = [];
 		this.focusedItem = undefined;
@@ -448,48 +133,47 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.domNode.className = 'monaco-action-bar';
 
 		if (options.animated !== false) {
-			DOM.addClass(this.domNode, 'animated');
+			this.domNode.classList.add('animated');
 		}
 
-		let previousKey: KeyCode;
-		let nextKey: KeyCode;
+		let previousKeys: KeyCode[];
+		let nextKeys: KeyCode[];
 
-		switch (this.options.orientation) {
+		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKey = KeyCode.LeftArrow;
-				nextKey = KeyCode.RightArrow;
-				break;
-			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKey = KeyCode.RightArrow;
-				nextKey = KeyCode.LeftArrow;
-				this.domNode.className += ' reverse';
+				previousKeys = [KeyCode.LeftArrow];
+				nextKeys = [KeyCode.RightArrow];
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKey = KeyCode.UpArrow;
-				nextKey = KeyCode.DownArrow;
+				previousKeys = [KeyCode.UpArrow];
+				nextKeys = [KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
-				break;
-			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKey = KeyCode.DownArrow;
-				nextKey = KeyCode.UpArrow;
-				this.domNode.className += ' vertical reverse';
 				break;
 		}
 
 		this._register(DOM.addDisposableListener(this.domNode, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
+			const focusedItem = typeof this.focusedItem === 'number' ? this.viewItems[this.focusedItem] : undefined;
 
-			if (event.equals(previousKey)) {
-				this.focusPrevious();
-			} else if (event.equals(nextKey)) {
-				this.focusNext();
-			} else if (event.equals(KeyCode.Escape)) {
-				this.cancel();
+			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
+				eventHandled = this.focusPrevious();
+			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
+				eventHandled = this.focusNext();
+			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
+				this._onDidCancel.fire();
+			} else if (event.equals(KeyCode.Home)) {
+				eventHandled = this.focusFirst();
+			} else if (event.equals(KeyCode.End)) {
+				eventHandled = this.focusLast();
+			} else if (event.equals(KeyCode.Tab) && focusedItem instanceof BaseActionViewItem && focusedItem.trapsArrowNavigation) {
+				eventHandled = this.focusNext();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
-				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
+				if (this._triggerKeys.keyDown) {
 					this.doTrigger(event);
+				} else {
+					this.triggerKeyDown = true;
 				}
 			} else {
 				eventHandled = false;
@@ -506,7 +190,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			// Run action on Enter/Space
 			if (this.isTriggerKeyEvent(event)) {
-				if (this.options.triggerKeys && !this.options.triggerKeys.keyDown) {
+				if (!this._triggerKeys.keyDown && this.triggerKeyDown) {
+					this.triggerKeyDown = false;
 					this.doTrigger(event);
 				}
 
@@ -522,9 +207,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.focusTracker = this._register(DOM.trackFocus(this.domNode));
 		this._register(this.focusTracker.onDidBlur(() => {
-			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
+			if (DOM.getActiveElement() === this.domNode || !DOM.isAncestor(DOM.getActiveElement(), this.domNode)) {
 				this._onDidBlur.fire();
+				this.previouslyFocusedItem = this.focusedItem;
 				this.focusedItem = undefined;
+				this.triggerKeyDown = false;
 			}
 		}));
 
@@ -532,7 +219,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		this.actionsList.setAttribute('role', 'toolbar');
+		if (this.options.highlightToggledItems) {
+			this.actionsList.classList.add('highlight-toggled');
+		}
+		this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 
 		if (this.options.ariaLabel) {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
@@ -543,6 +233,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 		container.appendChild(this.domNode);
 	}
 
+	private refreshRole(): void {
+		if (this.length() >= 2) {
+			this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
+		} else {
+			this.actionsList.setAttribute('role', 'presentation');
+		}
+	}
+
 	setAriaLabel(label: string): void {
 		if (label) {
 			this.actionsList.setAttribute('aria-label', label);
@@ -551,13 +249,30 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
-		let ret = false;
-		if (this.options.triggerKeys) {
-			this.options.triggerKeys.keys.forEach(keyCode => {
-				ret = ret || event.equals(keyCode);
+	// Some action bars should not be focusable at times
+	// When an action bar is not focusable make sure to make all the elements inside it not focusable
+	// When an action bar is focusable again, make sure the first item can be focused
+	setFocusable(focusable: boolean): void {
+		this.focusable = focusable;
+		if (this.focusable) {
+			const firstEnabled = this.viewItems.find(vi => vi instanceof BaseActionViewItem && vi.isEnabled());
+			if (firstEnabled instanceof BaseActionViewItem) {
+				firstEnabled.setFocusable(true);
+			}
+		} else {
+			this.viewItems.forEach(vi => {
+				if (vi instanceof BaseActionViewItem) {
+					vi.setFocusable(false);
+				}
 			});
 		}
+	}
+
+	private isTriggerKeyEvent(event: StandardKeyboardEvent): boolean {
+		let ret = false;
+		this._triggerKeys.keys.forEach(keyCode => {
+			ret = ret || event.equals(keyCode);
+		});
 
 		return ret;
 	}
@@ -565,18 +280,18 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private updateFocusedItem(): void {
 		for (let i = 0; i < this.actionsList.children.length; i++) {
 			const elem = this.actionsList.children[i];
-			if (DOM.isAncestor(document.activeElement, elem)) {
+			if (DOM.isAncestor(DOM.getActiveElement(), elem)) {
 				this.focusedItem = i;
 				break;
 			}
 		}
 	}
 
-	get context(): any {
+	get context(): unknown {
 		return this._context;
 	}
 
-	set context(context: any) {
+	set context(context: unknown) {
 		this._context = context;
 		this.viewItems.forEach(i => i.setActionContext(context));
 	}
@@ -586,18 +301,51 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	set actionRunner(actionRunner: IActionRunner) {
-		if (actionRunner) {
-			this._actionRunner = actionRunner;
-			this.viewItems.forEach(item => item.actionRunner = actionRunner);
-		}
+		this._actionRunner = actionRunner;
+
+		// when setting a new `IActionRunner` make sure to dispose old listeners and
+		// start to forward events from the new listener
+		this._actionRunnerDisposables.clear();
+		this._actionRunnerDisposables.add(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
+		this._actionRunnerDisposables.add(this._actionRunner.onWillRun(e => this._onWillRun.fire(e)));
+		this.viewItems.forEach(item => item.actionRunner = actionRunner);
 	}
 
 	getContainer(): HTMLElement {
 		return this.domNode;
 	}
 
-	push(arg: IAction | IAction[], options: IActionOptions = {}): void {
-		const actions: IAction[] = asArray(arg);
+	hasAction(action: IAction): boolean {
+		return this.viewItems.findIndex(candidate => candidate.action.id === action.id) !== -1;
+	}
+
+	getAction(indexOrElement: number | HTMLElement): IAction | undefined {
+
+		// by index
+		if (typeof indexOrElement === 'number') {
+			return this.viewItems[indexOrElement]?.action;
+		}
+
+		// by element
+		if (indexOrElement instanceof HTMLElement) {
+			while (indexOrElement.parentElement !== this.actionsList) {
+				if (!indexOrElement.parentElement) {
+					return undefined;
+				}
+				indexOrElement = indexOrElement.parentElement;
+			}
+			for (let i = 0; i < this.actionsList.childNodes.length; i++) {
+				if (this.actionsList.childNodes[i] === indexOrElement) {
+					return this.viewItems[i].action;
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
+		const actions: ReadonlyArray<IAction> = Array.isArray(arg) ? arg : [arg];
 
 		let index = types.isNumber(options.index) ? options.index : null;
 
@@ -606,25 +354,32 @@ export class ActionBar extends Disposable implements IActionRunner {
 			actionViewItemElement.className = 'action-item';
 			actionViewItemElement.setAttribute('role', 'presentation');
 
-			// Prevent native context menu on actions
-			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
-				e.preventDefault();
-				e.stopPropagation();
-			}));
-
 			let item: IActionViewItem | undefined;
 
+			const viewItemOptions = { hoverDelegate: this.options.hoverDelegate, ...options };
 			if (this.options.actionViewItemProvider) {
-				item = this.options.actionViewItemProvider(action);
+				item = this.options.actionViewItemProvider(action, viewItemOptions);
 			}
 
 			if (!item) {
-				item = new ActionViewItem(this.context, action, options);
+				item = new ActionViewItem(this.context, action, viewItemOptions);
+			}
+
+			// Prevent native context menu on actions
+			if (!this.options.allowContextMenu) {
+				this.viewItemDisposables.set(item, DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+					DOM.EventHelper.stop(e, true);
+				}));
 			}
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
+
+			if (this.focusable && item instanceof BaseActionViewItem && this.viewItems.length === 0) {
+				// We need to allow for the first enabled item to be focused on using tab navigation #106441
+				item.setFocusable(true);
+			}
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
@@ -635,6 +390,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 				index++;
 			}
 		});
+		if (typeof this.focusedItem === 'number') {
+			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
+			this.focus(this.focusedItem);
+		}
+		this.refreshRole();
 	}
 
 	getWidth(index: number): number {
@@ -662,13 +422,21 @@ export class ActionBar extends Disposable implements IActionRunner {
 	pull(index: number): void {
 		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
+			this.viewItemDisposables.deleteAndDispose(this.viewItems[index]);
 			dispose(this.viewItems.splice(index, 1));
+			this.refreshRole();
 		}
 	}
 
 	clear(): void {
+		if (this.isEmpty()) {
+			return;
+		}
+
 		this.viewItems = dispose(this.viewItems);
+		this.viewItemDisposables.clearAndDisposeAll();
 		DOM.clearNode(this.actionsList);
+		this.refreshRole();
 	}
 
 	length(): number {
@@ -693,41 +461,58 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
+			const firstEnabled = this.viewItems.findIndex(item => item.isEnabled());
 			// Focus the first enabled item
-			this.focusedItem = this.viewItems.length - 1;
-			this.focusNext();
+			this.focusedItem = firstEnabled === -1 ? undefined : firstEnabled;
+			this.updateFocus(undefined, undefined, true);
 		} else {
 			if (index !== undefined) {
 				this.focusedItem = index;
 			}
 
-			this.updateFocus();
+			this.updateFocus(undefined, undefined, true);
 		}
 	}
 
-	protected focusNext(): void {
+	private focusFirst(): boolean {
+		this.focusedItem = this.length() - 1;
+		return this.focusNext(true);
+	}
+
+	private focusLast(): boolean {
+		this.focusedItem = 0;
+		return this.focusPrevious(true);
+	}
+
+	protected focusNext(forceLoop?: boolean): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = this.viewItems.length - 1;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;
 		let item: IActionViewItem;
-
 		do {
+
+			if (!forceLoop && this.options.preventLoopNavigation && this.focusedItem + 1 >= this.viewItems.length) {
+				this.focusedItem = startIndex;
+				return false;
+			}
+
 			this.focusedItem = (this.focusedItem + 1) % this.viewItems.length;
 			item = this.viewItems[this.focusedItem];
-		} while (this.focusedItem !== startIndex && !item.isEnabled());
-
-		if (this.focusedItem === startIndex && !item.isEnabled()) {
-			this.focusedItem = undefined;
-		}
+		} while (this.focusedItem !== startIndex && ((this.options.focusOnlyEnabledItems && !item.isEnabled()) || item.action.id === Separator.ID));
 
 		this.updateFocus();
+		return true;
 	}
 
-	protected focusPrevious(): void {
+	protected focusPrevious(forceLoop?: boolean): boolean {
 		if (typeof this.focusedItem === 'undefined') {
 			this.focusedItem = 0;
+		} else if (this.viewItems.length <= 1) {
+			return false;
 		}
 
 		const startIndex = this.focusedItem;
@@ -735,42 +520,53 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		do {
 			this.focusedItem = this.focusedItem - 1;
-
 			if (this.focusedItem < 0) {
+				if (!forceLoop && this.options.preventLoopNavigation) {
+					this.focusedItem = startIndex;
+					return false;
+				}
+
 				this.focusedItem = this.viewItems.length - 1;
 			}
-
 			item = this.viewItems[this.focusedItem];
-		} while (this.focusedItem !== startIndex && !item.isEnabled());
+		} while (this.focusedItem !== startIndex && ((this.options.focusOnlyEnabledItems && !item.isEnabled()) || item.action.id === Separator.ID));
 
-		if (this.focusedItem === startIndex && !item.isEnabled()) {
-			this.focusedItem = undefined;
-		}
 
 		this.updateFocus(true);
+		return true;
 	}
 
-	protected updateFocus(fromRight?: boolean): void {
+	protected updateFocus(fromRight?: boolean, preventScroll?: boolean, forceFocus: boolean = false): void {
 		if (typeof this.focusedItem === 'undefined') {
-			this.actionsList.focus();
+			this.actionsList.focus({ preventScroll });
 		}
 
-		for (let i = 0; i < this.viewItems.length; i++) {
-			const item = this.viewItems[i];
-			const actionViewItem = item;
+		if (this.previouslyFocusedItem !== undefined && this.previouslyFocusedItem !== this.focusedItem) {
+			this.viewItems[this.previouslyFocusedItem]?.blur();
+		}
 
-			if (i === this.focusedItem) {
-				if (types.isFunction(actionViewItem.isEnabled)) {
-					if (actionViewItem.isEnabled() && types.isFunction(actionViewItem.focus)) {
-						actionViewItem.focus(fromRight);
-					} else {
-						this.actionsList.focus();
-					}
-				}
-			} else {
-				if (types.isFunction(actionViewItem.blur)) {
-					actionViewItem.blur();
-				}
+		const actionViewItem = this.focusedItem !== undefined && this.viewItems[this.focusedItem];
+		if (actionViewItem) {
+			let focusItem = true;
+
+			if (!types.isFunction(actionViewItem.focus)) {
+				focusItem = false;
+			}
+
+			if (this.options.focusOnlyEnabledItems && types.isFunction(actionViewItem.isEnabled) && !actionViewItem.isEnabled()) {
+				focusItem = false;
+			}
+
+			if (actionViewItem.action.id === Separator.ID) {
+				focusItem = false;
+			}
+
+			if (!focusItem) {
+				this.actionsList.focus({ preventScroll });
+				this.previouslyFocusedItem = undefined;
+			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
+				actionViewItem.focus(fromRight);
+				this.previouslyFocusedItem = this.focusedItem;
 			}
 		}
 	}
@@ -788,71 +584,62 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private cancel(): void {
-		if (document.activeElement instanceof HTMLElement) {
-			document.activeElement.blur(); // remove focus from focused action
-		}
-
-		this._onDidCancel.fire();
+	async run(action: IAction, context?: unknown): Promise<void> {
+		await this._actionRunner.run(action, context);
 	}
 
-	run(action: IAction, context?: any): Promise<void> {
-		return this._actionRunner.run(action, context);
-	}
-
-	dispose(): void {
-		dispose(this.viewItems);
-		this.viewItems = [];
-
-		DOM.removeNode(this.getContainer());
-
+	override dispose(): void {
+		this._context = undefined;
+		this.viewItems = dispose(this.viewItems);
+		this.getContainer().remove();
 		super.dispose();
 	}
 }
 
-export class SelectActionViewItem extends BaseActionViewItem {
-	protected selectBox: SelectBox;
-
-	constructor(ctx: any, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
-		super(ctx, action);
-
-		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
-
-		this._register(this.selectBox);
-		this.registerListeners();
+export function prepareActions(actions: IAction[]): IAction[] {
+	if (!actions.length) {
+		return actions;
 	}
 
-	setOptions(options: ISelectOptionItem[], selected?: number): void {
-		this.selectBox.setOptions(options, selected);
+	// Clean up leading separators
+	let firstIndexOfAction = -1;
+	for (let i = 0; i < actions.length; i++) {
+		if (actions[i].id === Separator.ID) {
+			continue;
+		}
+
+		firstIndexOfAction = i;
+		break;
 	}
 
-	select(index: number): void {
-		this.selectBox.select(index);
+	if (firstIndexOfAction === -1) {
+		return [];
 	}
 
-	private registerListeners(): void {
-		this._register(this.selectBox.onDidSelect(e => {
-			this.actionRunner.run(this._action, this.getActionContext(e.selected, e.index));
-		}));
-	}
+	actions = actions.slice(firstIndexOfAction);
 
-	protected getActionContext(option: string, index: number) {
-		return option;
-	}
-
-	focus(): void {
-		if (this.selectBox) {
-			this.selectBox.focus();
+	// Clean up trailing separators
+	for (let h = actions.length - 1; h >= 0; h--) {
+		const isSeparator = actions[h].id === Separator.ID;
+		if (isSeparator) {
+			actions.splice(h, 1);
+		} else {
+			break;
 		}
 	}
 
-	blur(): void {
-		if (this.selectBox) {
-			this.selectBox.blur();
+	// Clean up separator duplicates
+	let foundAction = false;
+	for (let k = actions.length - 1; k >= 0; k--) {
+		const isSeparator = actions[k].id === Separator.ID;
+		if (isSeparator && !foundAction) {
+			actions.splice(k, 1);
+		} else if (!isSeparator) {
+			foundAction = true;
+		} else if (isSeparator) {
+			foundAction = false;
 		}
 	}
 
-	render(container: HTMLElement): void {
-		this.selectBox.render(container);
-	}
+	return actions;
 }

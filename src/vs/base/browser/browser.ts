@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
@@ -12,25 +12,15 @@ class WindowManager {
 
 	// --- Zoom Level
 	private _zoomLevel: number = 0;
-	private _lastZoomLevelChangeTime: number = 0;
-	private readonly _onDidChangeZoomLevel = new Emitter<number>();
 
-	public readonly onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
-	public getTimeSinceLastZoomLevelChanged(): number {
-		return Date.now() - this._lastZoomLevelChangeTime;
-	}
-	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
+	public setZoomLevel(zoomLevel: number): void {
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}
-
 		this._zoomLevel = zoomLevel;
-		// See https://github.com/Microsoft/vscode/issues/26151
-		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
-		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
 	// --- Zoom Factor
@@ -43,20 +33,8 @@ class WindowManager {
 		this._zoomFactor = zoomFactor;
 	}
 
-	// --- Pixel Ratio
-	public getPixelRatio(): number {
-		let ctx: any = document.createElement('canvas').getContext('2d');
-		let dpr = window.devicePixelRatio || 1;
-		let bsr = ctx.webkitBackingStorePixelRatio ||
-			ctx.mozBackingStorePixelRatio ||
-			ctx.msBackingStorePixelRatio ||
-			ctx.oBackingStorePixelRatio ||
-			ctx.backingStorePixelRatio || 1;
-		return dpr / bsr;
-	}
-
 	// --- Fullscreen
-	private _fullscreen: boolean;
+	private _fullscreen: boolean = false;
 	private readonly _onDidChangeFullscreen = new Emitter<void>();
 
 	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
@@ -73,19 +51,119 @@ class WindowManager {
 	}
 }
 
+/**
+ * See https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio#monitoring_screen_resolution_or_zoom_level_changes
+ */
+class DevicePixelRatioMonitor extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	public readonly onDidChange = this._onDidChange.event;
+
+	private readonly _listener: () => void;
+	private _mediaQueryList: MediaQueryList | null;
+
+	constructor() {
+		super();
+
+		this._listener = () => this._handleChange(true);
+		this._mediaQueryList = null;
+		this._handleChange(false);
+	}
+
+	private _handleChange(fireEvent: boolean): void {
+		this._mediaQueryList?.removeEventListener('change', this._listener);
+
+		this._mediaQueryList = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+		this._mediaQueryList.addEventListener('change', this._listener);
+
+		if (fireEvent) {
+			this._onDidChange.fire();
+		}
+	}
+}
+
+class PixelRatioImpl extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<number>());
+	public readonly onDidChange = this._onDidChange.event;
+
+	private _value: number;
+
+	public get value(): number {
+		return this._value;
+	}
+
+	constructor() {
+		super();
+
+		this._value = this._getPixelRatio();
+
+		const dprMonitor = this._register(new DevicePixelRatioMonitor());
+		this._register(dprMonitor.onDidChange(() => {
+			this._value = this._getPixelRatio();
+			this._onDidChange.fire(this._value);
+		}));
+	}
+
+	private _getPixelRatio(): number {
+		const ctx: any = document.createElement('canvas').getContext('2d');
+		const dpr = window.devicePixelRatio || 1;
+		const bsr = ctx.webkitBackingStorePixelRatio ||
+			ctx.mozBackingStorePixelRatio ||
+			ctx.msBackingStorePixelRatio ||
+			ctx.oBackingStorePixelRatio ||
+			ctx.backingStorePixelRatio || 1;
+		return dpr / bsr;
+	}
+}
+
+class PixelRatioFacade {
+
+	private _pixelRatioMonitor: PixelRatioImpl | null = null;
+	private _getOrCreatePixelRatioMonitor(): PixelRatioImpl {
+		if (!this._pixelRatioMonitor) {
+			this._pixelRatioMonitor = markAsSingleton(new PixelRatioImpl());
+		}
+		return this._pixelRatioMonitor;
+	}
+
+	/**
+	 * Get the current value.
+	 */
+	public get value(): number {
+		return this._getOrCreatePixelRatioMonitor().value;
+	}
+
+	/**
+	 * Listen for changes.
+	 */
+	public get onDidChange(): Event<number> {
+		return this._getOrCreatePixelRatioMonitor().onDidChange;
+	}
+}
+
+export function addMatchMediaChangeListener(query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
+	if (typeof query === 'string') {
+		query = window.matchMedia(query);
+	}
+	query.addEventListener('change', callback);
+}
+
+/**
+ * Returns the pixel ratio.
+ *
+ * This is useful for rendering <canvas> elements at native screen resolution or for being used as
+ * a cache key when storing font measurements. Fonts might render differently depending on resolution
+ * and any measurements need to be discarded for example when a window is moved from a monitor to another.
+ */
+export const PixelRatio = new PixelRatioFacade();
+
 /** A zoom index, e.g. 1, 2, 3 */
-export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
-	WindowManager.INSTANCE.setZoomLevel(zoomLevel, isTrusted);
+export function setZoomLevel(zoomLevel: number): void {
+	WindowManager.INSTANCE.setZoomLevel(zoomLevel);
 }
 export function getZoomLevel(): number {
 	return WindowManager.INSTANCE.getZoomLevel();
-}
-/** Returns the time (in ms) since the zoom level was changed */
-export function getTimeSinceLastZoomLevelChanged(): number {
-	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
-}
-export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
 }
 
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
@@ -94,10 +172,6 @@ export function getZoomFactor(): number {
 }
 export function setZoomFactor(zoomFactor: number): void {
 	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
-}
-
-export function getPixelRatio(): number {
-	return WindowManager.INSTANCE.getPixelRatio();
 }
 
 export function setFullscreen(fullscreen: boolean): void {
@@ -110,32 +184,36 @@ export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscree
 
 const userAgent = navigator.userAgent;
 
-export const isIE = (userAgent.indexOf('Trident') >= 0);
-export const isEdge = (userAgent.indexOf('Edge/') >= 0);
-export const isEdgeOrIE = isIE || isEdge;
-
-export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
 export const isChrome = (userAgent.indexOf('Chrome') >= 0);
 export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
 export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
-export const isIPad = (userAgent.indexOf('iPad') >= 0);
-export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
+export const isElectron = (userAgent.indexOf('Electron/') >= 0);
+export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
-export function hasClipboardSupport() {
-	if (isIE) {
-		return false;
-	}
-
-	if (isEdge) {
-		let index = userAgent.indexOf('Edge/');
-		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
-
-		if (!version || (version >= 12 && version <= 16)) {
-			return false;
+let standalone = false;
+if (window.matchMedia) {
+	const standaloneMatchMedia = window.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
+	const fullScreenMatchMedia = window.matchMedia('(display-mode: fullscreen)');
+	standalone = standaloneMatchMedia.matches;
+	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {
+		// entering fullscreen would change standaloneMatchMedia.matches to false
+		// if standalone is true (running as PWA) and entering fullscreen, skip this change
+		if (standalone && fullScreenMatchMedia.matches) {
+			return;
 		}
-	}
+		// otherwise update standalone (browser to PWA or PWA to browser)
+		standalone = matches;
+	});
+}
+export function isStandalone(): boolean {
+	return standalone;
+}
 
-	return true;
+// Visible means that the feature is enabled, not necessarily being rendered
+// e.g. visible is true even in fullscreen mode where the controls are hidden
+// See docs at https://developer.mozilla.org/en-US/docs/Web/API/WindowControlsOverlay/visible
+export function isWCOEnabled(): boolean {
+	return (navigator as any)?.windowControlsOverlay?.visible;
 }

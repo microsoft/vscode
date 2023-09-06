@@ -5,8 +5,6 @@
 
 import * as jschardet from 'jschardet';
 
-jschardet.Constants.MINIMUM_THRESHOLD = 0.2;
-
 function detectEncodingByBOM(buffer: Buffer): string | null {
 	if (!buffer || buffer.length < 2) {
 		return null;
@@ -52,7 +50,7 @@ const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 };
 
 export function detectEncoding(buffer: Buffer): string | null {
-	let result = detectEncodingByBOM(buffer);
+	const result = detectEncodingByBOM(buffer);
 
 	if (result) {
 		return result;

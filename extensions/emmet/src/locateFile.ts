@@ -16,7 +16,7 @@ const reAbsoluteWin32 = /^\\+/;
 const reAbsolute = path.sep === '/' ? reAbsolutePosix : reAbsoluteWin32;
 
 /**
- * Locates given `filePath` on user’s file system and returns absolute path to it.
+ * Locates given `filePath` on user's file system and returns absolute path to it.
  * This method expects either URL, or relative/absolute path to resource
  * @param basePath Base path to use if filePath is not absoulte
  * @param filePath File to locate.
@@ -43,7 +43,7 @@ function resolveRelative(basePath: string, filePath: string): Promise<string> {
 
 /**
  * Resolves absolute file path agaist given editor: tries to find file in every
- * parent of editor’s file
+ * parent of editor's file
  */
 function resolveAbsolute(basePath: string, filePath: string): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -66,7 +66,7 @@ function resolveAbsolute(basePath: string, filePath: string): Promise<string> {
 }
 
 /**
- * Check if given file exists and it’s a file, not directory
+ * Check if given file exists and it's a file, not directory
  */
 function tryFile(file: string): Promise<string> {
 	return new Promise((resolve, reject) => {

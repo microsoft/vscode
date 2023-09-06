@@ -74,16 +74,9 @@ export class Selection extends Range {
 	}
 
 	/**
-	 * Clone this selection.
-	 */
-	public clone(): Selection {
-		return new Selection(this.selectionStartLineNumber, this.selectionStartColumn, this.positionLineNumber, this.positionColumn);
-	}
-
-	/**
 	 * Transform to a human-readable representation.
 	 */
-	public toString(): string {
+	public override toString(): string {
 		return '[' + this.selectionStartLineNumber + ',' + this.selectionStartColumn + ' -> ' + this.positionLineNumber + ',' + this.positionColumn + ']';
 	}
 
@@ -121,7 +114,7 @@ export class Selection extends Range {
 	/**
 	 * Create a new selection with a different `positionLineNumber` and `positionColumn`.
 	 */
-	public setEndPosition(endLineNumber: number, endColumn: number): Selection {
+	public override setEndPosition(endLineNumber: number, endColumn: number): Selection {
 		if (this.getDirection() === SelectionDirection.LTR) {
 			return new Selection(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
 		}
@@ -136,9 +129,16 @@ export class Selection extends Range {
 	}
 
 	/**
+	 * Get the position at the start of the selection.
+	*/
+	public getSelectionStart(): Position {
+		return new Position(this.selectionStartLineNumber, this.selectionStartColumn);
+	}
+
+	/**
 	 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 	 */
-	public setStartPosition(startLineNumber: number, startColumn: number): Selection {
+	public override setStartPosition(startLineNumber: number, startColumn: number): Selection {
 		if (this.getDirection() === SelectionDirection.LTR) {
 			return new Selection(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
 		}
@@ -150,8 +150,19 @@ export class Selection extends Range {
 	/**
 	 * Create a `Selection` from one or two positions
 	 */
-	public static fromPositions(start: IPosition, end: IPosition = start): Selection {
+	public static override fromPositions(start: IPosition, end: IPosition = start): Selection {
 		return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
+
+	/**
+	 * Creates a `Selection` from a range, given a direction.
+	 */
+	public static fromRange(range: Range, direction: SelectionDirection): Selection {
+		if (direction === SelectionDirection.LTR) {
+			return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+		} else {
+			return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
+		}
 	}
 
 	/**

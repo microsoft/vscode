@@ -8,13 +8,16 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { editorCursorForeground, editorOverviewRulerBorder } from 'vs/editor/common/view/editorColorRegistry';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/core/editorColorRegistry';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';
+import { equals } from 'vs/base/common/arrays';
 
 class Settings {
 
@@ -28,8 +31,8 @@ class Settings {
 	public readonly hideCursor: boolean;
 	public readonly cursorColor: string | null;
 
-	public readonly themeType: 'light' | 'dark' | 'hc';
-	public readonly backgroundColor: string | null;
+	public readonly themeType: 'light' | 'dark' | 'hcLight' | 'hcDark';
+	public readonly backgroundColor: Color | null;
 
 	public readonly top: number;
 	public readonly right: number;
@@ -41,37 +44,50 @@ class Settings {
 	public readonly x: number[];
 	public readonly w: number[];
 
-	constructor(config: IConfiguration, theme: ITheme) {
-		this.lineHeight = config.editor.lineHeight;
-		this.pixelRatio = config.editor.pixelRatio;
-		this.overviewRulerLanes = config.editor.viewInfo.overviewRulerLanes;
+	constructor(config: IEditorConfiguration, theme: EditorTheme) {
+		const options = config.options;
+		this.lineHeight = options.get(EditorOption.lineHeight);
+		this.pixelRatio = options.get(EditorOption.pixelRatio);
+		this.overviewRulerLanes = options.get(EditorOption.overviewRulerLanes);
 
-		this.renderBorder = config.editor.viewInfo.overviewRulerBorder;
+		this.renderBorder = options.get(EditorOption.overviewRulerBorder);
 		const borderColor = theme.getColor(editorOverviewRulerBorder);
 		this.borderColor = borderColor ? borderColor.toString() : null;
 
-		this.hideCursor = config.editor.viewInfo.hideCursorInOverviewRuler;
+		this.hideCursor = options.get(EditorOption.hideCursorInOverviewRuler);
 		const cursorColor = theme.getColor(editorCursorForeground);
 		this.cursorColor = cursorColor ? cursorColor.transparent(0.7).toString() : null;
 
 		this.themeType = theme.type;
 
-		const minimapEnabled = config.editor.viewInfo.minimap.enabled;
-		const minimapSide = config.editor.viewInfo.minimap.side;
-		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
-		if (backgroundColor === null || minimapSide === 'left') {
-			this.backgroundColor = null;
+		const minimapOpts = options.get(EditorOption.minimap);
+		const minimapEnabled = minimapOpts.enabled;
+		const minimapSide = minimapOpts.side;
+		const themeColor = theme.getColor(editorOverviewRulerBackground);
+		const defaultBackground = TokenizationRegistry.getDefaultBackground();
+
+		if (themeColor) {
+			this.backgroundColor = themeColor;
+		} else if (minimapEnabled && minimapSide === 'right') {
+			this.backgroundColor = defaultBackground;
 		} else {
-			this.backgroundColor = Color.Format.CSS.formatHex(backgroundColor);
+			this.backgroundColor = null;
 		}
 
-		const position = config.editor.layoutInfo.overviewRuler;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const position = layoutInfo.overviewRuler;
 		this.top = position.top;
 		this.right = position.right;
 		this.domWidth = position.width;
 		this.domHeight = position.height;
-		this.canvasWidth = (this.domWidth * this.pixelRatio) | 0;
-		this.canvasHeight = (this.domHeight * this.pixelRatio) | 0;
+		if (this.overviewRulerLanes === 0) {
+			// overview ruler is off
+			this.canvasWidth = 0;
+			this.canvasHeight = 0;
+		} else {
+			this.canvasWidth = (this.domWidth * this.pixelRatio) | 0;
+			this.canvasHeight = (this.domHeight * this.pixelRatio) | 0;
+		}
 
 		const [x, w] = this._initLanes(1, this.canvasWidth, this.overviewRulerLanes);
 		this.x = x;
@@ -175,7 +191,7 @@ class Settings {
 			&& this.hideCursor === other.hideCursor
 			&& this.cursorColor === other.cursorColor
 			&& this.themeType === other.themeType
-			&& this.backgroundColor === other.backgroundColor
+			&& Color.equals(this.backgroundColor, other.backgroundColor)
 			&& this.top === other.top
 			&& this.right === other.right
 			&& this.domWidth === other.domWidth
@@ -197,12 +213,23 @@ const enum OverviewRulerLane {
 	Full = 7
 }
 
+const enum ShouldRenderValue {
+	NotNeeded = 0,
+	Maybe = 1,
+	Needed = 2
+}
+
 export class DecorationsOverviewRuler extends ViewPart {
+
+	private _actualShouldRender: ShouldRenderValue = ShouldRenderValue.NotNeeded;
 
 	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
-	private _settings: Settings;
+	private _settings!: Settings;
 	private _cursorPositions: Position[];
+
+	private _renderedDecorations: OverviewRulerDecorationsGroup[] = [];
+	private _renderedCursorPositions: Position[] = [];
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -211,6 +238,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._domNode.setClassName('decorationsOverviewRuler');
 		this._domNode.setPosition('absolute');
 		this._domNode.setLayerHinting(true);
+		this._domNode.setContain('strict');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
 		this._updateSettings(false);
@@ -224,7 +252,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._cursorPositions = [];
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		this._tokensColorTrackerListener.dispose();
 	}
@@ -254,33 +282,44 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return this._updateSettings(false);
+	private _markRenderingIsNeeded(): true {
+		this._actualShouldRender = ShouldRenderValue.Needed;
+		return true;
 	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+
+	private _markRenderingIsMaybeNeeded(): true {
+		this._actualShouldRender = ShouldRenderValue.Maybe;
+		return true;
+	}
+
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		return this._updateSettings(false) ? this._markRenderingIsNeeded() : false;
+	}
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._cursorPositions = [];
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			this._cursorPositions[i] = e.selections[i].getPosition();
 		}
 		this._cursorPositions.sort(Position.compare);
-		return true;
+		return this._markRenderingIsMaybeNeeded();
 	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return true;
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		if (e.affectsOverviewRuler) {
+			return this._markRenderingIsMaybeNeeded();
+		}
+		return false;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return this._markRenderingIsNeeded();
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollHeightChanged;
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollHeightChanged ? this._markRenderingIsNeeded() : false;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return this._markRenderingIsNeeded();
 	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		// invalidate color cache
-		this._context.model.invalidateOverviewRulerColorCache();
-		return this._updateSettings(false);
+	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		return this._updateSettings(false) ? this._markRenderingIsNeeded() : false;
 	}
 
 	// ---- end view event handlers
@@ -295,48 +334,81 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public render(editorCtx: RestrictedRenderingContext): void {
 		this._render();
+		this._actualShouldRender = ShouldRenderValue.NotNeeded;
 	}
 
 	private _render(): void {
+		const backgroundColor = this._settings.backgroundColor;
+		if (this._settings.overviewRulerLanes === 0) {
+			// overview ruler is off
+			this._domNode.setBackgroundColor(backgroundColor ? Color.Format.CSS.formatHexA(backgroundColor) : '');
+			this._domNode.setDisplay('none');
+			return;
+		}
+
+		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
+		decorations.sort(OverviewRulerDecorationsGroup.cmp);
+
+		if (this._actualShouldRender === ShouldRenderValue.Maybe && !OverviewRulerDecorationsGroup.equalsArr(this._renderedDecorations, decorations)) {
+			this._actualShouldRender = ShouldRenderValue.Needed;
+		}
+		if (this._actualShouldRender === ShouldRenderValue.Maybe && !equals(this._renderedCursorPositions, this._cursorPositions, (a, b) => a.lineNumber === b.lineNumber)) {
+			this._actualShouldRender = ShouldRenderValue.Needed;
+		}
+		if (this._actualShouldRender === ShouldRenderValue.Maybe) {
+			// both decorations and cursor positions are unchanged, nothing to do
+			return;
+		}
+		this._renderedDecorations = decorations;
+		this._renderedCursorPositions = this._cursorPositions;
+
+		this._domNode.setDisplay('block');
 		const canvasWidth = this._settings.canvasWidth;
 		const canvasHeight = this._settings.canvasHeight;
 		const lineHeight = this._settings.lineHeight;
 		const viewLayout = this._context.viewLayout;
 		const outerHeight = this._context.viewLayout.getScrollHeight();
 		const heightRatio = canvasHeight / outerHeight;
-		const decorations = this._context.model.getAllOverviewRulerDecorations(this._context.theme);
 
 		const minDecorationHeight = (Constants.MIN_DECORATION_HEIGHT * this._settings.pixelRatio) | 0;
 		const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;
 
 		const canvasCtx = this._domNode.domNode.getContext('2d')!;
-		if (this._settings.backgroundColor === null) {
-			canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+		if (backgroundColor) {
+			if (backgroundColor.isOpaque()) {
+				// We have a background color which is opaque, we can just paint the entire surface with it
+				canvasCtx.fillStyle = Color.Format.CSS.formatHexA(backgroundColor);
+				canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+			} else {
+				// We have a background color which is transparent, we need to first clear the surface and
+				// then fill it
+				canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+				canvasCtx.fillStyle = Color.Format.CSS.formatHexA(backgroundColor);
+				canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+			}
 		} else {
-			canvasCtx.fillStyle = this._settings.backgroundColor;
-			canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+			// We don't have a background color
+			canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight);
 		}
 
 		const x = this._settings.x;
 		const w = this._settings.w;
-		// Avoid flickering by always rendering the colors in the same order
-		// colors that don't use transparency will be sorted last (they start with #)
-		const colors = Object.keys(decorations);
-		colors.sort();
-		for (let cIndex = 0, cLen = colors.length; cIndex < cLen; cIndex++) {
-			const color = colors[cIndex];
 
-			const colorDecorations = decorations[color];
+
+
+		for (const decorationGroup of decorations) {
+			const color = decorationGroup.color;
+			const decorationGroupData = decorationGroup.data;
 
 			canvasCtx.fillStyle = color;
 
 			let prevLane = 0;
 			let prevY1 = 0;
 			let prevY2 = 0;
-			for (let i = 0, len = colorDecorations.length; i < len; i++) {
-				const lane = colorDecorations[3 * i];
-				const startLineNumber = colorDecorations[3 * i + 1];
-				const endLineNumber = colorDecorations[3 * i + 2];
+			for (let i = 0, len = decorationGroupData.length / 3; i < len; i++) {
+				const lane = decorationGroupData[3 * i];
+				const startLineNumber = decorationGroupData[3 * i + 1];
+				const endLineNumber = decorationGroupData[3 * i + 2];
 
 				let y1 = (viewLayout.getVerticalOffsetForLineNumber(startLineNumber) * heightRatio) | 0;
 				let y2 = ((viewLayout.getVerticalOffsetForLineNumber(endLineNumber) + lineHeight) * heightRatio) | 0;

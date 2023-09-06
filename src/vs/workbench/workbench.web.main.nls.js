@@ -4,5 +4,3 @@
  *--------------------------------------------------------------------------------------------*/
 
 // NOTE: THIS FILE WILL BE OVERWRITTEN DURING BUILD TIME, DO NOT EDIT
-
-define([], {});

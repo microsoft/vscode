@@ -3,23 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
+import { isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
 	}
 	if (obj instanceof RegExp) {
-		// See https://github.com/Microsoft/TypeScript/issues/10990
-		return obj as any;
+		return obj;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj as any).forEach((key: string) => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = deepClone(obj[key]);
-		} else {
-			result[key] = obj[key];
-		}
+	Object.entries(obj).forEach(([key, value]) => {
+		result[key] = value && typeof value === 'object' ? deepClone(value) : value;
 	});
 	return result;
 }
@@ -35,7 +30,7 @@ export function deepFreeze<T>(obj: T): T {
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
 				const prop = obj[key];
-				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
+				if (typeof prop === 'object' && !Object.isFrozen(prop) && !isTypedArray(prop)) {
 					stack.push(prop);
 				}
 			}
@@ -45,6 +40,7 @@ export function deepFreeze<T>(obj: T): T {
 }
 
 const _hasOwnProperty = Object.prototype.hasOwnProperty;
+
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
 	return _cloneAndChange(obj, changer, new Set());
@@ -60,7 +56,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 		return changed;
 	}
 
-	if (isArray(obj)) {
+	if (Array.isArray(obj)) {
 		const r1: any[] = [];
 		for (const e of obj) {
 			r1.push(_cloneAndChange(e, changer, seen));
@@ -74,7 +70,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, seen: Set<any>):
 		}
 		seen.add(obj);
 		const r2 = {};
-		for (let i2 in obj) {
+		for (const i2 in obj) {
 			if (_hasOwnProperty.call(obj, i2)) {
 				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, seen);
 			}
@@ -110,15 +106,6 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 			}
 		});
 	}
-	return destination;
-}
-
-export function assign<T>(destination: T): T;
-export function assign<T, U>(destination: T, u: U): T & U;
-export function assign<T, U, V>(destination: T, u: U, v: V): T & U & V;
-export function assign<T, U, V, W>(destination: T, u: U, v: V, w: W): T & U & V & W;
-export function assign(destination: any, ...sources: any[]): any {
-	sources.forEach(source => Object.keys(source).forEach(key => destination[key] = source[key]));
 	return destination;
 }
 
@@ -176,30 +163,25 @@ export function equals(one: any, other: any): boolean {
 }
 
 /**
- * Calls JSON.Stringify with a replacer to break apart any circular references.
- * This prevents JSON.stringify from throwing the exception
+ * Calls `JSON.Stringify` with a replacer to break apart any circular references.
+ * This prevents `JSON`.stringify` from throwing the exception
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	const seen: any[] = [];
+	const seen = new Set<any>();
 	return JSON.stringify(obj, (key, value) => {
 		if (isObject(value) || Array.isArray(value)) {
-			if (seen.indexOf(value) !== -1) {
+			if (seen.has(value)) {
 				return '[Circular]';
 			} else {
-				seen.push(value);
+				seen.add(value);
 			}
 		}
 		return value;
 	});
 }
 
-export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaultValue: R): R {
-	const result = fn(obj);
-	return typeof result === 'undefined' ? defaultValue : result;
-}
-
-type obj = { [key: string]: any; };
+type obj = { [key: string]: any };
 /**
  * Returns an object that has keys for each value that is different in the base object. Keys
  * that do not exist in the target but in the base object are not considered.
@@ -227,5 +209,55 @@ export function distinct(base: obj, target: obj): obj {
 		}
 	});
 
+	return result;
+}
+
+export function getCaseInsensitive(target: obj, key: string): any {
+	const lowercaseKey = key.toLowerCase();
+	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
+	return equivalentKey ? target[equivalentKey] : target[key];
+}
+
+export function filter(obj: obj, predicate: (key: string, value: any) => boolean): obj {
+	const result = Object.create(null);
+	for (const [key, value] of Object.entries(obj)) {
+		if (predicate(key, value)) {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+export function getAllPropertyNames(obj: object): string[] {
+	let res: string[] = [];
+	while (Object.prototype !== obj) {
+		res = res.concat(Object.getOwnPropertyNames(obj));
+		obj = Object.getPrototypeOf(obj);
+	}
+	return res;
+}
+
+export function getAllMethodNames(obj: object): string[] {
+	const methods: string[] = [];
+	for (const prop of getAllPropertyNames(obj)) {
+		if (typeof (obj as any)[prop] === 'function') {
+			methods.push(prop);
+		}
+	}
+	return methods;
+}
+
+export function createProxyObject<T extends object>(methodNames: string[], invoke: (method: string, args: unknown[]) => unknown): T {
+	const createProxyMethod = (method: string): () => unknown => {
+		return function () {
+			const args = Array.prototype.slice.call(arguments, 0);
+			return invoke(method, args);
+		};
+	};
+
+	const result = {} as T;
+	for (const methodName of methodNames) {
+		(<any>result)[methodName] = createProxyMethod(methodName);
+	}
 	return result;
 }

@@ -3,44 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { basename, extname } from 'vs/base/common/path';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Schemas } from 'vs/base/common/network';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
-export const enum WorkbenchState {
-	EMPTY = 1,
-	FOLDER,
-	WORKSPACE
-}
-
-export interface IWorkspaceFoldersChangeEvent {
-	added: IWorkspaceFolder[];
-	removed: IWorkspaceFolder[];
-	changed: IWorkspaceFolder[];
-}
-
 export interface IWorkspaceContextService {
-	_serviceBrand: any;
+
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event which fires on workbench state changes.
 	 */
-	onDidChangeWorkbenchState: Event<WorkbenchState>;
+	readonly onDidChangeWorkbenchState: Event<WorkbenchState>;
 
 	/**
 	 * An event which fires on workspace name changes.
 	 */
-	onDidChangeWorkspaceName: Event<void>;
+	readonly onDidChangeWorkspaceName: Event<void>;
+
+	/**
+	 * An event which fires before workspace folders change.
+	 */
+	readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent>;
 
 	/**
 	 * An event which fires on workspace folders change.
 	 */
-	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
+	readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
 	 * Provides access to the complete workspace object.
@@ -69,9 +66,9 @@ export interface IWorkspaceContextService {
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
 
 	/**
-	 * Return `true` if the current workspace has the given identifier otherwise `false`.
+	 * Return `true` if the current workspace has the given identifier or root URI otherwise `false`.
 	 */
-	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean;
+	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean;
 
 	/**
 	 * Returns if the provided resource is inside the workspace or not.
@@ -79,12 +76,186 @@ export interface IWorkspaceContextService {
 	isInsideWorkspace(resource: URI): boolean;
 }
 
-export namespace IWorkspace {
-	export function isIWorkspace(thing: any): thing is IWorkspace {
-		return thing && typeof thing === 'object'
-			&& typeof (thing as IWorkspace).id === 'string'
-			&& Array.isArray((thing as IWorkspace).folders);
+export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
+	readonly folders: IWorkspaceFolder[];
+}
+
+export interface IBaseWorkspace {
+
+	/**
+	 * If present, marks the window that opens the workspace
+	 * as a remote window with the given authority.
+	 */
+	readonly remoteAuthority?: string;
+
+	/**
+	 * Transient workspaces are meant to go away after being used
+	 * once, e.g. a window reload of a transient workspace will
+	 * open an empty window.
+	 *
+	 * See: https://github.com/microsoft/vscode/issues/119695
+	 */
+	readonly transient?: boolean;
+}
+
+export interface IBaseWorkspaceIdentifier {
+
+	/**
+	 * Every workspace (multi-root, single folder or empty)
+	 * has a unique identifier. It is not possible to open
+	 * a workspace with the same `id` in multiple windows
+	 */
+	readonly id: string;
+}
+
+/**
+ * A single folder workspace identifier is a path to a folder + id.
+ */
+export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+
+	/**
+	 * Folder path as `URI`.
+	 */
+	readonly uri: URI;
+}
+
+/**
+ * A multi-root workspace identifier is a path to a workspace file + id.
+ */
+export interface IWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+
+	/**
+	 * Workspace config file path as `URI`.
+	 */
+	configPath: URI;
+}
+
+export interface IEmptyWorkspaceIdentifier extends IBaseWorkspaceIdentifier { }
+
+export type IAnyWorkspaceIdentifier = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier;
+
+export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
+	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
+
+	return typeof singleFolderIdentifier?.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
+}
+
+export function isEmptyWorkspaceIdentifier(obj: unknown): obj is IEmptyWorkspaceIdentifier {
+	const emptyWorkspaceIdentifier = obj as IEmptyWorkspaceIdentifier | undefined;
+	return typeof emptyWorkspaceIdentifier?.id === 'string'
+		&& !isSingleFolderWorkspaceIdentifier(obj)
+		&& !isWorkspaceIdentifier(obj);
+}
+
+export const EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'ext-dev' };
+export const UNKNOWN_EMPTY_WINDOW_WORKSPACE: IEmptyWorkspaceIdentifier = { id: 'empty-window' };
+
+export function toWorkspaceIdentifier(workspace: IWorkspace): IAnyWorkspaceIdentifier;
+export function toWorkspaceIdentifier(backupPath: string | undefined, isExtensionDevelopment: boolean): IEmptyWorkspaceIdentifier;
+export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isExtensionDevelopment?: boolean): IAnyWorkspaceIdentifier {
+
+	// Empty workspace
+	if (typeof arg0 === 'string' || typeof arg0 === 'undefined') {
+
+		// With a backupPath, the basename is the empty workspace identifier
+		if (typeof arg0 === 'string') {
+			return {
+				id: basename(arg0)
+			};
+		}
+
+		// Extension development empty windows have backups disabled
+		// so we return a constant workspace identifier for extension
+		// authors to allow to restore their workspace state even then.
+		if (isExtensionDevelopment) {
+			return EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE;
+		}
+
+		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
 	}
+
+	// Multi root
+	const workspace = arg0;
+	if (workspace.configuration) {
+		return {
+			id: workspace.id,
+			configPath: workspace.configuration
+		};
+	}
+
+	// Single folder
+	if (workspace.folders.length === 1) {
+		return {
+			id: workspace.id,
+			uri: workspace.folders[0].uri
+		};
+	}
+
+	// Empty window
+	return {
+		id: workspace.id
+	};
+}
+
+export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
+	const workspaceIdentifier = obj as IWorkspaceIdentifier | undefined;
+
+	return typeof workspaceIdentifier?.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
+}
+
+export interface ISerializedSingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+	readonly uri: UriComponents;
+}
+
+export interface ISerializedWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+	readonly configPath: UriComponents;
+}
+
+export function reviveIdentifier(identifier: undefined): undefined;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier): IWorkspaceIdentifier;
+export function reviveIdentifier(identifier: ISerializedSingleFolderWorkspaceIdentifier): ISingleFolderWorkspaceIdentifier;
+export function reviveIdentifier(identifier: IEmptyWorkspaceIdentifier): IEmptyWorkspaceIdentifier;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IAnyWorkspaceIdentifier | undefined;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IAnyWorkspaceIdentifier | undefined {
+
+	// Single Folder
+	const singleFolderIdentifierCandidate = identifier as ISerializedSingleFolderWorkspaceIdentifier | undefined;
+	if (singleFolderIdentifierCandidate?.uri) {
+		return { id: singleFolderIdentifierCandidate.id, uri: URI.revive(singleFolderIdentifierCandidate.uri) };
+	}
+
+	// Multi folder
+	const workspaceIdentifierCandidate = identifier as ISerializedWorkspaceIdentifier | undefined;
+	if (workspaceIdentifierCandidate?.configPath) {
+		return { id: workspaceIdentifierCandidate.id, configPath: URI.revive(workspaceIdentifierCandidate.configPath) };
+	}
+
+	// Empty
+	if (identifier?.id) {
+		return { id: identifier.id };
+	}
+
+	return undefined;
+}
+
+export const enum WorkbenchState {
+	EMPTY = 1,
+	FOLDER,
+	WORKSPACE
+}
+
+export interface IWorkspaceFoldersWillChangeEvent {
+
+	readonly changes: IWorkspaceFoldersChangeEvent;
+	readonly fromCache: boolean;
+
+	join(promise: Promise<void>): void;
+}
+
+export interface IWorkspaceFoldersChangeEvent {
+	added: IWorkspaceFolder[];
+	removed: IWorkspaceFolder[];
+	changed: IWorkspaceFolder[];
 }
 
 export interface IWorkspace {
@@ -100,12 +271,28 @@ export interface IWorkspace {
 	readonly folders: IWorkspaceFolder[];
 
 	/**
+	 * Transient workspaces are meant to go away after being used
+	 * once, e.g. a window reload of a transient workspace will
+	 * open an empty window.
+	 */
+	readonly transient?: boolean;
+
+	/**
 	 * the location of the workspace configuration
 	 */
 	readonly configuration?: URI | null;
 }
 
+export function isWorkspace(thing: unknown): thing is IWorkspace {
+	const candidate = thing as IWorkspace | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& typeof candidate.id === 'string'
+		&& Array.isArray(candidate.folders));
+}
+
 export interface IWorkspaceFolderData {
+
 	/**
 	 * The associated URI for this workspace folder.
 	 */
@@ -113,7 +300,7 @@ export interface IWorkspaceFolderData {
 
 	/**
 	 * The name of this workspace folder. Defaults to
-	 * the basename its [uri-path](#Uri.path)
+	 * the basename of its [uri-path](#Uri.path)
 	 */
 	readonly name: string;
 
@@ -121,15 +308,6 @@ export interface IWorkspaceFolderData {
 	 * The ordinal number of this workspace folder.
 	 */
 	readonly index: number;
-}
-
-export namespace IWorkspaceFolder {
-	export function isIWorkspaceFolder(thing: any): thing is IWorkspaceFolder {
-		return thing && typeof thing === 'object'
-			&& URI.isUri((thing as IWorkspaceFolder).uri)
-			&& typeof (thing as IWorkspaceFolder).name === 'string'
-			&& typeof (thing as IWorkspaceFolder).toResource === 'function';
-	}
 }
 
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
@@ -140,15 +318,26 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 	toResource: (relativePath: string) => URI;
 }
 
+export function isWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
+	const candidate = thing as IWorkspaceFolder;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& URI.isUri(candidate.uri)
+		&& typeof candidate.name === 'string'
+		&& typeof candidate.toResource === 'function');
+}
+
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
-	private _folders: WorkspaceFolder[];
+	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
+	private _folders!: WorkspaceFolder[];
 
 	constructor(
 		private _id: string,
-		folders: WorkspaceFolder[] = [],
-		private _configuration: URI | null = null
+		folders: WorkspaceFolder[],
+		private _transient: boolean,
+		private _configuration: URI | null,
+		private _ignorePathCasing: (key: URI) => boolean,
 	) {
 		this.folders = folders;
 	}
@@ -156,6 +345,8 @@ export class Workspace implements IWorkspace {
 	update(workspace: Workspace) {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
+		this._transient = workspace.transient;
+		this._ignorePathCasing = workspace._ignorePathCasing;
 		this.folders = workspace.folders;
 	}
 
@@ -172,6 +363,10 @@ export class Workspace implements IWorkspace {
 		return this._id;
 	}
 
+	get transient(): boolean {
+		return this._transient;
+	}
+
 	get configuration(): URI | null {
 		return this._configuration;
 	}
@@ -185,36 +380,55 @@ export class Workspace implements IWorkspace {
 			return null;
 		}
 
-		return this._foldersMap.findSubstr(resource.toString()) || null;
+		return this._foldersMap.findSubstr(resource) || null;
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = TernarySearchTree.forPaths<WorkspaceFolder>();
+		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing, () => true);
 		for (const folder of this.folders) {
-			this._foldersMap.set(folder.uri.toString(), folder);
+			this._foldersMap.set(folder.uri, folder);
 		}
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, configuration: this.configuration };
+		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration };
 	}
+}
+
+export interface IRawFileWorkspaceFolder {
+	readonly path: string;
+	name?: string;
+}
+
+export interface IRawUriWorkspaceFolder {
+	readonly uri: string;
+	name?: string;
 }
 
 export class WorkspaceFolder implements IWorkspaceFolder {
 
 	readonly uri: URI;
-	name: string;
-	index: number;
+	readonly name: string;
+	readonly index: number;
 
-	constructor(data: IWorkspaceFolderData,
-		readonly raw?: IStoredWorkspaceFolder) {
+	constructor(
+		data: IWorkspaceFolderData,
+		/**
+		 * Provides access to the original metadata for this workspace
+		 * folder. This can be different from the metadata provided in
+		 * this class:
+		 * - raw paths can be relative
+		 * - raw paths are not normalized
+		 */
+		readonly raw?: IRawFileWorkspaceFolder | IRawUriWorkspaceFolder
+	) {
 		this.uri = data.uri;
 		this.index = data.index;
 		this.name = data.name;
 	}
 
 	toResource(relativePath: string): URI {
-		return resources.joinPath(this.uri, relativePath);
+		return joinPath(this.uri, relativePath);
 	}
 
 	toJSON(): IWorkspaceFolderData {
@@ -223,42 +437,42 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 }
 
 export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
-	return new WorkspaceFolder({ uri: resource, index: 0, name: resources.basenameOrAuthority(resource) }, { uri: resource.toString() });
+	return new WorkspaceFolder({ uri: resource, index: 0, name: basenameOrAuthority(resource) }, { uri: resource.toString() });
 }
 
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI): WorkspaceFolder[] {
-	let result: WorkspaceFolder[] = [];
-	let seen: { [uri: string]: boolean } = Object.create(null);
+export const WORKSPACE_EXTENSION = 'code-workspace';
+export const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
+export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
+export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
 
-	const relativeTo = resources.dirname(workspaceConfigFile);
-	for (let configuredFolder of configuredFolders) {
-		let uri: URI | null = null;
-		if (isRawFileWorkspaceFolder(configuredFolder)) {
-			if (configuredFolder.path) {
-				uri = resources.resolvePath(relativeTo, configuredFolder.path);
-			}
-		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
-			try {
-				uri = URI.parse(configuredFolder.uri);
-				// this makes sure all workspace folder are absolute
-				if (uri.path[0] !== '/') {
-					uri = uri.with({ path: '/' + uri.path });
-				}
-			} catch (e) {
-				console.warn(e);
-				// ignore
-			}
-		}
-		if (uri) {
-			// remove duplicates
-			let comparisonKey = resources.getComparisonKey(uri);
-			if (!seen[comparisonKey]) {
-				seen[comparisonKey] = true;
+export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
+}
 
-				const name = configuredFolder.name || resources.basenameOrAuthority(uri);
-				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));
-			}
-		}
+export function isTemporaryWorkspace(workspace: IWorkspace): boolean;
+export function isTemporaryWorkspace(path: URI): boolean;
+export function isTemporaryWorkspace(arg1: IWorkspace | URI): boolean {
+	let path: URI | null | undefined;
+	if (URI.isUri(arg1)) {
+		path = arg1;
+	} else {
+		path = arg1.configuration;
 	}
-	return result;
+
+	return path?.scheme === Schemas.tmp;
+}
+
+export const STANDALONE_EDITOR_WORKSPACE_ID = '4064f6ec-cb38-4ad0-af64-ee6467e63c82';
+export function isStandaloneEditorWorkspace(workspace: IWorkspace): boolean {
+	return workspace.id === STANDALONE_EDITOR_WORKSPACE_ID;
+}
+
+export function isSavedWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return !isUntitledWorkspace(path, environmentService) && !isTemporaryWorkspace(path);
+}
+
+export function hasWorkspaceFileExtension(path: string | URI) {
+	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
+
+	return ext === WORKSPACE_SUFFIX;
 }

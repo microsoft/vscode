@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -18,7 +18,7 @@ else
 fi
 
 # Get electron
-node build/lib/electron.js || ./node_modules/.bin/gulp electron
+yarn electron
 
 popd
 
@@ -26,9 +26,11 @@ export VSCODE_DEV=1
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	ulimit -n 4096 ; ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
-		"$@"
+		"$@" \
+		--ms-enable-electron-run-as-node
 else
 	ELECTRON_RUN_AS_NODE=1 \
 		"$CODE" \
-		"$@"
+		"$@" \
+		--ms-enable-electron-run-as-node
 fi

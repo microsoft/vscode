@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
+import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -15,15 +17,20 @@ export const FOLDER_SETTINGS_PATH = `${FOLDER_CONFIG_FOLDER_NAME}/${FOLDER_SETTI
 
 export const defaultSettingsSchemaId = 'vscode://schemas/settings/default';
 export const userSettingsSchemaId = 'vscode://schemas/settings/user';
+export const profileSettingsSchemaId = 'vscode://schemas/settings/profile';
 export const machineSettingsSchemaId = 'vscode://schemas/settings/machine';
 export const workspaceSettingsSchemaId = 'vscode://schemas/settings/workspace';
 export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
 export const launchSchemaId = 'vscode://schemas/launch';
+export const tasksSchemaId = 'vscode://schemas/tasks';
 
-export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE];
-export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE];
-export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE];
-export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE];
+export const APPLICATION_SCOPES = [ConfigurationScope.APPLICATION];
+export const PROFILE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const LOCAL_MACHINE_PROFILE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
+export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ...LOCAL_MACHINE_PROFILE_SCOPES];
+export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
 
 export const TASKS_CONFIGURATION_KEY = 'tasks';
 export const LAUNCH_CONFIGURATION_KEY = 'launch';
@@ -31,60 +38,60 @@ export const LAUNCH_CONFIGURATION_KEY = 'launch';
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = Object.create(null);
 WORKSPACE_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${TASKS_CONFIGURATION_KEY}.json`;
 WORKSPACE_STANDALONE_CONFIGURATIONS[LAUNCH_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${LAUNCH_CONFIGURATION_KEY}.json`;
+export const USER_STANDALONE_CONFIGURATIONS = Object.create(null);
+USER_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${TASKS_CONFIGURATION_KEY}.json`;
 
-export type ConfigurationKey = { type: 'user' | 'workspaces' | 'folder', key: string };
+export type ConfigurationKey = { type: 'defaults' | 'user' | 'workspaces' | 'folder'; key: string };
 
 export interface IConfigurationCache {
 
+	needsCaching(resource: URI): boolean;
 	read(key: ConfigurationKey): Promise<string>;
 	write(key: ConfigurationKey, content: string): Promise<void>;
 	remove(key: ConfigurationKey): Promise<void>;
 
 }
 
-export interface IConfigurationFileService {
-	fileService: IFileService | null;
-	readonly onFileChanges: Event<FileChangesEvent>;
-	readonly isWatching: boolean;
-	readonly whenWatchingStarted: Promise<void>;
-	whenProviderRegistered(scheme: string): Promise<void>;
-	watch(resource: URI): IDisposable;
-	exists(resource: URI): Promise<boolean>;
-	readFile(resource: URI): Promise<string>;
+export type RestrictedSettings = {
+	default: ReadonlyArray<string>;
+	application?: ReadonlyArray<string>;
+	userLocal?: ReadonlyArray<string>;
+	userRemote?: ReadonlyArray<string>;
+	workspace?: ReadonlyArray<string>;
+	workspaceFolder?: ResourceMap<ReadonlyArray<string>>;
+};
+
+export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
+export interface IWorkbenchConfigurationService extends IConfigurationService {
+	/**
+	 * Restricted settings defined in each configuration target
+	 */
+	readonly restrictedSettings: RestrictedSettings;
+
+	/**
+	 * Event that triggers when the restricted settings changes
+	 */
+	readonly onDidChangeRestrictedSettings: Event<RestrictedSettings>;
+
+	/**
+	 * A promise that resolves when the remote configuration is loaded in a remote window.
+	 * The promise is resolved immediately if the window is not remote.
+	 */
+	whenRemoteConfigurationLoaded(): Promise<void>;
+
+	/**
+	 * Initialize configuration service for the given workspace
+	 * @param arg workspace Identifier
+	 */
+	initialize(arg: IAnyWorkspaceIdentifier): Promise<void>;
+
+	/**
+	 * Returns true if the setting can be applied for all profiles otherwise false.
+	 * @param setting
+	 */
+	isSettingAppliedForAllProfiles(setting: string): boolean;
 }
 
-export class ConfigurationFileService implements IConfigurationFileService {
+export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
 
-	constructor(public fileService: IFileService) { }
-
-	get onFileChanges() { return this.fileService.onFileChanges; }
-	readonly whenWatchingStarted: Promise<void> = Promise.resolve();
-	readonly isWatching: boolean = true;
-
-	whenProviderRegistered(scheme: string): Promise<void> {
-		if (this.fileService.canHandleResource(URI.from({ scheme }))) {
-			return Promise.resolve();
-		}
-		return new Promise((c, e) => {
-			const disposable = this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-				if (e.scheme === scheme && e.added) {
-					disposable.dispose();
-					c();
-				}
-			});
-		});
-	}
-
-	watch(resource: URI): IDisposable {
-		return this.fileService.watch(resource);
-	}
-
-	exists(resource: URI): Promise<boolean> {
-		return this.fileService.exists(resource);
-	}
-
-	readFile(resource: URI): Promise<string> {
-		return this.fileService.readFile(resource).then(content => content.value.toString());
-	}
-
-}
+export const APPLY_ALL_PROFILES_SETTING = 'workbench.settings.applyToAllProfiles';

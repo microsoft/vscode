@@ -3,153 +3,86 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { localize } from 'vs/nls';
+import { Emitter } from 'vs/base/common/event';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
-import { URI } from 'vs/base/common/uri';
-import { Dimension, size, clearNode } from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { dispose } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ByteSize } from 'vs/platform/files/common/files';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions) => Promise<void>;
-	openExternal: (uri: URI) => void;
+	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
 }
 
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends BaseEditor {
+export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
-	private readonly _onMetadataChanged: Emitter<void> = this._register(new Emitter<void>());
-	get onMetadataChanged(): Event<void> { return this._onMetadataChanged.event; }
+	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
+	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
 
-	private readonly _onDidOpenInPlace: Emitter<void> = this._register(new Emitter<void>());
-	get onDidOpenInPlace(): Event<void> { return this._onDidOpenInPlace.event; }
+	private readonly _onDidOpenInPlace = this._register(new Emitter<void>());
+	readonly onDidOpenInPlace = this._onDidOpenInPlace.event;
 
-	private callbacks: IOpenCallbacks;
 	private metadata: string | undefined;
-	private binaryContainer: HTMLElement;
-	private scrollbar: DomScrollableElement;
-	private resourceViewerContext: ResourceViewerContext | undefined;
 
 	constructor(
 		id: string,
-		callbacks: IOpenCallbacks,
+		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IFileService private readonly fileService: IFileService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
-
-		this.callbacks = callbacks;
 	}
 
-	getTitle() {
-		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
+	override getTitle(): string {
+		return this.input ? this.input.getName() : localize('binaryEditor', "Binary Viewer");
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-
-		// Container for Binary
-		this.binaryContainer = document.createElement('div');
-		this.binaryContainer.className = 'binary-container';
-		this.binaryContainer.style.outline = 'none';
-		this.binaryContainer.tabIndex = 0; // enable focus support from the editor part (do not remove)
-
-		// Custom Scrollbars
-		this.scrollbar = this._register(new DomScrollableElement(this.binaryContainer, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto }));
-		parent.appendChild(this.scrollbar.getDomNode());
-	}
-
-	async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, token);
-		const model = await input.resolve();
-
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return;
-		}
+	protected async getContents(input: EditorInput, options: IEditorOptions): Promise<IEditorPlaceholderContents> {
+		const model = await input.resolve(options);
 
 		// Assert Model instance
 		if (!(model instanceof BinaryEditorModel)) {
 			throw new Error('Unable to open file as binary');
 		}
 
-		// Render Input
-		if (this.resourceViewerContext) {
-			this.resourceViewerContext.dispose();
-		}
+		// Update metadata
+		const size = model.getSize();
+		this.handleMetadataChanged(typeof size === 'number' ? ByteSize.formatSize(size) : '');
 
-		this.resourceViewerContext = ResourceViewer.show({ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() }, this.fileService, this.binaryContainer, this.scrollbar, {
-			openInternalClb: () => this.handleOpenInternalCallback(input, options),
-			openExternalClb: this.environmentService.configuration.remoteAuthority ? undefined : resource => this.callbacks.openExternal(resource),
-			metadataClb: meta => this.handleMetadataChanged(meta)
-		});
-	}
+		return {
+			icon: '$(warning)',
+			label: localize('binaryError', "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding."),
+			actions: [
+				{
+					label: localize('openAnyway', "Open Anyway"),
+					run: async () => {
 
-	private async handleOpenInternalCallback(input: EditorInput, options: EditorOptions): Promise<void> {
-		await this.callbacks.openInternal(input, options);
+						// Open in place
+						await this.callbacks.openInternal(input, options);
 
-		// Signal to listeners that the binary editor has been opened in-place
-		this._onDidOpenInPlace.fire();
+						// Signal to listeners that the binary editor has been opened in-place
+						this._onDidOpenInPlace.fire();
+					}
+				}
+			]
+		};
 	}
 
 	private handleMetadataChanged(meta: string | undefined): void {
 		this.metadata = meta;
 
-		this._onMetadataChanged.fire();
+		this._onDidChangeMetadata.fire();
 	}
 
 	getMetadata(): string | undefined {
 		return this.metadata;
-	}
-
-	clearInput(): void {
-
-		// Clear Meta
-		this.handleMetadataChanged(undefined);
-
-		// Clear Resource Viewer
-		clearNode(this.binaryContainer);
-		dispose(this.resourceViewerContext);
-		this.resourceViewerContext = undefined;
-
-		super.clearInput();
-	}
-
-	layout(dimension: Dimension): void {
-
-		// Pass on to Binary Container
-		size(this.binaryContainer, dimension.width, dimension.height);
-		this.scrollbar.scanDomNode();
-		if (this.resourceViewerContext && this.resourceViewerContext.layout) {
-			this.resourceViewerContext.layout(dimension);
-		}
-	}
-
-	focus(): void {
-		this.binaryContainer.focus();
-	}
-
-	dispose(): void {
-		this.binaryContainer.remove();
-
-		dispose(this.resourceViewerContext);
-		this.resourceViewerContext = undefined;
-
-		super.dispose();
 	}
 }

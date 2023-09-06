@@ -29,9 +29,11 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
 
 suite('Paths (Node Implementation)', () => {
+	const __filename = 'path.test.js';
 	test('join', () => {
 		const failures = [] as string[];
 		const backslashRE = /\\/g;
@@ -163,8 +165,7 @@ suite('Paths (Node Implementation)', () => {
 						os = 'posix';
 					}
 					const message =
-						`path.${os}.join(${test[0].map(JSON.stringify).join(',')})\n  expect=${
-						JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+						`path.${os}.join(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 					if (actual !== expected && actualAlt !== expected) {
 						failures.push(`\n${message}`);
 					}
@@ -175,9 +176,6 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('dirname', () => {
-		assert.strictEqual(path.dirname(path.normalize(__filename)).substr(-11),
-			isWindows ? 'test\\common' : 'test/common');
-
 		assert.strictEqual(path.posix.dirname('/a/b/'), '/a');
 		assert.strictEqual(path.posix.dirname('/a/b'), '/a');
 		assert.strictEqual(path.posix.dirname('/a'), '/');
@@ -318,8 +316,7 @@ suite('Paths (Node Implementation)', () => {
 					os = 'posix';
 				}
 				const actual = extname(input);
-				const message = `path.${os}.extname(${JSON.stringify(input)})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.${os}.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -327,8 +324,7 @@ suite('Paths (Node Implementation)', () => {
 			{
 				const input = `C:${test[0].replace(slashRE, '\\')}`;
 				const actual = path.win32.extname(input);
-				const message = `path.win32.extname(${JSON.stringify(input)})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.win32.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -357,11 +353,11 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.posix.extname('file.\\\\'), '.\\\\');
 
 		// Tests from VSCode
-		assert.equal(path.extname('far.boo'), '.boo');
-		assert.equal(path.extname('far.b'), '.b');
-		assert.equal(path.extname('far.'), '.');
-		assert.equal(path.extname('far.boo/boo.far'), '.far');
-		assert.equal(path.extname('far.boo/boo'), '');
+		assert.strictEqual(path.extname('far.boo'), '.boo');
+		assert.strictEqual(path.extname('far.b'), '.b');
+		assert.strictEqual(path.extname('far.'), '.');
+		assert.strictEqual(path.extname('far.boo/boo.far'), '.far');
+		assert.strictEqual(path.extname('far.boo/boo'), '');
 	});
 
 	test('resolve', () => {
@@ -376,7 +372,6 @@ suite('Paths (Node Implementation)', () => {
 			[['c:/ignore', 'd:\\a/b\\c/d', '\\e.exe'], 'd:\\e.exe'],
 			[['c:/ignore', 'c:/some/file'], 'c:\\some\\file'],
 			[['d:/ignore', 'd:some/dir//'], 'd:\\ignore\\some\\dir'],
-			[['.'], process.cwd()],
 			[['//server/share', '..', 'relative\\'], '\\\\server\\share\\relative'],
 			[['c:/', '//'], 'c:\\'],
 			[['c:/', '//dir'], 'c:\\dir'],
@@ -391,18 +386,22 @@ suite('Paths (Node Implementation)', () => {
 			// arguments                    result
 			[[['/var/lib', '../', 'file/'], '/var/file'],
 			[['/var/lib', '/../', 'file/'], '/file'],
-			[['a/b/c/', '../../..'], process.cwd()],
-			[['.'], process.cwd()],
 			[['/some/dir', '.', '/absolute/'], '/absolute'],
 			[['/foo/tmp.3/', '../tmp.3/cycles/root.js'], '/foo/tmp.3/cycles/root.js']
 			]
+			],
+			[(isWeb ? path.posix.resolve : path.resolve),
+			// arguments						result
+			[[['.'], process.cwd()],
+			[['a/b/c', '../../..'], process.cwd()]
 			]
+			],
 		];
 		resolveTests.forEach((test) => {
 			const resolve = test[0];
-			//@ts-ignore
+			//@ts-expect-error
 			test[1].forEach((test) => {
-				//@ts-ignore
+				//@ts-expect-error
 				const actual = resolve.apply(null, test[0]);
 				let actualAlt;
 				const os = resolve === path.win32.resolve ? 'win32' : 'posix';
@@ -415,8 +414,7 @@ suite('Paths (Node Implementation)', () => {
 
 				const expected = test[1];
 				const message =
-					`path.${os}.resolve(${test[0].map(JSON.stringify).join(',')})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+					`path.${os}.resolve(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected && actualAlt !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -506,25 +504,25 @@ suite('Paths (Node Implementation)', () => {
 			controlCharFilename);
 
 		// Tests from VSCode
-		assert.equal(path.basename('foo/bar'), 'bar');
-		assert.equal(path.posix.basename('foo\\bar'), 'foo\\bar');
-		assert.equal(path.win32.basename('foo\\bar'), 'bar');
-		assert.equal(path.basename('/foo/bar'), 'bar');
-		assert.equal(path.posix.basename('\\foo\\bar'), '\\foo\\bar');
-		assert.equal(path.win32.basename('\\foo\\bar'), 'bar');
-		assert.equal(path.basename('./bar'), 'bar');
-		assert.equal(path.posix.basename('.\\bar'), '.\\bar');
-		assert.equal(path.win32.basename('.\\bar'), 'bar');
-		assert.equal(path.basename('/bar'), 'bar');
-		assert.equal(path.posix.basename('\\bar'), '\\bar');
-		assert.equal(path.win32.basename('\\bar'), 'bar');
-		assert.equal(path.basename('bar/'), 'bar');
-		assert.equal(path.posix.basename('bar\\'), 'bar\\');
-		assert.equal(path.win32.basename('bar\\'), 'bar');
-		assert.equal(path.basename('bar'), 'bar');
-		assert.equal(path.basename('////////'), '');
-		assert.equal(path.posix.basename('\\\\\\\\'), '\\\\\\\\');
-		assert.equal(path.win32.basename('\\\\\\\\'), '');
+		assert.strictEqual(path.basename('foo/bar'), 'bar');
+		assert.strictEqual(path.posix.basename('foo\\bar'), 'foo\\bar');
+		assert.strictEqual(path.win32.basename('foo\\bar'), 'bar');
+		assert.strictEqual(path.basename('/foo/bar'), 'bar');
+		assert.strictEqual(path.posix.basename('\\foo\\bar'), '\\foo\\bar');
+		assert.strictEqual(path.win32.basename('\\foo\\bar'), 'bar');
+		assert.strictEqual(path.basename('./bar'), 'bar');
+		assert.strictEqual(path.posix.basename('.\\bar'), '.\\bar');
+		assert.strictEqual(path.win32.basename('.\\bar'), 'bar');
+		assert.strictEqual(path.basename('/bar'), 'bar');
+		assert.strictEqual(path.posix.basename('\\bar'), '\\bar');
+		assert.strictEqual(path.win32.basename('\\bar'), 'bar');
+		assert.strictEqual(path.basename('bar/'), 'bar');
+		assert.strictEqual(path.posix.basename('bar\\'), 'bar\\');
+		assert.strictEqual(path.win32.basename('bar\\'), 'bar');
+		assert.strictEqual(path.basename('bar'), 'bar');
+		assert.strictEqual(path.basename('////////'), '');
+		assert.strictEqual(path.posix.basename('\\\\\\\\'), '\\\\\\\\');
+		assert.strictEqual(path.win32.basename('\\\\\\\\'), '');
 	});
 
 	test('relative', () => {
@@ -578,15 +576,13 @@ suite('Paths (Node Implementation)', () => {
 		];
 		relativeTests.forEach((test) => {
 			const relative = test[0];
-			//@ts-ignore
+			//@ts-expect-error
 			test[1].forEach((test) => {
-				//@ts-ignore
+				//@ts-expect-error
 				const actual = relative(test[0], test[1]);
 				const expected = test[2];
 				const os = relative === path.win32.relative ? 'win32' : 'posix';
-				const message = `path.${os}.relative(${
-					test.slice(0, 2).map(JSON.stringify).join(',')})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.${os}.relative(${test.slice(0, 2).map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}

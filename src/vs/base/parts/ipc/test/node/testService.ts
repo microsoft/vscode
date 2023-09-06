@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export interface IMarcoPoloEvent {
 	answer: string;
@@ -14,13 +14,13 @@ export interface IMarcoPoloEvent {
 export interface ITestService {
 	onMarco: Event<IMarcoPoloEvent>;
 	marco(): Promise<string>;
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }>;
+	pong(ping: string): Promise<{ incoming: string; outgoing: string }>;
 	cancelMe(): Promise<boolean>;
 }
 
 export class TestService implements ITestService {
 
-	private _onMarco = new Emitter<IMarcoPoloEvent>();
+	private readonly _onMarco = new Emitter<IMarcoPoloEvent>();
 	onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
 
 	marco(): Promise<string> {
@@ -28,7 +28,7 @@ export class TestService implements ITestService {
 		return Promise.resolve('polo');
 	}
 
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
+	pong(ping: string): Promise<{ incoming: string; outgoing: string }> {
 		return Promise.resolve({ incoming: ping, outgoing: 'pong' });
 	}
 
@@ -69,7 +69,7 @@ export class TestServiceClient implements ITestService {
 		return this.channel.call('marco');
 	}
 
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
+	pong(ping: string): Promise<{ incoming: string; outgoing: string }> {
 		return this.channel.call('pong', ping);
 	}
 

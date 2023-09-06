@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as cp from 'child_process';
 
 let tag = '';
@@ -35,7 +33,7 @@ function isValidTag(t: string) {
 		return false;
 	}
 
-	if (parseInt(major, 10) === NaN || parseInt(minor, 10) === NaN) {
+	if (isNaN(parseInt(major, 10)) || isNaN(parseInt(minor, 10))) {
 		return false;
 	}
 

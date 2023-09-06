@@ -4,21 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { Disposable, IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Emitter, DebounceEmitter, Event } from 'vs/base/common/event';
+import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { Iterator } from 'vs/base/common/iterator';
+import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector, asCSSPropertyValue } from 'vs/base/browser/dom';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { hash } from 'vs/base/common/hash';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { asArray, distinct } from 'vs/base/common/arrays';
+import { asCssVariable, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 
 class DecorationRule {
 
@@ -27,57 +31,119 @@ class DecorationRule {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
 			const { color, letter } = data;
-			return `${color}/${letter}`;
+			if (ThemeIcon.isThemeIcon(letter)) {
+				return `${color}+${letter.id}`;
+			} else {
+				return `${color}/${letter}`;
+			}
 		}
 	}
 
-	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
+	private static readonly _classNamesPrefix = 'monaco-decoration';
 
 	readonly data: IDecorationData | IDecorationData[];
 	readonly itemColorClassName: string;
 	readonly itemBadgeClassName: string;
+	readonly iconBadgeClassName: string;
 	readonly bubbleBadgeClassName: string;
 
-	constructor(data: IDecorationData | IDecorationData[]) {
+	private _refCounter: number = 0;
+
+	constructor(readonly themeService: IThemeService, data: IDecorationData | IDecorationData[], key: string) {
 		this.data = data;
-		this.itemColorClassName = DecorationRule._classNames.nextId();
-		this.itemBadgeClassName = DecorationRule._classNames.nextId();
-		this.bubbleBadgeClassName = DecorationRule._classNames.nextId();
+		const suffix = hash(key).toString(36);
+		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
+		this.itemBadgeClassName = `${DecorationRule._classNamesPrefix}-itemBadge-${suffix}`;
+		this.bubbleBadgeClassName = `${DecorationRule._classNamesPrefix}-bubbleBadge-${suffix}`;
+		this.iconBadgeClassName = `${DecorationRule._classNamesPrefix}-iconBadge-${suffix}`;
 	}
 
-	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
+	acquire(): void {
+		this._refCounter += 1;
+	}
+
+	release(): boolean {
+		return --this._refCounter === 0;
+	}
+
+	appendCSSRules(element: HTMLStyleElement): void {
 		if (!Array.isArray(this.data)) {
-			this._appendForOne(this.data, element, theme);
+			this._appendForOne(this.data, element);
 		} else {
-			this._appendForMany(this.data, element, theme);
+			this._appendForMany(this.data, element);
 		}
 	}
 
-	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForOne(data: IDecorationData, element: HTMLStyleElement): void {
 		const { color, letter } = data;
 		// label
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
-		// letter
-		if (letter) {
-			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(theme, color)};`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
+		if (ThemeIcon.isThemeIcon(letter)) {
+			this._createIconCSSRule(letter, color, element);
+		} else if (letter) {
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(color)};`, element);
 		}
 	}
 
-	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
+	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement): void {
 		// label
 		const { color } = data[0];
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 
-		// badge
-		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
-		if (letters.length) {
-			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
+		// badge or icon
+		const letters: string[] = [];
+		let icon: ThemeIcon | undefined;
+
+		for (const d of data) {
+			if (ThemeIcon.isThemeIcon(d.letter)) {
+				icon = d.letter;
+				break;
+			} else if (d.letter) {
+				letters.push(d.letter);
+			}
 		}
 
-		// bubble badge
+		if (icon) {
+			this._createIconCSSRule(icon, color, element);
+		} else {
+			if (letters.length) {
+				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(color)};`, element);
+			}
+
+			// bubble badge
+			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
+			createCSSRule(
+				`.${this.bubbleBadgeClassName}::after`,
+				`content: "\uea71"; color: ${getColor(color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
+				element
+			);
+		}
+	}
+
+	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement) {
+
+		const modifier = ThemeIcon.getModifier(icon);
+		if (modifier) {
+			icon = ThemeIcon.modify(icon, undefined);
+		}
+		const iconContribution = getIconRegistry().getIcon(icon.id);
+		if (!iconContribution) {
+			return;
+		}
+		const definition = this.themeService.getProductIconTheme().getIcon(iconContribution);
+		if (!definition) {
+			return;
+		}
 		createCSSRule(
-			`.${this.bubbleBadgeClassName}::after`,
-			`content: "\uf052"; color: ${getColor(theme, color)}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			`.${this.iconBadgeClassName}::after`,
+			`content: '${definition.fontCharacter}';
+			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
+			font-family: ${asCSSPropertyValue(definition.font?.id ?? 'codicon')};
+			font-size: 16px;
+			margin-right: 14px;
+			font-weight: normal;
+			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
+			`,
 			element
 		);
 	}
@@ -86,34 +152,22 @@ class DecorationRule {
 		removeCSSRulesContainingSelector(this.itemColorClassName, element);
 		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
 		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
-	}
-
-	isUnused(): boolean {
-		return !document.querySelector(`.${this.itemColorClassName}`)
-			&& !document.querySelector(`.${this.itemBadgeClassName}`)
-			&& !document.querySelector(`.${this.bubbleBadgeClassName}`);
+		removeCSSRulesContainingSelector(this.iconBadgeClassName, element);
 	}
 }
 
-class DecorationStyles extends Disposable {
+class DecorationStyles {
 
 	private readonly _styleElement = createStyleSheet();
 	private readonly _decorationRules = new Map<string, DecorationRule>();
+	private readonly _dispoables = new DisposableStore();
 
-	constructor(
-		private _themeService: IThemeService,
-	) {
-		super();
-		this._register(this._themeService.onThemeChange(this._onThemeChange, this));
+	constructor(private readonly _themeService: IThemeService) {
 	}
 
 	dispose(): void {
-		super.dispose();
-
-		const parent = this._styleElement.parentElement;
-		if (parent) {
-			parent.removeChild(this._styleElement);
-		}
+		this._dispoables.dispose();
+		this._styleElement.remove();
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
@@ -121,19 +175,23 @@ class DecorationStyles extends Disposable {
 		// sort by weight
 		data.sort((a, b) => (b.weight || 0) - (a.weight || 0));
 
-		let key = DecorationRule.keyOf(data);
+		const key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
 
 		if (!rule) {
 			// new css rule
-			rule = new DecorationRule(data);
+			rule = new DecorationRule(this._themeService, data, key);
 			this._decorationRules.set(key, rule);
-			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
+			rule.appendCSSRules(this._styleElement);
 		}
 
-		let labelClassName = rule.itemColorClassName;
+		rule.acquire();
+
+		const labelClassName = rule.itemColorClassName;
 		let badgeClassName = rule.itemBadgeClassName;
-		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
+		const iconClassName = rule.iconBadgeClassName;
+		let tooltip = distinct(data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip)).join(' • ');
+		const strikethrough = data.some(d => d.strikethrough);
 
 		if (onlyChildren) {
 			// show items from its children only
@@ -144,79 +202,30 @@ class DecorationStyles extends Disposable {
 		return {
 			labelClassName,
 			badgeClassName,
+			iconClassName,
+			strikethrough,
 			tooltip,
-			update: (replace) => {
-				let newData = data.slice();
-				for (let i = 0; i < newData.length; i++) {
-					if (newData[i].source === replace.source) {
-						// replace
-						newData[i] = replace;
-					}
+			dispose: () => {
+				if (rule?.release()) {
+					this._decorationRules.delete(key);
+					rule.removeCSSRules(this._styleElement);
+					rule = undefined;
 				}
-				return this.asDecoration(newData, onlyChildren);
 			}
 		};
-	}
-
-	private _onThemeChange(): void {
-		this._decorationRules.forEach(rule => {
-			rule.removeCSSRules(this._styleElement);
-			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
-		});
-	}
-
-	cleanUp(iter: Iterator<DecorationProviderWrapper>): void {
-		// remove every rule for which no more
-		// decoration (data) is kept. this isn't cheap
-		let usedDecorations = new Set<string>();
-		for (let e = iter.next(); !e.done; e = iter.next()) {
-			e.value.data.forEach((value, key) => {
-				if (value && !(value instanceof DecorationDataRequest)) {
-					usedDecorations.add(DecorationRule.keyOf(value));
-				}
-			});
-		}
-		this._decorationRules.forEach((value, index) => {
-			const { data } = value;
-			if (value.isUnused()) {
-				let remove: boolean = false;
-				if (Array.isArray(data)) {
-					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
-				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
-					remove = true;
-				}
-				if (remove) {
-					value.removeCSSRules(this._styleElement);
-					this._decorationRules.delete(index);
-				}
-			}
-		});
 	}
 }
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
-	private readonly _data = TernarySearchTree.forPaths<boolean>();
+	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
-	affectsResource(uri: URI): boolean {
-		return this._data.get(uri.toString()) || this._data.findSuperstr(uri.toString()) !== undefined;
+	constructor(all: URI | URI[]) {
+		this._data.fill(true, asArray(all));
 	}
 
-	static debouncer(last: FileDecorationChangeEvent, current: URI | URI[]) {
-		if (!last) {
-			last = new FileDecorationChangeEvent();
-		}
-		if (Array.isArray(current)) {
-			// many
-			for (const uri of current) {
-				last._data.set(uri.toString(), true);
-			}
-		} else {
-			// one
-			last._data.set(current.toString(), true);
-		}
-
-		return last;
+	affectsResource(uri: URI): boolean {
+		return this._data.hasElementOrSubtree(uri);
 	}
 }
 
@@ -227,219 +236,177 @@ class DecorationDataRequest {
 	) { }
 }
 
-class DecorationProviderWrapper {
-
-	readonly data = TernarySearchTree.forPaths<DecorationDataRequest | IDecorationData | null>();
-	private readonly _dispoable: IDisposable;
-
-	constructor(
-		private readonly _provider: IDecorationsProvider,
-		private readonly _uriEmitter: Emitter<URI | URI[]>,
-		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
-	) {
-		this._dispoable = this._provider.onDidChange(uris => {
-			if (!uris) {
-				// flush event -> drop all data, can affect everything
-				this.data.clear();
-				this._flushEmitter.fire({ affectsResource() { return true; } });
-
-			} else {
-				// selective changes -> drop for resource, fetch again, send event
-				// perf: the map stores thenables, decorations, or `null`-markers.
-				// we make us of that and ignore all uris in which we have never
-				// been interested.
-				for (const uri of uris) {
-					this._fetchData(uri);
-				}
-			}
-		});
-	}
-
-	dispose(): void {
-		this._dispoable.dispose();
-		this.data.clear();
-	}
-
-	knowsAbout(uri: URI): boolean {
-		return Boolean(this.data.get(uri.toString())) || Boolean(this.data.findSuperstr(uri.toString()));
-	}
-
-	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IDecorationData, isChild: boolean) => void): void {
-		const key = uri.toString();
-		let item = this.data.get(key);
-
-		if (item === undefined) {
-			// unknown -> trigger request
-			item = this._fetchData(uri);
-		}
-
-		if (item && !(item instanceof DecorationDataRequest)) {
-			// found something (which isn't pending anymore)
-			callback(item, false);
-		}
-
-		if (includeChildren) {
-			// (resolved) children
-			const iter = this.data.findSuperstr(key);
-			if (iter) {
-				for (let item = iter.next(); !item.done; item = iter.next()) {
-					if (item.value && !(item.value instanceof DecorationDataRequest)) {
-						callback(item.value, true);
-					}
-				}
-			}
-		}
-	}
-
-	private _fetchData(uri: URI): IDecorationData | null {
-
-		// check for pending request and cancel it
-		const pendingRequest = this.data.get(uri.toString());
-		if (pendingRequest instanceof DecorationDataRequest) {
-			pendingRequest.source.cancel();
-			this.data.delete(uri.toString());
-		}
-
-		const source = new CancellationTokenSource();
-		const dataOrThenable = this._provider.provideDecorations(uri, source.token);
-		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
-			// sync -> we have a result now
-			return this._keepItem(uri, dataOrThenable);
-
-		} else {
-			// async -> we have a result soon
-			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
-				if (this.data.get(uri.toString()) === request) {
-					this._keepItem(uri, data);
-				}
-			}).catch(err => {
-				if (!isPromiseCanceledError(err) && this.data.get(uri.toString()) === request) {
-					this.data.delete(uri.toString());
-				}
-			}));
-
-			this.data.set(uri.toString(), request);
-			return null;
-		}
-	}
-
-	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
-		const deco = data ? data : null;
-		const old = this.data.set(uri.toString(), deco);
-		if (deco || old) {
-			// only fire event when something changed
-			this._uriEmitter.fire(uri);
-		}
-		return deco;
-	}
+function getColor(color: ColorIdentifier | undefined) {
+	return color ? asCssVariable(color) : 'inherit';
 }
 
-export class FileDecorationsService implements IDecorationsService {
+type DecorationEntry = Map<IDecorationsProvider, DecorationDataRequest | IDecorationData | null>;
 
-	_serviceBrand: any;
+export class DecorationsService implements IDecorationsService {
 
-	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
+	declare _serviceBrand: undefined;
+
+	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() });
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
-	private readonly _decorationStyles: DecorationStyles;
-	private readonly _disposables: IDisposable[];
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
-		this._onDidChangeDecorations.event,
-		Event.debounce<URI | URI[], FileDecorationChangeEvent>(
-			this._onDidChangeDecorationsDelayed.event,
-			FileDecorationChangeEvent.debouncer,
-			undefined, undefined, 500
-		)
-	);
+	onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = this._onDidChangeDecorations.event;
+
+	private readonly _provider = new LinkedList<IDecorationsProvider>();
+	private readonly _decorationStyles: DecorationStyles;
+	private readonly _data: TernarySearchTree<URI, DecorationEntry>;
 
 	constructor(
-		@IThemeService themeService: IThemeService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IThemeService themeService: IThemeService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
+		this._data = TernarySearchTree.forUris(key => uriIdentityService.extUri.ignorePathCasing(key));
 
-		// every so many events we check if there are
-		// css styles that we don't need anymore
-		let count = 0;
-		let reg = this.onDidChangeDecorations(() => {
-			if (++count % 17 === 0) {
-				this._decorationStyles.cleanUp(this._data.iterator());
-			}
-		});
-
-		this._disposables = [
-			reg,
-			this._decorationStyles
-		];
+		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
-		dispose(this._onDidChangeDecorations);
-		dispose(this._onDidChangeDecorationsDelayed);
+		this._onDidChangeDecorations.dispose();
+		this._onDidChangeDecorationsDelayed.dispose();
 	}
 
 	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable {
-
-		const wrapper = new DecorationProviderWrapper(
-			provider,
-			this._onDidChangeDecorationsDelayed,
-			this._onDidChangeDecorations
-		);
-		const remove = this._data.push(wrapper);
+		const rm = this._provider.unshift(provider);
 
 		this._onDidChangeDecorations.fire({
 			// everything might have changed
 			affectsResource() { return true; }
 		});
 
+		// remove everything what came from this provider
+		const removeAll = () => {
+			const uris: URI[] = [];
+			for (const [uri, map] of this._data) {
+				if (map.delete(provider)) {
+					uris.push(uri);
+				}
+			}
+			if (uris.length > 0) {
+				this._onDidChangeDecorationsDelayed.fire(uris);
+			}
+		};
+
+		const listener = provider.onDidChange(uris => {
+			if (!uris) {
+				// flush event -> drop all data, can affect everything
+				removeAll();
+
+			} else {
+				// selective changes -> drop for resource, fetch again, send event
+				for (const uri of uris) {
+					const map = this._ensureEntry(uri);
+					this._fetchData(map, uri, provider);
+				}
+			}
+		});
+
 		return toDisposable(() => {
-			// fire event that says 'yes' for any resource
-			// known to this provider. then dispose and remove it.
-			remove();
-			this._onDidChangeDecorations.fire({ affectsResource: uri => wrapper.knowsAbout(uri) });
-			wrapper.dispose();
+			rm();
+			listener.dispose();
+			removeAll();
 		});
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration | undefined {
-		let data: IDecorationData[] = [];
+	private _ensureEntry(uri: URI): DecorationEntry {
+		let map = this._data.get(uri);
+		if (!map) {
+			// nothing known about this uri
+			map = new Map();
+			this._data.set(uri, map);
+		}
+		return map;
+	}
+
+	getDecoration(uri: URI, includeChildren: boolean): IDecoration | undefined {
+
+		const all: IDecorationData[] = [];
 		let containsChildren: boolean = false;
-		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
-			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
-				if (!isChild || deco.bubble) {
-					data.push(deco);
-					containsChildren = isChild || containsChildren;
+
+		const map = this._ensureEntry(uri);
+
+		for (const provider of this._provider) {
+
+			let data = map.get(provider);
+			if (data === undefined) {
+				// sets data if fetch is sync
+				data = this._fetchData(map, uri, provider);
+			}
+
+			if (data && !(data instanceof DecorationDataRequest)) {
+				// having data
+				all.push(data);
+			}
+		}
+
+		if (includeChildren) {
+			// (resolved) children
+			const iter = this._data.findSuperstr(uri);
+			if (iter) {
+				for (const tuple of iter) {
+					for (const data of tuple[1].values()) {
+						if (data && !(data instanceof DecorationDataRequest)) {
+							if (data.bubble) {
+								all.push(data);
+								containsChildren = true;
+							}
+						}
+					}
 				}
-			});
+			}
 		}
 
-		if (data.length === 0) {
-			// nothing, maybe overwrite data
-			if (overwrite) {
-				return this._decorationStyles.asDecoration([overwrite], containsChildren);
-			} else {
-				return undefined;
-			}
+		return all.length === 0
+			? undefined
+			: this._decorationStyles.asDecoration(all, containsChildren);
+	}
+
+	private _fetchData(map: DecorationEntry, uri: URI, provider: IDecorationsProvider): IDecorationData | null {
+
+		// check for pending request and cancel it
+		const pendingRequest = map.get(provider);
+		if (pendingRequest instanceof DecorationDataRequest) {
+			pendingRequest.source.cancel();
+			map.delete(provider);
+		}
+
+		const source = new CancellationTokenSource();
+		const dataOrThenable = provider.provideDecorations(uri, source.token);
+		if (!isThenable<IDecorationData | Promise<IDecorationData | undefined> | undefined>(dataOrThenable)) {
+			// sync -> we have a result now
+			return this._keepItem(map, provider, uri, dataOrThenable);
+
 		} else {
-			// result, maybe overwrite
-			let result = this._decorationStyles.asDecoration(data, containsChildren);
-			if (overwrite) {
-				return result.update(overwrite);
-			} else {
-				return result;
-			}
+			// async -> we have a result soon
+			const request = new DecorationDataRequest(source, Promise.resolve(dataOrThenable).then(data => {
+				if (map.get(provider) === request) {
+					this._keepItem(map, provider, uri, data);
+				}
+			}).catch(err => {
+				if (!isCancellationError(err) && map.get(provider) === request) {
+					map.delete(provider);
+				}
+			}));
+
+			map.set(provider, request);
+			return null;
 		}
 	}
-}
-function getColor(theme: ITheme, color: string | undefined) {
-	if (color) {
-		const foundColor = theme.getColor(color);
-		if (foundColor) {
-			return foundColor;
+
+	private _keepItem(map: DecorationEntry, provider: IDecorationsProvider, uri: URI, data: IDecorationData | undefined): IDecorationData | null {
+		const deco = data ? data : null;
+		const old = map.get(provider);
+		map.set(provider, deco);
+		if (deco || old) {
+			// only fire event when something changed
+			this._onDidChangeDecorationsDelayed.fire(uri);
 		}
+		return deco;
 	}
-	return 'inherit';
 }
 
-registerSingleton(IDecorationsService, FileDecorationsService);
+registerSingleton(IDecorationsService, DecorationsService, InstantiationType.Delayed);

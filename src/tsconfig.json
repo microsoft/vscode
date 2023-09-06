@@ -4,19 +4,31 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
-		"outDir": "../out",
-		"target": "es6",
-		"lib": [
-			"dom",
-			"es5",
-			"es2015.iterable"
+		"allowJs": true,
+		"resolveJsonModule": true,
+		"outDir": "../out/vs",
+		"types": [
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg",
+			"trusted-types",
+			"wicg-file-system-access"
+		],
+		"plugins": [
+			{
+				"name": "tsec",
+				"exemptionConfig": "./tsec.exemptions.json"
+			}
 		]
 	},
 	"include": [
+		"./bootstrap.js",
+		"./bootstrap-amd.js",
+		"./server-main.js",
 		"./typings",
-		"./vs"
-	],
-	"exclude": [
-		"./typings/require-monaco.d.ts"
+		"./vs/**/*.ts",
+		"vscode-dts/vscode.proposed.*.d.ts",
+		"vscode-dts/vscode.d.ts"
 	]
 }

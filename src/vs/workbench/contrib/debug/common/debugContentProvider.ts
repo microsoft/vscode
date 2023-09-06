@@ -5,18 +5,20 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
+import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 /**
  * Debug URI format
@@ -41,7 +43,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
 	) {
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
@@ -61,9 +63,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 	 * If there is no model for the given resource, this method does nothing.
 	 */
 	static refreshDebugContent(resource: uri): void {
-		if (DebugContentProvider.INSTANCE) {
-			DebugContentProvider.INSTANCE.createOrUpdateContentModel(resource, false);
-		}
+		DebugContentProvider.INSTANCE?.createOrUpdateContentModel(resource, false);
 	}
 
 	/**
@@ -90,11 +90,11 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 
 		if (!session) {
-			return Promise.reject(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
+			return Promise.reject(new ErrorNoTelemetry(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
 		const createErrModel = (errMsg?: string) => {
 			this.debugService.sourceIsNotAvailable(resource);
-			const languageSelection = this.modeService.create(MIME_TEXT);
+			const languageSelection = this.languageService.createById(PLAINTEXT_LANGUAGE_ID);
 			const message = errMsg
 				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
 				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);
@@ -111,9 +111,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 					// cancel and dispose an existing update
 					const cancellationSource = this.pendingUpdates.get(model.id);
-					if (cancellationSource) {
-						cancellationSource.cancel();
-					}
+					cancellationSource?.cancel();
 
 					// create and keep update token
 					const myToken = new CancellationTokenSource();
@@ -133,8 +131,8 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 					});
 				} else {
 					// create text model
-					const mime = response.body.mimeType || guessMimeTypes(resource.path)[0];
-					const languageSelection = this.modeService.create(mime);
+					const mime = response.body.mimeType || getMimeTypes(resource)[0];
+					const languageSelection = this.languageService.createByMimeType(mime);
 					return this.modelService.createModel(response.body.content, languageSelection, resource);
 				}
 			}

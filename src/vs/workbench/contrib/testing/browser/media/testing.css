@@ -1,0 +1,321 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/** -- icons */
+
+.monaco-workbench .codicon-testing-error-icon {
+	color: var(--vscode-testing-iconErrored);
+}
+
+.monaco-workbench .codicon-testing-failed-icon {
+	color: var(--vscode-testing-iconFailed);
+}
+
+.monaco-workbench .codicon-testing-passed-icon {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.monaco-workbench .codicon-testing-queued-icon {
+	color: var(--vscode-testing-iconQueued);
+}
+
+.monaco-workbench .codicon-testing-skipped-icon {
+	color: var(--vscode-testing-iconSkipped);
+}
+
+.monaco-workbench .codicon-testing-unset-icon {
+	color: var(--vscode-testing-iconUnset);
+}
+
+/** -- explorer */
+.test-explorer {
+	display: flex;
+	flex-direction: column;
+}
+
+.test-explorer > .test-explorer-tree {
+	flex-grow: 1;
+	height: 0px;
+	position: relative;
+}
+
+.test-explorer .test-item .label,
+.test-output-peek-tree .test-peek-item .name {
+	flex-grow: 1;
+	width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.test-output-peek-tree .test-peek-item .name .codicon,
+.test-explorer .test-item .label .codicon {
+	vertical-align: middle;
+	font-size: 1em;
+	transform: scale(1.25);
+	margin: 0 0.125em;
+}
+
+.test-explorer .test-item,
+.test-output-peek-tree .test-peek-item {
+	display: flex;
+	align-items: center;
+}
+
+.test-output-peek-tree {
+	color: var(--vscode-editor-foreground);
+}
+
+.test-output-peek-tree .monaco-list-row .monaco-action-bar,
+.test-explorer .monaco-list-row .monaco-action-bar,
+.test-explorer .monaco-list-row .codicon-testing-hidden {
+	display: none;
+	flex-shrink: 0;
+	margin-right: 0.8em;
+}
+
+.test-explorer .monaco-list-row .monaco-action-bar .codicon-testing-continuous-is-on {
+	color: var(--vscode-inputOption-activeForeground);
+	border-color: var(--vscode-inputOption-activeBorder);
+	background: var(--vscode-inputOption-activeBackground);
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	border-radius: 3px;
+}
+
+.test-explorer .monaco-list-row:not(.focused, :hover) .monaco-action-bar.testing-is-continuous-run .action-item {
+	display: none;
+}
+
+.test-explorer .monaco-list-row .monaco-action-bar.testing-is-continuous-run .action-item:last-child {
+	display: block !important;
+}
+
+.test-explorer .monaco-list-row:hover .monaco-action-bar,
+.test-explorer .monaco-list-row.focused .monaco-action-bar,
+.test-explorer .monaco-list-row .monaco-action-bar.testing-is-continuous-run,
+.test-output-peek-tree .monaco-list-row:hover .monaco-action-bar,
+.test-output-peek-tree .monaco-list-row.focused .monaco-action-bar {
+	display: initial;
+}
+
+.test-explorer .monaco-list-row .test-is-hidden .codicon-testing-hidden {
+	display: block;
+	margin-right: 9px;
+}
+
+.test-explorer .monaco-list-row:hover .codicon-testing-hidden,
+.test-explorer .monaco-list-row.focused .codicon-testing-hidden {
+	display: none;
+}
+
+.test-explorer .monaco-list-row .error p {
+	margin: 0;
+}
+
+.test-explorer .computed-state,
+.test-output-peek-tree .computed-state {
+	margin-right: 0.25em;
+}
+
+.test-explorer .computed-state.retired,
+.testing-run-glyph.retired {
+	opacity: 0.7  !important;
+}
+
+.test-explorer .test-is-hidden {
+	opacity: 0.8;
+}
+
+.test-explorer .result-summary-container {
+	padding: 0 12px 8px;
+	font-variant-numeric: tabular-nums;
+	height: 27px;
+	box-sizing: border-box;
+}
+
+.test-explorer .result-summary {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.test-explorer .result-summary > span {
+	flex-grow: 1;
+}
+
+.monaco-workbench
+	.test-explorer
+	.monaco-action-bar
+	.action-item
+	> .action-label {
+	padding: 1px 2px;
+	margin-right: 2px;
+}
+
+.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after {
+	content: '';
+	display: none;
+	position: absolute;
+	width: 0.4em;
+	height: 0.4em;
+	top: 50%;
+	left: 50%;
+	margin: 0.1em 0 0 0.05em;
+	border-radius: 100%;
+}
+
+.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun.checked::after {
+	display: block;
+}
+
+.codicon-testing-loading-icon::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
+}
+
+.testing-no-test-placeholder {
+	display: none;
+	padding: 0 20px;
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	z-index: 1;
+}
+
+.testing-no-test-placeholder.visible {
+	display: block;
+}
+
+/** -- peek */
+.monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget {
+	border-top-width: 2px;
+	border-bottom-width: 2px;
+}
+
+.test-output-peek-message-container {
+	overflow: hidden;
+}
+
+.test-output-peek-message-container .floating-click-widget {
+	position: absolute;
+	right: 20px;
+	bottom: 10px;
+}
+
+.test-output-peek-message-container,
+.test-output-peek-tree {
+	height: 100%;
+}
+
+.test-output-peek-message-container .preview-text {
+	padding: 8px 12px 8px 20px;
+	height: calc(100% - 16px);
+}
+
+.test-output-peek-message-container .preview-text p:first-child {
+	margin-top: 0;
+}
+
+.test-output-peek-message-container .preview-text p:last-child {
+	margin-bottom: 0;
+}
+
+.test-output-peek-message-container .preview-text a {
+	cursor: pointer;
+}
+
+/** -- filter  */
+.monaco-action-bar.testing-filter-action-bar {
+	flex-shrink: 0;
+	margin: 4px 12px;
+	height: auto;
+}
+
+.testing-filter-action-item {
+	display: flex !important;
+	flex-grow: 1;
+	max-width: 400px;
+	align-items: center;
+}
+
+.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked {
+	border-color: var(--vscode-inputOption-activeBorder);
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
+.testing-filter-action-bar .testing-filter-action-item {
+	max-width: none;
+}
+
+.testing-filter-action-item .testing-filter-wrapper {
+	flex-grow: 1;
+}
+
+.testing-filter-action-item .testing-filter-wrapper input {
+	padding-right: 30px !important;
+}
+
+.testing-filter-action-item .monaco-action-bar {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	right: 3px;
+	display: flex;
+	align-items: center;
+}
+
+/** -- decorations  */
+
+.monaco-editor .testing-run-glyph {
+	cursor: pointer;
+}
+
+.testing-diff-title-widget {
+	line-height: 19px;
+	font-size: 12px;
+	padding-right: 6px;
+
+	overflow: hidden;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.test-message-inline-content {
+	font-family: var(--testMessageDecorationFontFamily);
+	font-size: var(--testMessageDecorationFontSize);
+}
+
+.test-message-inline-content-clickable {
+	cursor: pointer;
+}
+
+.test-label-description {
+	opacity: .7;
+	margin-left: 0.5em;
+	font-size: .9em;
+	white-space: pre;
+}
+
+.testing-diff-lens-widget {
+	color: var(--vscode-editorCodeLens-foreground);
+}
+
+.test-message-inline-content-s0 {
+	color: var(--vscode-testing-message-error-decorationForeground) !important;
+}
+
+.test-message-inline-content-s1 {
+	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}
+
+.monaco-editor .testing-inline-message-severity-0 {
+	color: var(--vscode-testing-message-error-decorationForeground) !important;
+}
+.monaco-editor .testing-inline-message-severity-1 {
+	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}

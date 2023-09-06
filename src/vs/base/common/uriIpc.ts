@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { MarshalledObject } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;
@@ -17,6 +19,8 @@ export interface UriParts {
 	scheme: string;
 	authority?: string;
 	path?: string;
+	query?: string;
+	fragment?: string;
 }
 
 export interface IRawURITransformer {
@@ -87,7 +91,7 @@ function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: n
 		}
 
 		// walk object (or array)
-		for (let key in obj) {
+		for (const key in obj) {
 			if (Object.hasOwnProperty.call(obj, key)) {
 				const r = _transformOutgoingURIs(obj[key], transformer, depth + 1);
 				if (r !== null) {
@@ -118,12 +122,16 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, revive: 
 
 	if (typeof obj === 'object') {
 
-		if ((<MarshalledObject>obj).$mid === 1) {
+		if ((<MarshalledObject>obj).$mid === MarshalledId.Uri) {
 			return revive ? URI.revive(transformer.transformIncoming(obj)) : transformer.transformIncoming(obj);
 		}
 
+		if (obj instanceof VSBuffer) {
+			return null;
+		}
+
 		// walk object (or array)
-		for (let key in obj) {
+		for (const key in obj) {
 			if (Object.hasOwnProperty.call(obj, key)) {
 				const r = _transformIncomingURIs(obj[key], transformer, revive, depth + 1);
 				if (r !== null) {

@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { default as VSCodeTelemetryReporter } from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
-import { default as VSCodeTelemetryReporter } from 'vscode-extension-telemetry';
 
 interface IPackageInfo {
 	name: string;
@@ -29,7 +29,7 @@ class ExtensionReporter implements TelemetryReporter {
 	constructor(
 		packageInfo: IPackageInfo
 	) {
-		this._reporter = new VSCodeTelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+		this._reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
 	}
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;
@@ -48,12 +48,12 @@ export function loadDefaultTelemetryReporter(): TelemetryReporter {
 }
 
 function getPackageInfo(): IPackageInfo | null {
-	const extention = vscode.extensions.getExtension('Microsoft.vscode-markdown');
-	if (extention && extention.packageJSON) {
+	const extension = vscode.extensions.getExtension('Microsoft.vscode-markdown');
+	if (extension && extension.packageJSON) {
 		return {
-			name: extention.packageJSON.name,
-			version: extention.packageJSON.version,
-			aiKey: extention.packageJSON.aiKey
+			name: extension.packageJSON.name,
+			version: extension.packageJSON.version,
+			aiKey: extension.packageJSON.aiKey
 		};
 	}
 	return null;

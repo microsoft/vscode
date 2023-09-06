@@ -5,102 +5,103 @@
 
 import * as assert from 'assert';
 import { Part } from 'vs/workbench/browser/part';
-import * as Types from 'vs/base/common/types';
+import { isEmptyObject } from 'vs/base/common/types';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { append, $, hide } from 'vs/base/browser/dom';
-import { TestStorageService, TestLayoutService } from 'vs/workbench/test/workbenchTestServices';
-import { StorageScope } from 'vs/platform/storage/common/storage';
-import { Orientation } from 'vs/base/browser/ui/grid/grid';
-
-class SimplePart extends Part {
-
-	minimumWidth: number;
-	maximumWidth: number;
-	minimumHeight: number;
-	maximumHeight: number;
-
-	layout(width: number, height: number, orientation: Orientation): void {
-		throw new Error('Method not implemented.');
-	}
-
-	toJSON(): object {
-		throw new Error('Method not implemented.');
-	}
-}
-
-class MyPart extends SimplePart {
-
-	constructor(private expectedParent: HTMLElement) {
-		super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
-	}
-
-	createTitleArea(parent: HTMLElement): HTMLElement {
-		assert.strictEqual(parent, this.expectedParent);
-		return super.createTitleArea(parent)!;
-	}
-
-	createContentArea(parent: HTMLElement): HTMLElement {
-		assert.strictEqual(parent, this.expectedParent);
-		return super.createContentArea(parent)!;
-	}
-
-	getMemento(scope: StorageScope) {
-		return super.getMemento(scope);
-	}
-
-	saveState(): void {
-		return super.saveState();
-	}
-}
-
-class MyPart2 extends SimplePart {
-
-	constructor() {
-		super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
-	}
-
-	createTitleArea(parent: HTMLElement): HTMLElement {
-		const titleContainer = append(parent, $('div'));
-		const titleLabel = append(titleContainer, $('span'));
-		titleLabel.id = 'myPart.title';
-		titleLabel.innerHTML = 'Title';
-
-		return titleContainer;
-	}
-
-	createContentArea(parent: HTMLElement): HTMLElement {
-		const contentContainer = append(parent, $('div'));
-		const contentSpan = append(contentContainer, $('span'));
-		contentSpan.id = 'myPart.content';
-		contentSpan.innerHTML = 'Content';
-
-		return contentContainer;
-	}
-}
-
-class MyPart3 extends SimplePart {
-
-	constructor() {
-		super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
-	}
-
-	createTitleArea(parent: HTMLElement): HTMLElement {
-		return null!;
-	}
-
-	createContentArea(parent: HTMLElement): HTMLElement {
-		const contentContainer = append(parent, $('div'));
-		const contentSpan = append(contentContainer, $('span'));
-		contentSpan.id = 'myPart.content';
-		contentSpan.innerHTML = 'Content';
-
-		return contentContainer;
-	}
-}
+import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workbench parts', () => {
+
+	class SimplePart extends Part {
+
+		minimumWidth: number = 50;
+		maximumWidth: number = 50;
+		minimumHeight: number = 50;
+		maximumHeight: number = 50;
+
+		override layout(width: number, height: number): void {
+			throw new Error('Method not implemented.');
+		}
+
+		toJSON(): object {
+			throw new Error('Method not implemented.');
+		}
+	}
+
+	class MyPart extends SimplePart {
+
+		constructor(private expectedParent: HTMLElement) {
+			super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+		}
+
+		protected override createTitleArea(parent: HTMLElement): HTMLElement {
+			assert.strictEqual(parent, this.expectedParent);
+			return super.createTitleArea(parent)!;
+		}
+
+		protected override createContentArea(parent: HTMLElement): HTMLElement {
+			assert.strictEqual(parent, this.expectedParent);
+			return super.createContentArea(parent)!;
+		}
+
+		testGetMemento(scope: StorageScope, target: StorageTarget) {
+			return super.getMemento(scope, target);
+		}
+
+		testSaveState(): void {
+			return super.saveState();
+		}
+	}
+
+	class MyPart2 extends SimplePart {
+
+		constructor() {
+			super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+		}
+
+		protected override createTitleArea(parent: HTMLElement): HTMLElement {
+			const titleContainer = append(parent, $('div'));
+			const titleLabel = append(titleContainer, $('span'));
+			titleLabel.id = 'myPart.title';
+			titleLabel.innerText = 'Title';
+
+			return titleContainer;
+		}
+
+		protected override createContentArea(parent: HTMLElement): HTMLElement {
+			const contentContainer = append(parent, $('div'));
+			const contentSpan = append(contentContainer, $('span'));
+			contentSpan.id = 'myPart.content';
+			contentSpan.innerText = 'Content';
+
+			return contentContainer;
+		}
+	}
+
+	class MyPart3 extends SimplePart {
+
+		constructor() {
+			super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+		}
+
+		protected override createTitleArea(parent: HTMLElement): HTMLElement {
+			return null!;
+		}
+
+		protected override createContentArea(parent: HTMLElement): HTMLElement {
+			const contentContainer = append(parent, $('div'));
+			const contentSpan = append(contentContainer, $('span'));
+			contentSpan.id = 'myPart.content';
+			contentSpan.innerText = 'Content';
+
+			return contentContainer;
+		}
+	}
+
 	let fixture: HTMLElement;
-	let fixtureId = 'workbench-part-fixture';
+	const fixtureId = 'workbench-part-fixture';
 
 	setup(() => {
 		fixture = document.createElement('div');
@@ -113,7 +114,7 @@ suite('Workbench parts', () => {
 	});
 
 	test('Creation', () => {
-		let b = document.createElement('div');
+		const b = document.createElement('div');
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
@@ -123,17 +124,17 @@ suite('Workbench parts', () => {
 		assert.strictEqual(part.getId(), 'myPart');
 
 		// Memento
-		let memento = part.getMemento(StorageScope.GLOBAL) as any;
+		let memento = part.testGetMemento(StorageScope.PROFILE, StorageTarget.MACHINE) as any;
 		assert(memento);
 		memento.foo = 'bar';
 		memento.bar = [1, 2, 3];
 
-		part.saveState();
+		part.testSaveState();
 
 		// Re-Create to assert memento contents
 		part = new MyPart(b);
 
-		memento = part.getMemento(StorageScope.GLOBAL);
+		memento = part.testGetMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert(memento);
 		assert.strictEqual(memento.foo, 'bar');
 		assert.strictEqual(memento.bar.length, 3);
@@ -142,19 +143,19 @@ suite('Workbench parts', () => {
 		delete memento.foo;
 		delete memento.bar;
 
-		part.saveState();
+		part.testSaveState();
 		part = new MyPart(b);
-		memento = part.getMemento(StorageScope.GLOBAL);
+		memento = part.testGetMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert(memento);
-		assert.strictEqual(Types.isEmptyObject(memento), true);
+		assert.strictEqual(isEmptyObject(memento), true);
 	});
 
 	test('Part Layout with Title and Content', function () {
-		let b = document.createElement('div');
+		const b = document.createElement('div');
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
-		let part = new MyPart2();
+		const part = new MyPart2();
 		part.create(b);
 
 		assert(document.getElementById('myPart.title'));
@@ -162,11 +163,11 @@ suite('Workbench parts', () => {
 	});
 
 	test('Part Layout with Content only', function () {
-		let b = document.createElement('div');
+		const b = document.createElement('div');
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
-		let part = new MyPart3();
+		const part = new MyPart3();
 		part.create(b);
 
 		assert(!document.getElementById('myPart.title'));

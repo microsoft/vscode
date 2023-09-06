@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
+import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,4 +37,4 @@ export class StandaloneReferencesController extends ReferencesController {
 	}
 }
 
-registerEditorContribution(StandaloneReferencesController);
+registerEditorContribution(ReferencesController.ID, StandaloneReferencesController, EditorContributionInstantiation.Lazy);

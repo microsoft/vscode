@@ -4,70 +4,79 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as uuid from 'vs/base/common/uuid';
-import * as pfs from 'vs/base/node/pfs';
-import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
+import { tmpdir } from 'os';
+import { realcase, realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
+import { Promises } from 'vs/base/node/pfs';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
-suite('Extpath', () => {
+flakySuite('Extpath', () => {
+	let testDir: string;
 
-	test('realcase', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extpath', id);
+	setup(() => {
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
 
-		await pfs.mkdirp(newDir, 493);
+		return Promises.mkdir(testDir, { recursive: true });
+	});
+
+	teardown(() => {
+		return Promises.rm(testDir);
+	});
+
+	test('realcaseSync', async () => {
 
 		// assume case insensitive file system
 		if (process.platform === 'win32' || process.platform === 'darwin') {
-			const upper = newDir.toUpperCase();
+			const upper = testDir.toUpperCase();
 			const real = realcaseSync(upper);
 
 			if (real) { // can be null in case of permission errors
-				assert.notEqual(real, upper);
-				assert.equal(real.toUpperCase(), upper);
-				assert.equal(real, newDir);
+				assert.notStrictEqual(real, upper);
+				assert.strictEqual(real.toUpperCase(), upper);
+				assert.strictEqual(real, testDir);
 			}
 		}
 
 		// linux, unix, etc. -> assume case sensitive file system
 		else {
-			const real = realcaseSync(newDir);
-			assert.equal(real, newDir);
+			let real = realcaseSync(testDir);
+			assert.strictEqual(real, testDir);
+
+			real = realcaseSync(testDir.toUpperCase());
+			assert.strictEqual(real, testDir.toUpperCase());
+		}
+	});
+
+	test('realcase', async () => {
+
+		// assume case insensitive file system
+		if (process.platform === 'win32' || process.platform === 'darwin') {
+			const upper = testDir.toUpperCase();
+			const real = await realcase(upper);
+
+			if (real) { // can be null in case of permission errors
+				assert.notStrictEqual(real, upper);
+				assert.strictEqual(real.toUpperCase(), upper);
+				assert.strictEqual(real, testDir);
+			}
 		}
 
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		// linux, unix, etc. -> assume case sensitive file system
+		else {
+			let real = await realcase(testDir);
+			assert.strictEqual(real, testDir);
+
+			real = await realcase(testDir.toUpperCase());
+			assert.strictEqual(real, testDir.toUpperCase());
+		}
 	});
 
 	test('realpath', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extpath', id);
-
-		await pfs.mkdirp(newDir, 493);
-
-		const realpathVal = await realpath(newDir);
+		const realpathVal = await realpath(testDir);
 		assert.ok(realpathVal);
-
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
-	test('realpathSync', async () => {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const newDir = path.join(parentDir, 'extpath', id);
-
-		await pfs.mkdirp(newDir, 493);
-
-		let realpath!: string;
-		try {
-			realpath = realpathSync(newDir);
-		} catch (error) {
-			assert.ok(!error);
-		}
-		assert.ok(realpath!);
-
-		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+	test('realpathSync', () => {
+		const realpath = realpathSync(testDir);
+		assert.ok(realpath);
 	});
 });

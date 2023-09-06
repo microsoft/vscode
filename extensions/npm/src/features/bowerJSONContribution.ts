@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
+import { MarkdownString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, Uri, l10n } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
-import { textToMarkedString } from './markedTextUtil';
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 const USER_AGENT = 'Visual Studio Code';
 
@@ -34,11 +31,11 @@ export class BowerJSONContribution implements IJSONContribution {
 		return [{ language: 'json', scheme: '*', pattern: '**/bower.json' }, { language: 'json', scheme: '*', pattern: '**/.bower.json' }];
 	}
 
-	private onlineEnabled() {
+	private isEnabled() {
 		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
-	public collectDefaultSuggestions(_resource: string, collector: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_resource: Uri, collector: ISuggestionsCollector): Thenable<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -47,27 +44,30 @@ export class BowerJSONContribution implements IJSONContribution {
 			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
-		const proposal = new CompletionItem(localize('json.bower.default', 'Default bower.json'));
+		const proposal = new CompletionItem(l10n.t("Default bower.json"));
 		proposal.kind = CompletionItemKind.Class;
 		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		collector.add(proposal);
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
+	public collectPropertySuggestions(_resource: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
-			if (currentWord.length > 0 && this.onlineEnabled()) {
+			if (currentWord.length > 0) {
 				const queryUrl = 'https://registry.bower.io/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
 					url: queryUrl,
-					agent: USER_AGENT
+					headers: { agent: USER_AGENT }
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
 							const obj = JSON.parse(success.responseText);
 							if (Array.isArray(obj)) {
-								const results = <{ name: string; description: string; }[]>obj;
+								const results = <{ name: string; description: string }[]>obj;
 								for (const result of results) {
 									const name = result.name;
 									const description = result.description || '';
@@ -91,12 +91,12 @@ export class BowerJSONContribution implements IJSONContribution {
 							// ignore
 						}
 					} else {
-						collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', success.responseText));
+						collector.error(l10n.t("Request to the bower repository failed: {0}", success.responseText));
 						return 0;
 					}
 					return undefined;
 				}, (error) => {
-					collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', error.responseText));
+					collector.error(l10n.t("Request to the bower repository failed: {0}", error.responseText));
 					return 0;
 				});
 			} else {
@@ -123,22 +123,31 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public collectValueSuggestions(_resource: string, location: Location, collector: ISuggestionsCollector): Thenable<any> {
+	public collectValueSuggestions(_resource: Uri, location: Location, collector: ISuggestionsCollector): Promise<any> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
-			const proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
+			const proposal = new CompletionItem(l10n.t("latest"));
 			proposal.insertText = new SnippetString('"${1:latest}"');
 			proposal.filterText = '""';
 			proposal.kind = CompletionItemKind.Value;
 			proposal.documentation = 'The latest version of the package';
 			collector.add(proposal);
 		}
-		return Promise.resolve(null);
+		return null;
 	}
 
-	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
+	public resolveSuggestion(_resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
-			return this.getInfo(item.label).then(documentation => {
+
+			let label = item.label;
+			if (typeof label !== 'string') {
+				label = label.label;
+			}
+
+			return this.getInfo(label).then(documentation => {
 				if (documentation) {
 					item.documentation = documentation;
 					return item;
@@ -150,15 +159,11 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string | undefined> {
-		if (!this.onlineEnabled()) {
-			return Promise.resolve(undefined);
-		}
-
 		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
 			url: queryUrl,
-			agent: USER_AGENT
+			headers: { agent: USER_AGENT }
 		}).then((success) => {
 			try {
 				const obj = JSON.parse(success.responseText);
@@ -181,13 +186,18 @@ export class BowerJSONContribution implements IJSONContribution {
 		});
 	}
 
-	public getInfoContribution(_resource: string, location: Location): Thenable<MarkedString[] | null> | null {
+	public getInfoContribution(_resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
 				return this.getInfo(pack).then(documentation => {
 					if (documentation) {
-						return [textToMarkedString(documentation)];
+						const str = new MarkdownString();
+						str.appendText(documentation);
+						return [str];
 					}
 					return null;
 				});

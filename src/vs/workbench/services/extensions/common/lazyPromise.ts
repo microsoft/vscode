@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { CancellationError, onUnexpectedError } from 'vs/base/common/errors';
 
 export class LazyPromise implements Promise<any> {
 
@@ -14,8 +14,8 @@ export class LazyPromise implements Promise<any> {
 	private _hasValue: boolean;
 	private _value: any;
 
-	private _hasErr: boolean;
-	private _err: any;
+	protected _hasErr: boolean;
+	protected _err: any;
 
 	constructor() {
 		this._actual = null;
@@ -25,6 +25,10 @@ export class LazyPromise implements Promise<any> {
 		this._value = null;
 		this._hasErr = false;
 		this._err = null;
+	}
+
+	get [Symbol.toStringTag](): string {
+		return this.toString();
 	}
 
 	private _ensureActual(): Promise<any> {
@@ -85,5 +89,13 @@ export class LazyPromise implements Promise<any> {
 
 	public finally(callback: () => void): any {
 		return this._ensureActual().finally(callback);
+	}
+}
+
+export class CanceledLazyPromise extends LazyPromise {
+	constructor() {
+		super();
+		this._hasErr = true;
+		this._err = new CancellationError();
 	}
 }

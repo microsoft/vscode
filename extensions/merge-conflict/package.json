@@ -3,20 +3,27 @@
   "publisher": "vscode",
   "displayName": "%displayName%",
   "description": "%description%",
-  "icon": "resources/icons/merge-conflict.png",
+  "icon": "media/icon.png",
   "version": "1.0.0",
   "license": "MIT",
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
   "engines": {
     "vscode": "^1.5.0"
   },
   "categories": [
     "Other"
   ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "activationEvents": [
-    "*"
+    "onStartupFinished"
   ],
-  "main": "./out/extension",
+  "main": "./out/mergeConflictMain",
+  "browser": "./dist/browser/mergeConflictMain",
   "scripts": {
     "compile": "gulp compile-extension:merge-conflict",
     "watch": "gulp watch-extension:merge-conflict"
@@ -27,61 +34,73 @@
         "category": "%command.category%",
         "title": "%command.accept.all-current%",
         "original": "Accept All Current",
-        "command": "merge-conflict.accept.all-current"
+        "command": "merge-conflict.accept.all-current",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.all-incoming%",
         "original": "Accept All Incoming",
-        "command": "merge-conflict.accept.all-incoming"
+        "command": "merge-conflict.accept.all-incoming",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.all-both%",
         "original": "Accept All Both",
-        "command": "merge-conflict.accept.all-both"
+        "command": "merge-conflict.accept.all-both",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.current%",
         "original": "Accept Current",
-        "command": "merge-conflict.accept.current"
+        "command": "merge-conflict.accept.current",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.incoming%",
         "original": "Accept Incoming",
-        "command": "merge-conflict.accept.incoming"
+        "command": "merge-conflict.accept.incoming",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.selection%",
         "original": "Accept Selection",
-        "command": "merge-conflict.accept.selection"
+        "command": "merge-conflict.accept.selection",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.accept.both%",
         "original": "Accept Both",
-        "command": "merge-conflict.accept.both"
+        "command": "merge-conflict.accept.both",
+        "enablement": "!isMergeEditor"
       },
       {
         "category": "%command.category%",
         "title": "%command.next%",
         "original": "Next Conflict",
-        "command": "merge-conflict.next"
+        "command": "merge-conflict.next",
+        "enablement": "!isMergeEditor",
+        "icon": "$(arrow-down)"
       },
       {
         "category": "%command.category%",
         "title": "%command.previous%",
         "original": "Previous Conflict",
-        "command": "merge-conflict.previous"
+        "command": "merge-conflict.previous",
+        "enablement": "!isMergeEditor",
+        "icon": "$(arrow-up)"
       },
       {
         "category": "%command.category%",
         "title": "%command.compare%",
         "original": "Compare Current Conflict",
-        "command": "merge-conflict.compare"
+        "command": "merge-conflict.compare",
+        "enablement": "!isMergeEditor"
       }
     ],
     "menus": {
@@ -95,6 +114,18 @@
           "command": "merge-conflict.accept.all-incoming",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "merge-conflict.previous",
+          "group": "navigation@1",
+          "when": "!isMergeEditor && mergeConflictsCount && mergeConflictsCount != 0"
+        },
+        {
+          "command": "merge-conflict.next",
+          "group": "navigation@2",
+          "when": "!isMergeEditor && mergeConflictsCount && mergeConflictsCount != 0"
         }
       ]
     },
@@ -135,9 +166,13 @@
     }
   },
   "dependencies": {
-    "vscode-nls": "^4.0.0"
+    "@vscode/extension-telemetry": "^0.8.4"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "18.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

@@ -7,9 +7,11 @@ import 'vs/css!./overlayWidgets';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 interface IWidgetData {
 	widget: IOverlayWidget;
@@ -35,19 +37,22 @@ export class ViewOverlayWidgets extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
 		this._widgets = {};
-		this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
-		this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-		this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
-		this._editorHeight = this._context.configuration.editor.layoutInfo.height;
-		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
+		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = layoutInfo.minimap.minimapWidth;
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = layoutInfo.height;
+		this._editorWidth = layoutInfo.width;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
 		this._domNode.setClassName('overlayWidgets');
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		this._widgets = {};
 	}
@@ -58,16 +63,16 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._verticalScrollbarWidth = this._context.configuration.editor.layoutInfo.verticalScrollbarWidth;
-			this._minimapWidth = this._context.configuration.editor.layoutInfo.minimapWidth;
-			this._horizontalScrollbarHeight = this._context.configuration.editor.layoutInfo.horizontalScrollbarHeight;
-			this._editorHeight = this._context.configuration.editor.layoutInfo.height;
-			this._editorWidth = this._context.configuration.editor.layoutInfo.width;
-			return true;
-		}
-		return false;
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+
+		this._verticalScrollbarWidth = layoutInfo.verticalScrollbarWidth;
+		this._minimapWidth = layoutInfo.minimap.minimapWidth;
+		this._horizontalScrollbarHeight = layoutInfo.horizontalScrollbarHeight;
+		this._editorHeight = layoutInfo.height;
+		this._editorWidth = layoutInfo.width;
+		return true;
 	}
 
 	// ---- end view event handlers
@@ -87,16 +92,19 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._domNode.appendChild(domNode);
 
 		this.setShouldRender();
+		this._updateMaxMinWidth();
 	}
 
 	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | null): boolean {
 		const widgetData = this._widgets[widget.getId()];
 		if (widgetData.preference === preference) {
+			this._updateMaxMinWidth();
 			return false;
 		}
 
 		widgetData.preference = preference;
 		this.setShouldRender();
+		this._updateMaxMinWidth();
 
 		return true;
 	}
@@ -110,14 +118,29 @@ export class ViewOverlayWidgets extends ViewPart {
 
 			domNode.parentNode!.removeChild(domNode);
 			this.setShouldRender();
+			this._updateMaxMinWidth();
 		}
+	}
+
+	private _updateMaxMinWidth(): void {
+		let maxMinWidth = 0;
+		const keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			const widgetId = keys[i];
+			const widget = this._widgets[widgetId];
+			const widgetMinWidthInPx = widget.widget.getMinContentWidthInPx?.();
+			if (typeof widgetMinWidthInPx !== 'undefined') {
+				maxMinWidth = Math.max(maxMinWidth, widgetMinWidthInPx);
+			}
+		}
+		this._context.viewLayout.setOverlayWidgetsMinWidth(maxMinWidth);
 	}
 
 	private _renderWidget(widgetData: IWidgetData): void {
 		const domNode = widgetData.domNode;
 
 		if (widgetData.preference === null) {
-			domNode.unsetTop();
+			domNode.setTop('');
 			return;
 		}
 

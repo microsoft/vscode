@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot, SearchData } from 'vs/editor/common/model';
 import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { splitLines } from 'vs/base/common/strings';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -30,8 +30,8 @@ function randomStr(len: number) {
 		len = 10;
 	}
 	return (function () {
-		let j, ref, results;
-		results = [];
+		let j, ref;
+		const results = [];
 		for (
 			j = 1, ref = len;
 			1 <= ref ? j < ref : j > ref;
@@ -75,12 +75,12 @@ function trimLineFeed(text: string): string {
 //#region Assertion
 
 function testLinesContent(str: string, pieceTable: PieceTreeBase) {
-	let lines = str.split(/\r\n|\r|\n/);
-	assert.equal(pieceTable.getLineCount(), lines.length);
-	assert.equal(pieceTable.getLinesRawContent(), str);
+	const lines = splitLines(str);
+	assert.strictEqual(pieceTable.getLineCount(), lines.length);
+	assert.strictEqual(pieceTable.getLinesRawContent(), str);
 	for (let i = 0; i < lines.length; i++) {
-		assert.equal(pieceTable.getLineContent(i + 1), lines[i]);
-		assert.equal(
+		assert.strictEqual(pieceTable.getLineContent(i + 1), lines[i]);
+		assert.strictEqual(
 			trimLineFeed(
 				pieceTable.getValueInRange(
 					new Range(
@@ -97,10 +97,10 @@ function testLinesContent(str: string, pieceTable: PieceTreeBase) {
 }
 
 function testLineStarts(str: string, pieceTable: PieceTreeBase) {
-	let lineStarts = [0];
+	const lineStarts = [0];
 
 	// Reset regex to search from the beginning
-	let _regex = new RegExp(/\r\n|\r|\n/g);
+	const _regex = new RegExp(/\r\n|\r|\n/g);
 	_regex.lastIndex = 0;
 	let prevMatchStartIndex = -1;
 	let prevMatchLength = 0;
@@ -135,16 +135,16 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 	} while (m);
 
 	for (let i = 0; i < lineStarts.length; i++) {
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			pieceTable.getPositionAt(lineStarts[i]),
 			new Position(i + 1, 1)
 		);
-		assert.equal(pieceTable.getOffsetAt(i + 1, 1), lineStarts[i]);
+		assert.strictEqual(pieceTable.getOffsetAt(i + 1, 1), lineStarts[i]);
 	}
 
 	for (let i = 1; i < lineStarts.length; i++) {
-		let pos = pieceTable.getPositionAt(lineStarts[i] - 1);
-		assert.equal(
+		const pos = pieceTable.getPositionAt(lineStarts[i] - 1);
+		assert.strictEqual(
 			pieceTable.getOffsetAt(pos.lineNumber, pos.column),
 			lineStarts[i] - 1
 		);
@@ -152,12 +152,12 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 }
 
 function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeBase {
-	let bufferBuilder = new PieceTreeTextBufferBuilder();
+	const bufferBuilder = new PieceTreeTextBufferBuilder();
 	for (const chunk of val) {
 		bufferBuilder.acceptChunk(chunk);
 	}
-	let factory = bufferBuilder.finish(normalizeEOL);
-	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF)).getPieceTree();
+	const factory = bufferBuilder.finish(normalizeEOL);
+	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF).textBuffer).getPieceTree();
 }
 
 function assertTreeInvariants(T: PieceTreeBase): void {
@@ -179,23 +179,23 @@ function depth(n: TreeNode): number {
 	return (n.color === NodeColor.Black ? 1 : 0) + depth(n.left);
 }
 
-function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
+function assertValidNode(n: TreeNode): { size: number; lf_cnt: number } {
 	if (n === SENTINEL) {
 		return { size: 0, lf_cnt: 0 };
 	}
 
-	let l = n.left;
-	let r = n.right;
+	const l = n.left;
+	const r = n.right;
 
 	if (n.color === NodeColor.Red) {
 		assert(l.color === NodeColor.Black);
 		assert(r.color === NodeColor.Black);
 	}
 
-	let actualLeft = assertValidNode(l);
+	const actualLeft = assertValidNode(l);
 	assert(actualLeft.lf_cnt === n.lf_left);
 	assert(actualLeft.size === n.size_left);
-	let actualRight = assertValidNode(r);
+	const actualRight = assertValidNode(r);
 
 	return { size: n.size_left + n.piece.length + actualRight.size, lf_cnt: n.lf_left + n.piece.lineFeedCnt + actualRight.lf_cnt };
 }
@@ -213,17 +213,17 @@ function assertValidTree(T: PieceTreeBase): void {
 
 suite('inserts and deletes', () => {
 	test('basic insert/delete', () => {
-		let pieceTable = createTextBuffer([
+		const pieceTable = createTextBuffer([
 			'This is a document with some text.'
 		]);
 
 		pieceTable.insert(34, 'This is some more text to insert at offset 34.');
-		assert.equal(
+		assert.strictEqual(
 			pieceTable.getLinesRawContent(),
 			'This is a document with some text.This is some more text to insert at offset 34.'
 		);
 		pieceTable.delete(42, 5);
-		assert.equal(
+		assert.strictEqual(
 			pieceTable.getLinesRawContent(),
 			'This is a document with some text.This is more text to insert at offset 34.'
 		);
@@ -231,56 +231,56 @@ suite('inserts and deletes', () => {
 	});
 
 	test('more inserts', () => {
-		let pt = createTextBuffer(['']);
+		const pt = createTextBuffer(['']);
 
 		pt.insert(0, 'AAA');
-		assert.equal(pt.getLinesRawContent(), 'AAA');
+		assert.strictEqual(pt.getLinesRawContent(), 'AAA');
 		pt.insert(0, 'BBB');
-		assert.equal(pt.getLinesRawContent(), 'BBBAAA');
+		assert.strictEqual(pt.getLinesRawContent(), 'BBBAAA');
 		pt.insert(6, 'CCC');
-		assert.equal(pt.getLinesRawContent(), 'BBBAAACCC');
+		assert.strictEqual(pt.getLinesRawContent(), 'BBBAAACCC');
 		pt.insert(5, 'DDD');
-		assert.equal(pt.getLinesRawContent(), 'BBBAADDDACCC');
+		assert.strictEqual(pt.getLinesRawContent(), 'BBBAADDDACCC');
 		assertTreeInvariants(pt);
 	});
 
 	test('more deletes', () => {
-		let pt = createTextBuffer(['012345678']);
+		const pt = createTextBuffer(['012345678']);
 		pt.delete(8, 1);
-		assert.equal(pt.getLinesRawContent(), '01234567');
+		assert.strictEqual(pt.getLinesRawContent(), '01234567');
 		pt.delete(0, 1);
-		assert.equal(pt.getLinesRawContent(), '1234567');
+		assert.strictEqual(pt.getLinesRawContent(), '1234567');
 		pt.delete(5, 1);
-		assert.equal(pt.getLinesRawContent(), '123457');
+		assert.strictEqual(pt.getLinesRawContent(), '123457');
 		pt.delete(5, 1);
-		assert.equal(pt.getLinesRawContent(), '12345');
+		assert.strictEqual(pt.getLinesRawContent(), '12345');
 		pt.delete(0, 5);
-		assert.equal(pt.getLinesRawContent(), '');
+		assert.strictEqual(pt.getLinesRawContent(), '');
 		assertTreeInvariants(pt);
 	});
 
 	test('random test 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'ceLPHmFzvCtFeHkCBej ');
 		str = str.substring(0, 0) + 'ceLPHmFzvCtFeHkCBej ' + str.substring(0);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		pieceTable.insert(8, 'gDCEfNYiBUNkSwtvB K ');
 		str = str.substring(0, 8) + 'gDCEfNYiBUNkSwtvB K ' + str.substring(8);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		pieceTable.insert(38, 'cyNcHxjNPPoehBJldLS ');
 		str = str.substring(0, 38) + 'cyNcHxjNPPoehBJldLS ' + str.substring(38);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		pieceTable.insert(59, 'ejMx\nOTgWlbpeDExjOk ');
 		str = str.substring(0, 59) + 'ejMx\nOTgWlbpeDExjOk ' + str.substring(59);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random test 2', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'VgPG ');
 		str = str.substring(0, 0) + 'VgPG ' + str.substring(0);
 		pieceTable.insert(2, 'DdWF ');
@@ -292,13 +292,13 @@ suite('inserts and deletes', () => {
 		pieceTable.insert(10, 'Gbtp ');
 		str = str.substring(0, 10) + 'Gbtp ' + str.substring(10);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random test 3', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'gYSz');
 		str = str.substring(0, 0) + 'gYSz' + str.substring(0);
 		pieceTable.insert(1, 'mDQe');
@@ -309,45 +309,45 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 2) + 'GGZB' + str.substring(2);
 		pieceTable.insert(12, 'wXpq');
 		str = str.substring(0, 12) + 'wXpq' + str.substring(12);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 	});
 
 	test('random delete 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 
 		pieceTable.insert(0, 'vfb');
 		str = str.substring(0, 0) + 'vfb' + str.substring(0);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		pieceTable.insert(0, 'zRq');
 		str = str.substring(0, 0) + 'zRq' + str.substring(0);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 
 		pieceTable.delete(5, 1);
 		str = str.substring(0, 5) + str.substring(5 + 1);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 
 		pieceTable.insert(1, 'UNw');
 		str = str.substring(0, 1) + 'UNw' + str.substring(1);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 
 		pieceTable.delete(4, 3);
 		str = str.substring(0, 4) + str.substring(4 + 3);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 
 		pieceTable.delete(1, 4);
 		str = str.substring(0, 1) + str.substring(1 + 4);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 
 		pieceTable.delete(0, 1);
 		str = str.substring(0, 0) + str.substring(0 + 1);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random delete 2', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 
 		pieceTable.insert(0, 'IDT');
 		str = str.substring(0, 0) + 'IDT' + str.substring(0);
@@ -367,13 +367,13 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 6) + str.substring(6 + 7);
 		pieceTable.delete(3, 5);
 		str = str.substring(0, 3) + str.substring(3 + 5);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random delete 3', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'PqM');
 		str = str.substring(0, 0) + 'PqM' + str.substring(0);
 		pieceTable.delete(1, 2);
@@ -400,13 +400,13 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 5) + str.substring(5 + 8);
 		pieceTable.delete(3, 4);
 		str = str.substring(0, 3) + str.substring(3 + 4);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 1', () => {
 		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
+		const pieceTable = createTextBuffer(['a']);
 		pieceTable.delete(0, 1);
 		str = str.substring(0, 0) + str.substring(0 + 1);
 		pieceTable.insert(0, '\r\r\n\n');
@@ -426,13 +426,13 @@ suite('inserts and deletes', () => {
 		pieceTable.insert(5, '\n\na\r');
 		str = str.substring(0, 5) + '\n\na\r' + str.substring(5);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 2', () => {
 		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
+		const pieceTable = createTextBuffer(['a']);
 		pieceTable.insert(1, '\naa\r');
 		str = str.substring(0, 1) + '\naa\r' + str.substring(1);
 		pieceTable.delete(0, 4);
@@ -454,13 +454,13 @@ suite('inserts and deletes', () => {
 		pieceTable.insert(2, 'a\ra\n');
 		str = str.substring(0, 2) + 'a\ra\n' + str.substring(2);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 3', () => {
 		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
+		const pieceTable = createTextBuffer(['a']);
 		pieceTable.insert(0, '\r\na\r');
 		str = str.substring(0, 0) + '\r\na\r' + str.substring(0);
 		pieceTable.delete(2, 3);
@@ -479,17 +479,17 @@ suite('inserts and deletes', () => {
 		str = str.substring(0, 5) + '\n\na\r' + str.substring(5);
 		pieceTable.insert(10, '\r\r\n\r');
 		str = str.substring(0, 10) + '\r\r\n\r' + str.substring(10);
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		pieceTable.delete(21, 3);
 		str = str.substring(0, 21) + str.substring(21 + 3);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random insert/delete \\r bug 4s', () => {
 		let str = 'a';
-		let pieceTable = createTextBuffer(['a']);
+		const pieceTable = createTextBuffer(['a']);
 		pieceTable.delete(0, 1);
 		str = str.substring(0, 0) + str.substring(0 + 1);
 		pieceTable.insert(0, '\naaa');
@@ -511,12 +511,12 @@ suite('inserts and deletes', () => {
 		pieceTable.insert(3, 'a\naa');
 		str = str.substring(0, 3) + 'a\naa' + str.substring(3);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 	test('random insert/delete \\r bug 5', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, '\n\n\n\r');
 		str = str.substring(0, 0) + '\n\n\n\r' + str.substring(0);
 		pieceTable.insert(1, '\n\n\n\r');
@@ -538,119 +538,119 @@ suite('inserts and deletes', () => {
 		pieceTable.insert(15, '\n\r\r\r');
 		str = str.substring(0, 15) + '\n\r\r\r' + str.substring(15);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		assertTreeInvariants(pieceTable);
 	});
 });
 
 suite('prefix sum for line feed', () => {
 	test('basic', () => {
-		let pieceTable = createTextBuffer(['1\n2\n3\n4']);
+		const pieceTable = createTextBuffer(['1\n2\n3\n4']);
 
-		assert.equal(pieceTable.getLineCount(), 4);
-		assert.deepEqual(pieceTable.getPositionAt(0), new Position(1, 1));
-		assert.deepEqual(pieceTable.getPositionAt(1), new Position(1, 2));
-		assert.deepEqual(pieceTable.getPositionAt(2), new Position(2, 1));
-		assert.deepEqual(pieceTable.getPositionAt(3), new Position(2, 2));
-		assert.deepEqual(pieceTable.getPositionAt(4), new Position(3, 1));
-		assert.deepEqual(pieceTable.getPositionAt(5), new Position(3, 2));
-		assert.deepEqual(pieceTable.getPositionAt(6), new Position(4, 1));
+		assert.strictEqual(pieceTable.getLineCount(), 4);
+		assert.deepStrictEqual(pieceTable.getPositionAt(0), new Position(1, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(1), new Position(1, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(2), new Position(2, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(3), new Position(2, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(4), new Position(3, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(5), new Position(3, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
 
-		assert.equal(pieceTable.getOffsetAt(1, 1), 0);
-		assert.equal(pieceTable.getOffsetAt(1, 2), 1);
-		assert.equal(pieceTable.getOffsetAt(2, 1), 2);
-		assert.equal(pieceTable.getOffsetAt(2, 2), 3);
-		assert.equal(pieceTable.getOffsetAt(3, 1), 4);
-		assert.equal(pieceTable.getOffsetAt(3, 2), 5);
-		assert.equal(pieceTable.getOffsetAt(4, 1), 6);
+		assert.strictEqual(pieceTable.getOffsetAt(1, 1), 0);
+		assert.strictEqual(pieceTable.getOffsetAt(1, 2), 1);
+		assert.strictEqual(pieceTable.getOffsetAt(2, 1), 2);
+		assert.strictEqual(pieceTable.getOffsetAt(2, 2), 3);
+		assert.strictEqual(pieceTable.getOffsetAt(3, 1), 4);
+		assert.strictEqual(pieceTable.getOffsetAt(3, 2), 5);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('append', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
 		pieceTable.insert(8, 'fh\ni\njk');
 
-		assert.equal(pieceTable.getLineCount(), 6);
-		assert.deepEqual(pieceTable.getPositionAt(9), new Position(4, 4));
-		assert.equal(pieceTable.getOffsetAt(1, 1), 0);
+		assert.strictEqual(pieceTable.getLineCount(), 6);
+		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(4, 4));
+		assert.strictEqual(pieceTable.getOffsetAt(1, 1), 0);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('insert', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
 		pieceTable.insert(7, 'fh\ni\njk');
 
-		assert.equal(pieceTable.getLineCount(), 6);
-		assert.deepEqual(pieceTable.getPositionAt(6), new Position(4, 1));
-		assert.deepEqual(pieceTable.getPositionAt(7), new Position(4, 2));
-		assert.deepEqual(pieceTable.getPositionAt(8), new Position(4, 3));
-		assert.deepEqual(pieceTable.getPositionAt(9), new Position(4, 4));
-		assert.deepEqual(pieceTable.getPositionAt(12), new Position(6, 1));
-		assert.deepEqual(pieceTable.getPositionAt(13), new Position(6, 2));
-		assert.deepEqual(pieceTable.getPositionAt(14), new Position(6, 3));
+		assert.strictEqual(pieceTable.getLineCount(), 6);
+		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(7), new Position(4, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(8), new Position(4, 3));
+		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(4, 4));
+		assert.deepStrictEqual(pieceTable.getPositionAt(12), new Position(6, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(13), new Position(6, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(14), new Position(6, 3));
 
-		assert.equal(pieceTable.getOffsetAt(4, 1), 6);
-		assert.equal(pieceTable.getOffsetAt(4, 2), 7);
-		assert.equal(pieceTable.getOffsetAt(4, 3), 8);
-		assert.equal(pieceTable.getOffsetAt(4, 4), 9);
-		assert.equal(pieceTable.getOffsetAt(6, 1), 12);
-		assert.equal(pieceTable.getOffsetAt(6, 2), 13);
-		assert.equal(pieceTable.getOffsetAt(6, 3), 14);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 2), 7);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 3), 8);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 4), 9);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 1), 12);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 2), 13);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 3), 14);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\ndefh\ni\njk']);
+		const pieceTable = createTextBuffer(['a\nb\nc\ndefh\ni\njk']);
 		pieceTable.delete(7, 2);
 
-		assert.equal(pieceTable.getLinesRawContent(), 'a\nb\nc\ndh\ni\njk');
-		assert.equal(pieceTable.getLineCount(), 6);
-		assert.deepEqual(pieceTable.getPositionAt(6), new Position(4, 1));
-		assert.deepEqual(pieceTable.getPositionAt(7), new Position(4, 2));
-		assert.deepEqual(pieceTable.getPositionAt(8), new Position(4, 3));
-		assert.deepEqual(pieceTable.getPositionAt(9), new Position(5, 1));
-		assert.deepEqual(pieceTable.getPositionAt(11), new Position(6, 1));
-		assert.deepEqual(pieceTable.getPositionAt(12), new Position(6, 2));
-		assert.deepEqual(pieceTable.getPositionAt(13), new Position(6, 3));
+		assert.strictEqual(pieceTable.getLinesRawContent(), 'a\nb\nc\ndh\ni\njk');
+		assert.strictEqual(pieceTable.getLineCount(), 6);
+		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(7), new Position(4, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(8), new Position(4, 3));
+		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(5, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(11), new Position(6, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(12), new Position(6, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(13), new Position(6, 3));
 
-		assert.equal(pieceTable.getOffsetAt(4, 1), 6);
-		assert.equal(pieceTable.getOffsetAt(4, 2), 7);
-		assert.equal(pieceTable.getOffsetAt(4, 3), 8);
-		assert.equal(pieceTable.getOffsetAt(5, 1), 9);
-		assert.equal(pieceTable.getOffsetAt(6, 1), 11);
-		assert.equal(pieceTable.getOffsetAt(6, 2), 12);
-		assert.equal(pieceTable.getOffsetAt(6, 3), 13);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 2), 7);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 3), 8);
+		assert.strictEqual(pieceTable.getOffsetAt(5, 1), 9);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 1), 11);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 2), 12);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 3), 13);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('add+delete 1', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
 		pieceTable.insert(8, 'fh\ni\njk');
 		pieceTable.delete(7, 2);
 
-		assert.equal(pieceTable.getLinesRawContent(), 'a\nb\nc\ndh\ni\njk');
-		assert.equal(pieceTable.getLineCount(), 6);
-		assert.deepEqual(pieceTable.getPositionAt(6), new Position(4, 1));
-		assert.deepEqual(pieceTable.getPositionAt(7), new Position(4, 2));
-		assert.deepEqual(pieceTable.getPositionAt(8), new Position(4, 3));
-		assert.deepEqual(pieceTable.getPositionAt(9), new Position(5, 1));
-		assert.deepEqual(pieceTable.getPositionAt(11), new Position(6, 1));
-		assert.deepEqual(pieceTable.getPositionAt(12), new Position(6, 2));
-		assert.deepEqual(pieceTable.getPositionAt(13), new Position(6, 3));
+		assert.strictEqual(pieceTable.getLinesRawContent(), 'a\nb\nc\ndh\ni\njk');
+		assert.strictEqual(pieceTable.getLineCount(), 6);
+		assert.deepStrictEqual(pieceTable.getPositionAt(6), new Position(4, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(7), new Position(4, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(8), new Position(4, 3));
+		assert.deepStrictEqual(pieceTable.getPositionAt(9), new Position(5, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(11), new Position(6, 1));
+		assert.deepStrictEqual(pieceTable.getPositionAt(12), new Position(6, 2));
+		assert.deepStrictEqual(pieceTable.getPositionAt(13), new Position(6, 3));
 
-		assert.equal(pieceTable.getOffsetAt(4, 1), 6);
-		assert.equal(pieceTable.getOffsetAt(4, 2), 7);
-		assert.equal(pieceTable.getOffsetAt(4, 3), 8);
-		assert.equal(pieceTable.getOffsetAt(5, 1), 9);
-		assert.equal(pieceTable.getOffsetAt(6, 1), 11);
-		assert.equal(pieceTable.getOffsetAt(6, 2), 12);
-		assert.equal(pieceTable.getOffsetAt(6, 3), 13);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 1), 6);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 2), 7);
+		assert.strictEqual(pieceTable.getOffsetAt(4, 3), 8);
+		assert.strictEqual(pieceTable.getOffsetAt(5, 1), 9);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 1), 11);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 2), 12);
+		assert.strictEqual(pieceTable.getOffsetAt(6, 3), 13);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('insert random bug 1: prefixSumComputer.removeValues(start, cnt) cnt is 1 based.', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, ' ZX \n Z\nZ\n YZ\nY\nZXX ');
 		str =
 			str.substring(0, 0) +
@@ -660,27 +660,27 @@ suite('prefix sum for line feed', () => {
 		str =
 			str.substring(0, 14) + 'X ZZ\nYZZYZXXY Y XY\n ' + str.substring(14);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('insert random bug 2: prefixSumComputer initialize does not do deep copy of UInt32Array.', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'ZYZ\nYY XY\nX \nZ Y \nZ ');
 		str =
 			str.substring(0, 0) + 'ZYZ\nYY XY\nX \nZ Y \nZ ' + str.substring(0);
 		pieceTable.insert(3, 'XXY \n\nY Y YYY  ZYXY ');
 		str = str.substring(0, 3) + 'XXY \n\nY Y YYY  ZYXY ' + str.substring(3);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete random bug 1: I forgot to update the lineFeedCnt when deletion is on one single piece.', () => {
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'ba\na\nca\nba\ncbab\ncaa ');
 		pieceTable.insert(13, 'cca\naabb\ncac\nccc\nab ');
 		pieceTable.delete(5, 8);
@@ -702,14 +702,14 @@ suite('prefix sum for line feed', () => {
 		pieceTable.delete(71, 2);
 		pieceTable.insert(33, 'acaa\nacb\n\naa\n\nc\n\n\n\n ');
 
-		let str = pieceTable.getLinesRawContent();
+		const str = pieceTable.getLinesRawContent();
 		testLineStarts(str, pieceTable);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete random bug rb tree 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([str]);
+		const pieceTable = createTextBuffer([str]);
 		pieceTable.insert(0, 'YXXZ\n\nYY\n');
 		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
 		pieceTable.delete(0, 5);
@@ -724,7 +724,7 @@ suite('prefix sum for line feed', () => {
 
 	test('delete random bug rb tree 2', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([str]);
+		const pieceTable = createTextBuffer([str]);
 		pieceTable.insert(0, 'YXXZ\n\nYY\n');
 		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
 		pieceTable.insert(0, 'ZXYY\nX\nZ\n');
@@ -744,7 +744,7 @@ suite('prefix sum for line feed', () => {
 
 	test('delete random bug rb tree 3', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([str]);
+		const pieceTable = createTextBuffer([str]);
 		pieceTable.insert(0, 'YXXZ\n\nYY\n');
 		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
 		pieceTable.delete(7, 2);
@@ -774,7 +774,7 @@ suite('prefix sum for line feed', () => {
 suite('offset 2 position', () => {
 	test('random tests bug 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'huuyYzUfKOENwGgZLqn ');
 		str = str.substring(0, 0) + 'huuyYzUfKOENwGgZLqn ' + str.substring(0);
 		pieceTable.delete(18, 2);
@@ -797,23 +797,23 @@ suite('offset 2 position', () => {
 
 suite('get text in range', () => {
 	test('getContentInRange', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
 		pieceTable.insert(8, 'fh\ni\njk');
 		pieceTable.delete(7, 2);
 		// 'a\nb\nc\ndh\ni\njk'
 
-		assert.equal(pieceTable.getValueInRange(new Range(1, 1, 1, 3)), 'a\n');
-		assert.equal(pieceTable.getValueInRange(new Range(2, 1, 2, 3)), 'b\n');
-		assert.equal(pieceTable.getValueInRange(new Range(3, 1, 3, 3)), 'c\n');
-		assert.equal(pieceTable.getValueInRange(new Range(4, 1, 4, 4)), 'dh\n');
-		assert.equal(pieceTable.getValueInRange(new Range(5, 1, 5, 3)), 'i\n');
-		assert.equal(pieceTable.getValueInRange(new Range(6, 1, 6, 3)), 'jk');
+		assert.strictEqual(pieceTable.getValueInRange(new Range(1, 1, 1, 3)), 'a\n');
+		assert.strictEqual(pieceTable.getValueInRange(new Range(2, 1, 2, 3)), 'b\n');
+		assert.strictEqual(pieceTable.getValueInRange(new Range(3, 1, 3, 3)), 'c\n');
+		assert.strictEqual(pieceTable.getValueInRange(new Range(4, 1, 4, 4)), 'dh\n');
+		assert.strictEqual(pieceTable.getValueInRange(new Range(5, 1, 5, 3)), 'i\n');
+		assert.strictEqual(pieceTable.getValueInRange(new Range(6, 1, 6, 3)), 'jk');
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random test value in range', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([str]);
+		const pieceTable = createTextBuffer([str]);
 
 		pieceTable.insert(0, 'ZXXY');
 		str = str.substring(0, 0) + 'ZXXY' + str.substring(0);
@@ -831,7 +831,7 @@ suite('get text in range', () => {
 	});
 	test('random test value in range exception', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([str]);
+		const pieceTable = createTextBuffer([str]);
 
 		pieceTable.insert(0, 'XZ\nZ');
 		str = str.substring(0, 0) + 'XZ\nZ' + str.substring(0);
@@ -850,7 +850,7 @@ suite('get text in range', () => {
 
 	test('random tests bug 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'huuyYzUfKOENwGgZLqn ');
 		str = str.substring(0, 0) + 'huuyYzUfKOENwGgZLqn ' + str.substring(0);
 		pieceTable.delete(18, 2);
@@ -871,7 +871,7 @@ suite('get text in range', () => {
 
 	test('random tests bug 2', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'xfouRDZwdAHjVXJAMV\n ');
 		str = str.substring(0, 0) + 'xfouRDZwdAHjVXJAMV\n ' + str.substring(0);
 		pieceTable.insert(16, 'dBGndxpFZBEAIKykYYx ');
@@ -900,40 +900,40 @@ suite('get text in range', () => {
 	});
 
 	test('get line content', () => {
-		let pieceTable = createTextBuffer(['1']);
-		assert.equal(pieceTable.getLineRawContent(1), '1');
+		const pieceTable = createTextBuffer(['1']);
+		assert.strictEqual(pieceTable.getLineRawContent(1), '1');
 		pieceTable.insert(1, '2');
-		assert.equal(pieceTable.getLineRawContent(1), '12');
+		assert.strictEqual(pieceTable.getLineRawContent(1), '12');
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('get line content basic', () => {
-		let pieceTable = createTextBuffer(['1\n2\n3\n4']);
-		assert.equal(pieceTable.getLineRawContent(1), '1\n');
-		assert.equal(pieceTable.getLineRawContent(2), '2\n');
-		assert.equal(pieceTable.getLineRawContent(3), '3\n');
-		assert.equal(pieceTable.getLineRawContent(4), '4');
+		const pieceTable = createTextBuffer(['1\n2\n3\n4']);
+		assert.strictEqual(pieceTable.getLineRawContent(1), '1\n');
+		assert.strictEqual(pieceTable.getLineRawContent(2), '2\n');
+		assert.strictEqual(pieceTable.getLineRawContent(3), '3\n');
+		assert.strictEqual(pieceTable.getLineRawContent(4), '4');
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('get line content after inserts/deletes', () => {
-		let pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
 		pieceTable.insert(8, 'fh\ni\njk');
 		pieceTable.delete(7, 2);
 		// 'a\nb\nc\ndh\ni\njk'
 
-		assert.equal(pieceTable.getLineRawContent(1), 'a\n');
-		assert.equal(pieceTable.getLineRawContent(2), 'b\n');
-		assert.equal(pieceTable.getLineRawContent(3), 'c\n');
-		assert.equal(pieceTable.getLineRawContent(4), 'dh\n');
-		assert.equal(pieceTable.getLineRawContent(5), 'i\n');
-		assert.equal(pieceTable.getLineRawContent(6), 'jk');
+		assert.strictEqual(pieceTable.getLineRawContent(1), 'a\n');
+		assert.strictEqual(pieceTable.getLineRawContent(2), 'b\n');
+		assert.strictEqual(pieceTable.getLineRawContent(3), 'c\n');
+		assert.strictEqual(pieceTable.getLineRawContent(4), 'dh\n');
+		assert.strictEqual(pieceTable.getLineRawContent(5), 'i\n');
+		assert.strictEqual(pieceTable.getLineRawContent(6), 'jk');
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 
 		pieceTable.insert(0, 'J eNnDzQpnlWyjmUu\ny ');
 		str = str.substring(0, 0) + 'J eNnDzQpnlWyjmUu\ny ' + str.substring(0);
@@ -948,7 +948,7 @@ suite('get text in range', () => {
 
 	test('random 2', () => {
 		let str = '';
-		let pieceTable = createTextBuffer(['']);
+		const pieceTable = createTextBuffer(['']);
 		pieceTable.insert(0, 'DZoQ tglPCRHMltejRI ');
 		str = str.substring(0, 0) + 'DZoQ tglPCRHMltejRI ' + str.substring(0);
 		pieceTable.insert(10, 'JRXiyYqJ qqdcmbfkKX ');
@@ -968,26 +968,26 @@ suite('get text in range', () => {
 
 suite('CRLF', () => {
 	test('delete CR in CRLF 1', () => {
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 		pieceTable.insert(0, 'a\r\nb');
 		pieceTable.delete(0, 2);
 
-		assert.equal(pieceTable.getLineCount(), 2);
+		assert.strictEqual(pieceTable.getLineCount(), 2);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('delete CR in CRLF 2', () => {
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 		pieceTable.insert(0, 'a\r\nb');
 		pieceTable.delete(2, 2);
 
-		assert.equal(pieceTable.getLineCount(), 2);
+		assert.strictEqual(pieceTable.getLineCount(), 2);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 1', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 		pieceTable.insert(0, '\n\n\r\r');
 		str = str.substring(0, 0) + '\n\n\r\r' + str.substring(0);
 		pieceTable.insert(1, '\r\n\r\n');
@@ -997,13 +997,13 @@ suite('CRLF', () => {
 		pieceTable.delete(2, 3);
 		str = str.substring(0, 2) + str.substring(2 + 3);
 
-		let lines = str.split(/\r\n|\r|\n/);
-		assert.equal(pieceTable.getLineCount(), lines.length);
+		const lines = splitLines(str);
+		assert.strictEqual(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 2', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\r\n\r');
 		str = str.substring(0, 0) + '\n\r\n\r' + str.substring(0);
@@ -1012,13 +1012,13 @@ suite('CRLF', () => {
 		pieceTable.delete(4, 1);
 		str = str.substring(0, 4) + str.substring(4 + 1);
 
-		let lines = str.split(/\r\n|\r|\n/);
-		assert.equal(pieceTable.getLineCount(), lines.length);
+		const lines = splitLines(str);
+		assert.strictEqual(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 3', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\r');
 		str = str.substring(0, 0) + '\n\n\n\r' + str.substring(0);
@@ -1033,13 +1033,13 @@ suite('CRLF', () => {
 		pieceTable.insert(3, '\r\r\r\n');
 		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
 
-		let lines = str.split(/\r\n|\r|\n/);
-		assert.equal(pieceTable.getLineCount(), lines.length);
+		const lines = splitLines(str);
+		assert.strictEqual(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 4', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1057,7 +1057,7 @@ suite('CRLF', () => {
 	});
 	test('random bug 5', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1083,7 +1083,7 @@ suite('CRLF', () => {
 	});
 	test('random bug 6', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\r\r\n');
 		str = str.substring(0, 0) + '\n\r\r\n' + str.substring(0);
@@ -1107,7 +1107,7 @@ suite('CRLF', () => {
 	});
 	test('random bug 8', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\r\n\n\r');
 		str = str.substring(0, 0) + '\r\n\n\r' + str.substring(0);
@@ -1123,7 +1123,7 @@ suite('CRLF', () => {
 	});
 	test('random bug 7', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\r\r\n\n');
 		str = str.substring(0, 0) + '\r\r\n\n' + str.substring(0);
@@ -1139,7 +1139,7 @@ suite('CRLF', () => {
 
 	test('random bug 10', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, 'qneW');
 		str = str.substring(0, 0) + 'qneW' + str.substring(0);
@@ -1160,7 +1160,7 @@ suite('CRLF', () => {
 
 	test('random bug 9', () => {
 		let str = '';
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1182,22 +1182,22 @@ suite('CRLF', () => {
 
 suite('centralized lineStarts with CRLF', () => {
 	test('delete CR in CRLF 1', () => {
-		let pieceTable = createTextBuffer(['a\r\nb'], false);
+		const pieceTable = createTextBuffer(['a\r\nb'], false);
 		pieceTable.delete(2, 2);
-		assert.equal(pieceTable.getLineCount(), 2);
+		assert.strictEqual(pieceTable.getLineCount(), 2);
 		assertTreeInvariants(pieceTable);
 	});
 	test('delete CR in CRLF 2', () => {
-		let pieceTable = createTextBuffer(['a\r\nb']);
+		const pieceTable = createTextBuffer(['a\r\nb']);
 		pieceTable.delete(0, 2);
 
-		assert.equal(pieceTable.getLineCount(), 2);
+		assert.strictEqual(pieceTable.getLineCount(), 2);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 1', () => {
 		let str = '\n\n\r\r';
-		let pieceTable = createTextBuffer(['\n\n\r\r'], false);
+		const pieceTable = createTextBuffer(['\n\n\r\r'], false);
 		pieceTable.insert(1, '\r\n\r\n');
 		str = str.substring(0, 1) + '\r\n\r\n' + str.substring(1);
 		pieceTable.delete(5, 3);
@@ -1205,27 +1205,27 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.delete(2, 3);
 		str = str.substring(0, 2) + str.substring(2 + 3);
 
-		let lines = str.split(/\r\n|\r|\n/);
-		assert.equal(pieceTable.getLineCount(), lines.length);
+		const lines = splitLines(str);
+		assert.strictEqual(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
 	test('random bug 2', () => {
 		let str = '\n\r\n\r';
-		let pieceTable = createTextBuffer(['\n\r\n\r'], false);
+		const pieceTable = createTextBuffer(['\n\r\n\r'], false);
 
 		pieceTable.insert(2, '\n\r\r\r');
 		str = str.substring(0, 2) + '\n\r\r\r' + str.substring(2);
 		pieceTable.delete(4, 1);
 		str = str.substring(0, 4) + str.substring(4 + 1);
 
-		let lines = str.split(/\r\n|\r|\n/);
-		assert.equal(pieceTable.getLineCount(), lines.length);
+		const lines = splitLines(str);
+		assert.strictEqual(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 3', () => {
 		let str = '\n\n\n\r';
-		let pieceTable = createTextBuffer(['\n\n\n\r'], false);
+		const pieceTable = createTextBuffer(['\n\n\n\r'], false);
 
 		pieceTable.delete(2, 2);
 		str = str.substring(0, 2) + str.substring(2 + 2);
@@ -1238,14 +1238,14 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.insert(3, '\r\r\r\n');
 		str = str.substring(0, 3) + '\r\r\r\n' + str.substring(3);
 
-		let lines = str.split(/\r\n|\r|\n/);
-		assert.equal(pieceTable.getLineCount(), lines.length);
+		const lines = splitLines(str);
+		assert.strictEqual(pieceTable.getLineCount(), lines.length);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random bug 4', () => {
 		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
+		const pieceTable = createTextBuffer(['\n\n\n\n'], false);
 
 		pieceTable.delete(3, 1);
 		str = str.substring(0, 3) + str.substring(3 + 1);
@@ -1262,7 +1262,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 5', () => {
 		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
+		const pieceTable = createTextBuffer(['\n\n\n\n'], false);
 
 		pieceTable.delete(3, 1);
 		str = str.substring(0, 3) + str.substring(3 + 1);
@@ -1287,7 +1287,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 6', () => {
 		let str = '\n\r\r\n';
-		let pieceTable = createTextBuffer(['\n\r\r\n'], false);
+		const pieceTable = createTextBuffer(['\n\r\r\n'], false);
 
 		pieceTable.insert(4, '\r\n\n\r');
 		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
@@ -1310,7 +1310,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 7', () => {
 		let str = '\r\n\n\r';
-		let pieceTable = createTextBuffer(['\r\n\n\r'], false);
+		const pieceTable = createTextBuffer(['\r\n\n\r'], false);
 
 		pieceTable.delete(1, 0);
 		str = str.substring(0, 1) + str.substring(1 + 0);
@@ -1325,7 +1325,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 8', () => {
 		let str = '\r\r\n\n';
-		let pieceTable = createTextBuffer(['\r\r\n\n'], false);
+		const pieceTable = createTextBuffer(['\r\r\n\n'], false);
 
 		pieceTable.insert(4, '\r\n\n\r');
 		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
@@ -1339,7 +1339,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 9', () => {
 		let str = 'qneW';
-		let pieceTable = createTextBuffer(['qneW'], false);
+		const pieceTable = createTextBuffer(['qneW'], false);
 
 		pieceTable.insert(0, 'YhIl');
 		str = str.substring(0, 0) + 'YhIl' + str.substring(0);
@@ -1358,7 +1358,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 10', () => {
 		let str = '\n\n\n\n';
-		let pieceTable = createTextBuffer(['\n\n\n\n'], false);
+		const pieceTable = createTextBuffer(['\n\n\n\n'], false);
 
 		pieceTable.insert(3, '\n\r\n\r');
 		str = str.substring(0, 3) + '\n\r\n\r' + str.substring(3);
@@ -1376,7 +1376,7 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 1', () => {
-		let pieceTable = createTextBuffer(['\n\r\r\n\n\n\r\n\r'], false);
+		const pieceTable = createTextBuffer(['\n\r\r\n\n\n\r\n\r'], false);
 		let str = '\n\r\r\n\n\n\r\n\r';
 		pieceTable.delete(0, 2);
 		str = str.substring(0, 0) + str.substring(0 + 2);
@@ -1385,13 +1385,13 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.insert(7, '\r\r\r\r');
 		str = str.substring(0, 7) + '\r\r\r\r' + str.substring(7);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunk bug 2', () => {
-		let pieceTable = createTextBuffer([
+		const pieceTable = createTextBuffer([
 			'\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n'
 		], false);
 		let str = '\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n';
@@ -1406,13 +1406,13 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.delete(11, 2);
 		str = str.substring(0, 11) + str.substring(11 + 2);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunk bug 3', () => {
-		let pieceTable = createTextBuffer(['\r\n\n\n\n\n\n\r\n'], false);
+		const pieceTable = createTextBuffer(['\r\n\n\n\n\n\n\r\n'], false);
 		let str = '\r\n\n\n\n\n\n\r\n';
 		pieceTable.insert(4, '\n\n\r\n\r\r\n\n\r');
 		str = str.substring(0, 4) + '\n\n\r\n\r\r\n\n\r' + str.substring(4);
@@ -1423,20 +1423,20 @@ suite('centralized lineStarts with CRLF', () => {
 		pieceTable.delete(1, 2);
 		str = str.substring(0, 1) + str.substring(1 + 2);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		assertTreeInvariants(pieceTable);
 	});
 
 	test('random chunk bug 4', () => {
-		let pieceTable = createTextBuffer(['\n\r\n\r'], false);
+		const pieceTable = createTextBuffer(['\n\r\n\r'], false);
 		let str = '\n\r\n\r';
 		pieceTable.insert(4, '\n\n\r\n');
 		str = str.substring(0, 4) + '\n\n\r\n' + str.substring(4);
 		pieceTable.insert(3, '\r\n\n\n');
 		str = str.substring(0, 3) + '\r\n\n\n' + str.substring(3);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		assertTreeInvariants(pieceTable);
 	});
@@ -1444,7 +1444,7 @@ suite('centralized lineStarts with CRLF', () => {
 
 suite('random is unsupervised', () => {
 	test('splitting large change buffer', function () {
-		let pieceTable = createTextBuffer([''], false);
+		const pieceTable = createTextBuffer([''], false);
 		let str = '';
 
 		pieceTable.insert(0, 'WUZ\nXVZY\n');
@@ -1468,7 +1468,7 @@ suite('random is unsupervised', () => {
 		pieceTable.insert(0, 'VZXXZYZX\r');
 		str = str.substring(0, 0) + 'VZXXZYZX\r' + str.substring(0);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
@@ -1478,22 +1478,22 @@ suite('random is unsupervised', () => {
 	test('random insert delete', function () {
 		this.timeout(500000);
 		let str = '';
-		let pieceTable = createTextBuffer([str], false);
+		const pieceTable = createTextBuffer([str], false);
 
 		// let output = '';
 		for (let i = 0; i < 1000; i++) {
 			if (Math.random() < 0.6) {
 				// insert
-				let text = randomStr(100);
-				let pos = randomInt(str.length + 1);
+				const text = randomStr(100);
+				const pos = randomInt(str.length + 1);
 				pieceTable.insert(pos, text);
 				str = str.substring(0, pos) + text + str.substring(pos);
 				// output += `pieceTable.insert(${pos}, '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}');\n`;
 				// output += `str = str.substring(0, ${pos}) + '${text.replace(/\n/g, '\\n').replace(/\r/g, '\\r')}' + str.substring(${pos});\n`;
 			} else {
 				// delete
-				let pos = randomInt(str.length);
-				let length = Math.min(
+				const pos = randomInt(str.length);
+				const length = Math.min(
 					str.length - pos,
 					Math.floor(Math.random() * 10)
 				);
@@ -1506,7 +1506,7 @@ suite('random is unsupervised', () => {
 		}
 		// console.log(output);
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
@@ -1515,25 +1515,25 @@ suite('random is unsupervised', () => {
 
 	test('random chunks', function () {
 		this.timeout(500000);
-		let chunks: string[] = [];
+		const chunks: string[] = [];
 		for (let i = 0; i < 5; i++) {
 			chunks.push(randomStr(1000));
 		}
 
-		let pieceTable = createTextBuffer(chunks, false);
+		const pieceTable = createTextBuffer(chunks, false);
 		let str = chunks.join('');
 
 		for (let i = 0; i < 1000; i++) {
 			if (Math.random() < 0.6) {
 				// insert
-				let text = randomStr(100);
-				let pos = randomInt(str.length + 1);
+				const text = randomStr(100);
+				const pos = randomInt(str.length + 1);
 				pieceTable.insert(pos, text);
 				str = str.substring(0, pos) + text + str.substring(pos);
 			} else {
 				// delete
-				let pos = randomInt(str.length);
-				let length = Math.min(
+				const pos = randomInt(str.length);
+				const length = Math.min(
 					str.length - pos,
 					Math.floor(Math.random() * 10)
 				);
@@ -1542,7 +1542,7 @@ suite('random is unsupervised', () => {
 			}
 		}
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
 		assertTreeInvariants(pieceTable);
@@ -1550,23 +1550,23 @@ suite('random is unsupervised', () => {
 
 	test('random chunks 2', function () {
 		this.timeout(500000);
-		let chunks: string[] = [];
+		const chunks: string[] = [];
 		chunks.push(randomStr(1000));
 
-		let pieceTable = createTextBuffer(chunks, false);
+		const pieceTable = createTextBuffer(chunks, false);
 		let str = chunks.join('');
 
 		for (let i = 0; i < 50; i++) {
 			if (Math.random() < 0.6) {
 				// insert
-				let text = randomStr(30);
-				let pos = randomInt(str.length + 1);
+				const text = randomStr(30);
+				const pos = randomInt(str.length + 1);
 				pieceTable.insert(pos, text);
 				str = str.substring(0, pos) + text + str.substring(pos);
 			} else {
 				// delete
-				let pos = randomInt(str.length);
-				let length = Math.min(
+				const pos = randomInt(str.length);
+				const length = Math.min(
 					str.length - pos,
 					Math.floor(Math.random() * 10)
 				);
@@ -1576,7 +1576,7 @@ suite('random is unsupervised', () => {
 			testLinesContent(str, pieceTable);
 		}
 
-		assert.equal(pieceTable.getLinesRawContent(), str);
+		assert.strictEqual(pieceTable.getLinesRawContent(), str);
 		testLineStarts(str, pieceTable);
 		testLinesContent(str, pieceTable);
 		assertTreeInvariants(pieceTable);
@@ -1585,65 +1585,71 @@ suite('random is unsupervised', () => {
 
 suite('buffer api', () => {
 	test('equal', () => {
-		let a = createTextBuffer(['abc']);
-		let b = createTextBuffer(['ab', 'c']);
-		let c = createTextBuffer(['abd']);
-		let d = createTextBuffer(['abcd']);
+		const a = createTextBuffer(['abc']);
+		const b = createTextBuffer(['ab', 'c']);
+		const c = createTextBuffer(['abd']);
+		const d = createTextBuffer(['abcd']);
 
 		assert(a.equal(b));
 		assert(!a.equal(c));
 		assert(!a.equal(d));
 	});
 
+	test('equal with more chunks', () => {
+		const a = createTextBuffer(['ab', 'cd', 'e']);
+		const b = createTextBuffer(['ab', 'c', 'de']);
+		assert(a.equal(b));
+	});
+
 	test('equal 2, empty buffer', () => {
-		let a = createTextBuffer(['']);
-		let b = createTextBuffer(['']);
+		const a = createTextBuffer(['']);
+		const b = createTextBuffer(['']);
 
 		assert(a.equal(b));
 	});
 
 	test('equal 3, empty buffer', () => {
-		let a = createTextBuffer(['a']);
-		let b = createTextBuffer(['']);
+		const a = createTextBuffer(['a']);
+		const b = createTextBuffer(['']);
 
 		assert(!a.equal(b));
 	});
 
 	test('getLineCharCode - issue #45735', () => {
-		let pieceTable = createTextBuffer(['LINE1\nline2']);
-		assert.equal(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
-		assert.equal(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
-		assert.equal(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
-		assert.equal(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
-		assert.equal(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
-		assert.equal(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
-		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
-		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
-		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
-		assert.equal(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
-		assert.equal(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+		const pieceTable = createTextBuffer(['LINE1\nline2']);
+		assert.strictEqual(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
 	});
 
 
 	test('getLineCharCode - issue #47733', () => {
-		let pieceTable = createTextBuffer(['', 'LINE1\n', 'line2']);
-		assert.equal(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
-		assert.equal(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
-		assert.equal(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
-		assert.equal(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
-		assert.equal(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
-		assert.equal(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
-		assert.equal(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
-		assert.equal(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
-		assert.equal(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
-		assert.equal(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
-		assert.equal(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+		const pieceTable = createTextBuffer(['', 'LINE1\n', 'line2']);
+		assert.strictEqual(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 3), 'E'.charCodeAt(0), 'E');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 4), '1'.charCodeAt(0), '1');
+		assert.strictEqual(pieceTable.getLineCharCode(1, 5), '\n'.charCodeAt(0), '\\n');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 0), 'l'.charCodeAt(0), 'l');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 1), 'i'.charCodeAt(0), 'i');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
+		assert.strictEqual(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
 	});
 });
 
 suite('search offset cache', () => {
 	test('render white space exception', () => {
-		let pieceTable = createTextBuffer(['class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}']);
+		const pieceTable = createTextBuffer(['class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}']);
 		let str = 'class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}';
 
 		pieceTable.insert(12, 's');
@@ -1694,12 +1700,12 @@ suite('search offset cache', () => {
 		pieceTable.delete(15, 2);
 		str = str.substring(0, 15) + str.substring(15 + 2);
 
-		let content = pieceTable.getLinesRawContent();
+		const content = pieceTable.getLinesRawContent();
 		assert(content === str);
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized', () => {
-		let pieceTable = createTextBuffer(['abc']);
+		const pieceTable = createTextBuffer(['abc']);
 		let str = 'abc';
 
 		pieceTable.insert(3, 'def\nabc');
@@ -1711,7 +1717,7 @@ suite('search offset cache', () => {
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized 2', () => {
-		let pieceTable = createTextBuffer(['abc\n']);
+		const pieceTable = createTextBuffer(['abc\n']);
 		let str = 'abc\n';
 
 		pieceTable.insert(4, 'def\nabc');
@@ -1723,7 +1729,7 @@ suite('search offset cache', () => {
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized 3', () => {
-		let pieceTable = createTextBuffer(['abc\n']);
+		const pieceTable = createTextBuffer(['abc\n']);
 		let str = 'abc\n';
 
 		pieceTable.insert(2, 'def\nabc');
@@ -1735,7 +1741,7 @@ suite('search offset cache', () => {
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized 4', () => {
-		let pieceTable = createTextBuffer(['abc\n']);
+		const pieceTable = createTextBuffer(['abc\n']);
 		let str = 'abc\n';
 
 		pieceTable.insert(3, 'def\nabc');
@@ -1761,7 +1767,7 @@ function getValueInSnapshot(snapshot: ITextSnapshot) {
 }
 suite('snapshot', () => {
 	test('bug #45564, piece tree pieces should be immutable', () => {
-		const model = TextModel.createFromString('\n');
+		const model = createTextModel('\n');
 		model.applyEdits([
 			{
 				range: new Range(2, 1, 2, 1),
@@ -1770,7 +1776,7 @@ suite('snapshot', () => {
 		]);
 		const snapshot = model.createSnapshot();
 		const snapshot1 = model.createSnapshot();
-		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
 
 		model.applyEdits([
 			{
@@ -1785,11 +1791,13 @@ suite('snapshot', () => {
 			}
 		]);
 
-		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot1));
+		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot1));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 1', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		const snapshot = model.createSnapshot();
 		model.applyEdits([
 			{
@@ -1805,11 +1813,13 @@ suite('snapshot', () => {
 			}
 		]);
 
-		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 2', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		const snapshot = model.createSnapshot();
 		model.applyEdits([
 			{
@@ -1825,11 +1835,13 @@ suite('snapshot', () => {
 			}
 		]);
 
-		assert.equal(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 3', () => {
-		const model = TextModel.createFromString('abc\ndef');
+		const model = createTextModel('abc\ndef');
 		model.applyEdits([
 			{
 				range: new Range(2, 4, 2, 4),
@@ -1844,20 +1856,22 @@ suite('snapshot', () => {
 			}
 		]);
 
-		assert.notEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+		assert.notStrictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 });
 
 suite('chunk based search', () => {
 	test('#45892. For some cases, the buffer is empty but we still try to search', () => {
-		let pieceTree = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
 		pieceTree.delete(0, 1);
-		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
-		assert.equal(ret.length, 0);
+		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
+		assert.strictEqual(ret.length, 0);
 	});
 
 	test('#45770. FindInNode should not cross node boundary.', () => {
-		let pieceTree = createTextBuffer([
+		const pieceTree = createTextBuffer([
 			[
 				'balabalababalabalababalabalaba',
 				'balabalababalabalababalabalaba',
@@ -1871,16 +1885,16 @@ suite('chunk based search', () => {
 		pieceTree.delete(16, 1);
 
 		pieceTree.insert(16, ' ');
-		let ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
-		assert.equal(ret.length, 3);
+		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
+		assert.strictEqual(ret.length, 3);
 
-		assert.deepEqual(ret[0].range, new Range(2, 3, 2, 4));
-		assert.deepEqual(ret[1].range, new Range(3, 3, 3, 4));
-		assert.deepEqual(ret[2].range, new Range(4, 3, 4, 4));
+		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));
+		assert.deepStrictEqual(ret[1].range, new Range(3, 3, 3, 4));
+		assert.deepStrictEqual(ret[2].range, new Range(4, 3, 4, 4));
 	});
 
 	test('search searching from the middle', () => {
-		let pieceTree = createTextBuffer([
+		const pieceTree = createTextBuffer([
 			[
 				'def',
 				'dbcabc'
@@ -1888,12 +1902,12 @@ suite('chunk based search', () => {
 		]);
 		pieceTree.delete(4, 1);
 		let ret = pieceTree.findMatchesLineByLine(new Range(2, 3, 2, 6), new SearchData(/a/gi, null, 'a'), true, 1000);
-		assert.equal(ret.length, 1);
-		assert.deepEqual(ret[0].range, new Range(2, 3, 2, 4));
+		assert.strictEqual(ret.length, 1);
+		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));
 
 		pieceTree.delete(4, 1);
 		ret = pieceTree.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
-		assert.equal(ret.length, 1);
-		assert.deepEqual(ret[0].range, new Range(2, 2, 2, 3));
+		assert.strictEqual(ret.length, 1);
+		assert.deepStrictEqual(ret[0].range, new Range(2, 2, 2, 3));
 	});
 });

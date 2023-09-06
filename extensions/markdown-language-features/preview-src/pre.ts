@@ -5,6 +5,7 @@
 
 import { CspAlerter } from './csp';
 import { StyleLoadingMonitor } from './loading';
+import { SettingsManager } from './settings';
 
 declare global {
 	interface Window {
@@ -13,5 +14,5 @@ declare global {
 	}
 }
 
-window.cspAlerter = new CspAlerter();
+window.cspAlerter = new CspAlerter(new SettingsManager());
 window.styleLoadingMonitor = new StyleLoadingMonitor();

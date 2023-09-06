@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 
 /**
@@ -19,7 +22,7 @@ export interface IVisibleLine extends ILine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean;
+	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean;
 
 	/**
 	 * Layout the line.
@@ -34,8 +37,8 @@ export interface ILine {
 
 export class RenderedLinesCollection<T extends ILine> {
 	private readonly _createLine: () => T;
-	private _lines: T[];
-	private _rendLineNumberStart: number;
+	private _lines!: T[];
+	private _rendLineNumberStart!: number;
 
 	constructor(createLine: () => T) {
 		this._createLine = createLine;
@@ -51,7 +54,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		this._rendLineNumberStart = rendLineNumberStart;
 	}
 
-	_get(): { rendLineNumberStart: number; lines: T[]; } {
+	_get(): { rendLineNumberStart: number; lines: T[] } {
 		return {
 			rendLineNumberStart: this._rendLineNumberStart,
 			lines: this._lines
@@ -79,7 +82,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	public getLine(lineNumber: number): T {
 		const lineIndex = lineNumber - this._rendLineNumberStart;
 		if (lineIndex < 0 || lineIndex >= this._lines.length) {
-			throw new Error('Illegal value for lineNumber');
+			throw new BugIndicatingError('Illegal value for lineNumber');
 		}
 		return this._lines[lineIndex];
 	}
@@ -145,7 +148,8 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deleted;
 	}
 
-	public onLinesChanged(changeFromLineNumber: number, changeToLineNumber: number): boolean {
+	public onLinesChanged(changeFromLineNumber: number, changeCount: number): boolean {
+		const changeToLineNumber = changeFromLineNumber + changeCount - 1;
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -209,7 +213,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deletedLines;
 	}
 
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
+	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number }[]): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;
@@ -269,7 +273,10 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	// ---- begin view event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return e.layoutInfo;
+		if (e.hasChanged(EditorOption.layoutInfo)) {
+			return true;
+		}
+		return false;
 	}
 
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
@@ -279,7 +286,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 	}
 
 	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return this._linesCollection.onLinesChanged(e.fromLineNumber, e.toLineNumber);
+		return this._linesCollection.onLinesChanged(e.fromLineNumber, e.count);
 	}
 
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -364,6 +371,8 @@ interface IRendererContext<T extends IVisibleLine> {
 }
 
 class ViewLayerRenderer<T extends IVisibleLine> {
+
+	private static _ttPolicy = createTrustedTypesPolicy('editorViewLayer', { createHTML: value => value });
 
 	readonly domNode: HTMLElement;
 	readonly host: IVisibleLinesHost<T>;
@@ -500,12 +509,15 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
-	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
+	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string | TrustedHTML, wasNew: boolean[]): void {
+		if (ViewLayerRenderer._ttPolicy) {
+			newLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(newLinesHTML as string);
+		}
 		const lastChild = <HTMLElement>this.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
-			this.domNode.innerHTML = newLinesHTML;
+			this.domNode.innerHTML = newLinesHTML as string; // explains the ugly casts -> https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393;
 		} else {
-			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
+			lastChild.insertAdjacentHTML('afterend', newLinesHTML as string);
 		}
 
 		let currChild = <HTMLElement>this.domNode.lastChild;
@@ -518,10 +530,13 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
+	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string | TrustedHTML, wasInvalid: boolean[]): void {
 		const hugeDomNode = document.createElement('div');
 
-		hugeDomNode.innerHTML = invalidLinesHTML;
+		if (ViewLayerRenderer._ttPolicy) {
+			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML as string);
+		}
+		hugeDomNode.innerHTML = invalidLinesHTML as string;
 
 		for (let i = 0; i < ctx.linesLength; i++) {
 			const line = ctx.lines[i];
@@ -534,7 +549,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private static readonly _sb = createStringBuilder(100000);
+	private static readonly _sb = new StringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 

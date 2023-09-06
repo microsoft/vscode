@@ -5,33 +5,33 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as embeddedSupport from '../modes/embeddedSupport';
-import { TextDocument } from 'vscode-languageserver-types';
 import { getLanguageService } from 'vscode-html-languageservice';
+import { TextDocument } from '../modes/languageModes';
 
 suite('HTML Embedded Support', () => {
 
-	var htmlLanguageService = getLanguageService();
+	const htmlLanguageService = getLanguageService();
 
 	function assertLanguageId(value: string, expectedLanguageId: string | undefined): void {
-		let offset = value.indexOf('|');
+		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
-		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
-		let position = document.positionAt(offset);
+		const position = document.positionAt(offset);
 
-		let docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
-		let languageId = docRegions.getLanguageAtPosition(position);
+		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		const languageId = docRegions.getLanguageAtPosition(position);
 
-		assert.equal(languageId, expectedLanguageId);
+		assert.strictEqual(languageId, expectedLanguageId);
 	}
 
 	function assertEmbeddedLanguageContent(value: string, languageId: string, expectedContent: string): void {
-		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
 
-		let docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
-		let content = docRegions.getEmbeddedDocument(languageId);
-		assert.equal(content.getText(), expectedContent);
+		const docRegions = embeddedSupport.getDocumentRegions(htmlLanguageService, document);
+		const content = docRegions.getEmbeddedDocument(languageId);
+		assert.strictEqual(content.getText(), expectedContent);
 	}
 
 	test('Styles', function (): any {
@@ -119,8 +119,13 @@ suite('HTML Embedded Support', () => {
 	test('Script content', function (): any {
 		assertEmbeddedLanguageContent('<html><script>var i = 0;</script></html>', 'javascript', '              var i = 0;                ');
 		assertEmbeddedLanguageContent('<script type="text/javascript">var i = 0;</script>', 'javascript', '                               var i = 0;         ');
+		assertEmbeddedLanguageContent('<script><!--this comment should not give error--></script>', 'javascript', '        /* this comment should not give error */         ');
+		assertEmbeddedLanguageContent('<script><!--this comment should not give error--> console.log("logging");</script>', 'javascript', '        /* this comment should not give error */ console.log("logging");         ');
 
+		assertEmbeddedLanguageContent('<script>var data=100; <!--this comment should not give error--> </script>', 'javascript', '        var data=100; /* this comment should not give error */          ');
 		assertEmbeddedLanguageContent('<div onKeyUp="foo()" onkeydown="bar()"/>', 'javascript', '              foo();            bar();  ');
+		assertEmbeddedLanguageContent('<div onKeyUp="return"/>', 'javascript', '              return;  ');
+		assertEmbeddedLanguageContent('<div onKeyUp=return\n/><script>foo();</script>', 'javascript', '             return;\n          foo();         ');
 	});
 
 });

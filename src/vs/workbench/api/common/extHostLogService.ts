@@ -3,32 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
-import { ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { localize } from 'vs/nls';
+import { ILoggerService } from 'vs/platform/log/common/log';
+import { LogService } from 'vs/platform/log/common/logService';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
-export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
+export class ExtHostLogService extends LogService {
 
-	private _logsPath: string;
-	readonly logFile: URI;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		delegate: ILogService,
-		logsPath: string,
+		isWorker: boolean,
+		@ILoggerService loggerService: ILoggerService,
+		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
-		super(delegate);
-		this._logsPath = logsPath;
-		this.logFile = URI.file(join(logsPath, `${ExtensionHostLogFileName}.log`));
+		const id = initData.remote.isRemote ? 'remoteexthost' : isWorker ? 'workerexthost' : 'exthost';
+		const name = initData.remote.isRemote ? localize('remote', "Extension Host (Remote)") : isWorker ? localize('worker', "Extension Host (Worker)") : localize('local', "Extension Host");
+		super(loggerService.createLogger(id, { name }));
 	}
 
-	$setLevel(level: LogLevel): void {
-		this.setLevel(level);
-	}
-
-	getLogDirectory(extensionID: ExtensionIdentifier): string {
-		return join(this._logsPath, extensionID.value);
-	}
 }

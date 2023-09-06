@@ -1,31 +1,39 @@
 {
 	"comments": {
-		"lineComment": "",
-		"blockComment": ["<!--", "-->"]
+		"blockComment": [ "<!--", "-->" ]
 	},
 	"brackets": [
-		["<", ">"]
+		["<!--", "-->"],
+		["<", ">"],
+		["{", "}"],
+		["(", ")"]
 	],
 	"autoClosingPairs": [
-		["<", ">"],
-		["'", "'"],
-		["\"", "\""]
+		{ "open": "{", "close": "}"},
+		{ "open": "[", "close": "]"},
+		{ "open": "(", "close": ")" },
+		{ "open": "\"", "close": "\"", "notIn": ["string"] },
+		{ "open": "'", "close": "'", "notIn": ["string"] },
+		{ "open": "<!--", "close": "-->", "notIn": [ "comment", "string" ]},
+		{ "open": "<![CDATA[", "close": "]]>", "notIn": [ "comment", "string" ]}
 	],
 	"surroundingPairs": [
-		["<", ">"],
-		["'", "'"],
-		["\"", "\""]
-	]
-
-	// enhancedBrackets: [{
-	// 	tokenType: 'tag.tag-$1.xml',
-	// 	openTrigger: '>',
-	// 	open: /<(\w[\w\d]*)([^\/>]*(?!\/)>)[^<>]*$/i,
-	// 	closeComplete: '</$1>',
-	// 	closeTrigger: '>',
-	// 	close: /<\/(\w[\w\d]*)\s*>$/i
-	// }],
-
-	// autoClosingPairs:  [['\'', '\''], ['"', '"'] ]
-
+		{ "open": "'", "close": "'" },
+		{ "open": "\"", "close": "\"" },
+		{ "open": "{", "close": "}"},
+		{ "open": "[", "close": "]"},
+		{ "open": "(", "close": ")" },
+		{ "open": "<", "close": ">" }
+	],
+	"colorizedBracketPairs": [
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s*<!--\\s*#region\\b.*-->",
+			"end": "^\\s*<!--\\s*#endregion\\b.*-->"
+		}
+	},
+	"wordPattern": {
+		"pattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\@\\#\\$\\%\\^\\&\\*\\(\\)\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>\\/\\?\\s]+)"
+	}
 }

@@ -29,7 +29,7 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 				),
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
 				title: nls.localize({ key: 'miEmmetExpandAbbreviation', comment: ['&& denotes a mnemonic'] }, "Emmet: E&&xpand Abbreviation"),

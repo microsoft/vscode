@@ -4,81 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostWindowShape, IExtHostContext, MainContext, MainThreadWindowShape, IOpenUriOptions } from '../common/extHost.protocol';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
 
 @extHostNamedCustomer(MainContext.MainThreadWindow)
 export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
-	private disposables: IDisposable[] = [];
-	private readonly _tunnels = new Map<number, Promise<RemoteTunnel>>();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWindowService private readonly windowService: IWindowService,
-		@IWindowsService private readonly windowsService: IWindowsService,
-		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IHostService private readonly hostService: IHostService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IUserActivityService private readonly userActivityService: IUserActivityService,
 	) {
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostWindow);
 
-		Event.latch(windowService.onDidChangeFocus)
+		Event.latch(hostService.onDidChangeFocus)
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
+		userActivityService.onDidChangeIsActive(this.proxy.$onDidChangeWindowActive, this.proxy, this.disposables);
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
-
-		for (const tunnel of this._tunnels.values()) {
-			tunnel.then(tunnel => tunnel.dispose());
-		}
-		this._tunnels.clear();
+		this.disposables.dispose();
 	}
 
-	$getWindowVisibility(): Promise<boolean> {
-		return this.windowService.isFocused();
+	$getInitialState() {
+		return Promise.resolve({
+			isFocused: this.hostService.hasFocus,
+			isActive: this.userActivityService.isActive,
+		});
 	}
 
-	async $openUri(uriComponent: UriComponents, options: IOpenUriOptions): Promise<boolean> {
-		let uri = URI.revive(uriComponent);
-		if (options.allowTunneling && !!this.environmentService.configuration.remoteAuthority) {
-			if (uri.scheme === 'http' || uri.scheme === 'https') {
-				const port = this.getLocalhostPort(uri);
-				if (typeof port === 'number') {
-					const tunnel = await this.getOrCreateTunnel(port);
-					if (tunnel) {
-						uri = uri.with({ authority: `localhost:${tunnel.tunnelLocalPort}` });
-					}
-				}
-			}
+	async $openUri(uriComponents: UriComponents, uriString: string | undefined, options: IOpenUriOptions): Promise<boolean> {
+		const uri = URI.from(uriComponents);
+		let target: URI | string;
+		if (uriString && URI.parse(uriString).toString() === uri.toString()) {
+			// called with string and no transformation happened -> keep string
+			target = uriString;
+		} else {
+			// called with URI or transformed -> use uri
+			target = uri;
 		}
-
-		return this.windowsService.openExternal(encodeURI(uri.toString(true)));
+		return this.openerService.open(target, {
+			openExternal: true,
+			allowTunneling: options.allowTunneling,
+			allowContributedOpeners: options.allowContributedOpeners,
+		});
 	}
 
-	private getLocalhostPort(uri: URI): number | undefined {
-		const match = /^localhost:(\d+)$/.exec(uri.authority);
-		if (match) {
-			return +match[1];
-		}
-		return undefined;
-	}
-
-	private getOrCreateTunnel(remotePort: number): Promise<RemoteTunnel> | undefined {
-		const existing = this._tunnels.get(remotePort);
-		if (existing) {
-			return existing;
-		}
-		const tunnel = this.tunnelService.openTunnel(remotePort);
-		if (tunnel) {
-			this._tunnels.set(remotePort, tunnel);
-		}
-		return tunnel;
+	async $asExternalUri(uriComponents: UriComponents, options: IOpenUriOptions): Promise<UriComponents> {
+		const result = await this.openerService.resolveExternalUri(URI.revive(uriComponents), options);
+		return result.resolved;
 	}
 }

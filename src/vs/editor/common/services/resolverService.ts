@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -12,7 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ITextModelService = createDecorator<ITextModelService>('textModelService');
 
 export interface ITextModelService {
-	_serviceBrand: any;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Provided a resource URI, it will return a model reference
@@ -26,9 +27,9 @@ export interface ITextModelService {
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
 
 	/**
-	 * Check if a provider for the given `scheme` exists
+	 * Check if the given resource can be resolved to a text model.
 	 */
-	hasTextModelContentProvider(scheme: string): boolean;
+	canHandleResource(resource: URI): boolean;
 }
 
 export interface ITextModelContentProvider {
@@ -52,7 +53,15 @@ export interface ITextEditorModel extends IEditorModel {
 	createSnapshot(this: IResolvedTextEditorModel): ITextSnapshot;
 	createSnapshot(this: ITextEditorModel): ITextSnapshot | null;
 
-	isReadonly(): boolean;
+	/**
+	 * Signals if this model is readonly or not.
+	 */
+	isReadonly(): boolean | IMarkdownString;
+
+	/**
+	 * The language id of the text model if known.
+	 */
+	getLanguageId(): string | undefined;
 }
 
 export interface IResolvedTextEditorModel extends ITextEditorModel {
@@ -61,4 +70,10 @@ export interface IResolvedTextEditorModel extends ITextEditorModel {
 	 * Same as ITextEditorModel#textEditorModel, but never null.
 	 */
 	readonly textEditorModel: ITextModel;
+}
+
+export function isResolvedTextEditorModel(model: ITextEditorModel): model is IResolvedTextEditorModel {
+	const candidate = model as IResolvedTextEditorModel;
+
+	return !!candidate.textEditorModel;
 }

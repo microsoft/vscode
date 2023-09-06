@@ -7,13 +7,13 @@ import * as nls from 'vs/nls';
 
 import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
-export interface TaskEntry extends IQuickPickItem {
+export interface ITaskEntry extends IQuickPickItem {
 	sort?: string;
 	autoDetect: boolean;
 	content: string;
 }
 
-const dotnetBuild: TaskEntry = {
+const dotnetBuild: ITaskEntry = {
 	id: 'dotnetCore',
 	label: '.NET Core',
 	sort: 'NET Core',
@@ -27,8 +27,15 @@ const dotnetBuild: TaskEntry = {
 		'\t"tasks": [',
 		'\t\t{',
 		'\t\t\t"label": "build",',
-		'\t\t\t"command": "dotnet build",',
+		'\t\t\t"command": "dotnet",',
 		'\t\t\t"type": "shell",',
+		'\t\t\t"args": [',
+		'\t\t\t\t"build",',
+		'\t\t\t\t// Ask dotnet build to generate full paths for file names.',
+		'\t\t\t\t"/property:GenerateFullPaths=true",',
+		'\t\t\t\t// Do not generate summary otherwise it leads to duplicate errors in Problems panel',
+		'\t\t\t\t"/consoleloggerparameters:NoSummary"',
+		'\t\t\t],',
 		'\t\t\t"group": "build",',
 		'\t\t\t"presentation": {',
 		'\t\t\t\t"reveal": "silent"',
@@ -40,7 +47,7 @@ const dotnetBuild: TaskEntry = {
 	].join('\n')
 };
 
-const msbuild: TaskEntry = {
+const msbuild: ITaskEntry = {
 	id: 'msbuild',
 	label: 'MSBuild',
 	autoDetect: false,
@@ -58,7 +65,9 @@ const msbuild: TaskEntry = {
 		'\t\t\t"args": [',
 		'\t\t\t\t// Ask msbuild to generate full paths for file names.',
 		'\t\t\t\t"/property:GenerateFullPaths=true",',
-		'\t\t\t\t"/t:build"',
+		'\t\t\t\t"/t:build",',
+		'\t\t\t\t// Do not generate summary otherwise it leads to duplicate errors in Problems panel',
+		'\t\t\t\t"/consoleloggerparameters:NoSummary"',
 		'\t\t\t],',
 		'\t\t\t"group": "build",',
 		'\t\t\t"presentation": {',
@@ -73,7 +82,7 @@ const msbuild: TaskEntry = {
 	].join('\n')
 };
 
-const command: TaskEntry = {
+const command: ITaskEntry = {
 	id: 'externalCommand',
 	label: 'Others',
 	autoDetect: false,
@@ -94,7 +103,7 @@ const command: TaskEntry = {
 	].join('\n')
 };
 
-const maven: TaskEntry = {
+const maven: ITaskEntry = {
 	id: 'maven',
 	label: 'maven',
 	sort: 'MVN',
@@ -123,8 +132,8 @@ const maven: TaskEntry = {
 	].join('\n')
 };
 
-let _templates: TaskEntry[] | null = null;
-export function getTemplates(): TaskEntry[] {
+let _templates: ITaskEntry[] | null = null;
+export function getTemplates(): ITaskEntry[] {
 	if (!_templates) {
 		_templates = [dotnetBuild, msbuild, maven].sort((a, b) => {
 			return (a.sort || a.label).localeCompare(b.sort || b.label);

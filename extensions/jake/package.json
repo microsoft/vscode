@@ -16,16 +16,20 @@
     "compile": "gulp compile-extension:jake",
     "watch": "gulp watch-extension:jake"
   },
-  "dependencies": {
-    "vscode-nls": "^4.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "18.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onTaskType:jake"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "configuration": {
       "id": "jake",
@@ -33,13 +37,13 @@
       "title": "Jake",
       "properties": {
         "jake.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.jake.autoDetect%"
         }
       }
@@ -59,8 +63,13 @@
             "type": "string",
             "description": "%jake.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

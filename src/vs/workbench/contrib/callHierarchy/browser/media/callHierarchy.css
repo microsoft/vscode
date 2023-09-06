@@ -10,6 +10,7 @@
 
 .monaco-workbench .call-hierarchy[data-state="data"] .results {
 	display: inherit;
+	height: 100%;
 }
 
 .monaco-workbench .call-hierarchy[data-state="message"] .message {
@@ -19,25 +20,43 @@
 	height: 100%;
 }
 
-.monaco-workbench .action-label.calls-to {
-	background-image: url(files_CallTo_CallTo_16x.svg);
-	background-size: 14px 14px;
-	background-repeat: no-repeat;
-	background-position: left center;
-}
-
-.monaco-workbench .action-label.calls-from {
-	background-image: url(files_CallFrom_CallFrom_16x.svg);
-	background-size: 14px 14px;
-	background-repeat: no-repeat;
-	background-position: left center;
-}
-
-.monaco-workbench .call-hierarchy .monaco-split-view2.horizontal > .split-view-container > .split-view-view {
-	/* this is a little bizare.. */
-	height: unset;
-}
-
+.monaco-workbench .call-hierarchy .editor,
 .monaco-workbench .call-hierarchy .tree {
 	height: 100%;
+}
+
+.monaco-editor .call-hierarchy .tree {
+	background-color: var(--vscode-peekViewResult-background);
+	color: var(--vscode-peekViewResult-fileForeground);
+}
+
+.monaco-workbench .call-hierarchy .tree .callhierarchy-element {
+	display: flex;
+	flex: 1;
+	flex-flow: row nowrap;
+	align-items: center;
+}
+
+.monaco-workbench .call-hierarchy .tree .callhierarchy-element .monaco-icon-label {
+	padding-left: 4px;
+}
+
+.monaco-editor .call-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) {
+	background-color: var(--vscode-peekViewResult-selectionBackground);
+	color: var(--vscode-peekViewResult-selectionForeground) !important;
+}
+
+.monaco-editor .call-hierarchy .call-decoration {
+	background-color: var(--vscode-peekViewEditor-matchHighlightBackground);
+	border: 2px solid var(--vscode-peekViewEditor-matchHighlightBorder);
+	box-sizing: border-box;
+}
+
+.monaco-editor .call-hierarchy .editor .monaco-editor .monaco-editor-background,
+.monaco-editor .call-hierarchy .editor .monaco-editor .inputarea.ime-input {
+	background-color: var(--vscode-peekViewEditor-background);
+}
+
+.monaco-editor .call-hierarchy .editor .monaco-editor .margin {
+	background-color: var(--vscode-peekViewEditorGutter-background);
 }

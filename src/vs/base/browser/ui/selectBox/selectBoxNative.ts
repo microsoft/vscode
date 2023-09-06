@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
+import { EventType, Gesture } from 'vs/base/browser/touch';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
-import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
@@ -16,7 +17,7 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 	private selectElement: HTMLSelectElement;
 	private selectBoxOptions: ISelectBoxOptions;
 	private options: ISelectOptionItem[];
-	private selected: number;
+	private selected = 0;
 	private readonly _onDidSelect: Emitter<ISelectData>;
 	private styles: ISelectBoxStyles;
 
@@ -34,6 +35,10 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
+		}
+
 		this._onDidSelect = this._register(new Emitter<ISelectData>());
 
 		this.styles = styles;
@@ -43,6 +48,16 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 	}
 
 	private registerListeners() {
+		this._register(Gesture.addTarget(this.selectElement));
+		[EventType.Tap].forEach(eventType => {
+			this._register(dom.addDisposableListener(this.selectElement, eventType, (e) => {
+				this.selectElement.focus();
+			}));
+		});
+
+		this._register(dom.addStandardDisposableListener(this.selectElement, 'click', (e) => {
+			dom.EventHelper.stop(e, true);
+		}));
 
 		this._register(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
@@ -121,18 +136,24 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 	public focus(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = 0;
 			this.selectElement.focus();
 		}
 	}
 
 	public blur(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = -1;
 			this.selectElement.blur();
 		}
 	}
 
+	public setFocusable(focusable: boolean): void {
+		this.selectElement.tabIndex = focusable ? 0 : -1;
+	}
+
 	public render(container: HTMLElement): void {
-		dom.addClass(container, 'select-container');
+		container.classList.add('select-container');
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);
 		this.applyStyles();
@@ -147,13 +168,9 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 		// Style native select
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : null;
-
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
+			this.selectElement.style.backgroundColor = this.styles.selectBackground ?? '';
+			this.selectElement.style.color = this.styles.selectForeground ?? '';
+			this.selectElement.style.borderColor = this.styles.selectBorder ?? '';
 		}
 
 	}

@@ -7,6 +7,33 @@
 	display: flex;
 	height: 100%;
 	align-items: center;
+	position: relative;
+}
+
+.monaco-tl-row.disabled {
+	cursor: default;
+}
+.monaco-tl-indent {
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 16px;
+	pointer-events: none;
+}
+
+.hide-arrows .monaco-tl-indent {
+	left: 12px;
+}
+
+.monaco-tl-indent > .indent-guide {
+	display: inline-block;
+	box-sizing: border-box;
+	height: 100%;
+	border-left: 1px solid transparent;
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-tl-indent > .indent-guide {
+	transition: border-color 0.1s linear;
 }
 
 .monaco-tl-twistie,
@@ -17,9 +44,13 @@
 .monaco-tl-twistie {
 	font-size: 10px;
 	text-align: right;
-	margin-right: 6px;
+	padding-right: 6px;
 	flex-shrink: 0;
 	width: 16px;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	transform: translateX(3px);
 }
 
 .monaco-tl-contents {
@@ -27,43 +58,73 @@
 	overflow: hidden;
 }
 
-.monaco-tl-twistie.collapsible {
-	background-size: 16px;
-	background-position: 3px 50%;
-	background-repeat: no-repeat;
-	background-image: url("expanded.svg");
+.monaco-tl-twistie::before {
+	border-radius: 20px;
 }
 
-.monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	display: inline-block;
-	background-image: url("collapsed.svg");
+.monaco-tl-twistie.collapsed::before {
+	transform: rotate(-90deg);
 }
 
-.vs-dark .monaco-tl-twistie.collapsible:not(.loading) {
-	background-image: url("expanded-dark.svg");
+.monaco-tl-twistie.codicon-tree-item-loading::before {
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
 }
 
-.vs-dark .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	background-image: url("collapsed-dark.svg");
+.monaco-tree-type-filter {
+	position: absolute;
+	top: 0;
+	display: flex;
+	padding: 3px;
+	max-width: 200px;
+	z-index: 100;
+	margin: 0 6px;
+	border: 1px solid var(--vscode-widget-border);
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
 }
 
-.hc-black .monaco-tl-twistie.collapsible:not(.loading) {
-	background-image: url("expanded-hc.svg");
+.monaco-workbench:not(.reduce-motion) .monaco-tree-type-filter {
+	transition: top 0.3s;
 }
 
-.hc-black .monaco-tl-twistie.collapsible.collapsed:not(.loading) {
-	background-image: url("collapsed-hc.svg");
+.monaco-tree-type-filter.disabled {
+	top: -40px !important;
 }
 
-.monaco-tl-twistie.loading {
-	background-image: url("loading.svg");
-	background-position: 0 center;
+.monaco-tree-type-filter-grab {
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	cursor: grab;
+	margin-right: 2px;
 }
 
-.vs-dark .monaco-tl-twistie.loading {
-	background-image: url("loading-dark.svg");
+.monaco-tree-type-filter-grab.grabbing {
+	cursor: grabbing;
 }
 
-.hc-black .monaco-tl-twistie.loading {
-	background-image: url("loading-hc.svg");
+.monaco-tree-type-filter-input {
+	flex: 1;
+}
+
+.monaco-tree-type-filter-input .monaco-inputbox {
+	height: 23px;
+}
+
+.monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .input,
+.monaco-tree-type-filter-input .monaco-inputbox > .ibwrapper > .mirror {
+	padding: 2px 4px;
+}
+
+.monaco-tree-type-filter-input .monaco-findInput > .controls {
+	top: 2px;
+}
+
+.monaco-tree-type-filter-actionbar {
+	margin-left: 4px;
+}
+
+.monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+	padding: 2px;
 }

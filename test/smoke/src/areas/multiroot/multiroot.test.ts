@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { Application } from '../../application';
+import { writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { Application, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -15,45 +16,59 @@ function toUri(path: string): string {
 	return `${path}`;
 }
 
-async function createWorkspaceFile(workspacePath: string): Promise<string> {
-	const workspaceFilePath = path.join(path.dirname(workspacePath), 'smoketest.code-workspace');
+function createWorkspaceFile(workspacePath: string): string {
+	const workspaceFilePath = join(dirname(workspacePath), 'smoketest.code-workspace');
 	const workspace = {
 		folders: [
-			{ path: toUri(path.join(workspacePath, 'public')) },
-			{ path: toUri(path.join(workspacePath, 'routes')) },
-			{ path: toUri(path.join(workspacePath, 'views')) }
-		]
+			{ path: toUri(join(workspacePath, 'public')) },
+			{ path: toUri(join(workspacePath, 'routes')) },
+			{ path: toUri(join(workspacePath, 'views')) }
+		],
+		settings: {
+			'workbench.startupEditor': 'none',
+			'workbench.enableExperiments': false,
+			'typescript.disableAutomaticTypeAcquisition': true,
+			'json.schemaDownload.enable': false,
+			'npm.fetchOnlinePackageInfo': false,
+			'npm.autoDetect': 'off',
+			'workbench.editor.languageDetection': false,
+			"workbench.localHistory.enabled": false
+		}
 	};
 
-	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
+	writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
 
 	return workspaceFilePath;
 }
 
-export function setup() {
+export function setup(logger: Logger) {
 	describe('Multiroot', () => {
 
-		before(async function () {
-			const app = this.app as Application;
-
-			const workspaceFilePath = await createWorkspaceFile(app.workspacePathOrFolder);
-
-			// restart with preventing additional windows from restoring
-			// to ensure the window after restart is the multi-root workspace
-			await app.restart({ workspaceOrFolder: workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
+		// Shared before/after handling
+		installAllHandlers(logger, opts => {
+			const workspacePath = createWorkspaceFile(opts.workspacePath);
+			return { ...opts, workspacePath };
 		});
 
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickopen.openQuickOpen('*.*');
+			const expectedNames = [
+				'index.js',
+				'users.js',
+				'style.css',
+				'error.pug',
+				'index.pug',
+				'layout.pug'
+			];
 
-			// TODO roblourens: Go to files finds welcome page: issue 74875
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6 || names.length === 7);
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('*.*', 6);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('shows workspace name in title', async function () {
 			const app = this.app as Application;
+
 			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
 		});
 	});

@@ -3,16 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./contextview';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
+import { OmitOptional } from 'vs/base/common/types';
+import 'vs/css!./contextview';
+
+export const enum ContextViewDOMPosition {
+	ABSOLUTE = 1,
+	FIXED,
+	FIXED_SHADOW
+}
 
 export interface IAnchor {
 	x: number;
 	y: number;
 	width?: number;
 	height?: number;
+}
+
+export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
+	const anchor = obj as IAnchor | OmitOptional<IAnchor> | undefined;
+
+	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
 }
 
 export const enum AnchorAlignment {
@@ -23,20 +39,31 @@ export const enum AnchorPosition {
 	BELOW, ABOVE
 }
 
+export const enum AnchorAxisAlignment {
+	VERTICAL, HORIZONTAL
+}
+
 export interface IDelegate {
-	getAnchor(): HTMLElement | IAnchor;
+	/**
+	 * The anchor where to position the context view.
+	 * Use a `HTMLElement` to position the view at the element,
+	 * a `StandardMouseEvent` to position it at the mouse position
+	 * or an `IAnchor` to position it at a specific location.
+	 */
+	getAnchor(): HTMLElement | StandardMouseEvent | IAnchor;
 	render(container: HTMLElement): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
 	anchorAlignment?: AnchorAlignment; // default: left
 	anchorPosition?: AnchorPosition; // default: below
+	anchorAxisAlignment?: AnchorAxisAlignment; // default: vertical
 	canRelayout?: boolean; // default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
-	onHide?(data?: any): void;
+	onHide?(data?: unknown): void;
 }
 
 export interface IContextViewProvider {
-	showContextView(delegate: IDelegate): void;
+	showContextView(delegate: IDelegate, container?: HTMLElement): void;
 	hideContextView(): void;
 	layout(): void;
 }
@@ -58,9 +85,15 @@ export const enum LayoutAnchorPosition {
 	After
 }
 
+export enum LayoutAnchorMode {
+	AVOID,
+	ALIGN
+}
+
 export interface ILayoutAnchor {
 	offset: number;
 	size: number;
+	mode?: LayoutAnchorMode; // default: AVOID
 	position: LayoutAnchorPosition;
 }
 
@@ -70,25 +103,26 @@ export interface ILayoutAnchor {
  * @returns The view offset within the viewport.
  */
 export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
-	const anchorEnd = anchor.offset + anchor.size;
+	const layoutAfterAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset : anchor.offset + anchor.size;
+	const layoutBeforeAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset + anchor.size : anchor.offset;
 
 	if (anchor.position === LayoutAnchorPosition.Before) {
-		if (viewSize <= viewportSize - anchorEnd) {
-			return anchorEnd; // happy case, lay it out after the anchor
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+			return layoutAfterAnchorBoundary; // happy case, lay it out after the anchor
 		}
 
-		if (viewSize <= anchor.offset) {
-			return anchor.offset - viewSize; // ok case, lay it out before the anchor
+		if (viewSize <= layoutBeforeAnchorBoundary) {
+			return layoutBeforeAnchorBoundary - viewSize; // ok case, lay it out before the anchor
 		}
 
 		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
 	} else {
-		if (viewSize <= anchor.offset) {
-			return anchor.offset - viewSize; // happy case, lay it out before the anchor
+		if (viewSize <= layoutBeforeAnchorBoundary) {
+			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
 		}
 
-		if (viewSize <= viewportSize - anchorEnd) {
-			return anchorEnd; // ok case, lay it out after the anchor
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
 		}
 
 		return 0; // sad case, lay it over the anchor
@@ -100,33 +134,63 @@ export class ContextView extends Disposable {
 	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
 	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
-	private container: HTMLElement | null;
+	private container: HTMLElement | null = null;
 	private view: HTMLElement;
-	private delegate: IDelegate | null;
-	private toDisposeOnClean: IDisposable | null;
-	private toDisposeOnSetContainer: IDisposable;
+	private useFixedPosition: boolean;
+	private useShadowDOM: boolean;
+	private delegate: IDelegate | null = null;
+	private toDisposeOnClean: IDisposable = Disposable.None;
+	private toDisposeOnSetContainer: IDisposable = Disposable.None;
+	private shadowRoot: ShadowRoot | null = null;
+	private shadowRootHostElement: HTMLElement | null = null;
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement | null, domPosition: ContextViewDOMPosition) {
 		super();
 
 		this.view = DOM.$('.context-view');
+		this.useFixedPosition = false;
+		this.useShadowDOM = false;
 
 		DOM.hide(this.view);
 
-		this.setContainer(container);
+		this.setContainer(container, domPosition);
 
-		this._register(toDisposable(() => this.setContainer(null)));
+		this._register(toDisposable(() => this.setContainer(null, ContextViewDOMPosition.ABSOLUTE)));
 	}
 
-	setContainer(container: HTMLElement | null): void {
+	setContainer(container: HTMLElement | null, domPosition: ContextViewDOMPosition): void {
 		if (this.container) {
-			dispose(this.toDisposeOnSetContainer);
-			this.container.removeChild(this.view);
+			this.toDisposeOnSetContainer.dispose();
+
+			if (this.shadowRoot) {
+				this.shadowRoot.removeChild(this.view);
+				this.shadowRoot = null;
+				this.shadowRootHostElement?.remove();
+				this.shadowRootHostElement = null;
+			} else {
+				this.container.removeChild(this.view);
+			}
+
 			this.container = null;
 		}
 		if (container) {
 			this.container = container;
-			this.container.appendChild(this.view);
+
+			this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
+			this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
+
+			if (this.useShadowDOM) {
+				this.shadowRootHostElement = DOM.$('.shadow-root-host');
+				this.container.appendChild(this.shadowRootHostElement);
+				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
+				const style = document.createElement('style');
+				style.textContent = SHADOW_ROOT_CSS;
+				this.shadowRoot.appendChild(style);
+				this.shadowRoot.appendChild(this.view);
+				this.shadowRoot.appendChild(DOM.$('slot'));
+			} else {
+				this.container.appendChild(this.view);
+			}
 
 			const toDisposeOnSetContainer = new DisposableStore();
 
@@ -156,10 +220,12 @@ export class ContextView extends Disposable {
 		this.view.className = 'context-view';
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
+		this.view.style.zIndex = '2575';
+		this.view.style.position = this.useFixedPosition ? 'fixed' : 'absolute';
 		DOM.show(this.view);
 
 		// Render content
-		this.toDisposeOnClean = delegate.render(this.view);
+		this.toDisposeOnClean = delegate.render(this.view) || Disposable.None;
 
 		// Set active delegate
 		this.delegate = delegate;
@@ -168,9 +234,11 @@ export class ContextView extends Disposable {
 		this.doLayout();
 
 		// Focus
-		if (this.delegate.focus) {
-			this.delegate.focus();
-		}
+		this.delegate.focus?.();
+	}
+
+	getViewElement(): HTMLElement {
+		return this.view;
 	}
 
 	layout(): void {
@@ -178,7 +246,7 @@ export class ContextView extends Disposable {
 			return;
 		}
 
-		if (this.delegate!.canRelayout === false) {
+		if (this.delegate!.canRelayout === false && !(platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.hide();
 			return;
 		}
@@ -197,27 +265,43 @@ export class ContextView extends Disposable {
 		}
 
 		// Get anchor
-		let anchor = this.delegate!.getAnchor();
+		const anchor = this.delegate!.getAnchor();
 
 		// Compute around
 		let around: IView;
 
 		// Get the element's position and size (to anchor the view)
 		if (DOM.isHTMLElement(anchor)) {
-			let elementPosition = DOM.getDomNodePagePosition(anchor);
+			const elementPosition = DOM.getDomNodePagePosition(anchor);
+
+			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
+			// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
+			// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
+			const zoom = DOM.getDomNodeZoomLevel(anchor);
 
 			around = {
-				top: elementPosition.top,
-				left: elementPosition.left,
-				width: elementPosition.width,
-				height: elementPosition.height
+				top: elementPosition.top * zoom,
+				left: elementPosition.left * zoom,
+				width: elementPosition.width * zoom,
+				height: elementPosition.height * zoom
 			};
-		} else {
+		} else if (isAnchor(anchor)) {
 			around = {
 				top: anchor.y,
 				left: anchor.x,
 				width: anchor.width || 1,
 				height: anchor.height || 2
+			};
+		} else {
+			around = {
+				top: anchor.posy,
+				left: anchor.posx,
+				// We are about to position the context view where the mouse
+				// cursor is. To prevent the view being exactly under the mouse
+				// when showing and thus potentially triggering an action within,
+				// we treat the mouse location like a small sized block element.
+				width: 2,
+				height: 2
 			};
 		}
 
@@ -226,51 +310,57 @@ export class ContextView extends Disposable {
 
 		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
 		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment || AnchorAxisAlignment.VERTICAL;
 
-		const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+		let top: number;
+		let left: number;
 
-		let horizontalAnchor: ILayoutAnchor;
+		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
+			const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
 
-		if (anchorAlignment === AnchorAlignment.LEFT) {
-			horizontalAnchor = { offset: around.left, size: 0, position: LayoutAnchorPosition.Before };
-		} else {
-			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
-		}
+			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
 
-		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
-
-		// if view intersects vertically with anchor, shift it horizontally
-		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
-			horizontalAnchor.size = around.width;
-			if (anchorAlignment === AnchorAlignment.RIGHT) {
-				horizontalAnchor.offset = around.left;
+			// if view intersects vertically with anchor,  we must avoid the anchor
+			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
+				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
 			}
+
+			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+		} else {
+			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
+
+			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+
+			// if view intersects horizontally with anchor, we must avoid the anchor
+			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
+				verticalAnchor.mode = LayoutAnchorMode.AVOID;
+			}
+
+			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
 		}
 
-		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
-
-		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
-		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		this.view.classList.remove('top', 'bottom', 'left', 'right');
+		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+		this.view.classList.add(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		this.view.classList.toggle('fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-		this.view.style.top = `${top - containerPosition.top}px`;
-		this.view.style.left = `${left - containerPosition.left}px`;
+		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
+		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left)}px`;
 		this.view.style.width = 'initial';
 	}
 
-	hide(data?: any): void {
+	hide(data?: unknown): void {
 		const delegate = this.delegate;
 		this.delegate = null;
 
-		if (delegate && delegate.onHide) {
+		if (delegate?.onHide) {
 			delegate.onHide(data);
 		}
 
-		if (this.toDisposeOnClean) {
-			this.toDisposeOnClean.dispose();
-			this.toDisposeOnClean = null;
-		}
+		this.toDisposeOnClean.dispose();
 
 		DOM.hide(this.view);
 	}
@@ -289,9 +379,50 @@ export class ContextView extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.hide();
 
 		super.dispose();
 	}
 }
+
+const SHADOW_ROOT_CSS = /* css */ `
+	:host {
+		all: initial; /* 1st rule so subsequent properties are reset. */
+	}
+
+	.codicon[class*='codicon-'] {
+		font: normal normal normal 16px/1 codicon;
+		display: inline-block;
+		text-decoration: none;
+		text-rendering: auto;
+		text-align: center;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		user-select: none;
+		-webkit-user-select: none;
+		-ms-user-select: none;
+	}
+
+	:host {
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+	}
+
+	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+	:host-context(.mac:lang(zh-Hans)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
+	:host-context(.mac:lang(zh-Hant)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }
+	:host-context(.mac:lang(ja)) { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif; }
+	:host-context(.mac:lang(ko)) { font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif; }
+
+	:host-context(.windows) { font-family: "Segoe WPC", "Segoe UI", sans-serif; }
+	:host-context(.windows:lang(zh-Hans)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif; }
+	:host-context(.windows:lang(zh-Hant)) { font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif; }
+	:host-context(.windows:lang(ja)) { font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif; }
+	:host-context(.windows:lang(ko)) { font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif; }
+
+	:host-context(.linux) { font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif; }
+	:host-context(.linux:lang(zh-Hans)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif; }
+	:host-context(.linux:lang(zh-Hant)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif; }
+	:host-context(.linux:lang(ja)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
+	:host-context(.linux:lang(ko)) { font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
+`;

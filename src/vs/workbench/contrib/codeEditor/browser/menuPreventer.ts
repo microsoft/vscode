@@ -6,7 +6,7 @@
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
 /**
@@ -14,7 +14,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
  */
 export class MenuPreventer extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.menuPreventer';
+	public static readonly ID = 'editor.contrib.menuPreventer';
 
 	private _editor: ICodeEditor;
 	private _altListeningMouse: boolean;
@@ -55,10 +55,6 @@ export class MenuPreventer extends Disposable implements IEditorContribution {
 			}
 		}));
 	}
-
-	public getId(): string {
-		return MenuPreventer.ID;
-	}
 }
 
-registerEditorContribution(MenuPreventer);
+registerEditorContribution(MenuPreventer.ID, MenuPreventer, EditorContributionInstantiation.BeforeFirstInteraction);

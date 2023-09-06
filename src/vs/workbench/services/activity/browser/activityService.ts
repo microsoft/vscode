@@ -3,28 +3,114 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
+import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { Event } from 'vs/base/common/event';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
-export class ActivityService implements IActivityService {
+class ViewContainerActivityByView extends Disposable {
 
-	public _serviceBrand: any;
+	private activity: IActivity | undefined = undefined;
+	private activityDisposable: IDisposable = Disposable.None;
 
 	constructor(
-		@IPanelService private readonly panelService: IPanelService,
-		@IActivityBarService private readonly activityBarService: IActivityBarService
-	) { }
+		private readonly viewId: string,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IActivityService private readonly activityService: IActivityService,
+	) {
+		super();
+		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainer, e => e.views.some(view => view.id === viewId))(() => this.update()));
+		this._register(Event.filter(this.viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => this.update()));
+	}
 
-	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		if (this.panelService.getPanels().filter(p => p.id === compositeOrActionId).length) {
-			return this.panelService.showActivity(compositeOrActionId, badge, clazz);
+	setActivity(activity: IActivity): void {
+		this.activity = activity;
+		this.update();
+	}
+
+	clearActivity(): void {
+		this.activity = undefined;
+		this.update();
+	}
+
+	private update(): void {
+		this.activityDisposable.dispose();
+		const container = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
+		if (container && this.activity) {
+			this.activityDisposable = this.activityService.showViewContainerActivity(container.id, this.activity);
 		}
+	}
 
-		return this.activityBarService.showActivity(compositeOrActionId, badge, clazz, priority);
+	override dispose() {
+		this.activityDisposable.dispose();
 	}
 }
 
-registerSingleton(IActivityService, ActivityService, true);
+interface IViewActivity {
+	id: number;
+	readonly activity: ViewContainerActivityByView;
+}
+
+export class ActivityService implements IActivityService {
+
+	public _serviceBrand: undefined;
+
+	private viewActivities = new Map<string, IViewActivity>();
+
+	constructor(
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) { }
+
+	showViewContainerActivity(viewContainerId: string, { badge, clazz, priority }: IActivity): IDisposable {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
+		if (viewContainer) {
+			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+			if (location !== null) {
+				return this.paneCompositeService.showActivity(viewContainer.id, location, badge, clazz, priority);
+			}
+		}
+		return Disposable.None;
+	}
+
+	showViewActivity(viewId: string, activity: IActivity): IDisposable {
+		let maybeItem = this.viewActivities.get(viewId);
+
+		if (maybeItem) {
+			maybeItem.id++;
+		} else {
+			maybeItem = {
+				id: 1,
+				activity: this.instantiationService.createInstance(ViewContainerActivityByView, viewId)
+			};
+
+			this.viewActivities.set(viewId, maybeItem);
+		}
+
+		const id = maybeItem.id;
+		maybeItem.activity.setActivity(activity);
+
+		const item = maybeItem;
+		return toDisposable(() => {
+			if (item.id === id) {
+				item.activity.dispose();
+				this.viewActivities.delete(viewId);
+			}
+		});
+	}
+
+	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable {
+		return this.paneCompositeService.showActivity(ACCOUNTS_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
+	}
+
+	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable {
+		return this.paneCompositeService.showActivity(GLOBAL_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
+	}
+}
+
+registerSingleton(IActivityService, ActivityService, InstantiationType.Delayed);

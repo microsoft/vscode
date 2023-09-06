@@ -3,103 +3,87 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as jsonParse } from 'vs/base/common/json';
-import { forEach } from 'vs/base/common/collections';
+import { parse as jsonParse, getNodeType } from 'vs/base/common/json';
 import { localize } from 'vs/nls';
 import { extname, basename } from 'vs/base/common/path';
-import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IdleValue } from 'vs/base/common/async';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
+import { relativePath } from 'vs/base/common/resources';
+import { isObject } from 'vs/base/common/types';
+import { tail } from 'vs/base/common/arrays';
+import { Iterable } from 'vs/base/common/iterator';
 
-export class Snippet {
+class SnippetBodyInsights {
 
-	private _codeSnippet: string;
-	private _isBogous: boolean;
+	readonly codeSnippet: string;
 
-	readonly prefixLow: string;
+	/** The snippet uses bad placeholders which collide with variable names */
+	readonly isBogous: boolean;
 
-	constructor(
-		readonly scopes: string[],
-		readonly name: string,
-		readonly prefix: string,
-		readonly description: string,
-		readonly body: string,
-		readonly source: string,
-		readonly snippetSource: SnippetSource,
-	) {
-		//
-		this.prefixLow = prefix ? prefix.toLowerCase() : prefix;
-	}
+	/** The snippet has no placeholder of the final placeholder is at the end */
+	readonly isTrivial: boolean;
 
-	get codeSnippet(): string {
-		this._ensureCodeSnippet();
-		return this._codeSnippet;
-	}
+	readonly usesClipboardVariable: boolean;
+	readonly usesSelectionVariable: boolean;
 
-	get isBogous(): boolean {
-		this._ensureCodeSnippet();
-		return this._isBogous;
-	}
+	constructor(body: string) {
 
-	private _ensureCodeSnippet() {
-		if (!this._codeSnippet) {
-			const rewrite = Snippet._rewriteBogousVariables(this.body);
-			if (typeof rewrite === 'string') {
-				this._codeSnippet = rewrite;
-				this._isBogous = true;
-			} else {
-				this._codeSnippet = this.body;
-				this._isBogous = false;
-			}
-		}
-	}
+		// init with defaults
+		this.isBogous = false;
+		this.isTrivial = false;
+		this.usesClipboardVariable = false;
+		this.usesSelectionVariable = false;
+		this.codeSnippet = body;
 
-	static compare(a: Snippet, b: Snippet): number {
-		if (a.snippetSource < b.snippetSource) {
-			return -1;
-		} else if (a.snippetSource > b.snippetSource) {
-			return 1;
-		} else if (a.name > b.name) {
-			return 1;
-		} else if (a.name < b.name) {
-			return -1;
-		} else {
-			return 0;
-		}
-	}
+		// check snippet...
+		const textmateSnippet = new SnippetParser().parse(body, false);
 
-	static _rewriteBogousVariables(template: string): false | string {
-		const textmateSnippet = new SnippetParser().parse(template, false);
-
-		let placeholders = new Map<string, number>();
+		const placeholders = new Map<string, number>();
 		let placeholderMax = 0;
 		for (const placeholder of textmateSnippet.placeholders) {
 			placeholderMax = Math.max(placeholderMax, placeholder.index);
 		}
 
-		let didChange = false;
-		let stack = [...textmateSnippet.children];
+		// mark snippet as trivial when there is no placeholders or when the only
+		// placeholder is the final tabstop and it is at the very end.
+		if (textmateSnippet.placeholders.length === 0) {
+			this.isTrivial = true;
+		} else if (placeholderMax === 0) {
+			const last = tail(textmateSnippet.children);
+			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
+		}
 
+		const stack = [...textmateSnippet.children];
 		while (stack.length > 0) {
 			const marker = stack.shift()!;
+			if (marker instanceof Variable) {
 
-			if (
-				marker instanceof Variable
-				&& marker.children.length === 0
-				&& !KnownSnippetVariableNames[marker.name]
-			) {
-				// a 'variable' without a default value and not being one of our supported
-				// variables is automatically turned into a placeholder. This is to restore
-				// a bug we had before. So `${foo}` becomes `${N:foo}`
-				const index = placeholders.has(marker.name) ? placeholders.get(marker.name)! : ++placeholderMax;
-				placeholders.set(marker.name, index);
+				if (marker.children.length === 0 && !KnownSnippetVariableNames[marker.name]) {
+					// a 'variable' without a default value and not being one of our supported
+					// variables is automatically turned into a placeholder. This is to restore
+					// a bug we had before. So `${foo}` becomes `${N:foo}`
+					const index = placeholders.has(marker.name) ? placeholders.get(marker.name)! : ++placeholderMax;
+					placeholders.set(marker.name, index);
 
-				const synthetic = new Placeholder(index).appendChild(new Text(marker.name));
-				textmateSnippet.replace(marker, [synthetic]);
-				didChange = true;
+					const synthetic = new Placeholder(index).appendChild(new Text(marker.name));
+					textmateSnippet.replace(marker, [synthetic]);
+					this.isBogous = true;
+				}
+
+				switch (marker.name) {
+					case 'CLIPBOARD':
+						this.usesClipboardVariable = true;
+						break;
+					case 'SELECTION':
+					case 'TM_SELECTED_TEXT':
+						this.usesSelectionVariable = true;
+						break;
+				}
 
 			} else {
 				// recurse
@@ -107,24 +91,67 @@ export class Snippet {
 			}
 		}
 
-		if (!didChange) {
-			return false;
-		} else {
-			return textmateSnippet.toTextmateString();
+		if (this.isBogous) {
+			this.codeSnippet = textmateSnippet.toTextmateString();
 		}
+
+	}
+}
+
+export class Snippet {
+
+	private readonly _bodyInsights: IdleValue<SnippetBodyInsights>;
+
+	readonly prefixLow: string;
+
+	constructor(
+		readonly isFileTemplate: boolean,
+		readonly scopes: string[],
+		readonly name: string,
+		readonly prefix: string,
+		readonly description: string,
+		readonly body: string,
+		readonly source: string,
+		readonly snippetSource: SnippetSource,
+		readonly snippetIdentifier: string,
+		readonly extensionId?: ExtensionIdentifier,
+	) {
+		this.prefixLow = prefix.toLowerCase();
+		this._bodyInsights = new IdleValue(() => new SnippetBodyInsights(this.body));
+	}
+
+	get codeSnippet(): string {
+		return this._bodyInsights.value.codeSnippet;
+	}
+
+	get isBogous(): boolean {
+		return this._bodyInsights.value.isBogous;
+	}
+
+	get isTrivial(): boolean {
+		return this._bodyInsights.value.isTrivial;
+	}
+
+	get needsClipboard(): boolean {
+		return this._bodyInsights.value.usesClipboardVariable;
+	}
+
+	get usesSelection(): boolean {
+		return this._bodyInsights.value.usesSelectionVariable;
 	}
 }
 
 
 interface JsonSerializedSnippet {
-	body: string;
-	scope: string;
-	prefix: string | string[];
+	isFileTemplate?: boolean;
+	body: string | string[];
+	scope?: string;
+	prefix: string | string[] | undefined;
 	description: string;
 }
 
 function isJsonSerializedSnippet(thing: any): thing is JsonSerializedSnippet {
-	return Boolean((<JsonSerializedSnippet>thing).body) && Boolean((<JsonSerializedSnippet>thing).prefix);
+	return isObject(thing) && Boolean((<JsonSerializedSnippet>thing).body);
 }
 
 interface JsonSerializedSnippets {
@@ -150,7 +177,8 @@ export class SnippetFile {
 		readonly location: URI,
 		public defaultScopes: string[] | undefined,
 		private readonly _extension: IExtensionDescription | undefined,
-		private readonly _fileService: IFileService
+		private readonly _fileService: IFileService,
+		private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 	) {
 		this.isGlobalSnippets = extname(location.path) === '.code-snippets';
 		this.isUserSnippets = !this._extension;
@@ -190,28 +218,35 @@ export class SnippetFile {
 			}
 		}
 
-		let idx = selector.lastIndexOf('.');
+		const idx = selector.lastIndexOf('.');
 		if (idx >= 0) {
 			this._scopeSelect(selector.substring(0, idx), bucket);
 		}
 	}
 
+	private async _load(): Promise<string> {
+		if (this._extension) {
+			return this._extensionResourceLoaderService.readExtensionResource(this.location);
+		} else {
+			const content = await this._fileService.readFile(this.location);
+			return content.value.toString();
+		}
+	}
+
 	load(): Promise<this> {
 		if (!this._loadPromise) {
-			this._loadPromise = Promise.resolve(this._fileService.readFile(this.location)).then(content => {
-				const data = <JsonSerializedSnippets>jsonParse(content.value.toString());
-				if (typeof data === 'object') {
-					forEach(data, entry => {
-						const { key: name, value: scopeOrTemplate } = entry;
+			this._loadPromise = Promise.resolve(this._load()).then(content => {
+				const data = <JsonSerializedSnippets>jsonParse(content);
+				if (getNodeType(data) === 'object') {
+					for (const [name, scopeOrTemplate] of Object.entries(data)) {
 						if (isJsonSerializedSnippet(scopeOrTemplate)) {
 							this._parseSnippet(name, scopeOrTemplate, this.data);
 						} else {
-							forEach(scopeOrTemplate, entry => {
-								const { key: name, value: template } = entry;
+							for (const [name, template] of Object.entries(scopeOrTemplate)) {
 								this._parseSnippet(name, template, this.data);
-							});
+							}
 						}
-					});
+					}
 				}
 				return this;
 			});
@@ -226,25 +261,28 @@ export class SnippetFile {
 
 	private _parseSnippet(name: string, snippet: JsonSerializedSnippet, bucket: Snippet[]): void {
 
-		let { prefix, body, description } = snippet;
+		let { isFileTemplate, prefix, body, description } = snippet;
+
+		if (!prefix) {
+			prefix = '';
+		}
 
 		if (Array.isArray(body)) {
 			body = body.join('\n');
+		}
+		if (typeof body !== 'string') {
+			return;
 		}
 
 		if (Array.isArray(description)) {
 			description = description.join('\n');
 		}
 
-		if ((typeof prefix !== 'string' && !Array.isArray(prefix)) || typeof body !== 'string') {
-			return;
-		}
-
 		let scopes: string[];
 		if (this.defaultScopes) {
 			scopes = this.defaultScopes;
 		} else if (typeof snippet.scope === 'string') {
-			scopes = snippet.scope.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s));
+			scopes = snippet.scope.split(',').map(s => s.trim()).filter(Boolean);
 		} else {
 			scopes = [];
 		}
@@ -266,17 +304,19 @@ export class SnippetFile {
 			}
 		}
 
-		let prefixes = Array.isArray(prefix) ? prefix : [prefix];
-		prefixes.forEach(p => {
+		for (const _prefix of Iterable.wrap(prefix)) {
 			bucket.push(new Snippet(
+				Boolean(isFileTemplate),
 				scopes,
 				name,
-				p,
+				_prefix,
 				description,
 				body,
 				source,
-				this.source
+				this.source,
+				this._extension ? `${relativePath(this._extension.extensionLocation, this.location)}/${name}` : `${basename(this.location.path)}/${name}`,
+				this._extension?.identifier,
 			));
-		});
+		}
 	}
 }

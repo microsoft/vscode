@@ -27,5 +27,19 @@
 			"start": "^\\s*\\/\\*\\s*#region\\b\\s*(.*?)\\s*\\*\\/",
 			"end": "^\\s*\\/\\*\\s*#endregion\\b.*\\*\\/"
 		}
-	}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "(^.*\\{[^}]*$)",
+		"decreaseIndentPattern": "^\\s*\\}"
+	},
+	"wordPattern": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\\w-?]+%?|[@#!$.])",
+	"onEnterRules": [
+		{
+			"beforeText": "^[\\s]*///.*$",
+			"action": {
+				"indent": "none",
+				"appendText": "/// "
+			}
+		}
+	]
 }

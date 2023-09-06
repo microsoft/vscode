@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
@@ -14,12 +14,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
 	readonly label: string = localize('label', "Problems");
-	readonly onDidChange: Event<URI[]>;
+	readonly onDidChange: Event<readonly URI[]>;
 
 	constructor(
 		private readonly _markerService: IMarkerService
@@ -28,7 +28,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		let markers = this._markerService.read({
+		const markers = this._markerService.read({
 			resource,
 			severities: MarkerSeverity.Error | MarkerSeverity.Warning
 		});
@@ -56,8 +56,8 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 class MarkersFileDecorations implements IWorkbenchContribution {
 
 	private readonly _disposables: IDisposable[];
-	private _provider: IDisposable;
-	private _enabled: boolean;
+	private _provider?: IDisposable;
+	private _enabled?: boolean;
 
 	constructor(
 		@IMarkerService private readonly _markerService: IMarkerService,
@@ -66,7 +66,11 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	) {
 		//
 		this._disposables = [
-			this._configurationService.onDidChangeConfiguration(this._updateEnablement, this),
+			this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('problems')) {
+					this._updateEnablement();
+				}
+			}),
 		];
 		this._updateEnablement();
 	}
@@ -77,7 +81,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
+		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {
 			return;
 		}

@@ -16,16 +16,20 @@
     "compile": "gulp compile-extension:gulp",
     "watch": "gulp watch-extension:gulp"
   },
-  "dependencies": {
-    "vscode-nls": "^4.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "18.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onTaskType:gulp"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "configuration": {
       "id": "gulp",
@@ -33,13 +37,13 @@
       "title": "Gulp",
       "properties": {
         "gulp.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.gulp.autoDetect%"
         }
       }
@@ -59,8 +63,13 @@
             "type": "string",
             "description": "%gulp.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

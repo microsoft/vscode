@@ -12,7 +12,10 @@ server/bin/**
 server/build/**
 server/yarn.lock
 server/.npmignore
+server/README.md
 yarn.lock
 CONTRIBUTING.md
 server/extension.webpack.config.js
 extension.webpack.config.js
+server/extension-browser.webpack.config.js
+extension-browser.webpack.config.js

@@ -5,9 +5,11 @@
 
 import 'vs/css!./linesDecorations';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+
 
 export class LinesDecorationsOverlay extends DedupOverlay {
 
@@ -20,13 +22,15 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
-		this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
-		this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._decorationsLeft = layoutInfo.decorationsLeft;
+		this._decorationsWidth = layoutInfo.decorationsWidth;
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._context.removeEventHandler(this);
 		this._renderResult = null;
 		super.dispose();
@@ -34,32 +38,32 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._decorationsLeft = this._context.configuration.editor.layoutInfo.decorationsLeft;
-			this._decorationsWidth = this._context.configuration.editor.layoutInfo.decorationsWidth;
-		}
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._decorationsLeft = layoutInfo.decorationsLeft;
+		this._decorationsWidth = layoutInfo.decorationsWidth;
 		return true;
 	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -67,12 +71,18 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		const decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [], rLen = 0;
+		const r: DecorationToRender[] = [];
+		let rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const linesDecorationsClassName = d.options.linesDecorationsClassName;
+			const zIndex = d.options.zIndex;
 			if (linesDecorationsClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName, zIndex);
+			}
+			const firstLineDecorationClassName = d.options.firstLineDecorationClassName;
+			if (firstLineDecorationClassName) {
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.startLineNumber, firstLineDecorationClassName, zIndex);
 			}
 		}
 		return r;
@@ -90,10 +100,10 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			const classNames = toRender[lineIndex];
+			const decorations = toRender[lineIndex].getDecorations();
 			let lineOutput = '';
-			for (let i = 0, len = classNames.length; i < len; i++) {
-				lineOutput += '<div class="cldr ' + classNames[i] + common;
+			for (const decoration of decorations) {
+				lineOutput += '<div class="cldr ' + decoration.className + common;
 			}
 			output[lineIndex] = lineOutput;
 		}

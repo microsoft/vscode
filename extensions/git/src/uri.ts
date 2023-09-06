@@ -11,6 +11,10 @@ export interface GitUriParams {
 	submoduleOf?: string;
 }
 
+export function isGitUri(uri: Uri): boolean {
+	return /^git$/.test(uri.scheme);
+}
+
 export function fromGitUri(uri: Uri): GitUriParams {
 	return JSON.parse(uri.query);
 }
@@ -46,4 +50,15 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 		path,
 		query: JSON.stringify(params)
 	});
+}
+
+/**
+ * Assuming `uri` is being merged it creates uris for `base`, `ours`, and `theirs`
+ */
+export function toMergeUris(uri: Uri): { base: Uri; ours: Uri; theirs: Uri } {
+	return {
+		base: toGitUri(uri, ':1'),
+		ours: toGitUri(uri, ':2'),
+		theirs: toGitUri(uri, ':3'),
+	};
 }

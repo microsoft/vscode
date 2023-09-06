@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { FileAccess } from 'vs/base/common/network';
 import { ProcessItem } from 'vs/base/common/processes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
@@ -48,42 +48,41 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const SHARED_PROCESS_HINT = /--disable-blink-features=Auxclick/;
-			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
-			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
-			const WINDOWS_PTY = /\\pipe\\winpty-control/;
-			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
+			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
+			const NODEJS_PROCESS_HINT = /--ms-enable-electron-run-as-node/i;
+			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
+			const WINPTY = /\\pipe\\winpty-control/i;
+			const CONPTY = /conhost\.exe.+--headless/i;
 			const TYPE = /--type=([a-zA-Z-]+)/;
-
-			// find windows file watcher
-			if (WINDOWS_WATCHER_HINT.exec(cmd)) {
-				return 'watcherService ';
-			}
 
 			// find windows crash reporter
 			if (WINDOWS_CRASH_REPORTER.exec(cmd)) {
 				return 'electron-crash-reporter';
 			}
 
-			// find windows pty process
-			if (WINDOWS_PTY.exec(cmd)) {
-				return 'winpty-process';
+			// find winpty process
+			if (WINPTY.exec(cmd)) {
+				return 'winpty-agent';
 			}
 
-			//find windows console host process
-			if (WINDOWS_CONSOLE_HOST.exec(cmd)) {
-				return 'console-window-host (Windows internal process)';
+			// find conpty process
+			if (CONPTY.exec(cmd)) {
+				return 'conpty-agent';
 			}
 
 			// find "--type=xxxx"
 			let matches = TYPE.exec(cmd);
 			if (matches && matches.length === 2) {
 				if (matches[1] === 'renderer') {
-					if (SHARED_PROCESS_HINT.exec(cmd)) {
-						return 'shared-process';
+					return `window`;
+				} else if (matches[1] === 'utility') {
+					if (UTILITY_NETWORK_HINT.exec(cmd)) {
+						return 'utility-network-service';
 					}
 
-					return `window`;
+					return 'utility-process';
+				} else if (matches[1] === 'extensionHost') {
+					return 'extension-host'; // normalize remote extension host type
 				}
 				return matches[1];
 			}
@@ -100,9 +99,15 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			if (result) {
 				if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
-					return `electron_node ${result}`;
+					return `electron-nodejs (${result})`;
 				}
 			}
+
+			// find Electron node.js processes
+			if (NODEJS_PROCESS_HINT.exec(cmd)) {
+				return `electron-nodejs (${cmd})`;
+			}
+
 			return cmd;
 		}
 
@@ -110,20 +115,24 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			const cleanUNCPrefix = (value: string): string => {
 				if (value.indexOf('\\\\?\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('\\??\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('"\\\\?\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else if (value.indexOf('"\\??\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else {
 					return value;
 				}
 			};
 
-			(import('windows-process-tree')).then(windowsProcessTree => {
+			(import('@vscode/windows-process-tree')).then(windowsProcessTree => {
 				windowsProcessTree.getProcessList(rootPid, (processList) => {
+					if (!processList) {
+						reject(new Error(`Root process ${rootPid} not found`));
+						return;
+					}
 					windowsProcessTree.getProcessCpuUsage(processList, (completeProcessList) => {
 						const processItems: Map<number, ProcessItem> = new Map();
 						completeProcessList.forEach(process => {
@@ -180,7 +189,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				// The cpu usage value reported on Linux is the average over the process lifetime,
 				// recalculate the usage over a one second interval
 				// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
-				let cmd = JSON.stringify(getPathFromAmdModule(require, 'vs/base/node/cpuUsage.sh'));
+				let cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/cpuUsage.sh').fsPath);
 				cmd += ' ' + pids.join(' ');
 
 				exec(cmd, {}, (err, stdout, stderr) => {
@@ -193,6 +202,11 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							processInfo.load = parseFloat(cpuUsage[i]);
 						}
 
+						if (!rootItem) {
+							reject(new Error(`Root process ${rootPid} not found`));
+							return;
+						}
+
 						resolve(rootItem);
 					}
 				});
@@ -203,7 +217,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (process.platform !== 'linux') {
 						reject(err || new Error(stderr.toString()));
 					} else {
-						const cmd = JSON.stringify(getPathFromAmdModule(require, 'vs/base/node/ps.sh'));
+						const cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/ps.sh').fsPath);
 						exec(cmd, {}, (err, stdout, stderr) => {
 							if (err || stderr) {
 								reject(err || new Error(stderr.toString()));
@@ -219,7 +233,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 					// Set numeric locale to ensure '.' is used as the decimal separator
 					exec(`${ps} ${args}`, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
-						if (err || stderr) {
+						// Silently ignoring the screen size is bogus error. See https://github.com/microsoft/vscode/issues/98590
+						if (err || (stderr && !stderr.includes('screen size is bogus'))) {
 							reject(err || new Error(stderr.toString()));
 						} else {
 							parsePsOutput(stdout, addToTree);
@@ -227,7 +242,11 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							if (process.platform === 'linux') {
 								calculateLinuxCpuUsage();
 							} else {
-								resolve(rootItem);
+								if (!rootItem) {
+									reject(new Error(`Root process ${rootPid} not found`));
+								} else {
+									resolve(rootItem);
+								}
 							}
 						}
 					});

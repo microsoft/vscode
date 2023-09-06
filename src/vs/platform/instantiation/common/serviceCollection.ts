@@ -11,7 +11,7 @@ export class ServiceCollection {
 	private _entries = new Map<ServiceIdentifier<any>, any>();
 
 	constructor(...entries: [ServiceIdentifier<any>, any][]) {
-		for (let [id, service] of entries) {
+		for (const [id, service] of entries) {
 			this.set(id, service);
 		}
 	}
@@ -20,10 +20,6 @@ export class ServiceCollection {
 		const result = this._entries.get(id);
 		this._entries.set(id, instanceOrDescriptor);
 		return result;
-	}
-
-	forEach(callback: (id: ServiceIdentifier<any>, instanceOrDescriptor: any) => any): void {
-		this._entries.forEach((value, key) => callback(key, value));
 	}
 
 	has(id: ServiceIdentifier<any>): boolean {

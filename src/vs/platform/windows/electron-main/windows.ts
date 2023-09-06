@@ -3,127 +3,82 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowConfiguration, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, INewWindowOptions, IURIToOpen } from 'vs/platform/windows/common/windows';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { WebContents } from 'electron';
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
-
-export interface IWindowState {
-	width?: number;
-	height?: number;
-	x?: number;
-	y?: number;
-	mode?: WindowMode;
-	display?: number;
-}
-
-export const enum WindowMode {
-	Maximized,
-	Normal,
-	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
-	Fullscreen
-}
-
-export interface ICodeWindow {
-	readonly id: number;
-	readonly win: Electron.BrowserWindow;
-	readonly config: IWindowConfiguration;
-
-	readonly openedFolderUri?: URI;
-	readonly openedWorkspace?: IWorkspaceIdentifier;
-	readonly backupPath?: string;
-
-	readonly remoteAuthority?: string;
-
-	readonly isExtensionDevelopmentHost: boolean;
-	readonly isExtensionTestHost: boolean;
-
-	readonly lastFocusTime: number;
-
-	readonly isReady: boolean;
-	ready(): Promise<ICodeWindow>;
-
-	addTabbedWindow(window: ICodeWindow): void;
-
-	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void;
-	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
-
-	focus(): void;
-	close(): void;
-
-	getBounds(): Electron.Rectangle;
-
-	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, ...args: any[]): void;
-
-	toggleFullScreen(): void;
-	isFullScreen(): boolean;
-	isMinimized(): boolean;
-	hasHiddenTitleBarStyle(): boolean;
-	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string;
-	onWindowTitleDoubleClick(): void;
-
-	updateTouchBar(items: ISerializableCommandAction[][]): void;
-
-	setReady(): void;
-	serializeWindowState(): IWindowState;
-
-	dispose(): void;
-}
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
+
+export interface IWindowsMainService {
+
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
+
+	readonly onDidOpenWindow: Event<ICodeWindow>;
+	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidTriggerSystemContextMenu: Event<{ window: ICodeWindow; x: number; y: number }>;
+	readonly onDidDestroyWindow: Event<ICodeWindow>;
+
+	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+
+	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
+
+	sendToFocused(channel: string, ...args: any[]): void;
+	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+
+	getWindows(): ICodeWindow[];
+	getWindowCount(): number;
+
+	getFocusedWindow(): ICodeWindow | undefined;
+	getLastActiveWindow(): ICodeWindow | undefined;
+
+	getWindowById(windowId: number): ICodeWindow | undefined;
+	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
+}
 
 export interface IWindowsCountChangedEvent {
 	readonly oldCount: number;
 	readonly newCount: number;
 }
 
-export interface IWindowsMainService {
-	_serviceBrand: any;
+export const enum OpenContext {
 
-	// events
-	readonly onWindowReady: Event<ICodeWindow>;
-	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
-	readonly onWindowClose: Event<number>;
+	// opening when running from the command line
+	CLI,
 
-	// methods
-	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	enterWorkspace(win: ICodeWindow, path: URI): Promise<IEnterWorkspaceResult | undefined>;
-	closeWorkspace(win: ICodeWindow): void;
-	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string | string[], openConfig: IOpenConfiguration): void;
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void>;
-	showMessageBox(options: Electron.MessageBoxOptions, win?: ICodeWindow): Promise<IMessageBoxResult>;
-	showSaveDialog(options: Electron.SaveDialogOptions, win?: ICodeWindow): Promise<string>;
-	showOpenDialog(options: Electron.OpenDialogOptions, win?: ICodeWindow): Promise<string[]>;
-	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
-	getLastActiveWindow(): ICodeWindow | undefined;
-	waitForWindowCloseOrLoad(windowId: number): Promise<void>;
-	openNewWindow(context: OpenContext, options?: INewWindowOptions): ICodeWindow[];
-	openNewTabbedWindow(context: OpenContext): ICodeWindow[];
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
-	getFocusedWindow(): ICodeWindow | undefined;
-	getWindowById(windowId: number): ICodeWindow | undefined;
-	getWindows(): ICodeWindow[];
-	getWindowCount(): number;
-	quit(): void;
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
 }
 
-export interface IOpenConfiguration {
+export interface IBaseOpenConfiguration {
 	readonly context: OpenContext;
 	readonly contextWindowId?: number;
-	readonly cli: ParsedArgs;
+}
+
+export interface IOpenConfiguration extends IBaseOpenConfiguration {
+	readonly cli: NativeParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
-	readonly urisToOpen?: IURIToOpen[];
+	readonly urisToOpen?: IWindowOpenable[];
 	readonly waitMarkerFileURI?: URI;
 	readonly preferNewWindow?: boolean;
 	readonly forceNewWindow?: boolean;
@@ -131,12 +86,19 @@ export interface IOpenConfiguration {
 	readonly forceReuseWindow?: boolean;
 	readonly forceEmpty?: boolean;
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	addMode?: boolean;
+	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 */
+	readonly remoteAuthority?: string;
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
-export interface ISharedProcess {
-	whenReady(): Promise<void>;
-	toggle(): void;
-}
+export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

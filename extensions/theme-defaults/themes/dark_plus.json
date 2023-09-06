@@ -1,6 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
-	"name": "Dark+ (default dark)",
+	"name": "Dark+",
 	"include": "./dark_vs.json",
 	"tokenColors": [
 		{
@@ -8,7 +8,9 @@
 			"scope": [
 				"entity.name.function",
 				"support.function",
-				"support.constant.handlebars"
+				"support.constant.handlebars",
+				"source.powershell variable.other.member",
+				"entity.name.operator.custom-literal" // See https://en.cppreference.com/w/cpp/language/user_literal
 			],
 			"settings": {
 				"foreground": "#DCDCAA"
@@ -17,11 +19,11 @@
 		{
 			"name": "Types declaration and references",
 			"scope": [
-				"meta.return-type",
 				"support.class",
 				"support.type",
 				"entity.name.type",
 				"entity.name.namespace",
+				"entity.other.attribute",
 				"entity.name.scope-resolution",
 				"entity.name.class",
 				"storage.type.numeric.go",
@@ -75,7 +77,8 @@
 				"source.cpp keyword.operator.new",
 				"keyword.operator.delete",
 				"keyword.other.using",
-				"keyword.other.operator"
+				"keyword.other.operator",
+				"entity.name.operator"
 			],
 			"settings": {
 				"foreground": "#C586C0"
@@ -87,10 +90,21 @@
 				"variable",
 				"meta.definition.variable.name",
 				"support.variable",
-				"entity.name.variable"
+				"entity.name.variable",
+				"constant.other.placeholder", // placeholders in strings
 			],
 			"settings": {
 				"foreground": "#9CDCFE"
+			}
+		},
+		{
+			"name": "Constants and enums",
+			"scope": [
+				"variable.other.constant",
+				"variable.other.enummember"
+			],
+			"settings": {
+				"foreground": "#4FC1FF",
 			}
 		},
 		{
@@ -159,7 +173,10 @@
 			}
 		},
 		{
-			"scope": "constant.character",
+			"scope": [
+				"constant.character",
+				"constant.other.option"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -169,6 +186,18 @@
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
+		},
+		{
+			"scope": "entity.name.label",
+			"settings": {
+				"foreground": "#C8C8C8"
+			}
 		}
-	]
+	],
+	"semanticTokenColors": {
+		"newOperator":"#C586C0",
+		"stringLiteral":"#ce9178",
+		"customLiteral": "#DCDCAA",
+		"numberLiteral": "#b5cea8",
+	}
 }

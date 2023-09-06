@@ -3,48 +3,78 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as objects from 'vs/base/common/objects';
-import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { escape } from 'vs/base/common/strings';
 
+/**
+ * A range to be highlighted.
+ */
 export interface IHighlight {
 	start: number;
 	end: number;
+	readonly extraClasses?: readonly string[];
 }
 
+export interface IHighlightedLabelOptions {
+
+	/**
+	 * Whether the label supports rendering icons.
+	 */
+	readonly supportIcons?: boolean;
+}
+
+/**
+ * A widget which can render a label with substring highlights, often
+ * originating from a filter function like the fuzzy matcher.
+ */
 export class HighlightedLabel {
 
-	private domNode: HTMLElement;
-	private text: string;
-	private title: string;
-	private highlights: IHighlight[];
-	private didEverRender: boolean;
+	private readonly domNode: HTMLElement;
+	private text: string = '';
+	private title: string = '';
+	private highlights: readonly IHighlight[] = [];
+	private supportIcons: boolean;
+	private didEverRender: boolean = false;
 
-	constructor(container: HTMLElement, private supportOcticons: boolean) {
-		this.domNode = document.createElement('span');
-		this.domNode.className = 'monaco-highlighted-label';
-		this.didEverRender = false;
-		container.appendChild(this.domNode);
+	/**
+	 * Create a new {@link HighlightedLabel}.
+	 *
+	 * @param container The parent container to append to.
+	 */
+	constructor(container: HTMLElement, options?: IHighlightedLabelOptions) {
+		this.supportIcons = options?.supportIcons ?? false;
+		this.domNode = dom.append(container, dom.$('span.monaco-highlighted-label'));
 	}
 
+	/**
+	 * The label's DOM node.
+	 */
 	get element(): HTMLElement {
 		return this.domNode;
 	}
 
-	set(text: string | undefined, highlights: IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
+	/**
+	 * Set the label and highlights.
+	 *
+	 * @param text The label to display.
+	 * @param highlights The ranges to highlight.
+	 * @param title An optional title for the hover tooltip.
+	 * @param escapeNewLines Whether to escape new lines.
+	 * @returns
+	 */
+	set(text: string | undefined, highlights: readonly IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
 		if (!text) {
 			text = '';
 		}
+
 		if (escapeNewLines) {
 			// adjusts highlights inplace
 			text = HighlightedLabel.escapeNewLines(text, highlights);
 		}
+
 		if (this.didEverRender && this.text === text && this.title === title && objects.equals(this.highlights, highlights)) {
 			return;
-		}
-
-		if (!Array.isArray(highlights)) {
-			highlights = [];
 		}
 
 		this.text = text;
@@ -55,41 +85,56 @@ export class HighlightedLabel {
 
 	private render(): void {
 
-		let htmlContent = '';
+		const children: Array<HTMLSpanElement | string> = [];
 		let pos = 0;
 
 		for (const highlight of this.highlights) {
 			if (highlight.end === highlight.start) {
 				continue;
 			}
+
 			if (pos < highlight.start) {
-				htmlContent += '<span>';
 				const substring = this.text.substring(pos, highlight.start);
-				htmlContent += this.supportOcticons ? renderOcticons(substring) : escape(substring);
-				htmlContent += '</span>';
-				pos = highlight.end;
+				if (this.supportIcons) {
+					children.push(...renderLabelWithIcons(substring));
+				} else {
+					children.push(substring);
+				}
+				pos = highlight.start;
 			}
-			htmlContent += '<span class="highlight">';
-			const substring = this.text.substring(highlight.start, highlight.end);
-			htmlContent += this.supportOcticons ? renderOcticons(substring) : escape(substring);
-			htmlContent += '</span>';
+
+			const substring = this.text.substring(pos, highlight.end);
+			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
+
+			if (highlight.extraClasses) {
+				element.classList.add(...highlight.extraClasses);
+			}
+
+			children.push(element);
 			pos = highlight.end;
 		}
 
 		if (pos < this.text.length) {
-			htmlContent += '<span>';
-			const substring = this.text.substring(pos);
-			htmlContent += this.supportOcticons ? renderOcticons(substring) : escape(substring);
-			htmlContent += '</span>';
+			const substring = this.text.substring(pos,);
+			if (this.supportIcons) {
+				children.push(...renderLabelWithIcons(substring));
+			} else {
+				children.push(substring);
+			}
 		}
 
-		this.domNode.innerHTML = htmlContent;
-		this.domNode.title = this.title;
+		dom.reset(this.domNode, ...children);
+
+		if (this.title) {
+			this.domNode.title = this.title;
+		} else {
+			this.domNode.removeAttribute('title');
+		}
+
 		this.didEverRender = true;
 	}
 
-	static escapeNewLines(text: string, highlights: IHighlight[]): string {
-
+	static escapeNewLines(text: string, highlights: readonly IHighlight[]): string {
 		let total = 0;
 		let extra = 0;
 

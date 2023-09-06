@@ -3,29 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { localize } from 'vs/nls';
-import { isEqualOrParent, basename } from 'vs/base/common/resources';
-import { endsWith } from 'vs/base/common/strings';
+import { IWorkspace, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+
+export const ILabelService = createDecorator<ILabelService>('labelService');
 
 export interface ILabelService {
-	_serviceBrand: any;
+
+	readonly _serviceBrand: undefined;
+
 	/**
 	 * Gets the human readable label for a uri.
-	 * If relative is passed returns a label relative to the workspace root that the uri belongs to.
-	 * If noPrefix is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
+	 * If `relative` is passed returns a label relative to the workspace root that the uri belongs to.
+	 * If `noPrefix` is passed does not tildify the label and also does not prepand the root name for relative labels in a multi root scenario.
+	 * If `separator` is passed, will use that over the defined path separator of the formatter.
 	 */
-	getUriLabel(resource: URI, options?: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean }): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IWorkspace), options?: { verbose: boolean }): string;
+	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\' }): string;
+	getUriBasenameLabel(resource: URI): string;
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: Verbosity }): string;
 	getHostLabel(scheme: string, authority?: string): string;
+	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
+
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
-	onDidChangeFormatters: Event<void>;
+	onDidChangeFormatters: Event<IFormatterChangeEvent>;
+
+	/**
+	 * Registers a formatter that's cached for the machine beyond the lifecycle
+	 * of the current window. Disposing the formatter _will not_ remove it from
+	 * the cache.
+	 */
+	registerCachedFormatter(formatter: ResourceLabelFormatter): IDisposable;
+}
+
+export const enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
+}
+
+export interface IFormatterChangeEvent {
+	scheme: string;
 }
 
 export interface ResourceLabelFormatter {
@@ -41,26 +62,7 @@ export interface ResourceLabelFormatting {
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
 	workspaceSuffix?: string;
+	workspaceTooltip?: string;
 	authorityPrefix?: string;
+	stripPathStartingSeparator?: boolean;
 }
-
-const LABEL_SERVICE_ID = 'label';
-
-export function getSimpleWorkspaceLabel(workspace: IWorkspaceIdentifier | URI, workspaceHome: URI): string {
-	if (isSingleFolderWorkspaceIdentifier(workspace)) {
-		return basename(workspace);
-	}
-	// Workspace: Untitled
-	if (isEqualOrParent(workspace.configPath, workspaceHome)) {
-		return localize('untitledWorkspace', "Untitled (Workspace)");
-	}
-
-	let filename = basename(workspace.configPath);
-	if (endsWith(filename, WORKSPACE_EXTENSION)) {
-		filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
-	}
-	return localize('workspaceName', "{0} (Workspace)", filename);
-}
-
-
-export const ILabelService = createDecorator<ILabelService>(LABEL_SERVICE_ID);

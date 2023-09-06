@@ -9,8 +9,9 @@ import { ProgressLocation } from './extHostTypeConverters';
 import { Progress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { debounce } from 'vs/base/common/decorators';
+import { throttle } from 'vs/base/common/decorators';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 
@@ -22,11 +23,12 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		this._proxy = proxy;
 	}
 
-	withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
-		const source = localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name);
-		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, extension);
+		const source = { label: localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name), id: extension.identifier.value };
+
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, !extension.isUnderDevelopment ? extension.identifier.value : undefined).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);
 	}
 
@@ -40,9 +42,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		const progressEnd = (handle: number): void => {
 			this._proxy.$progressEnd(handle);
 			this._mapHandleToCancellationSource.delete(handle);
-			if (source) {
-				source.dispose();
-			}
+			source?.dispose();
 		};
 
 		let p: Thenable<R>;
@@ -85,7 +85,7 @@ class ProgressCallback extends Progress<IProgressStep> {
 		super(p => this.throttledReport(p));
 	}
 
-	@debounce(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), () => Object.create(null))
+	@throttle(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), () => Object.create(null))
 	throttledReport(p: IProgressStep): void {
 		this._proxy.$progressReport(this._handle, p);
 	}

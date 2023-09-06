@@ -4,3 +4,8 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
 rm -f /usr/bin/@@NAME@@
+
+# Update mimetype database for removed workspace mimetype
+if hash update-mime-database 2>/dev/null; then
+	update-mime-database /usr/share/mime
+fi

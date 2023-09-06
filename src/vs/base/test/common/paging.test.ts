@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IPager, PagedModel } from 'vs/base/common/paging';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
+import { canceled, isCancellationError } from 'vs/base/common/errors';
+import { IPager, PagedModel } from 'vs/base/common/paging';
 
 function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
 	if (cancellationToken.isCancellationRequested) {
@@ -101,7 +101,6 @@ suite('PagedModel', () => {
 	test('preemptive cancellation works', async function () {
 		const pager = new TestPager(() => {
 			assert(false);
-			return Promise.resolve([]);
 		});
 
 		const model = new PagedModel(pager);
@@ -111,7 +110,7 @@ suite('PagedModel', () => {
 			return assert(false);
 		}
 		catch (err) {
-			return assert(isPromiseCanceledError(err));
+			return assert(isCancellationError(err));
 		}
 	});
 
@@ -125,7 +124,7 @@ suite('PagedModel', () => {
 
 		const promise = model.resolve(5, tokenSource.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
 		setTimeout(() => tokenSource.cancel(), 10);
@@ -149,33 +148,33 @@ suite('PagedModel', () => {
 
 		const model = new PagedModel(pager);
 
-		assert.equal(state, 'idle');
+		assert.strictEqual(state, 'idle');
 
 		const tokenSource1 = new CancellationTokenSource();
 		const promise1 = model.resolve(5, tokenSource1.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
-		assert.equal(state, 'resolving');
+		assert.strictEqual(state, 'resolving');
 
 		const tokenSource2 = new CancellationTokenSource();
 		const promise2 = model.resolve(6, tokenSource2.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
-		assert.equal(state, 'resolving');
+		assert.strictEqual(state, 'resolving');
 
 		setTimeout(() => {
-			assert.equal(state, 'resolving');
+			assert.strictEqual(state, 'resolving');
 			tokenSource1.cancel();
-			assert.equal(state, 'resolving');
+			assert.strictEqual(state, 'resolving');
 
 			setTimeout(() => {
-				assert.equal(state, 'resolving');
+				assert.strictEqual(state, 'resolving');
 				tokenSource2.cancel();
-				assert.equal(state, 'idle');
+				assert.strictEqual(state, 'idle');
 			}, 10);
 		}, 10);
 

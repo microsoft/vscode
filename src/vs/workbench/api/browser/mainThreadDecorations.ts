@@ -6,38 +6,38 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import { values } from 'vs/base/common/collections';
+import { ExtHostContext, MainContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 class DecorationRequestsQueue {
 
 	private _idPool = 0;
-	private _requests: { [id: number]: DecorationRequest } = Object.create(null);
-	private _resolver: { [id: number]: (data: DecorationData) => any } = Object.create(null);
+	private _requests = new Map<number, DecorationRequest>();
+	private _resolver = new Map<number, (data: DecorationData) => any>();
 
 	private _timer: any;
 
 	constructor(
-		private readonly _proxy: ExtHostDecorationsShape
+		private readonly _proxy: ExtHostDecorationsShape,
+		private readonly _handle: number
 	) {
 		//
 	}
 
-	enqueue(handle: number, uri: URI, token: CancellationToken): Promise<DecorationData> {
+	enqueue(uri: URI, token: CancellationToken): Promise<DecorationData> {
 		const id = ++this._idPool;
 		const result = new Promise<DecorationData>(resolve => {
-			this._requests[id] = { id, handle, uri };
-			this._resolver[id] = resolve;
+			this._requests.set(id, { id, uri });
+			this._resolver.set(id, resolve);
 			this._processQueue();
 		});
-		token.onCancellationRequested(() => {
-			delete this._requests[id];
-			delete this._resolver[id];
+		const sub = token.onCancellationRequested(() => {
+			this._requests.delete(id);
+			this._resolver.delete(id);
 		});
-		return result;
+		return result.finally(() => sub.dispose());
 	}
 
 	private _processQueue(): void {
@@ -49,15 +49,15 @@ class DecorationRequestsQueue {
 			// make request
 			const requests = this._requests;
 			const resolver = this._resolver;
-			this._proxy.$provideDecorations(values(requests), CancellationToken.None).then(data => {
-				for (const id in resolver) {
-					resolver[id](data[id]);
+			this._proxy.$provideDecorations(this._handle, [...requests.values()], CancellationToken.None).then(data => {
+				for (const [id, resolve] of resolver) {
+					resolve(data[id]);
 				}
 			});
 
 			// reset
-			this._requests = [];
-			this._resolver = [];
+			this._requests = new Map();
+			this._resolver = new Map();
 			this._timer = undefined;
 		}, 0);
 	}
@@ -68,14 +68,12 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 
 	private readonly _provider = new Map<number, [Emitter<URI[]>, IDisposable]>();
 	private readonly _proxy: ExtHostDecorationsShape;
-	private readonly _requestQueue: DecorationRequestsQueue;
 
 	constructor(
 		context: IExtHostContext,
 		@IDecorationsService private readonly _decorationsService: IDecorationsService
 	) {
 		this._proxy = context.getProxy(ExtHostContext.ExtHostDecorations);
-		this._requestQueue = new DecorationRequestsQueue(this._proxy);
 	}
 
 	dispose() {
@@ -85,24 +83,23 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 
 	$registerDecorationProvider(handle: number, label: string): void {
 		const emitter = new Emitter<URI[]>();
+		const queue = new DecorationRequestsQueue(this._proxy, handle);
 		const registration = this._decorationsService.registerDecorationsProvider({
 			label,
 			onDidChange: emitter.event,
-			provideDecorations: (uri, token) => {
-				return this._requestQueue.enqueue(handle, uri, token).then(data => {
-					if (!data) {
-						return undefined;
-					}
-					const [weight, bubble, tooltip, letter, themeColor, source] = data;
-					return <IDecorationData>{
-						weight: weight || 0,
-						bubble: bubble || false,
-						color: themeColor && themeColor.id,
-						tooltip,
-						letter,
-						source,
-					};
-				});
+			provideDecorations: async (uri, token) => {
+				const data = await queue.enqueue(uri, token);
+				if (!data) {
+					return undefined;
+				}
+				const [bubble, tooltip, letter, themeColor] = data;
+				return <IDecorationData>{
+					weight: 10,
+					bubble: bubble ?? false,
+					color: themeColor?.id,
+					tooltip,
+					letter
+				};
 			}
 		});
 		this._provider.set(handle, [emitter, registration]);

@@ -5,32 +5,65 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions } from 'vs/editor/common/model';
+import { AbstractCodeEditorService, GlobalStyleSheet } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
-	public lastInput?: IResourceInput;
-	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+
+	public readonly globalStyleSheet = new TestGlobalStyleSheet();
+
+	protected override _createGlobalStyleSheet(): GlobalStyleSheet {
+		return this.globalStyleSheet;
+	}
+
+	getActiveCodeEditor(): ICodeEditor | null {
+		return null;
+	}
+	public lastInput?: IResourceEditorInput;
+	override openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}
-	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
-	public removeDecorationType(key: string): void { }
-	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return {}; }
+}
+
+export class TestGlobalStyleSheet extends GlobalStyleSheet {
+
+	public rules: string[] = [];
+
+	constructor() {
+		super(null!);
+	}
+
+	public override insertRule(rule: string, index?: number): void {
+		this.rules.unshift(rule);
+	}
+
+	public override removeRulesContainingSelector(ruleName: string): void {
+		for (let i = 0; i < this.rules.length; i++) {
+			if (this.rules[i].indexOf(ruleName) >= 0) {
+				this.rules.splice(i, 1);
+				i--;
+			}
+		}
+	}
+
+	public read(): string {
+		return this.rules.join('\n');
+	}
 }
 
 export class TestCommandService implements ICommandService {
-	_serviceBrand: any;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 
 	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
+
+	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
+	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
@@ -43,8 +76,9 @@ export class TestCommandService implements ICommandService {
 		}
 
 		try {
-			this._onWillExecuteCommand.fire({ commandId: id });
+			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
+			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

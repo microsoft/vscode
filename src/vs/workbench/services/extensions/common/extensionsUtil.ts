@@ -3,51 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { getGalleryExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IProductService } from 'vs/platform/product/common/product';
+import { ExtensionIdentifierMap, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { localize } from 'vs/nls';
+import { ILogService } from 'vs/platform/log/common/log';
+import * as semver from 'vs/base/common/semver/semver';
 
-export function isUIExtension(manifest: IExtensionManifest, productService: IProductService, configurationService: IConfigurationService): boolean {
-	const uiContributions = ExtensionsRegistry.getExtensionPoints().filter(e => e.defaultExtensionKind !== 'workspace').map(e => e.name);
-	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-	const extensionKind = getExtensionKind(manifest, configurationService);
-	switch (extensionKind) {
-		case 'ui': return true;
-		case 'workspace': return false;
-		default: {
-			// Tagged as UI extension in product
-			if (isNonEmptyArray(productService.uiExtensions) && productService.uiExtensions.some(id => areSameExtensions({ id }, { id: extensionId }))) {
-				return true;
-			}
-			// Not an UI extension if it has main
-			if (manifest.main) {
-				return false;
-			}
-			// Not an UI extension if it has dependencies or an extension pack
-			if (isNonEmptyArray(manifest.extensionDependencies) || isNonEmptyArray(manifest.extensionPack)) {
-				return false;
-			}
-			if (manifest.contributes) {
-				// Not an UI extension if it has no ui contributions
-				if (!uiContributions.length || Object.keys(manifest.contributes).some(contribution => uiContributions.indexOf(contribution) === -1)) {
-					return false;
+// TODO: @sandy081 merge this with deduping in extensionsScannerService.ts
+export function dedupExtensions(system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[], logService: ILogService): IExtensionDescription[] {
+	const result = new ExtensionIdentifierMap<IExtensionDescription>();
+	system.forEach((systemExtension) => {
+		const extension = result.get(systemExtension.identifier);
+		if (extension) {
+			logService.warn(localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, systemExtension.extensionLocation.fsPath));
+		}
+		result.set(systemExtension.identifier, systemExtension);
+	});
+	user.forEach((userExtension) => {
+		const extension = result.get(userExtension.identifier);
+		if (extension) {
+			if (extension.isBuiltin) {
+				if (semver.gte(extension.version, userExtension.version)) {
+					logService.warn(`Skipping extension ${userExtension.extensionLocation.path} in favour of the builtin extension ${extension.extensionLocation.path}.`);
+					return;
 				}
+				// Overwriting a builtin extension inherits the `isBuiltin` property and it doesn't show a warning
+				(<IRelaxedExtensionDescription>userExtension).isBuiltin = true;
+			} else {
+				logService.warn(localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
 			}
-			return true;
+		} else if (userExtension.isBuiltin) {
+			logService.warn(`Skipping obsolete builtin extension ${userExtension.extensionLocation.path}`);
+			return;
 		}
-	}
-}
-
-function getExtensionKind(manifest: IExtensionManifest, configurationService: IConfigurationService): string | undefined {
-	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-	const configuredExtensionKinds = configurationService.getValue<{ [key: string]: string }>('remote.extensionKind') || {};
-	for (const id of Object.keys(configuredExtensionKinds)) {
-		if (areSameExtensions({ id: extensionId }, { id })) {
-			return configuredExtensionKinds[id];
+		result.set(userExtension.identifier, userExtension);
+	});
+	development.forEach(developedExtension => {
+		logService.info(localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
+		const extension = result.get(developedExtension.identifier);
+		if (extension) {
+			if (extension.isBuiltin) {
+				// Overwriting a builtin extension inherits the `isBuiltin` property
+				(<IRelaxedExtensionDescription>developedExtension).isBuiltin = true;
+			}
 		}
-	}
-	return manifest.extensionKind;
+		result.set(developedExtension.identifier, developedExtension);
+	});
+	return Array.from(result.values());
 }

@@ -1,13 +1,18 @@
 {
+	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./dist/",
-		"module": "commonjs",
-		"target": "es6",
 		"jsx": "react",
-		"sourceMap": true,
-		"strict": true,
-		"strictBindCallApply": true,
-		"noImplicitAny": true,
-		"noUnusedLocals": true
+		"esModuleInterop": true,
+		"lib": [
+			"es2018",
+			"DOM",
+			"DOM.Iterable"
+		]
+	},
+	"typeAcquisition": {
+		"include": [
+			"@types/vscode-webview"
+		]
 	}
 }

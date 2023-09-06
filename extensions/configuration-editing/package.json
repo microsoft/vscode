@@ -8,18 +8,30 @@
   "engines": {
     "vscode": "^1.0.0"
   },
+  "icon": "images/icon.png",
   "activationEvents": [
-    "onLanguage:json",
-    "onLanguage:jsonc"
+    "onProfile",
+    "onProfile:github"
   ],
-  "main": "./out/extension",
+  "enabledApiProposals": [
+    "profileContentHandlers"
+  ],
+  "main": "./out/configurationEditingMain",
+  "browser": "./dist/browser/configurationEditingMain",
   "scripts": {
     "compile": "gulp compile-extension:configuration-editing",
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "2.0.2",
-    "vscode-nls": "^4.0.0"
+    "jsonc-parser": "^2.2.1",
+    "@octokit/rest": "19.0.4",
+    "tunnel": "^0.0.6"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "languages": [
@@ -29,15 +41,23 @@
           ".code-workspace",
           "language-configuration.json",
           "icon-theme.json",
-          "color-theme.json",
-          ".code-snippets"
+          "color-theme.json"
         ],
         "filenames": [
           "settings.json",
           "launch.json",
           "tasks.json",
           "keybindings.json",
-          "extensions.json"
+          "extensions.json",
+          "argv.json",
+          "profiles.json",
+          "devcontainer.json",
+          ".devcontainer.json"
+        ]
+      }, {
+        "id": "json",
+        "extensions": [
+          ".code-profile"
         ]
       }
     ],
@@ -51,12 +71,20 @@
         "url": "vscode://schemas/keybindings"
       },
       {
-        "fileMatch": "vscode://defaultsettings/settings.json",
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/keybindings.json",
+        "url": "vscode://schemas/keybindings"
+      },
+      {
+        "fileMatch": "vscode://defaultsettings/*.json",
         "url": "vscode://schemas/settings/default"
       },
       {
         "fileMatch": "%APP_SETTINGS_HOME%/settings.json",
         "url": "vscode://schemas/settings/user"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/settings.json",
+        "url": "vscode://schemas/settings/profile"
       },
       {
         "fileMatch": "%MACHINE_SETTINGS_HOME%/settings.json",
@@ -71,8 +99,8 @@
         "url": "vscode://schemas/workspaceConfig"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
+        "fileMatch": "**/argv.json",
+        "url": "vscode://schemas/argv"
       },
       {
         "fileMatch": "/.vscode/settings.json",
@@ -87,7 +115,19 @@
         "url": "vscode://schemas/tasks"
       },
       {
+        "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
+        "url": "vscode://schemas/tasks"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+        "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/profiles/*/snippets/.json",
+        "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/sync/snippets/preview/*.json",
         "url": "vscode://schemas/snippets"
       },
       {
@@ -99,16 +139,32 @@
         "url": "vscode://schemas/extensions"
       },
       {
-        "fileMatch": "/.devcontainer/devcontainer.json",
-        "url": "./schemas/devContainer.schema.json"
+        "fileMatch": "devcontainer.json",
+        "url": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
       },
       {
-        "fileMatch": "/.devcontainer.json",
-        "url": "./schemas/devContainer.schema.json"
+        "fileMatch": ".devcontainer.json",
+        "url": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/nameConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
+      },
+      {
+        "fileMatch": "**/quality/*/product.json",
+        "url": "vscode://schemas/vscode-product"
       }
     ]
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "18.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

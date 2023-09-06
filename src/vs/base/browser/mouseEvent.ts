@@ -12,6 +12,7 @@ export interface IMouseEvent {
 	readonly leftButton: boolean;
 	readonly middleButton: boolean;
 	readonly rightButton: boolean;
+	readonly buttons: number;
 	readonly target: HTMLElement;
 	readonly detail: number;
 	readonly posx: number;
@@ -33,6 +34,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly leftButton: boolean;
 	public readonly middleButton: boolean;
 	public readonly rightButton: boolean;
+	public readonly buttons: number;
 	public readonly target: HTMLElement;
 	public detail: number;
 	public readonly posx: number;
@@ -49,6 +51,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.leftButton = e.button === 0;
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
+		this.buttons = e.buttons;
 
 		this.target = <HTMLElement>e.target;
 
@@ -71,46 +74,28 @@ export class StandardMouseEvent implements IMouseEvent {
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
-		let iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(self, e.view);
+		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(window, e.view);
 		this.posx -= iframeOffsets.left;
 		this.posy -= iframeOffsets.top;
 	}
 
 	public preventDefault(): void {
-		if (this.browserEvent.preventDefault) {
-			this.browserEvent.preventDefault();
-		}
+		this.browserEvent.preventDefault();
 	}
 
 	public stopPropagation(): void {
-		if (this.browserEvent.stopPropagation) {
-			this.browserEvent.stopPropagation();
-		}
+		this.browserEvent.stopPropagation();
 	}
-}
-
-export interface IDataTransfer {
-	dropEffect: string;
-	effectAllowed: string;
-	types: any[];
-	files: any[];
-
-	setData(type: string, data: string): void;
-	setDragImage(image: any, x: number, y: number): void;
-
-	getData(type: string): string;
-	clearData(types?: string[]): void;
 }
 
 export class DragMouseEvent extends StandardMouseEvent {
 
-	public readonly dataTransfer: IDataTransfer;
+	public readonly dataTransfer: DataTransfer;
 
 	constructor(e: MouseEvent) {
 		super(e);
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
-
 }
 
 export interface IMouseWheelEvent extends MouseEvent {
@@ -152,14 +137,30 @@ export class StandardWheelEvent {
 		this.deltaX = deltaX;
 
 		if (e) {
-			let e1 = <IWebKitMouseWheelEvent><any>e;
-			let e2 = <IGeckoMouseWheelEvent><any>e;
+			// Old (deprecated) wheel events
+			const e1 = <IWebKitMouseWheelEvent><any>e;
+			const e2 = <IGeckoMouseWheelEvent><any>e;
 
 			// vertical delta scroll
 			if (typeof e1.wheelDeltaY !== 'undefined') {
 				this.deltaY = e1.wheelDeltaY / 120;
 			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
 				this.deltaY = -e2.detail / 3;
+			} else if (e.type === 'wheel') {
+				// Modern wheel event
+				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+				const ev = <WheelEvent><unknown>e;
+
+				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+					// the deltas are expressed in lines
+					if (browser.isFirefox && !platform.isMacintosh) {
+						this.deltaY = -e.deltaY / 3;
+					} else {
+						this.deltaY = -e.deltaY;
+					}
+				} else {
+					this.deltaY = -e.deltaY / 40;
+				}
 			}
 
 			// horizontal delta scroll
@@ -171,6 +172,21 @@ export class StandardWheelEvent {
 				}
 			} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
 				this.deltaX = -e.detail / 3;
+			} else if (e.type === 'wheel') {
+				// Modern wheel event
+				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+				const ev = <WheelEvent><unknown>e;
+
+				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+					// the deltas are expressed in lines
+					if (browser.isFirefox && !platform.isMacintosh) {
+						this.deltaX = -e.deltaX / 3;
+					} else {
+						this.deltaX = -e.deltaX;
+					}
+				} else {
+					this.deltaX = -e.deltaX / 40;
+				}
 			}
 
 			// Assume a vertical scroll if nothing else worked
@@ -181,18 +197,10 @@ export class StandardWheelEvent {
 	}
 
 	public preventDefault(): void {
-		if (this.browserEvent) {
-			if (this.browserEvent.preventDefault) {
-				this.browserEvent.preventDefault();
-			}
-		}
+		this.browserEvent?.preventDefault();
 	}
 
 	public stopPropagation(): void {
-		if (this.browserEvent) {
-			if (this.browserEvent.stopPropagation) {
-				this.browserEvent.stopPropagation();
-			}
-		}
+		this.browserEvent?.stopPropagation();
 	}
 }

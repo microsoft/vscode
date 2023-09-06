@@ -4,28 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/common/extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
+import { assertIsDefined } from 'vs/base/common/types';
+import { deepFreeze } from 'vs/base/common/objects';
+import { TextDocumentChangeReason } from 'vs/workbench/api/common/extHostTypes';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
-	private _onDidAddDocument = new Emitter<vscode.TextDocument>();
-	private _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
-	private _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
-	private _onDidSaveDocument = new Emitter<vscode.TextDocument>();
+	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>({ onListenerError: onUnexpectedExternalError });
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
 	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
 
-	private _toDispose: IDisposable[];
+	private readonly _toDispose = new DisposableStore();
 	private _proxy: MainThreadDocumentsShape;
 	private _documentsAndEditors: ExtHostDocumentsAndEditors;
 	private _documentLoader = new Map<string, Promise<ExtHostDocumentData>>();
@@ -34,26 +38,24 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDocuments);
 		this._documentsAndEditors = documentsAndEditors;
 
-		this._toDispose = [
-			this._documentsAndEditors.onDidRemoveDocuments(documents => {
-				for (const data of documents) {
-					this._onDidRemoveDocument.fire(data.document);
-				}
-			}),
-			this._documentsAndEditors.onDidAddDocuments(documents => {
-				for (const data of documents) {
-					this._onDidAddDocument.fire(data.document);
-				}
-			})
-		];
+		this._documentsAndEditors.onDidRemoveDocuments(documents => {
+			for (const data of documents) {
+				this._onDidRemoveDocument.fire(data.document);
+			}
+		}, undefined, this._toDispose);
+		this._documentsAndEditors.onDidAddDocuments(documents => {
+			for (const data of documents) {
+				this._onDidAddDocument.fire(data.document);
+			}
+		}, undefined, this._toDispose);
 	}
 
 	public dispose(): void {
-		dispose(this._toDispose);
+		this._toDispose.dispose();
 	}
 
 	public getAllDocumentData(): ExtHostDocumentData[] {
-		return this._documentsAndEditors.allDocuments();
+		return [...this._documentsAndEditors.allDocuments()];
 	}
 
 	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
@@ -69,8 +71,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public getDocument(resource: vscode.Uri): vscode.TextDocument {
 		const data = this.getDocumentData(resource);
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
+		if (!data?.document) {
+			throw new Error(`Unable to retrieve document from URI '${resource}'`);
 		}
 		return data.document;
 	}
@@ -84,9 +86,10 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
-			promise = this._proxy.$tryOpenDocument(uri).then(() => {
+			promise = this._proxy.$tryOpenDocument(uri).then(uriData => {
 				this._documentLoader.delete(uri.toString());
-				return this._documentsAndEditors.getDocument(uri);
+				const canonicalUri = URI.revive(uriData);
+				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
 			}, err => {
 				this._documentLoader.delete(uri.toString());
 				return Promise.reject(err);
@@ -101,16 +104,16 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
-	public $acceptModelModeChanged(uriComponents: UriComponents, oldModeId: string, newModeId: string): void {
+	public $acceptModelLanguageChanged(uriComponents: UriComponents, newLanguageId: string): void {
 		const uri = URI.revive(uriComponents);
 		const data = this._documentsAndEditors.getDocument(uri);
 		if (!data) {
 			throw new Error('unknown document');
 		}
-		// Treat a mode change as a remove + add
+		// Treat a language change as a remove + add
 
 		this._onDidRemoveDocument.fire(data.document);
-		data._acceptLanguageId(newModeId);
+		data._acceptLanguageId(newLanguageId);
 		this._onDidAddDocument.fire(data.document);
 	}
 
@@ -133,7 +136,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		data._acceptIsDirty(isDirty);
 		this._onDidChangeDocument.fire({
 			document: data.document,
-			contentChanges: []
+			contentChanges: [],
+			reason: undefined
 		});
 	}
 
@@ -145,7 +149,15 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		}
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
-		this._onDidChangeDocument.fire({
+
+		let reason: vscode.TextDocumentChangeReason | undefined = undefined;
+		if (events.isUndoing) {
+			reason = TextDocumentChangeReason.Undo;
+		} else if (events.isRedoing) {
+			reason = TextDocumentChangeReason.Redo;
+		}
+
+		this._onDidChangeDocument.fire(deepFreeze({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
 				return {
@@ -154,11 +166,12 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 					rangeLength: change.rangeLength,
 					text: change.text
 				};
-			})
-		});
+			}),
+			reason
+		}));
 	}
 
-	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-		setWordDefinitionFor(modeId, wordDefinition);
+	public setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
+		setWordDefinitionFor(languageId, wordDefinition);
 	}
 }

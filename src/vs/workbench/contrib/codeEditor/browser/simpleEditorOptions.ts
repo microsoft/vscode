@@ -5,14 +5,16 @@
 
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export function getSimpleEditorOptions(): IEditorOptions {
+export function getSimpleEditorOptions(configurationService: IConfigurationService): IEditorOptions {
 	return {
 		wordWrap: 'on',
 		overviewRulerLanes: 0,
@@ -31,22 +33,29 @@ export function getSimpleEditorOptions(): IEditorOptions {
 		renderLineHighlight: 'none',
 		fixedOverflowWidgets: true,
 		acceptSuggestionOnEnter: 'smart',
+		dragAndDrop: false,
+		revealHorizontalRightPadding: 5,
 		minimap: {
 			enabled: false
-		}
+		},
+		guides: {
+			indentation: false
+		},
+		accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
+		cursorBlinking: configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking')
 	};
 }
 
 export function getSimpleCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
 		isSimpleWidget: true,
-		contributions: [
-			MenuPreventer,
-			SelectionClipboard,
-			ContextMenuController,
-			SuggestController,
-			SnippetController2,
-			TabCompletionController,
-		]
+		contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+			MenuPreventer.ID,
+			SelectionClipboardContributionID,
+			ContextMenuController.ID,
+			SuggestController.ID,
+			SnippetController2.ID,
+			TabCompletionController.ID,
+		])
 	};
 }

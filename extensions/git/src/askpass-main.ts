@@ -3,70 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
 import * as fs from 'fs';
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
+import { IPCClient } from './ipc/ipcClient';
 
 function fatal(err: any): void {
-	console.error(localize('missOrInvalid', "Missing or invalid credentials."));
+	console.error('Missing or invalid credentials.');
 	console.error(err);
 	process.exit(1);
 }
 
 function main(argv: string[]): void {
-	if (argv.length !== 5) {
-		return fatal('Wrong number of arguments');
-	}
-
-	if (!process.env['VSCODE_GIT_ASKPASS_HANDLE']) {
-		return fatal('Missing handle');
-	}
-
 	if (!process.env['VSCODE_GIT_ASKPASS_PIPE']) {
 		return fatal('Missing pipe');
 	}
 
-	if (process.env['VSCODE_GIT_COMMAND'] === 'fetch') {
-		return fatal('Skip fetch commands');
+	if (!process.env['VSCODE_GIT_ASKPASS_TYPE']) {
+		return fatal('Missing type');
+	}
+
+	if (process.env['VSCODE_GIT_ASKPASS_TYPE'] !== 'https' && process.env['VSCODE_GIT_ASKPASS_TYPE'] !== 'ssh') {
+		return fatal(`Invalid type: ${process.env['VSCODE_GIT_ASKPASS_TYPE']}`);
+	}
+
+	if (process.env['VSCODE_GIT_COMMAND'] === 'fetch' && !!process.env['VSCODE_GIT_FETCH_SILENT']) {
+		return fatal('Skip silent fetch commands');
 	}
 
 	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'] as string;
-	const socketPath = process.env['VSCODE_GIT_ASKPASS_HANDLE'] as string;
-	const request = argv[2];
-	const host = argv[4].substring(1, argv[4].length - 2);
-	const opts: http.RequestOptions = {
-		socketPath,
-		path: '/',
-		method: 'POST'
-	};
+	const askpassType = process.env['VSCODE_GIT_ASKPASS_TYPE'] as 'https' | 'ssh';
 
-	const req = http.request(opts, res => {
-		if (res.statusCode !== 200) {
-			return fatal(`Bad status code: ${res.statusCode}`);
+	// HTTPS (username | password), SSH (passphrase | authenticity)
+	const request = askpassType === 'https' ? argv[2] : argv[3];
+
+	let host: string | undefined,
+		file: string | undefined,
+		fingerprint: string | undefined;
+
+	if (askpassType === 'https') {
+		host = argv[4].replace(/^["']+|["':]+$/g, '');
+	}
+
+	if (askpassType === 'ssh') {
+		if (/passphrase/i.test(request)) {
+			// passphrase
+			file = argv[6].replace(/^["']+|["':]+$/g, '');
+		} else {
+			// authenticity
+			host = argv[6].replace(/^["']+|["':]+$/g, '');
+			fingerprint = argv[15];
 		}
+	}
 
-		const chunks: string[] = [];
-		res.setEncoding('utf8');
-		res.on('data', (d: string) => chunks.push(d));
-		res.on('end', () => {
-			const raw = chunks.join('');
-
-			try {
-				const result = JSON.parse(raw);
-				fs.writeFileSync(output, result + '\n');
-			} catch (err) {
-				return fatal(`Error parsing response`);
-			}
-
-			setTimeout(() => process.exit(0), 0);
-		});
-	});
-
-	req.on('error', () => fatal('Error in request'));
-	req.write(JSON.stringify({ request, host }));
-	req.end();
+	const ipcClient = new IPCClient('askpass');
+	ipcClient.call({ askpassType, request, host, file, fingerprint }).then(res => {
+		fs.writeFileSync(output, res + '\n');
+		setTimeout(() => process.exit(0), 0);
+	}).catch(err => fatal(err));
 }
 
 main(process.argv);

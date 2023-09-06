@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
-import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/test/common/core/viewLineToken';
+import { computeIndentLevel } from 'vs/editor/common/model/utils';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ITokenizationSupport, TokenizationRegistry, IState, IBackgroundTokenizationStore, EncodedTokenizationResult, TokenizationResult, IBackgroundTokenizer } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 
 interface ILineEdit {
 	startColumn: number;
@@ -17,34 +21,34 @@ interface ILineEdit {
 }
 
 function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
-	let tmp = TestToken.toTokens(_expected);
+	const tmp = TestToken.toTokens(_expected);
 	LineTokens.convertToEndOffset(tmp, __actual.getLineContent().length);
-	let expected = ViewLineTokenFactory.inflateArr(tmp);
-	let _actual = __actual.inflate();
+	const expected = TestLineTokenFactory.inflateArr(tmp);
+	const _actual = __actual.inflate();
 	interface ITestToken {
 		endIndex: number;
 		type: string;
 	}
-	let actual: ITestToken[] = [];
+	const actual: ITestToken[] = [];
 	for (let i = 0, len = _actual.getCount(); i < len; i++) {
 		actual[i] = {
 			endIndex: _actual.getEndOffset(i),
 			type: _actual.getClassName(i)
 		};
 	}
-	let decode = (token: ViewLineToken) => {
+	const decode = (token: TestLineToken) => {
 		return {
 			endIndex: token.endIndex,
 			type: token.getType()
 		};
 	};
-	assert.deepEqual(actual, expected.map(decode));
+	assert.deepStrictEqual(actual, expected.map(decode));
 }
 
 suite('ModelLine - getIndentLevel', () => {
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
-		let actual = TextModel.computeIndentLevel(text, tabSize);
-		assert.equal(actual, expected, text);
+		const actual = computeIndentLevel(text, tabSize);
+		assert.strictEqual(actual, expected, text);
 	}
 
 	test('getIndentLevel', () => {
@@ -79,16 +83,66 @@ class TestToken {
 		if (tokens === null) {
 			return null;
 		}
-		let tokensLen = tokens.length;
-		let result = new Uint32Array((tokensLen << 1));
+		const tokensLen = tokens.length;
+		const result = new Uint32Array((tokensLen << 1));
 		for (let i = 0; i < tokensLen; i++) {
-			let token = tokens[i];
+			const token = tokens[i];
 			result[(i << 1)] = token.startOffset;
 			result[(i << 1) + 1] = (
 				token.color << MetadataConsts.FOREGROUND_OFFSET
 			) >>> 0;
 		}
 		return result;
+	}
+}
+
+class ManualTokenizationSupport implements ITokenizationSupport {
+	private readonly tokens = new Map<number, Uint32Array>();
+	private readonly stores = new Set<IBackgroundTokenizationStore>();
+
+	public setLineTokens(lineNumber: number, tokens: Uint32Array): void {
+		const b = new ContiguousMultilineTokensBuilder();
+		b.add(lineNumber, tokens);
+		for (const s of this.stores) {
+			s.setTokens(b.finalize());
+		}
+	}
+
+	getInitialState(): IState {
+		return new LineState(1);
+	}
+
+	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult {
+		throw new Error();
+	}
+
+	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
+		const s = state as LineState;
+		return new EncodedTokenizationResult(this.tokens.get(s.lineNumber)!, new LineState(s.lineNumber + 1));
+	}
+
+	/**
+	 * Can be/return undefined if default background tokenization should be used.
+	 */
+	createBackgroundTokenizer?(textModel: ITextModel, store: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined {
+		this.stores.add(store);
+		return {
+			dispose: () => {
+				this.stores.delete(store);
+			},
+			requestTokens(startLineNumber, endLineNumberExclusive) {
+			},
+		};
+	}
+}
+
+class LineState implements IState {
+	constructor(public readonly lineNumber: number) { }
+	clone(): IState {
+		return this;
+	}
+	equals(other: IState): boolean {
+		return (other as LineState).lineNumber === this.lineNumber;
 	}
 }
 
@@ -106,11 +160,18 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
-		const model = new TextModel(initialText, TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
+
+		const s = new ManualTokenizationSupport();
+		const d = TokenizationRegistry.register('test', s);
+
+		const model = createTextModel(initialText, 'test');
+		model.onBeforeAttached();
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
-			model._tokens._setTokens(0, lineIndex, lineTextLength, TestToken.toTokens(lineTokens));
+			const tokens = TestToken.toTokens(lineTokens);
+			LineTokens.convertToEndOffset(tokens, lineTextLength);
+			s.setLineTokens(lineIndex + 1, tokens);
 		}
 
 		model.applyEdits(edits.map((ed) => ({
@@ -122,10 +183,13 @@ suite('ModelLinesTokens', () => {
 
 		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
 			const actualLine = model.getLineContent(lineIndex + 1);
-			const actualTokens = model.getLineTokens(lineIndex + 1);
-			assert.equal(actualLine, expected[lineIndex].text);
+			const actualTokens = model.tokenization.getLineTokens(lineIndex + 1);
+			assert.strictEqual(actualLine, expected[lineIndex].text);
 			assertLineTokens(actualTokens, expected[lineIndex].tokens);
 		}
+
+		model.dispose();
+		d.dispose();
 	}
 
 	test('single delete 1', () => {
@@ -440,23 +504,31 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
-		const model = new TextModel('some text', TextModel.DEFAULT_CREATION_OPTIONS, new LanguageIdentifier('test', 0));
-		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, TestToken.toTokens([new TestToken(0, 1)]));
+		const s = new ManualTokenizationSupport();
+		const d = TokenizationRegistry.register('test', s);
+
+		const model = createTextModel('some text', 'test');
+		const tokens = TestToken.toTokens([new TestToken(0, 1)]);
+		LineTokens.convertToEndOffset(tokens, model.getLineMaxColumn(1) - 1);
+		s.setLineTokens(1, tokens);
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 10),
 			text: ''
 		}]);
 
-		model._tokens._setTokens(0, 0, model.getLineMaxColumn(1) - 1, new Uint32Array(0));
+		s.setLineTokens(1, new Uint32Array(0));
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 1),
 			text: 'a'
 		}]);
 
-		const actualTokens = model.getLineTokens(1);
+		const actualTokens = model.tokenization.getLineTokens(1);
 		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
+
+		model.dispose();
+		d.dispose();
 	});
 
 	test('updates tokens on insertion 1', () => {
@@ -660,7 +732,7 @@ suite('ModelLinesTokens', () => {
 	test('updates tokens on insertion 10', () => {
 		testLineEditTokens(
 			'',
-			null!,
+			[],
 			[{
 				startColumn: 1,
 				endColumn: 1,

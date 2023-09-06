@@ -5,14 +5,28 @@
 
 'use strict';
 
+const gulp = require('gulp');
 const util = require('./lib/util');
 const task = require('./lib/task');
 const compilation = require('./lib/compilation');
-const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
+const optimize = require('./lib/optimize');
 
-// Full compile, including nls and inline sources in sourcemaps, for build
-const compileClientBuildTask = task.define('compile-client-build', task.series(util.rimraf('out-build'), compilation.compileTask('src', 'out-build', true)));
+function makeCompileBuildTask(disableMangle) {
+	return task.series(
+		util.rimraf('out-build'),
+		util.buildWebNodePaths('out-build'),
+		compilation.compileApiProposalNamesTask,
+		compilation.compileTask('src', 'out-build', true, { disableMangle }),
+		optimize.optimizeLoaderTask('out-build', 'out-build', true)
+	);
+}
 
-// All Build
-const compileBuildTask = task.define('compile-build', task.parallel(compileClientBuildTask, compileExtensionsBuildTask));
+// Full compile, including nls and inline sources in sourcemaps, mangling, minification, for build
+const compileBuildTask = task.define('compile-build', makeCompileBuildTask(false));
+gulp.task(compileBuildTask);
 exports.compileBuildTask = compileBuildTask;
+
+// Full compile for PR ci, e.g no mangling
+const compileBuildTaskPullRequest = task.define('compile-build-pr', makeCompileBuildTask(true));
+gulp.task(compileBuildTaskPullRequest);
+exports.compileBuildTaskPullRequest = compileBuildTaskPullRequest;

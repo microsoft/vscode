@@ -3,101 +3,181 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Action } from 'vs/base/common/actions';
+import { localize } from 'vs/nls';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IViewlet } from 'vs/workbench/common/viewlet';
-import { IPanel } from 'vs/workbench/common/panel';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { Action2, IAction2Options, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Direction } from 'vs/base/browser/ui/grid/grid';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IComposite } from 'vs/workbench/common/composite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-abstract class BaseNavigationAction extends Action {
+abstract class BaseNavigationAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IPanelService protected panelService: IPanelService,
-		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
-		@IViewletService protected viewletService: IViewletService
+		options: IAction2Options,
+		protected direction: Direction
 	) {
-		super(id, label);
+		super(options);
 	}
 
-	run(): Promise<any> {
-		const isEditorFocus = this.layoutService.hasFocus(Parts.EDITOR_PART);
-		const isPanelFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
-		const isSidebarFocus = this.layoutService.hasFocus(Parts.SIDEBAR_PART);
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
-		const isSidebarPositionLeft = this.layoutService.getSideBarPosition() === PartPosition.LEFT;
-		const isPanelPositionDown = this.layoutService.getPanelPosition() === PartPosition.BOTTOM;
+		const isEditorFocus = layoutService.hasFocus(Parts.EDITOR_PART);
+		const isPanelFocus = layoutService.hasFocus(Parts.PANEL_PART);
+		const isSidebarFocus = layoutService.hasFocus(Parts.SIDEBAR_PART);
+		const isAuxiliaryBarFocus = layoutService.hasFocus(Parts.AUXILIARYBAR_PART);
 
+		let neighborPart: Parts | undefined;
 		if (isEditorFocus) {
-			return this.navigateOnEditorFocus(isSidebarPositionLeft, isPanelPositionDown);
+			const didNavigate = this.navigateAcrossEditorGroup(this.toGroupDirection(this.direction), editorGroupService);
+			if (didNavigate) {
+				return;
+			}
+
+			neighborPart = layoutService.getVisibleNeighborPart(Parts.EDITOR_PART, this.direction);
 		}
 
 		if (isPanelFocus) {
-			return this.navigateOnPanelFocus(isSidebarPositionLeft, isPanelPositionDown);
+			neighborPart = layoutService.getVisibleNeighborPart(Parts.PANEL_PART, this.direction);
 		}
 
 		if (isSidebarFocus) {
-			return Promise.resolve(this.navigateOnSidebarFocus(isSidebarPositionLeft, isPanelPositionDown));
+			neighborPart = layoutService.getVisibleNeighborPart(Parts.SIDEBAR_PART, this.direction);
 		}
 
-		return Promise.resolve(false);
+		if (isAuxiliaryBarFocus) {
+			neighborPart = neighborPart = layoutService.getVisibleNeighborPart(Parts.AUXILIARYBAR_PART, this.direction);
+		}
+
+		if (neighborPart === Parts.EDITOR_PART) {
+			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction), editorGroupService)) {
+				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST, editorGroupService);
+			}
+		} else if (neighborPart === Parts.SIDEBAR_PART) {
+			this.navigateToSidebar(layoutService, paneCompositeService);
+		} else if (neighborPart === Parts.PANEL_PART) {
+			this.navigateToPanel(layoutService, paneCompositeService);
+		} else if (neighborPart === Parts.AUXILIARYBAR_PART) {
+			this.navigateToAuxiliaryBar(layoutService, paneCompositeService);
+		}
 	}
 
-	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet | IPanel> {
-		return Promise.resolve(true);
-	}
-
-	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IPanel> {
-		return Promise.resolve(true);
-	}
-
-	protected navigateOnSidebarFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean | IViewlet {
-		return true;
-	}
-
-	protected navigateToPanel(): IPanel | boolean {
-		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+	private async navigateToPanel(layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService): Promise<IComposite | boolean> {
+		if (!layoutService.isVisible(Parts.PANEL_PART)) {
 			return false;
 		}
 
-		const activePanelId = this.panelService.getActivePanel()!.getId();
-
-		return this.panelService.openPanel(activePanelId, true)!;
-	}
-
-	protected async navigateToSidebar(): Promise<IViewlet | boolean> {
-		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			return Promise.resolve(false);
+		const activePanel = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+		if (!activePanel) {
+			return false;
 		}
 
-		const activeViewlet = this.viewletService.getActiveViewlet();
+		const activePanelId = activePanel.getId();
+
+		const res = await paneCompositeService.openPaneComposite(activePanelId, ViewContainerLocation.Panel, true);
+		if (!res) {
+			return false;
+		}
+
+		return res;
+	}
+
+	private async navigateToSidebar(layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService): Promise<IPaneComposite | boolean> {
+		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return false;
+		}
+
+		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		if (!activeViewlet) {
-			return Promise.resolve(false);
+			return false;
 		}
 		const activeViewletId = activeViewlet.getId();
 
-		const value = await this.viewletService.openViewlet(activeViewletId, true);
-		return value === null ? false : value;
+		const viewlet = await paneCompositeService.openPaneComposite(activeViewletId, ViewContainerLocation.Sidebar, true);
+		return !!viewlet;
 	}
 
-	protected navigateAcrossEditorGroup(direction: GroupDirection): boolean {
-		return this.doNavigateToEditorGroup({ direction });
+	private async navigateToAuxiliaryBar(layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService): Promise<IComposite | boolean> {
+		if (!layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return false;
+		}
+
+		const activePanel = paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		if (!activePanel) {
+			return false;
+		}
+
+		const activePanelId = activePanel.getId();
+
+		const res = await paneCompositeService.openPaneComposite(activePanelId, ViewContainerLocation.AuxiliaryBar, true);
+		if (!res) {
+			return false;
+		}
+
+		return res;
 	}
 
-	protected navigateToEditorGroup(location: GroupLocation): boolean {
-		return this.doNavigateToEditorGroup({ location });
+	private navigateAcrossEditorGroup(direction: GroupDirection, editorGroupService: IEditorGroupsService): boolean {
+		return this.doNavigateToEditorGroup({ direction }, editorGroupService);
 	}
 
-	private doNavigateToEditorGroup(scope: IFindGroupScope): boolean {
-		const targetGroup = this.editorGroupService.findGroup(scope, this.editorGroupService.activeGroup);
+	private navigateToEditorGroup(location: GroupLocation, editorGroupService: IEditorGroupsService): boolean {
+		return this.doNavigateToEditorGroup({ location }, editorGroupService);
+	}
+
+	private navigateBackToEditorGroup(direction: GroupDirection, editorGroupService: IEditorGroupsService): boolean {
+		if (!editorGroupService.activeGroup) {
+			return false;
+		}
+
+		const oppositeDirection = this.toOppositeDirection(direction);
+
+		// Check to see if there is a group in between the last
+		// active group and the direction of movement
+
+		const groupInBetween = editorGroupService.findGroup({ direction: oppositeDirection }, editorGroupService.activeGroup);
+		if (!groupInBetween) {
+
+			// No group in between means we can return
+			// focus to the last active editor group
+
+			editorGroupService.activeGroup.focus();
+			return true;
+		}
+
+		return false;
+	}
+
+	private toGroupDirection(direction: Direction): GroupDirection {
+		switch (direction) {
+			case Direction.Down: return GroupDirection.DOWN;
+			case Direction.Left: return GroupDirection.LEFT;
+			case Direction.Right: return GroupDirection.RIGHT;
+			case Direction.Up: return GroupDirection.UP;
+		}
+	}
+
+	private toOppositeDirection(direction: GroupDirection): GroupDirection {
+		switch (direction) {
+			case GroupDirection.UP: return GroupDirection.DOWN;
+			case GroupDirection.RIGHT: return GroupDirection.LEFT;
+			case GroupDirection.LEFT: return GroupDirection.RIGHT;
+			case GroupDirection.DOWN: return GroupDirection.UP;
+		}
+	}
+
+	private doNavigateToEditorGroup(scope: IFindGroupScope, editorGroupService: IEditorGroupsService): boolean {
+		const targetGroup = editorGroupService.findGroup(scope, editorGroupService.activeGroup);
 		if (targetGroup) {
 			targetGroup.focus();
 
@@ -108,169 +188,145 @@ abstract class BaseNavigationAction extends Action {
 	}
 }
 
-class NavigateLeftAction extends BaseNavigationAction {
+registerAction2(class extends BaseNavigationAction {
 
-	static readonly ID = 'workbench.action.navigateLeft';
-	static readonly LABEL = nls.localize('navigateLeft', "Navigate to the View on the Left");
+	constructor() {
+		super({
+			id: 'workbench.action.navigateLeft',
+			title: { value: localize('navigateLeft', "Navigate to the View on the Left"), original: 'Navigate to the View on the Left' },
+			category: Categories.View,
+			f1: true
+		}, Direction.Left);
+	}
+});
+
+registerAction2(class extends BaseNavigationAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateRight',
+			title: { value: localize('navigateRight', "Navigate to the View on the Right"), original: 'Navigate to the View on the Right' },
+			category: Categories.View,
+			f1: true
+		}, Direction.Right);
+	}
+});
+
+registerAction2(class extends BaseNavigationAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateUp',
+			title: { value: localize('navigateUp', "Navigate to the View Above"), original: 'Navigate to the View Above' },
+			category: Categories.View,
+			f1: true
+		}, Direction.Up);
+	}
+});
+
+registerAction2(class extends BaseNavigationAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateDown',
+			title: { value: localize('navigateDown', "Navigate to the View Below"), original: 'Navigate to the View Below' },
+			category: Categories.View,
+			f1: true
+		}, Direction.Down);
+	}
+});
+
+abstract class BaseFocusAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
+		options: IAction2Options,
+		private readonly focusNext: boolean
 	) {
-		super(id, label, editorGroupService, panelService, layoutService, viewletService);
+		super(options);
 	}
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
-		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.LEFT);
-		if (didNavigate) {
-			return Promise.resolve(true);
-		}
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const editorService = accessor.get(IEditorService);
 
-		if (isSidebarPositionLeft) {
-			return this.navigateToSidebar();
-		}
-
-		return Promise.resolve(false);
+		this.focusNextOrPreviousPart(layoutService, editorService, this.focusNext);
 	}
 
-	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
-		if (isPanelPositionDown && isSidebarPositionLeft) {
-			return this.navigateToSidebar();
+	private findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
+		let neighbour: Parts;
+		switch (part) {
+			case Parts.EDITOR_PART:
+				neighbour = next ? Parts.PANEL_PART : Parts.SIDEBAR_PART;
+				break;
+			case Parts.PANEL_PART:
+				neighbour = next ? Parts.STATUSBAR_PART : Parts.EDITOR_PART;
+				break;
+			case Parts.STATUSBAR_PART:
+				neighbour = next ? Parts.ACTIVITYBAR_PART : Parts.PANEL_PART;
+				break;
+			case Parts.ACTIVITYBAR_PART:
+				neighbour = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
+				break;
+			case Parts.SIDEBAR_PART:
+				neighbour = next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART;
+				break;
+			default:
+				neighbour = Parts.EDITOR_PART;
 		}
 
-		if (!isPanelPositionDown) {
-			return Promise.resolve(this.navigateToEditorGroup(GroupLocation.LAST));
+		if (layoutService.isVisible(neighbour) || neighbour === Parts.EDITOR_PART) {
+			return neighbour;
 		}
 
-		return Promise.resolve(false);
+		return this.findVisibleNeighbour(layoutService, neighbour, next);
 	}
 
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean {
-		if (!isSidebarPositionLeft) {
-			return this.navigateToEditorGroup(GroupLocation.LAST);
+	private focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
+		let currentlyFocusedPart: Parts | undefined;
+		if (editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART)) {
+			currentlyFocusedPart = Parts.EDITOR_PART;
+		} else if (layoutService.hasFocus(Parts.ACTIVITYBAR_PART)) {
+			currentlyFocusedPart = Parts.ACTIVITYBAR_PART;
+		} else if (layoutService.hasFocus(Parts.STATUSBAR_PART)) {
+			currentlyFocusedPart = Parts.STATUSBAR_PART;
+		} else if (layoutService.hasFocus(Parts.SIDEBAR_PART)) {
+			currentlyFocusedPart = Parts.SIDEBAR_PART;
+		} else if (layoutService.hasFocus(Parts.PANEL_PART)) {
+			currentlyFocusedPart = Parts.PANEL_PART;
 		}
 
-		return false;
+		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART);
 	}
 }
 
-class NavigateRightAction extends BaseNavigationAction {
+registerAction2(class extends BaseFocusAction {
 
-	static readonly ID = 'workbench.action.navigateRight';
-	static readonly LABEL = nls.localize('navigateRight', "Navigate to the View on the Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
-	) {
-		super(id, label, editorGroupService, panelService, layoutService, viewletService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusNextPart',
+			title: { value: localize('focusNextPart', "Focus Next Part"), original: 'Focus Next Part' },
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				primary: KeyCode.F6,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		}, true);
 	}
+});
 
-	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IViewlet | IPanel> {
-		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.RIGHT);
-		if (didNavigate) {
-			return Promise.resolve(true);
-		}
+registerAction2(class extends BaseFocusAction {
 
-		if (!isPanelPositionDown) {
-			return Promise.resolve(this.navigateToPanel());
-		}
-
-		if (!isSidebarPositionLeft) {
-			return this.navigateToSidebar();
-		}
-
-		return Promise.resolve(false);
+	constructor() {
+		super({
+			id: 'workbench.action.focusPreviousPart',
+			title: { value: localize('focusPreviousPart', "Focus Previous Part"), original: 'Focus Previous Part' },
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.F6,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		}, false);
 	}
-
-	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean | IViewlet> {
-		if (!isSidebarPositionLeft) {
-			return this.navigateToSidebar();
-		}
-
-		return Promise.resolve(false);
-	}
-
-	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): boolean {
-		if (isSidebarPositionLeft) {
-			return this.navigateToEditorGroup(GroupLocation.FIRST);
-		}
-
-		return false;
-	}
-}
-
-class NavigateUpAction extends BaseNavigationAction {
-
-	static readonly ID = 'workbench.action.navigateUp';
-	static readonly LABEL = nls.localize('navigateUp', "Navigate to the View Above");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
-	) {
-		super(id, label, editorGroupService, panelService, layoutService, viewletService);
-	}
-
-	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, _isPanelPositionDown: boolean): Promise<boolean> {
-		return Promise.resolve(this.navigateAcrossEditorGroup(GroupDirection.UP));
-	}
-
-	protected navigateOnPanelFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean> {
-		if (isPanelPositionDown) {
-			return Promise.resolve(this.navigateToEditorGroup(GroupLocation.LAST));
-		}
-
-		return Promise.resolve(false);
-	}
-}
-
-class NavigateDownAction extends BaseNavigationAction {
-
-	static readonly ID = 'workbench.action.navigateDown';
-	static readonly LABEL = nls.localize('navigateDown', "Navigate to the View Below");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
-	) {
-		super(id, label, editorGroupService, panelService, layoutService, viewletService);
-	}
-
-	protected navigateOnEditorFocus(_isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): Promise<boolean | IPanel> {
-		const didNavigate = this.navigateAcrossEditorGroup(GroupDirection.DOWN);
-		if (didNavigate) {
-			return Promise.resolve(true);
-		}
-
-		if (isPanelPositionDown) {
-			return Promise.resolve(this.navigateToPanel());
-		}
-
-		return Promise.resolve(false);
-	}
-}
-
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-const viewCategory = nls.localize('view', "View");
-
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, undefined), 'View: Navigate to the View Above', viewCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, undefined), 'View: Navigate to the View Below', viewCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, undefined), 'View: Navigate to the View on the Left', viewCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, undefined), 'View: Navigate to the View on the Right', viewCategory);
+});

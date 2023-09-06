@@ -3,75 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-
-export interface ParsedArgs {
-	_: string[];
-	'folder-uri'?: string | string[];
-	'file-uri'?: string | string[];
-	_urls?: string[];
-	help?: boolean;
-	version?: boolean;
-	status?: boolean;
-	wait?: boolean;
-	waitMarkerFilePath?: string;
-	diff?: boolean;
-	add?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	'prof-startup'?: string;
-	'prof-startup-prefix'?: string;
-	'prof-append-timers'?: string;
-	verbose?: boolean;
-	trace?: boolean;
-	'trace-category-filter'?: string;
-	'trace-options'?: string;
-	log?: string;
-	logExtensionHostCommunication?: boolean;
-	'extensions-dir'?: string;
-	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string | string[]; // one or more local paths or URIs
-	extensionTestsPath?: string; // either a local path or a URI
-	'inspect-extensions'?: string;
-	'inspect-brk-extensions'?: string;
-	debugId?: string;
-	'inspect-search'?: string;
-	'inspect-brk-search'?: string;
-	'disable-extensions'?: boolean;
-	'disable-extension'?: string | string[];
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'install-extension'?: string | string[];
-	'uninstall-extension'?: string | string[];
-	'locate-extension'?: string | string[];
-	'enable-proposed-api'?: string | string[];
-	'open-url'?: boolean;
-	'skip-getting-started'?: boolean;
-	'skip-release-notes'?: boolean;
-	'sticky-quickopen'?: boolean;
-	'disable-restore-windows'?: boolean;
-	'disable-telemetry'?: boolean;
-	'export-default-configuration'?: string;
-	'install-source'?: string;
-	'disable-updates'?: string;
-	'disable-crash-reporter'?: string;
-	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
-	'file-write'?: boolean;
-	'file-chmod'?: boolean;
-	'upload-logs'?: string;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
-	remote?: string;
-	'disable-user-env-probe'?: boolean;
-}
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+export const INativeEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeEnvironmentService>(IEnvironmentService);
 
 export interface IDebugParams {
 	port: number | null;
@@ -80,75 +17,143 @@ export interface IDebugParams {
 
 export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
+	env?: Record<string, string>;
 }
 
+/**
+ * Type of extension.
+ *
+ * **NOTE**: This is defined in `platform/environment` because it can appear as a CLI argument.
+ */
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
+
+/**
+ * A basic environment service that can be used in various processes,
+ * such as main, renderer and shared process. Use subclasses of this
+ * service for specific environment.
+ */
 export interface IEnvironmentService {
-	_serviceBrand: any;
 
-	args: ParsedArgs;
+	readonly _serviceBrand: undefined;
 
-	execPath: string;
-	cliPath: string;
-	appRoot: string;
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	userHome: string;
-	userDataPath: string;
+	// --- user roaming data
+	stateResource: URI;
+	userRoamingDataHome: URI;
+	keyboardLayoutResource: URI;
+	argvResource: URI;
 
-	appNameLong: string;
-	appQuality?: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
-
-	machineSettingsHome: string;
-	machineSettingsPath: string;
-
-	settingsSearchBuildId?: number;
-	settingsSearchUrl?: string;
-
-	globalStorageHome: string;
-	workspaceStorageHome: string;
-
-	backupHome: string;
-	backupWorkspacesPath: string;
-
+	// --- data paths
 	untitledWorkspacesHome: URI;
+	workspaceStorageHome: URI;
+	localHistoryHome: URI;
+	cacheHome: URI;
 
+	// --- settings sync
+	userDataSyncHome: URI;
+	sync: 'on' | 'off' | undefined;
+
+	// --- continue edit session
+	continueOn?: string;
+	editSessionId?: string;
+
+	// --- extension development
+	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
-	extensionsPath: string;
+	enableExtensions?: readonly string[];
 	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 
-	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-
-	logExtensionHostCommunication: boolean;
-
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
-
-	// logging
-	log?: string;
-	logsPath: string;
+	// --- logging
+	logsHome: URI;
+	logLevel?: string;
+	extensionLogLevel?: [string, string][];
 	verbose: boolean;
+	isBuilt: boolean;
 
-	skipGettingStarted: boolean | undefined;
-	skipReleaseNotes: boolean | undefined;
+	// --- telemetry
+	disableTelemetry: boolean;
+	serviceMachineIdResource: URI;
 
-	skipAddToRecentlyOpened: boolean;
+	// --- Policy
+	policyFile?: URI;
 
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+}
 
-	nodeCachedDataDir?: string;
+/**
+ * A subclass of the `IEnvironmentService` to be used only in native
+ * environments (Windows, Linux, macOS) but not e.g. web.
+ */
+export interface INativeEnvironmentService extends IEnvironmentService {
 
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	driverHandle?: string;
-	driverVerbose: boolean;
+	// --- CLI Arguments
+	args: NativeParsedArgs;
+
+	// --- data paths
+	/**
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
+	 */
+	appRoot: string;
+	userHome: URI;
+	appSettingsHome: URI;
+	tmpDir: URI;
+	userDataPath: string;
+	machineSettingsResource: URI;
+
+	// --- extensions
+	extensionsPath: string;
+	extensionsDownloadLocation: URI;
+	builtinExtensionsPath: string;
+
+	// --- use keytar for credentials
+	disableKeytar?: boolean;
+
+	crossOriginIsolated?: boolean;
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
+	//
+	// AS SUCH:
+	//   - PUT NON-WEB PROPERTIES INTO NATIVE ENVIRONMENT SERVICE
+	//   - PUT WORKBENCH ONLY PROPERTIES INTO WORKBENCH ENVIRONMENT SERVICE
+	//   - PUT ELECTRON-MAIN ONLY PROPERTIES INTO MAIN ENVIRONMENT SERVICE
+	//
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }

@@ -80,7 +80,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 	return results;
 }
 
-function getMatchStartEnd(match: ITextSearchMatch): { start: number, end: number } {
+function getMatchStartEnd(match: ITextSearchMatch): { start: number; end: number } {
 	const matchRanges = match.ranges;
 	const matchStartLine = Array.isArray(matchRanges) ? matchRanges[0].startLineNumber : matchRanges.startLineNumber;
 	const matchEndLine = Array.isArray(matchRanges) ? matchRanges[matchRanges.length - 1].endLineNumber : matchRanges.endLineNumber;
