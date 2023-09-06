@@ -193,10 +193,14 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this._bufferTracker = this._instantiationService.createInstance(BufferContentTracker, this._xterm);
 		}
 		this._accessibleViewService.show(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
-		const lastPosition = this._accessibleViewService.getLastPosition();
-		if (lastPosition) {
-			this._accessibleViewService.setPosition(lastPosition, true);
-		}
+		// wait for the render to happen so that the line count is correct and
+		// the cursor is at the bottom of the buffer
+		setTimeout(() => {
+			const lastPosition = this._accessibleViewService.getLastPosition();
+			if (lastPosition) {
+				this._accessibleViewService.setPosition(lastPosition, true);
+			}
+		}, 50);
 	}
 	navigateToCommand(type: NavigationType): void {
 		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;
