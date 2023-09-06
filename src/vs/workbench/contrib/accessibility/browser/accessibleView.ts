@@ -256,44 +256,45 @@ export class AccessibleView extends Disposable {
 		if (!this._currentProvider || !this._currentContent) {
 			return;
 		}
-		let symbols: IAccessibleViewSymbol[] | undefined = this._currentProvider.getSymbols?.();
-		if (!symbols) {
-			symbols = [];
-			let tokens: marked.TokensList | undefined;
-			if (!this._currentProvider.options.language || this._currentProvider.options.language === 'markdown') {
-				tokens = marked.lexer(this._currentContent);
-			}
-			if (!tokens) {
-				return;
-			}
-			let firstListItem: string | undefined;
-			for (const token of tokens) {
-				let label: string | undefined = undefined;
-				if ('type' in token) {
-					switch (token.type) {
-						case 'heading':
-						case 'paragraph':
-						case 'code':
-							label = token.text;
-							break;
-						case 'list': {
-							const firstItem = token.items?.[0];
-							if (!firstItem) {
-								break;
-							}
-							firstListItem = `- ${firstItem.text}`;
-							label = token.items?.map(i => i.text).join(', ');
+		const symbols: IAccessibleViewSymbol[] = this._currentProvider.getSymbols?.() || [];
+		if (symbols?.length) {
+			return symbols;
+		}
+		if (this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown') {
+			// Symbols haven't been provided and we cannot parse this language
+			return;
+		}
+		const tokens: marked.TokensList | undefined = marked.lexer(this._currentContent);
+		if (!tokens) {
+			return;
+		}
+		let firstListItem: string | undefined;
+		for (const token of tokens) {
+			let label: string | undefined = undefined;
+			if ('type' in token) {
+				switch (token.type) {
+					case 'heading':
+					case 'paragraph':
+					case 'code':
+						label = token.text;
+						break;
+					case 'list': {
+						const firstItem = token.items?.[0];
+						if (!firstItem) {
 							break;
 						}
+						firstListItem = `- ${firstItem.text}`;
+						label = token.items?.map(i => i.text).join(', ');
+						break;
 					}
 				}
-				if (label) {
-					symbols.push({ info: label, label: localize('symbolLabel', "({0}) {1}", token.type, label), ariaLabel: localize('symbolLabelAria', "({0}) {1}", token.type, label), firstListItem });
-					firstListItem = undefined;
-				}
+			}
+			if (label) {
+				symbols.push({ markdownToParse: label, label: localize('symbolLabel', "({0}) {1}", token.type, label), ariaLabel: localize('symbolLabelAria', "({0}) {1}", token.type, label), firstListItem });
+				firstListItem = undefined;
 			}
 		}
-		return symbols;
+		return symbols.length ? symbols : undefined;
 	}
 
 	showSymbol(provider: IAccessibleContentProvider, symbol: IAccessibleViewSymbol): void {
@@ -306,10 +307,10 @@ export class AccessibleView extends Disposable {
 			this._editorWidget.setSelection({ startLineNumber: symbol.lineNumber, startColumn: 1, endLineNumber: symbol.lineNumber, endColumn: 1 });
 			return;
 		}
-		if (!symbol.info) {
+		if (!symbol.markdownToParse) {
 			return;
 		}
-		const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.info!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
+		const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.markdownToParse!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
 		if (index >= 0) {
 			this.show(provider);
 			this._editorWidget.revealLine(index + 1);
@@ -372,7 +373,7 @@ export class AccessibleView extends Disposable {
 				message += '\n';
 			}
 		}
-		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + localize('exit-tip', '\nExit this dialog via the Escape key.');
+		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint;
 		this._updateContextKeys(provider, true);
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
@@ -605,7 +606,7 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	getLastPosition(): Position | undefined {
 		const lastLine = this._accessibleView?.editorWidget.getModel()?.getLineCount();
-		return lastLine && lastLine > 0 ? new Position(lastLine - 1, 1) : undefined;
+		return lastLine && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 	}
 	setPosition(position: Position, reveal?: boolean): void {
 		this._accessibleView?.editorWidget.setPosition(position);
@@ -651,7 +652,7 @@ class AccessibleViewSymbolQuickPick {
 }
 
 export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
-	info?: string;
+	markdownToParse?: string;
 	firstListItem?: string;
 	lineNumber?: number;
 }
