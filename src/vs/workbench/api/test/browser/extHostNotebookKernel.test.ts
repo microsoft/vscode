@@ -52,7 +52,9 @@ suite('NotebookKernel', function () {
 	teardown(function () {
 		disposables.clear();
 	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async function () {
 		cellExecuteCreate.length = 0;
 		cellExecuteUpdates.length = 0;

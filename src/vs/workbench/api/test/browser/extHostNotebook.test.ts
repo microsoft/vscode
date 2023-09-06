@@ -29,8 +29,6 @@ import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystem
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookCell#Document', function () {
-
-
 	let rpcProtocol: TestRPCProtocol;
 	let notebook: ExtHostNotebookDocument;
 	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;

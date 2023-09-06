@@ -22,10 +22,9 @@ import { IExtensionService, nullExtensionDescription } from 'vs/workbench/servic
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('NotebookProviderInfoStore', function () {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite() as Pick<DisposableStore, 'add'>;
 
 	test('Can\'t open untitled notebooks in test #119363', function () {
-		const disposables = new DisposableStore();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
@@ -35,7 +34,7 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;
 			},
-			instantiationService.createInstance(EditorResolverService),
+			disposables.add(instantiationService.createInstance(EditorResolverService)),
 			new TestConfigurationService(),
 			new class extends mock<IAccessibilityService>() {
 				override onDidChangeScreenReaderOptimized: Event<void> = Event.None;
@@ -46,6 +45,7 @@ suite('NotebookProviderInfoStore', function () {
 			},
 			new class extends mock<INotebookEditorModelResolverService>() { }
 		);
+		disposables.add(store);
 
 		const fooInfo = new NotebookProviderInfo({
 			extension: nullExtensionDescription.identifier,
@@ -89,8 +89,6 @@ suite('NotebookProviderInfoStore', function () {
 		providers = store.getContributedNotebook(URI.parse('untitled:///test/nb.bar'));
 		assert.strictEqual(providers.length, 1);
 		assert.strictEqual(providers[0] === barInfo, true);
-
-		disposables.dispose();
 	});
 
 });
