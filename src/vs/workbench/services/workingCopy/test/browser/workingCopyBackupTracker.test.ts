@@ -11,7 +11,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
+import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
