@@ -1,34 +1,10 @@
 import * as vscode from 'vscode';
 import { Command } from '../../commands/commandManager';
 import { nulToken } from '../../utils/cancellation';
-import { DiagnosticsManager } from '../diagnostics';
 import type * as Proto from '../../tsServer/protocol/protocol';
 import * as typeConverters from '../../typeConverters';
 import { ITypeScriptServiceClient } from '../../typescriptService';
 
-// TODO: quick fix version needs to delete the diagnostic (because maybe the followup interferes with it?)
-// so it needs a diagnostic manager and a diagnostic. The refactor version doesn't need this
-// (there is tiny bits of code overall so maybe there's a different way to write this)
-export namespace EditorChatReplacementCommand1 {
-	export type Args = {
-		readonly message: string;
-		readonly document: vscode.TextDocument;
-		readonly diagnostic: vscode.Diagnostic;
-	};
-}
-export class EditorChatReplacementCommand1 implements Command {
-	public static readonly ID = '_typescript.quickFix.editorChatReplacement1';
-	public readonly id = EditorChatReplacementCommand1.ID;
-
-	constructor( private readonly client: ITypeScriptServiceClient, private readonly diagnosticManager: DiagnosticsManager) {
-	}
-
-	async execute({ message, document, diagnostic }: EditorChatReplacementCommand1.Args) {
-		this.diagnosticManager.deleteDiagnostic(document.uri, diagnostic);
-		const initialRange = await findScopeEndLineFromNavTree(this.client, document, diagnostic.range.start.line);
-		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange, message, autoSend: true });
-	}
-}
 export class EditorChatReplacementCommand2 implements Command {
 	public static readonly ID = '_typescript.quickFix.editorChatReplacement2';
 	public readonly id = EditorChatReplacementCommand2.ID;
@@ -36,16 +12,17 @@ export class EditorChatReplacementCommand2 implements Command {
 		private readonly client: ITypeScriptServiceClient,
 	) {
 	}
-	async execute({ message, document, range: range, expand, marker, refactor }: EditorChatReplacementCommand2.Args) {
+	async execute({ message, document, expand }: EditorChatReplacementCommand2.Args) {
 		// TODO: "this code" is not specific; might get better results with a more specific referent
 		// TODO: Doesn't work in JS files? Is this the span-finder's fault? Try falling back to startLine plus something.
 		// TODO: Need to emit jsdoc in JS files once it's working at all
 		// TODO: When there are "enough" types around, leave off the "Add separate interfaces when possible" because it's not helpful.
 		//       (brainstorming: enough non-primitives, or evidence of type aliases in the same file, or imported)
-		const initialRange = expand === 'navtree-function' ? await findScopeEndLineFromNavTree(this.client, document, range.start.line)
-		    : expand === 'identifier' ? findScopeEndMarker(document, range.start, marker!)
-			: expand === 'refactor-info' ? findRefactorScope(document, refactor!)
-			: range;
+		const initialRange = expand.kind === 'navtree-function' ? await findScopeEndLineFromNavTree(this.client, document, expand.pos.line)
+		    : expand.kind === 'identifier' ? findScopeEndMarker(document, expand.range.start, expand.marker)
+			: expand.kind === 'refactor-info' ? await findEditScope(this.client, document, expand.refactor.edits.flatMap(e => e.textChanges))
+			: expand.kind === 'code-action' ? await findEditScope(this.client, document, expand.action.changes.flatMap(c => c.textChanges))
+			: expand.range;
 		if (initialRange) {
 			console.log("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" + message
 				+ `\nWith context(${expand}): ` + document.getText().slice(document.offsetAt(initialRange.start), document.offsetAt(initialRange.end))
@@ -58,23 +35,7 @@ export namespace EditorChatReplacementCommand2 {
 	export interface Args {
 		readonly message: string;
 		readonly document: vscode.TextDocument;
-		readonly range: vscode.Range;
 		readonly expand: Expand;
-		readonly marker?: string;
-		readonly refactor?: Proto.RefactorEditInfo;
-	}
-}
-
-export class EditorChatFollowUp implements Command {
-
-	id: string = '_typescript.quickFix.editorChatFollowUp';
-
-	constructor(private readonly prompt: string, private readonly document: vscode.TextDocument, private readonly range: vscode.Range, private readonly client: ITypeScriptServiceClient) {
-	}
-
-	async execute() {
-		const initialRange = await findScopeEndLineFromNavTree(this.client, this.document, this.range.start.line);
-		await vscode.commands.executeCommand('vscode.editorChat.start', { initialRange, message: this.prompt, autoSend: true });
 	}
 }
 
@@ -98,8 +59,8 @@ export class ChatPanelFollowup implements Command {
 
 	async execute({ prompt, document, range, expand, marker }: ChatPanelFollowup.Args) {
 		console.log("-------------------------------" + prompt + "------------------------------")
-		const enclosingRange = expand === 'navtree-function' ? await findScopeEndLineFromNavTree(this.client, document, range.start.line)
-		    : expand === 'identifier' ? findScopeEndMarker(document, range.start, marker!)
+		const enclosingRange = expand.kind === 'navtree-function' ? await findScopeEndLineFromNavTree(this.client, document, range.start.line)
+		    : expand.kind === 'identifier' ? findScopeEndMarker(document, range.start, marker!)
 			: range;
 		vscode.interactive.sendInteractiveRequestToProvider('copilot', { message: prompt, autoSend: true, initialRange: enclosingRange } as any)
 	}
@@ -116,7 +77,11 @@ export class CompositeCommand implements Command {
 	}
 }
 
-export type Expand = 'none' | 'navtree-function' | 'identifier' | 'refactor-info' | 'statement' | 'ast-statement'
+export type Expand = { kind: 'none', readonly range: vscode.Range }
+	| { kind: "navtree-function", readonly pos: vscode.Position }
+	| { kind: 'refactor-info', readonly refactor: Proto.RefactorEditInfo }
+	| { kind: 'code-action', readonly action: Proto.CodeAction }
+	| { kind: "identifier", readonly range: vscode.Range, readonly marker: string };
 
 function findScopeEndLineFromNavTreeWorker(startLine: number, navigationTree: Proto.NavigationTree[]): vscode.Range | undefined {
 	for (const node of navigationTree) {
@@ -149,29 +114,28 @@ function findScopeEndMarker(document: vscode.TextDocument, start: vscode.Positio
 	return new vscode.Range(start, document.positionAt(offset))
 }
 
-function findRefactorScope(document: vscode.TextDocument, refactor: Proto.RefactorEditInfo): vscode.Range {
-	let first = typeConverters.Position.fromLocation(refactor.edits[0].textChanges[0].start)
-	let firstChange = refactor.edits[0].textChanges[0]
-	let lastChange = refactor.edits[0].textChanges[0]
-	let last = typeConverters.Position.fromLocation(refactor.edits[0].textChanges[0].start)
-	for (const edit of refactor.edits) {
-		for (const change of edit.textChanges) {
-			const start = typeConverters.Position.fromLocation(change.start)
-			const end = typeConverters.Position.fromLocation(change.end)
-			if (start.compareTo(first) < 0) {
-				first = start
-				firstChange = change
-			}
-			if (end.compareTo(last) > 0) {
-				last = end
-				lastChange = change
-			}
+async function findEditScope(client: ITypeScriptServiceClient, document: vscode.TextDocument, edits: Proto.CodeEdit[]): Promise<vscode.Range> {
+	let first = typeConverters.Position.fromLocation(edits[0].start)
+	let firstEdit = edits[0]
+	let lastEdit = edits[0]
+	let last = typeConverters.Position.fromLocation(edits[0].start)
+	for (const edit of edits) {
+		const start = typeConverters.Position.fromLocation(edit.start)
+		const end = typeConverters.Position.fromLocation(edit.end)
+		if (start.compareTo(first) < 0) {
+			first = start
+			firstEdit = edit
+		}
+		if (end.compareTo(last) > 0) {
+			last = end
+			lastEdit = edit
 		}
 	}
 	const text = document.getText()
-	let startIndex = text.indexOf(firstChange.newText)
+	let startIndex = text.indexOf(firstEdit.newText)
 	let start = startIndex > -1 ? document.positionAt(startIndex) : first
-	let endIndex = text.lastIndexOf(lastChange.newText)
-	let end = endIndex > -1 ? document.positionAt(endIndex + lastChange.newText.length) : last
-	return new vscode.Range(start, end)
+	let endIndex = text.lastIndexOf(lastEdit.newText)
+	let end = endIndex > -1 ? document.positionAt(endIndex + lastEdit.newText.length) : last
+	const expandEnd = await findScopeEndLineFromNavTree(client, document, end.line)
+	return new vscode.Range(start, expandEnd?.end ?? end)
 }

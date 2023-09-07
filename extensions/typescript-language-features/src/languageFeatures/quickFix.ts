@@ -18,7 +18,7 @@ import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-import { ChatPanelFollowup, EditorChatFollowUp, EditorChatReplacementCommand1, CompositeCommand } from './util/copilot';
+import { ChatPanelFollowup, Expand, EditorChatReplacementCommand2, CompositeCommand } from './util/copilot';
 
 type ApplyCodeActionCommand_args = {
 	readonly document: vscode.TextDocument;
@@ -223,7 +223,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
-		commandManager.register(new EditorChatReplacementCommand1(client, diagnosticsManager));
+		commandManager.register(new EditorChatReplacementCommand2(client));
 		commandManager.register(new ChatPanelFollowup(client));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
@@ -319,75 +319,74 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 	private getFixesForTsCodeAction(
 		document: vscode.TextDocument,
 		diagnostic: vscode.Diagnostic,
-		tsAction: Proto.CodeFixAction
+		action: Proto.CodeFixAction
 	): VsCodeCodeAction[] {
 		const actions: VsCodeCodeAction[] = [];
-		let followupAction: Command | undefined;
+		let codeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
+		codeAction.edit = getEditForCodeAction(this.client, action);
+		codeAction.diagnostics = [diagnostic];
+		codeAction.command = {
+			command: ApplyCodeActionCommand.ID,
+			arguments: [<ApplyCodeActionCommand_args>{ action: action, diagnostic, document }],
+			title: ''
+		};
+		actions.push(codeAction);
+
 		if (vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix')) {
-			if(tsAction.fixName === fixNames.classIncorrectlyImplementsInterface) {
-				followupAction = new EditorChatFollowUp('Implement the class using the interface', document, diagnostic.range, this.client);
+			let message: string | undefined
+			let expand: Expand | undefined
+
+			if(action.fixName === fixNames.classIncorrectlyImplementsInterface) {
+				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
+				expand = { kind: 'code-action', action }
 			}
-			else if(tsAction.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
-				// TODO: This range has the same problem as all the other followups
-				followupAction = new EditorChatFollowUp('Implement abstract class members with a useful implementation', document, diagnostic.range, this.client);
+			else if(action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
+				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
+				expand = { kind: 'code-action', action };
 			}
-			else if (tsAction.fixName === fixNames.fixMissingFunctionDeclaration) {
-				let edits = getEditForCodeAction(this.client, tsAction)
-				// console.log(JSON.stringify(edits)) // need to generate a new range based on the length and lines of the new text
-				const range = !edits ? diagnostic.range : edits.entries()[0][1][0].range
-				followupAction = new EditorChatFollowUp(
-					`Implement the function based on the function call \`${document.getText(diagnostic.range)}\``,
-					document, range, this.client);
+			else if (action.fixName === fixNames.fixMissingFunctionDeclaration) {
+				message = `Provide a reasonable implementation of the function ${document.getText(diagnostic.range)}} given its type and the context it's called in.`;
+				expand = { kind: 'code-action', action };
 			}
-			else if (tsAction.fixName === fixNames.inferFromUsage) {
-				const inferFromBody = new VsCodeCodeAction(tsAction, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
+			else if (action.fixName === fixNames.inferFromUsage) {
+				const inferFromBody = new VsCodeCodeAction(action, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
 				inferFromBody.edit = new vscode.WorkspaceEdit();
 				inferFromBody.diagnostics = [diagnostic];
 				inferFromBody.command = {
-					command: EditorChatReplacementCommand1.ID,
-					arguments: [<EditorChatReplacementCommand1.Args>{
+					command: EditorChatReplacementCommand2.ID,
+					arguments: [<EditorChatReplacementCommand2.Args>{
 						message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
-						diagnostic,
-						document }],
+						expand: { kind: 'navtree-function', pos: diagnostic.range.start },
+						document
+					}],
 					title: ''
 				};
 				actions.push(inferFromBody);
 			}
-			else if (tsAction.fixName === fixNames.addNameToNamelessParameter) {
-				const suggestName = new VsCodeCodeAction(tsAction, 'Add parameter name', vscode.CodeActionKind.QuickFix);
-				suggestName.edit = getEditForCodeAction(this.client, tsAction);
-				suggestName.command = {
+			else if (action.fixName === fixNames.addNameToNamelessParameter) {
+				const newText = action.changes.map(change => change.textChanges.map(textChange => textChange.newText).join('')).join('')
+				message = `Rename the parameter ${newText} with a more meaningful name.`,
+				expand = {
+					kind: 'navtree-function',
+					pos: diagnostic.range.start
+				};
+			}
+			if (expand && message != null) {
+				codeAction.command = {
 					command: CompositeCommand.ID,
-					arguments: [{
-						command: ApplyCodeActionCommand.ID,
-						arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, document }],
-						title: ''
-					}, {
-						command: ChatPanelFollowup.ID,
-						arguments: [<ChatPanelFollowup.Args>{
-							prompt: `Suggest 5 normal-sounding, useful names for the parameter
-\`\`\`
-${document.getText(diagnostic.range)}
-\`\`\` `,
-							range: diagnostic.range,
-							expand: 'navtree-function',
-							document }],
-						title: ''
-					}],
 					title: '',
+					arguments: [codeAction.command,  {
+						command: EditorChatReplacementCommand2.ID,
+						title: '',
+						arguments: [<EditorChatReplacementCommand2.Args>{
+							message,
+							expand,
+							document
+						}],
+					}],
 				}
-				return [suggestName]
 			}
 		}
-		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
-		codeAction.edit = getEditForCodeAction(this.client, tsAction);
-		codeAction.diagnostics = [diagnostic];
-		codeAction.command = {
-			command: ApplyCodeActionCommand.ID,
-			arguments: [<ApplyCodeActionCommand_args>{ action: tsAction, diagnostic, document, followupAction }],
-			title: ''
-		};
-		actions.push(codeAction);
 		return actions;
 	}
 
