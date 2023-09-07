@@ -173,6 +173,12 @@ function computeUnchangedMoves(
 		}
 	}
 
+	extendMoves(moves, changes, modifiedSet, originalSet, originalLines, modifiedLines, timeout);
+
+	return moves;
+}
+
+function extendMoves(moves: LineRangeMapping[], changes: DetailedLineRangeMapping[], modifiedSet: LineRangeSet, originalSet: LineRangeSet, originalLines: string[], modifiedLines: string[], timeout: ITimeout) {
 	moves.sort(compareBy(m => m.original.startLineNumber, numberComparator));
 
 	const monotonousChanges = new MonotonousArray(changes);
@@ -229,12 +235,10 @@ function computeUnchangedMoves(
 		if (extendToTop > 0 || extendToBottom > 0) {
 			moves[i] = new LineRangeMapping(
 				new LineRange(move.original.startLineNumber - extendToTop, move.original.endLineNumberExclusive + extendToBottom),
-				new LineRange(move.modified.startLineNumber - extendToTop, move.modified.endLineNumberExclusive + extendToBottom),
+				new LineRange(move.modified.startLineNumber - extendToTop, move.modified.endLineNumberExclusive + extendToBottom)
 			);
 		}
 	}
-
-	return moves;
 }
 
 function areLinesSimilar(line1: string, line2: string, timeout: ITimeout): boolean {
