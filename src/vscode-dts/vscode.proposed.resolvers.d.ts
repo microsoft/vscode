@@ -150,10 +150,119 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Exec server used for nested resolvers. The type is currently not maintained
-	 * in these types, and is a contract between extensions.
+	 * An ExecServer allows spawning processes on a remote machine. An ExecServer is provided by resolvers. Iy can be
+	 * acquired by `workspace.getRemoteExecServer` or from the context when in a resolver (`RemoteAuthorityResolverContext.execServer`).
+	 * The exec server allows to spawn processes on the remote machine and to make file system operations.
 	 */
-	export type ExecServer = unknown;
+	export interface ExecServer {
+		/**
+		 * Spawns a given subprocess with the given command and arguments.
+		 */
+		spawn(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedCommand>;
+
+		/**
+		 * Spawns an exec server. It is assumed the command starts a Code CLI. Additional
+		 * arguments will be passed to the exec server.
+		 *
+		 * Returns an {@link IExecServer} as well a stream to which
+		 * standard log messages are written.
+		 */
+		spawnExecServer(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedExecServer>;
+
+		/** Downloads the CLI executable of the desired platform and quality and pipes it to the provided process' stdin. */
+		dowloadCliExecutable(buildOptions: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
+
+		/** Starts a code server, returning a stream that can be used to communicate with it. */
+		serve(params: ServeParams): Thenable<DuplexStream>;
+
+		/** Gets the environment where the exec server is running. */
+		env(): Thenable<ExecEnvironment>;
+
+		/** Access to the file system of the remote */
+		readonly fs: RemoteFileSystem;
+
+	}
+
+	export type ProcessEnv = Record<string, string>;
+
+	export interface ExecServerSpawnOptions {
+		readonly env?: ProcessEnv;
+		readonly cwd?: string;
+	}
+
+	export interface SpawnedCommand {
+		readonly stdin: WriteStream;
+		readonly stdout: ReadStream;
+		readonly stderr: ReadStream;
+		readonly onExit: Thenable<ProcessEnv>;
+	}
+
+	export interface SpawnedExecServer {
+		readonly logs: ReadStream;
+		readonly onExit: Thenable<ProcessExit>;
+		readonly execServer: ExecServer;
+	}
+
+	export interface ProcessExit {
+		readonly status: number;
+		readonly message?: string;
+	}
+
+	export interface ReadStream {
+		readonly onDidReceiveData: Event<Uint8Array>;
+		readonly onEnd: Thenable<void>;
+	}
+
+	export interface WriteStream {
+		write(data: Uint8Array): void;
+		end(): void;
+	}
+
+	export interface ServeParams {
+		readonly socketId: number;
+		readonly commit?: string;
+		readonly quality: string;
+		readonly extensions: string[];
+		/** Whether server traffic should be compressed. */
+		readonly compress?: boolean;
+		/** Path from which to install the server (for WSL).*/
+		readonly archivePath?: string;
+		/** Optional explicit connection token for the server. */
+		readonly connectionToken?: string;
+	}
+
+	export interface CliBuild {
+		readonly quality: string;
+		readonly buildTarget: BuildTarget;
+		readonly commit: string;
+	}
+
+	export const enum BuildTarget {
+		LinuxAlpineX64 = 'LinuxAlpineX64',
+		LinuxAlpineARM64 = 'LinuxAlpineARM64',
+		LinuxX64 = 'LinuxX64',
+		LinuxARM64 = 'LinuxARM64',
+		LinuxARM32 = 'LinuxARM32',
+		DarwinX64 = 'DarwinX64',
+		DarwinARM64 = 'DarwinARM64',
+		WindowsX64 = 'WindowsX64',
+		WindowsX86 = 'WindowsX86',
+		WindowsARM64 = 'WindowsARM64',
+	}
+
+	export interface ExecEnvironment {
+		readonly env: ProcessEnv;
+		/** 'darwin' | 'linux' | 'win32' */
+		readonly osPlatform: string;
+		/** uname.version or windows version number, undefined if it could not be read. */
+		readonly osRelease?: string;
+	}
+
+	export interface RemoteFileSystem {
+		stat(path: string): Thenable<FileStat>;
+	}
+
+	export type DuplexStream = ReadStream & WriteStream;
 
 	export interface RemoteAuthorityResolver {
 		/**
