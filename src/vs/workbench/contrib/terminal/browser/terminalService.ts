@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
+import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
@@ -53,6 +53,8 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { mark } from 'vs/base/common/performance';
 import { DeatachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
+import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { createInstanceCapabilityEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -233,7 +235,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this.initializePrimaryBackend();
 
 		// Create async as the class depends on `this`
-		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
+		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, document.head)));
 	}
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
@@ -419,7 +421,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}
 		return new Promise<void>(r => {
-			instance.onExit(() => r());
+			Event.once(instance.onExit)(() => r());
 			instance.dispose(TerminalExitReason.User);
 		});
 	}
@@ -1193,6 +1195,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	setEditingTerminal(instance: ITerminalInstance | undefined) {
 		this._editingTerminal = instance;
+	}
+
+	onInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): IDynamicListEventMultiplexer<T> {
+		return new DynamicListEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, getEvent);
+	}
+
+	onInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }> {
+		return createInstanceCapabilityEventMultiplexer(this.instances, this.onDidCreateInstance, this.onDidDisposeInstance, capabilityId, getEvent);
 	}
 }
 

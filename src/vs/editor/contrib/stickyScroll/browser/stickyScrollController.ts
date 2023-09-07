@@ -85,7 +85,12 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.stickyScroll) || e.hasChanged(EditorOption.minimap)) {
+			if (
+				e.hasChanged(EditorOption.stickyScroll)
+				|| e.hasChanged(EditorOption.minimap)
+				|| e.hasChanged(EditorOption.lineHeight)
+				|| e.hasChanged(EditorOption.showFoldingControls)
+			) {
 				this._readConfiguration();
 			}
 		}));
@@ -370,7 +375,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _readConfiguration() {
 		const options = this._editor.getOption(EditorOption.stickyScroll);
-
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.clear();
@@ -429,10 +433,11 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private _renderStickyScroll() {
-		if (!(this._editor.hasModel())) {
+		const model = this._editor.getModel();
+		if (!model || model.isTooLargeForTokenization()) {
+			this._stickyScrollWidget.setState(undefined);
 			return;
 		}
-		const model = this._editor.getModel();
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._widgetState = this.findScrollWidgetState();

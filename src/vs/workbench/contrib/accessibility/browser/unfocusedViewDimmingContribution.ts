@@ -21,21 +21,23 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 		this._register(toDisposable(() => this._removeStyleElement()));
 
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
-			if (e && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled) && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity)) {
+			if (e && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.DimUnfocusedEnabled) && !e.affectsConfiguration(AccessibilityWorkbenchSettingId.DimUnfocusedOpacity)) {
 				return;
 			}
 
 			let cssTextContent = '';
 
-			const enabled = ensureBoolean(configurationService.getValue(AccessibilityWorkbenchSettingId.ViewDimUnfocusedEnabled), false);
+			const enabled = ensureBoolean(configurationService.getValue(AccessibilityWorkbenchSettingId.DimUnfocusedEnabled), false);
 			if (enabled) {
 				const opacity = clamp(
-					ensureNumber(configurationService.getValue(AccessibilityWorkbenchSettingId.ViewDimUnfocusedOpacity), ViewDimUnfocusedOpacityProperties.Default),
+					ensureNumber(configurationService.getValue(AccessibilityWorkbenchSettingId.DimUnfocusedOpacity), ViewDimUnfocusedOpacityProperties.Default),
 					ViewDimUnfocusedOpacityProperties.Minimum,
 					ViewDimUnfocusedOpacityProperties.Maximum
 				);
 
 				if (opacity !== 1) {
+					// These filter rules are more specific than may be expected as the `filter`
+					// rule can cause problems if it's used inside the element like on editor hovers
 					const rules = new Set<string>();
 					const filterRule = `filter: opacity(${opacity});`;
 					// Terminal tabs
@@ -44,8 +46,18 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 					rules.add(`.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(:focus-within) { ${filterRule} }`);
 					// Text editors
 					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor { ${filterRule} }`);
+					// Breadcrumbs
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .tabs-breadcrumbs { ${filterRule} }`);
 					// Terminal editors
 					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .terminal-wrapper { ${filterRule} }`);
+					// Settings editor
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .settings-editor { ${filterRule} }`);
+					// Keybindings editor
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .keybindings-editor { ${filterRule} }`);
+					// Editor placeholder (error case)
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor-pane-placeholder { ${filterRule} }`);
+					// Welcome editor
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .gettingStartedContainer { ${filterRule} }`);
 					cssTextContent = [...rules].join('\n');
 				}
 

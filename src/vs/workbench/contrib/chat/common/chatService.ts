@@ -52,7 +52,7 @@ export interface IChatResponseProgressFileTreeData {
 }
 
 export type IChatProgress =
-	{ content: string } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | { treeData: IChatResponseProgressFileTreeData }> };
+	{ content: string | IMarkdownString } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -90,6 +90,11 @@ export interface ISlashCommand {
 	 * Has no effect if `shouldRepopulate` is `false`.
 	 */
 	followupPlaceholder?: string;
+	/**
+	 * The slash command(s) that this command wants to be
+	 * deprioritized in favor of.
+	 */
+	yieldsTo?: ReadonlyArray<{ readonly command: string }>;
 }
 
 export interface IChatReplyFollowup {

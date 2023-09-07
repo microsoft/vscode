@@ -121,7 +121,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveProgressContent {
-		content: string;
+		content: string | MarkdownString;
 	}
 
 	export interface InteractiveProgressId {
@@ -159,6 +159,7 @@ declare module 'vscode' {
 		shouldRepopulate?: boolean;
 		followupPlaceholder?: string;
 		executeImmediately?: boolean;
+		yieldTo?: ReadonlyArray<{ readonly command: string }>;
 	}
 
 	export interface InteractiveSessionReplyFollowup {

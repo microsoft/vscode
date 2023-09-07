@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { Constants } from 'vs/base/common/uint';
 import { Range } from 'vs/editor/common/core/range';
-import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 

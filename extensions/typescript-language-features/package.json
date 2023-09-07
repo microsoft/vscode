@@ -21,7 +21,8 @@
       "restrictedConfigurations": [
         "typescript.tsdk",
         "typescript.tsserver.pluginPaths",
-        "typescript.npm"
+        "typescript.npm",
+        "typescript.tsserver.nodePath"
       ]
     }
   },
@@ -33,13 +34,14 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5",
-    "jsonc-parser": "^3.2.0",
-    "semver": "7.5.2",
-    "vscode-tas-client": "^0.1.63",
+    "@vscode/extension-telemetry": "^0.8.4",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
     "@vscode/sync-api-service": "^0.7.3",
+    "@vscode/ts-package-manager": "^0.0.2",
+    "jsonc-parser": "^3.2.0",
+    "semver": "7.5.2",
+    "vscode-tas-client": "^0.1.63",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
@@ -1131,7 +1133,7 @@
         "typescript.tsserver.maxTsServerMemory": {
           "type": "number",
           "default": 3072,
-          "description": "%configuration.tsserver.maxTsServerMemory%",
+          "markdownDescription": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
         },
         "typescript.tsserver.experimental.enableProjectDiagnostics": {
@@ -1249,6 +1251,18 @@
           "default": true,
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
           "scope": "window"
+        },
+        "typescript.tsserver.nodePath": {
+          "type": "string",
+          "description": "%configuration.tsserver.nodePath%",
+          "scope": "window"
+        },
+        "typescript.experimental.tsserver.web.typeAcquisition.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.experimental.tsserver.web.typeAcquisition.enabled%",
+          "scope": "window",
+          "tags": ["experimental"]
         },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",

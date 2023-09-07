@@ -861,9 +861,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					performance.mark(`code/extHost/willResolveAuthority/${authorityPrefix}`);
 					result = await resolver.resolve(remoteAuthority, { resolveAttempt, execServer });
 					performance.mark(`code/extHost/didResolveAuthorityOK/${authorityPrefix}`);
-					// todo@connor4312: we probably need to chain tunnels too, how does this work with 'public' tunnels?
 					logInfo(`setting tunnel factory...`);
-					this._register(await this._extHostTunnelService.setTunnelFactory(resolver));
+					this._register(await this._extHostTunnelService.setTunnelFactory(
+						resolver,
+						ExtHostManagedResolvedAuthority.isManagedResolvedAuthority(result) ? result : undefined
+					));
 				} else {
 					logInfo(`invoking resolveExecServer() for ${remoteAuthority}`);
 					performance.mark(`code/extHost/willResolveExecServer/${authorityPrefix}`);

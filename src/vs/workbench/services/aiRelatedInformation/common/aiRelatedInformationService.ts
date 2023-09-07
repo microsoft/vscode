@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancelablePromise, createCancelablePromise, raceCancellablePromises, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, raceTimeout } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -24,24 +24,21 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 		return this._providers.size > 0;
 	}
 
-	registerAiRelatedInformationProvider(types: RelatedInformationType[], provider: IAiRelatedInformationProvider): IDisposable {
-		for (const type of types) {
-			const providers = this._providers.get(type) ?? [];
-			providers.push(provider);
-			this._providers.set(type, providers);
-		}
+	registerAiRelatedInformationProvider(type: RelatedInformationType, provider: IAiRelatedInformationProvider): IDisposable {
+		const providers = this._providers.get(type) ?? [];
+		providers.push(provider);
+		this._providers.set(type, providers);
+
 
 		return {
 			dispose: () => {
-				for (const type of types) {
-					const providers = this._providers.get(type) ?? [];
-					const index = providers.indexOf(provider);
-					if (index !== -1) {
-						providers.splice(index, 1);
-					}
-					if (providers.length === 0) {
-						this._providers.delete(type);
-					}
+				const providers = this._providers.get(type) ?? [];
+				const index = providers.indexOf(provider);
+				if (index !== -1) {
+					providers.splice(index, 1);
+				}
+				if (providers.length === 0) {
+					this._providers.delete(type);
 				}
 			}
 		};
@@ -67,42 +64,35 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 
 		const stopwatch = StopWatch.create();
 
-		const cancellablePromises: Array<CancelablePromise<RelatedInformationResult[]>> = [];
-
-		const timer = timeout(AiRelatedInformationService.DEFAULT_TIMEOUT);
-		const disposable = token.onCancellationRequested(() => {
-			disposable.dispose();
-			timer.cancel();
-		});
-
-		for (const provider of providers) {
-			cancellablePromises.push(createCancelablePromise(async t => {
+		const cancellablePromises: Array<CancelablePromise<RelatedInformationResult[]>> = providers.map((provider) => {
+			return createCancelablePromise(async t => {
 				try {
-					const result = await provider.provideAiRelatedInformation(query, types, t);
+					const result = await provider.provideAiRelatedInformation(query, t);
 					// double filter just in case
 					return result.filter(r => types.includes(r.type));
 				} catch (e) {
 					// logged in extension host
 				}
-				// Wait for the timer to finish to allow for another provider to resolve.
-				// Alternatively, if something resolved, or we've timed out, this will throw
-				// as expected.
-				await timer;
-				throw new Error('Related information provider timed out');
-			}));
-		}
-
-		cancellablePromises.push(createCancelablePromise(async (t) => {
-			const disposable = t.onCancellationRequested(() => {
-				timer.cancel();
-				disposable.dispose();
+				return [];
 			});
-			await timer;
-			throw new Error('Related information provider timed out');
-		}));
+		});
 
 		try {
-			const result = await raceCancellablePromises(cancellablePromises);
+			const results = await raceTimeout(
+				Promise.allSettled(cancellablePromises),
+				AiRelatedInformationService.DEFAULT_TIMEOUT,
+				() => {
+					cancellablePromises.forEach(p => p.cancel());
+					throw new Error('Related information provider timed out');
+				}
+			);
+			if (!results) {
+				return [];
+			}
+			const result = results
+				.filter(r => r.status === 'fulfilled')
+				.map(r => (r as PromiseFulfilledResult<RelatedInformationResult[]>).value)
+				.flat();
 			return result;
 		} finally {
 			stopwatch.stop();

@@ -52,6 +52,7 @@ const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSIO
 #[clap(
    help_template = INTEGRATED_TEMPLATE,
    long_about = None,
+	 name = constants::APPLICATION_NAME,
    version = VERSION,
  )]
 pub struct IntegratedCli {
@@ -84,6 +85,7 @@ pub struct CliCore {
    help_template = STANDALONE_TEMPLATE,
    long_about = None,
    version = VERSION,
+	 name = constants::APPLICATION_NAME,
  )]
 pub struct StandaloneCli {
 	#[clap(flatten)]
@@ -173,6 +175,7 @@ pub enum Commands {
 	Version(VersionArgs),
 
 	/// Runs a local web version of VS Code.
+	#[clap(about = concatcp!("Runs a local web version of ", constants::PRODUCT_NAME_LONG))]
 	ServeWeb(ServeWebArgs),
 
 	/// Runs the control server on process stdin/stdout
@@ -185,6 +188,9 @@ pub struct ServeWebArgs {
 	/// Host to listen on, defaults to 'localhost'
 	#[clap(long)]
 	pub host: Option<String>,
+	// The path to a socket file for the server to listen to.
+	#[clap(long)]
+	pub socket_path: Option<String>,
 	/// Port to listen on. If 0 is passed a random free port is picked.
 	#[clap(long, default_value_t = 8000)]
 	pub port: u16,

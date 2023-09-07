@@ -41,7 +41,6 @@ export class StatusbarViewModel extends Disposable {
 
 		this.restoreState();
 		this.registerListeners();
-
 	}
 
 	private restoreState(): void {

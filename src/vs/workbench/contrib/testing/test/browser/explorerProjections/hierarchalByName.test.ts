@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ListProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/listProjection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
@@ -17,6 +18,12 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	let onTestChanged: Emitter<TestResultItemChange>;
 	let resultsService: any;
 
+	teardown(() => {
+		harness.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		onTestChanged = new Emitter();
 		resultsService = {
@@ -26,10 +33,6 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 		};
 
 		harness = new TestTreeTestHarness(l => new ListProjection({}, l, resultsService as any));
-	});
-
-	teardown(() => {
-		harness.dispose();
 	});
 
 	test('renders initial tree', () => {

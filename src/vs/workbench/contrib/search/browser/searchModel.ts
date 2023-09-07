@@ -36,9 +36,9 @@ import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { CellSearchModel, ICellMatch, contentMatchesToTextSearchMatches, isIFileMatchWithCells, rawCellPrefix, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -1142,13 +1142,16 @@ export class FolderMatch extends Disposable {
 		raw.forEach(rawFileMatch => {
 			const existingFileMatch = this.getDownstreamFileMatch(rawFileMatch.resource);
 			if (existingFileMatch) {
-				rawFileMatch
-					.results!
-					.filter(resultIsMatch)
-					.forEach(m => {
-						textSearchResultToMatches(m, existingFileMatch)
-							.forEach(m => existingFileMatch.add(m));
-					});
+
+				if (rawFileMatch.results) {
+					rawFileMatch
+						.results
+						.filter(resultIsMatch)
+						.forEach(m => {
+							textSearchResultToMatches(m, existingFileMatch)
+								.forEach(m => existingFileMatch.add(m));
+						});
+				}
 
 				// add cell matches
 				if (isIFileMatchWithCells(rawFileMatch)) {
@@ -2002,34 +2005,63 @@ export class SearchModel extends Disposable {
 		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
-	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		const searchStart = Date.now();
-		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
-		const onProgressCall = (p: ISearchProgressItem) => {
-			progressEmitter.fire();
-			this.onSearchProgress(p, searchInstanceID);
 
+	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
+		asyncResults: Promise<ISearchComplete>;
+		syncResults: IFileMatch<URI>[];
+	} {
+		const asyncGenerateOnProgress = async (p: ISearchProgressItem) => {
+			progressEmitter.fire();
+			this.onSearchProgress(p, searchInstanceID, false);
 			onProgress?.(p);
 		};
-		const notebookResult = await this.notebookSearchService.notebookSearch(query, this.currentCancelTokenSource.token, searchInstanceID, onProgressCall);
-		const currentResult = await this.searchService.textSearch(
+
+		const syncGenerateOnProgress = (p: ISearchProgressItem) => {
+			progressEmitter.fire();
+			this.onSearchProgress(p, searchInstanceID, true);
+			onProgress?.(p);
+		};
+		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource(callerToken);
+
+		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, asyncGenerateOnProgress);
+		const textResult = this.searchService.textSearchSplitSyncAsync(
 			searchQuery,
-			this.currentCancelTokenSource.token, onProgressCall,
-			notebookResult?.scannedFiles
+			this.currentCancelTokenSource.token, asyncGenerateOnProgress,
+			notebookResult.openFilesToScan,
+			notebookResult.allScannedFiles,
 		);
-		tokenSource.dispose();
-		const searchLength = Date.now() - searchStart;
-		this.logService.trace(`whole search time | ${searchLength}ms`);
+
+		const syncResults = textResult.syncResults.results;
+		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
+
+		const getAsyncResults = async (): Promise<ISearchComplete> => {
+			const searchStart = Date.now();
+
+			// resolve async parts of search
+			const allClosedEditorResults = await textResult.asyncResults;
+			const resolvedNotebookResults = await notebookResult.completeData;
+			tokenSource.dispose();
+			const searchLength = Date.now() - searchStart;
+			const resolvedResult = <ISearchComplete>{
+				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
+				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
+				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
+				exit: allClosedEditorResults.exit,
+				stats: allClosedEditorResults.stats,
+			};
+			this.logService.trace(`whole search time | ${searchLength}ms`);
+			return resolvedResult;
+		};
 		return {
-			results: currentResult.results.concat(notebookResult.completeData.results),
-			messages: currentResult.messages.concat(notebookResult.completeData.messages),
-			limitHit: currentResult.limitHit || notebookResult.completeData.limitHit,
-			exit: currentResult.exit,
-			stats: currentResult.stats,
+			asyncResults: getAsyncResults(),
+			syncResults
 		};
 	}
 
-	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
+		asyncResults: Promise<ISearchComplete>;
+		syncResults: IFileMatch<URI>[];
+	} {
 		this.cancelSearch(true);
 
 		this._searchQuery = query;
@@ -2046,11 +2078,21 @@ export class SearchModel extends Disposable {
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
 		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
-		const currentRequest = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress);
+		const req = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress, callerToken);
+		const asyncResults = req.asyncResults;
+		const syncResults = req.syncResults;
+
+		if (onProgress) {
+			syncResults.forEach(p => {
+				if (p) {
+					onProgress(p);
+				}
+			});
+		}
 
 		const start = Date.now();
 
-		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
+		Promise.race([asyncResults, Event.toPromise(progressEmitter.event)]).finally(() => {
 			/* __GDPR__
 				"searchResultsFirstRender" : {
 					"owner": "roblourens",
@@ -2060,12 +2102,19 @@ export class SearchModel extends Disposable {
 			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 
-		currentRequest.then(
-			value => this.onSearchCompleted(value, Date.now() - start, searchInstanceID),
-			e => this.onSearchError(e, Date.now() - start));
-
 		try {
-			return await currentRequest;
+			return {
+				asyncResults: asyncResults.then(
+					value => {
+						this.onSearchCompleted(value, Date.now() - start, searchInstanceID);
+						return value;
+					},
+					e => {
+						this.onSearchError(e, Date.now() - start);
+						throw e;
+					}),
+				syncResults
+			};
 		} finally {
 			/* __GDPR__
 				"searchResultsFinished" : {
@@ -2131,14 +2180,23 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private async onSearchProgress(p: ISearchProgressItem, searchInstanceID: string) {
+	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true) {
 		if ((<IFileMatch>p).resource) {
 			this._resultQueue.push(<IFileMatch>p);
-			await this._startStreamDelay;
-			if (this._resultQueue.length) {
-				this._searchResult.add(this._resultQueue, searchInstanceID, true);
-				this._resultQueue.length = 0;
+			if (sync) {
+				if (this._resultQueue.length) {
+					this._searchResult.add(this._resultQueue, searchInstanceID, true);
+					this._resultQueue.length = 0;
+				}
+			} else {
+				this._startStreamDelay.then(() => {
+					if (this._resultQueue.length) {
+						this._searchResult.add(this._resultQueue, searchInstanceID, true);
+						this._resultQueue.length = 0;
+					}
+				});
 			}
+
 		}
 	}
 
@@ -2171,7 +2229,7 @@ export type FileMatchOrMatch = FileMatch | Match;
 
 export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch | Match;
 
-export class SearchWorkbenchService implements ISearchWorkbenchService {
+export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenchService {
 
 	declare readonly _serviceBrand: undefined;
 	private _searchModel: SearchModel | null = null;
@@ -2187,9 +2245,9 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 	}
 }
 
-export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
+export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModelWorkbenchService>('searchViewModelWorkbenchService');
 
-export interface ISearchWorkbenchService {
+export interface ISearchViewModelWorkbenchService {
 	readonly _serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;

@@ -365,7 +365,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: DEBUG_PANEL_ID,
-	title: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"),
+	title: { value: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"), original: 'Debug Console' },
 	icon: icons.debugConsoleViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: DEBUG_PANEL_ID,

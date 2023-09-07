@@ -62,10 +62,6 @@ const serverResources = [
 	// Performance
 	'out-build/vs/base/common/performance.js',
 
-	// Watcher
-	'out-build/vs/platform/files/**/*.exe',
-	'out-build/vs/platform/files/**/*.md',
-
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',

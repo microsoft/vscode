@@ -1273,8 +1273,9 @@ export class SettingsEditor2 extends EditorPane {
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extensionId = key;
-				// Always recommend prerelease for now.
-				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: true }], CancellationToken.None);
+				// Recommend prerelease if not on Stable.
+				const isStable = this.productService.quality === 'stable';
+				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
 				if (!extension) {
 					continue;
 				}
