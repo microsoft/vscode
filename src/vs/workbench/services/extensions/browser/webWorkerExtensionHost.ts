@@ -128,6 +128,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private async _startInsideIframe(): Promise<IMessagePassingProtocol> {
+		const initDataPromise = this._initDataProvider.getInitData();
+
 		const webWorkerExtensionHostIframeSrc = await this._getWebWorkerExtensionHostIframeSrc();
 		const emitter = this._register(new Emitter<VSBuffer>());
 
@@ -223,10 +225,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			}
 		};
 
-		return this._performHandshake(protocol);
+		return this._performHandshake(protocol, initDataPromise);
 	}
 
-	private async _performHandshake(protocol: IMessagePassingProtocol): Promise<IMessagePassingProtocol> {
+	private async _performHandshake(protocol: IMessagePassingProtocol, initDataPromise: Promise<IWebWorkerExtensionHostInitData>): Promise<IMessagePassingProtocol> {
 		// extension host handshake happens below
 		// (1) <== wait for: Ready
 		// (2) ==> send: init data
@@ -236,7 +238,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (this._isTerminating) {
 			throw canceled();
 		}
-		protocol.send(VSBuffer.fromString(JSON.stringify(await this._createExtHostInitData())));
+		protocol.send(VSBuffer.fromString(JSON.stringify(await this._createExtHostInitData(initDataPromise))));
 		if (this._isTerminating) {
 			throw canceled();
 		}
@@ -265,8 +267,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return Promise.resolve(false);
 	}
 
-	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
-		const initData = await this._initDataProvider.getInitData();
+	private async _createExtHostInitData(initDataPromise: Promise<IWebWorkerExtensionHostInitData>): Promise<IExtensionHostInitData> {
+		const initData = await initDataPromise;
 		const workspace = this._contextService.getWorkspace();
 		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
 		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;

@@ -190,6 +190,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	protected async _startWithCommunication<T>(communication: IExtHostCommunication<T>): Promise<IMessagePassingProtocol> {
+		const initDataPromise = this._initDataProvider.getInitData();
 
 		const [extensionHostCreationResult, communicationPreparedData, portNumber, processEnv] = await Promise.all([
 			this._extensionHostStarter.createExtensionHost(),
@@ -325,7 +326,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Initialize extension host process with hand shakes
 		const protocol = await communication.establishProtocol(communicationPreparedData, this._extensionHostProcess, opts);
-		await this._performHandshake(protocol);
+		await this._performHandshake(protocol, initDataPromise);
 		clearTimeout(startupTimeoutHandle);
 		return protocol;
 	}
@@ -360,7 +361,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		return port || 0;
 	}
 
-	private _performHandshake(protocol: IMessagePassingProtocol): Promise<void> {
+	private _performHandshake(protocol: IMessagePassingProtocol, initDataPromise: Promise<ILocalProcessExtensionHostInitData>): Promise<void> {
 		// 1) wait for the incoming `ready` event and send the initialization data.
 		// 2) wait for the incoming `initialized` event.
 		return new Promise<void>((resolve, reject) => {
@@ -385,7 +386,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 					// 1) Extension Host is ready to receive messages, initialize it
 					uninstallTimeoutCheck();
 
-					this._createExtHostInitData().then(data => {
+					this._createExtHostInitData(initDataPromise).then(data => {
 
 						// Wait 60s for the initialized message
 						installTimeoutCheck();
@@ -414,8 +415,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		});
 	}
 
-	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
-		const initData = await this._initDataProvider.getInitData();
+	private async _createExtHostInitData(initDataPromise: Promise<ILocalProcessExtensionHostInitData>): Promise<IExtensionHostInitData> {
+		const initData = await initDataPromise;
 		const workspace = this._contextService.getWorkspace();
 		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
 		return {

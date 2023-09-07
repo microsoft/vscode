@@ -84,7 +84,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
 	}
 
-	public start(): Promise<IMessagePassingProtocol> {
+	public async start(): Promise<IMessagePassingProtocol> {
 		const options: IConnectionOptions = {
 			commit: this._productService.commit,
 			quality: this._productService.quality,
@@ -99,6 +99,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			logService: this._logService,
 			ipcLogger: null
 		};
+		const remoteInitDataPromise = this._initDataProvider.getInitData();
+
 		return this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority).then((resolverResult) => {
 
 			const startParams: IRemoteExtensionHostStartParams = {
@@ -153,7 +155,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 						if (isMessageOfType(msg, MessageType.Ready)) {
 							// 1) Extension Host is ready to receive messages, initialize it
-							this._createExtHostInitData(isExtensionDevelopmentDebug).then(data => {
+							this._createExtHostInitData(remoteInitDataPromise, isExtensionDevelopmentDebug).then(data => {
 								protocol.send(VSBuffer.fromString(JSON.stringify(data)));
 							});
 							return;
@@ -201,8 +203,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		this._onExit.fire([0, reconnectionToken]);
 	}
 
-	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
-		const remoteInitData = await this._initDataProvider.getInitData();
+	private async _createExtHostInitData(remoteInitDataPromise: Promise<IRemoteExtensionHostInitData>, isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
+		const remoteInitData = await remoteInitDataPromise;
 		const workspace = this._contextService.getWorkspace();
 		const deltaExtensions = this.extensions.set(remoteInitData.allExtensions, remoteInitData.myExtensions);
 		return {
