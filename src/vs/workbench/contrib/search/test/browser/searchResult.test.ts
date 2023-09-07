@@ -31,7 +31,7 @@ import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/brows
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { addToSearchResult, createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { ICompleteNotebookCellMatch, ICompleteNotebookFileMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { INotebookCellMatchWithModel, INotebookFileMatchWithModel } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -263,10 +263,10 @@ suite('SearchResult', () => {
 
 		addToSearchResult(testObject, target);
 		assert.strictEqual(6, testObject.count());
-		assert.deepStrictEqual(fileMatch1.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][0] as ICompleteNotebookFileMatch).cellResults[0].contentResults);
-		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as ICompleteNotebookFileMatch).cellResults[0].webviewResults);
-		assert.deepStrictEqual(fileMatch2.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][1] as ICompleteNotebookFileMatch).cellResults[0].contentResults);
-		assert.deepStrictEqual(fileMatch2.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][1] as ICompleteNotebookFileMatch).cellResults[0].webviewResults);
+		assert.deepStrictEqual(fileMatch1.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][0] as INotebookFileMatchWithModel).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as INotebookFileMatchWithModel).cellResults[0].webviewResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][1] as INotebookFileMatchWithModel).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][1] as INotebookFileMatchWithModel).cellResults[0].webviewResults);
 	});
 
 	test('Dispose disposes matches', function () {
@@ -536,7 +536,7 @@ suite('SearchResult', () => {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
 
-	function aRawFileMatchWithCells(resource: string, ...cellMatches: ICompleteNotebookCellMatch[]): ICompleteNotebookFileMatch {
+	function aRawFileMatchWithCells(resource: string, ...cellMatches: INotebookCellMatchWithModel[]): INotebookFileMatchWithModel {
 		return {
 			resource: createFileUriFromPathFromRoot(resource),
 			cellResults: cellMatches

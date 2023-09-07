@@ -34,7 +34,7 @@ import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IIncompleteNotebookCellMatch, IIncompleteNotebookFileMatch, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { CellSearchModel, ICellSearchModel, NotebookDataCache } from 'vs/workbench/api/common/notebookSearch';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 
@@ -409,10 +409,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		const filesToScan = await runFileQueries(filenamePattern, token, textQuery);
 
-		const results = new ResourceMap<IIncompleteNotebookFileMatch>();
+		const results = new ResourceMap<INotebookFileMatchNoModel>();
 		let limitHit = false;
 		const promises = filesToScan.map(async (uri) => {
-			const cellMatches: IIncompleteNotebookCellMatch[] = [];
+			const cellMatches: INotebookCellMatchNoModel[] = [];
 
 			try {
 				if (token.isCancellationRequested) {
@@ -446,7 +446,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						});
 
 					if (inputMatches.length > 0 || outputMatches.length > 0) {
-						const cellMatch: IIncompleteNotebookCellMatch = {
+						const cellMatch: INotebookCellMatchNoModel = {
 							index: index,
 							contentResults: genericCellMatchesToTextSearchMatches(inputMatches, cellModel.inputTextBuffer),
 							webviewResults

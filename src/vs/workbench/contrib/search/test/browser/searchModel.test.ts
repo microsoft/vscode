@@ -30,7 +30,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { ICompleteNotebookCellMatch, ICompleteNotebookFileMatch, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
@@ -209,7 +209,7 @@ suite('SearchModel', () => {
 	}
 
 
-	function notebookSearchServiceWithInfo(results: ICompleteNotebookFileMatch[], tokenSource: CancellationTokenSource | undefined): INotebookSearchService {
+	function notebookSearchServiceWithInfo(results: INotebookFileMatchWithModel[], tokenSource: CancellationTokenSource | undefined): INotebookSearchService {
 		return <INotebookSearchService>{
 			_serviceBrand: undefined,
 			notebookSearch(query: ITextQuery, token: CancellationToken | undefined, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
@@ -218,7 +218,7 @@ suite('SearchModel', () => {
 				allScannedFiles: Promise<ResourceSet>;
 			} {
 				token?.onCancellationRequested(() => tokenSource?.cancel());
-				const localResults = new ResourceMap<ICompleteNotebookFileMatch | null>(uri => uri.path);
+				const localResults = new ResourceMap<INotebookFileMatchWithModel | null>(uri => uri.path);
 
 				results.forEach(r => {
 					localResults.set(r.resource, r);
@@ -333,14 +333,14 @@ suite('SearchModel', () => {
 			}
 		}
 		];
-		const cellMatchMd: ICompleteNotebookCellMatch = {
+		const cellMatchMd: INotebookCellMatchWithModel = {
 			cell: mdInputCell,
 			index: 0,
 			contentResults: contentMatchesToTextSearchMatches(findMatchMds, mdInputCell),
 			webviewResults: []
 		};
 
-		const cellMatchCode: ICompleteNotebookCellMatch = {
+		const cellMatchCode: INotebookCellMatchWithModel = {
 			cell: codeCell,
 			index: 1,
 			contentResults: contentMatchesToTextSearchMatches(findMatchCodeCells, codeCell),
@@ -566,7 +566,7 @@ suite('SearchModel', () => {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
 
-	function aRawMatchWithCells(resource: string, ...cells: ICompleteNotebookCellMatch[]) {
+	function aRawMatchWithCells(resource: string, ...cells: INotebookCellMatchWithModel[]) {
 		return { resource: createFileUriFromPathFromRoot(resource), cellResults: cells };
 	}
 

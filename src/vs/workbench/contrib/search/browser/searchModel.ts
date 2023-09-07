@@ -37,9 +37,9 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, ICompleteNotebookCellMatch, isICompleteNotebookFileMatch, isICompleteNotebookCellMatch, getIDFromINotebookCellMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookFileMatchWithModel, isINotebookCellMatchWithModel, getIDFromINotebookCellMatch } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
-import { rawCellPrefix, IIncompleteNotebookCellMatch, isIIncompleteNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -438,8 +438,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._cellMatches.get(cellID);
 	}
 
-	addCellMatch(rawCell: IIncompleteNotebookCellMatch | ICompleteNotebookCellMatch) {
-		const cellMatch = new CellMatch(this, isICompleteNotebookCellMatch(rawCell) ? rawCell.cell : undefined, rawCell.index);
+	addCellMatch(rawCell: INotebookCellMatchNoModel | INotebookCellMatchWithModel) {
+		const cellMatch = new CellMatch(this, isINotebookCellMatchWithModel(rawCell) ? rawCell.cell : undefined, rawCell.index);
 		this._cellMatches.set(cellMatch.id, cellMatch);
 		this.addWebviewMatchesToCell(cellMatch.id, rawCell.webviewResults);
 		this.addContentMatchesToCell(cellMatch.id, rawCell.contentResults);
@@ -473,7 +473,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 					});
 			}
 
-			if (isICompleteNotebookFileMatch(this.rawMatch) || isIIncompleteNotebookFileMatch(this.rawMatch)) {
+			if (isINotebookFileMatchWithModel(this.rawMatch) || isINotebookFileMatchNoModel(this.rawMatch)) {
 				this.rawMatch.cellResults?.forEach(cell => this.addCellMatch(cell));
 				this.setNotebookFindMatchDecorationsUsingCellMatches(this.cellMatches());
 				this._onChange.fire({ forceUpdateModel: true });
@@ -1155,7 +1155,7 @@ export class FolderMatch extends Disposable {
 				}
 
 				// add cell matches
-				if (isICompleteNotebookFileMatch(rawFileMatch) || isIIncompleteNotebookFileMatch(rawFileMatch)) {
+				if (isINotebookFileMatchWithModel(rawFileMatch) || isINotebookFileMatchNoModel(rawFileMatch)) {
 					rawFileMatch.cellResults?.forEach(rawCellMatch => {
 						const existingCellMatch = existingFileMatch.getCellMatch(getIDFromINotebookCellMatch(rawCellMatch));
 						if (existingCellMatch) {

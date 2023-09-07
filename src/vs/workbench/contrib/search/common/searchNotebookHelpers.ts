@@ -9,22 +9,23 @@ import { TextSearchMatch, IFileMatch, ITextSearchMatch } from 'vs/workbench/serv
 import { Range } from 'vs/editor/common/core/range';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
-export type IRawClosedNotebookFileMatch = IIncompleteNotebookFileMatch<UriComponents>;
+export type IRawClosedNotebookFileMatch = INotebookFileMatchNoModel<UriComponents>;
 
-export interface IIncompleteNotebookFileMatch<U extends UriComponents = URI> extends IFileMatch<U> {
-	cellResults: IIncompleteNotebookCellMatch<U>[];
+export interface INotebookFileMatchNoModel<U extends UriComponents = URI> extends IFileMatch<U> {
+	cellResults: INotebookCellMatchNoModel<U>[];
 }
 
-export interface IIncompleteNotebookCellMatch<U extends UriComponents = URI> {
+export interface INotebookCellMatchNoModel<U extends UriComponents = URI> {
 	index: number;
 	contentResults: ITextSearchMatch<U>[];
 	webviewResults: ITextSearchMatch<U>[];
 }
 
-export function isIIncompleteNotebookFileMatch(object: IFileMatch): object is IIncompleteNotebookFileMatch {
+export function isINotebookFileMatchNoModel(object: IFileMatch): object is INotebookFileMatchNoModel {
 	return 'cellResults' in object;
 }
-export function reviveIClosedNotebookCellMatch(cellMatch: IIncompleteNotebookCellMatch<UriComponents>): IIncompleteNotebookCellMatch<URI> {
+
+export function reviveINotebookCellMatchNoModel(cellMatch: INotebookCellMatchNoModel<UriComponents>): INotebookCellMatchNoModel<URI> {
 	return {
 		index: cellMatch.index,
 		contentResults: cellMatch.contentResults.map(e => {

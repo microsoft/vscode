@@ -6,44 +6,42 @@
 import { FindMatch } from 'vs/editor/common/model';
 import { IFileMatch, ITextSearchMatch, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
-import { IIncompleteNotebookCellMatch, IIncompleteNotebookFileMatch, genericCellMatchesToTextSearchMatches, rawCellPrefix } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, genericCellMatchesToTextSearchMatches, rawCellPrefix } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
 
-// to text search results
+export type INotebookCellMatch = INotebookCellMatchWithModel | INotebookCellMatchNoModel;
+export type INotebookFileMatch = INotebookFileMatchWithModel | INotebookFileMatchNoModel;
+
+export function getIDFromINotebookCellMatch(match: INotebookCellMatch): string {
+	if (isINotebookCellMatchWithModel(match)) {
+		return match.cell.id;
+	} else {
+		return `${rawCellPrefix}${match.index}`;
+	}
+}
+export interface INotebookFileMatchWithModel extends IFileMatch {
+	cellResults: INotebookCellMatchWithModel[];
+}
+
+export interface INotebookCellMatchWithModel extends INotebookCellMatchNoModel<URI> {
+	cell: ICellViewModel;
+}
+
+export function isINotebookFileMatchWithModel(object: any): object is INotebookFileMatchWithModel {
+	return 'cellResults' in object && object.cellResults instanceof Array && object.cellResults.every(isINotebookCellMatchWithModel);
+}
+
+export function isINotebookCellMatchWithModel(object: any): object is INotebookCellMatchWithModel {
+	return 'cell' in object;
+}
+
 export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], cell: ICellViewModel): ITextSearchMatch[] {
 	return genericCellMatchesToTextSearchMatches(
 		contentMatches,
 		cell.textBuffer
 	);
 }
-
-export type INotebookCellMatch = ICompleteNotebookCellMatch | IIncompleteNotebookCellMatch;
-export type INotebookFileMatch = ICompleteNotebookFileMatch | IIncompleteNotebookFileMatch;
-
-export function getIDFromINotebookCellMatch(match: INotebookCellMatch): string {
-	if (isICompleteNotebookCellMatch(match)) {
-		return match.cell.id;
-	} else {
-		return `${rawCellPrefix}${match.index}`;
-	}
-}
-export interface ICompleteNotebookFileMatch extends IFileMatch {
-	cellResults: ICompleteNotebookCellMatch[];
-}
-
-export interface ICompleteNotebookCellMatch extends IIncompleteNotebookCellMatch<URI> {
-	cell: ICellViewModel;
-}
-
-export function isICompleteNotebookFileMatch(object: any): object is ICompleteNotebookFileMatch {
-	return 'cellResults' in object && object.cellResults instanceof Array && object.cellResults.every(isICompleteNotebookCellMatch);
-}
-
-export function isICompleteNotebookCellMatch(object: any): object is ICompleteNotebookCellMatch {
-	return 'cell' in object;
-}
-
 
 export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFindMatch[]): ITextSearchMatch[] {
 	return webviewMatches

@@ -20,7 +20,7 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { IIncompleteNotebookFileMatch, reviveIClosedNotebookCellMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+import { INotebookFileMatchNoModel, reviveINotebookCellMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -83,7 +83,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					resource: uri
 				};
 			},
-			searchInNotebooks: async (textQuery, token): Promise<{ results: IIncompleteNotebookFileMatch<URI>[]; limitHit: boolean }> => {
+			searchInNotebooks: async (textQuery, token): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
 				let fileNames = data?.filenamePattern;
 				if (!fileNames) {
 					const contributedType = this._notebookService.getContributedNotebookType(viewType);
@@ -99,11 +99,11 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				});
 
 				const searchComplete = await this._proxy.$searchInNotebooks(handle, includes, textQuery, token);
-				const revivedResults: IIncompleteNotebookFileMatch<URI>[] = searchComplete.results.map(result => {
+				const revivedResults: INotebookFileMatchNoModel<URI>[] = searchComplete.results.map(result => {
 					const resource = URI.revive(result.resource);
 					return {
 						resource,
-						cellResults: result.cellResults.map(e => reviveIClosedNotebookCellMatch(e))
+						cellResults: result.cellResults.map(e => reviveINotebookCellMatchNoModel(e))
 					};
 				});
 				return { results: revivedResults, limitHit: searchComplete.limitHit };

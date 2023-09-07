@@ -9,23 +9,23 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
-import { ICompleteNotebookCellMatch, ICompleteNotebookFileMatch, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
 import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IIncompleteNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 
 interface IOpenNotebookSearchResults {
-	results: ResourceMap<ICompleteNotebookFileMatch | null>;
+	results: ResourceMap<INotebookFileMatchWithModel | null>;
 	limitHit: boolean;
 }
 interface IClosedNotebookSearchResults {
-	results: ResourceMap<IIncompleteNotebookFileMatch<URI> | null>;
+	results: ResourceMap<INotebookFileMatchNoModel<URI> | null>;
 	limitHit: boolean;
 }
 export class NotebookSearchService implements INotebookSearchService {
@@ -123,7 +123,7 @@ export class NotebookSearchService implements INotebookSearchService {
 		let limitHit = searchComplete.some(e => e.limitHit);
 
 		// results are already sorted with high priority first, filter out duplicates.
-		const uniqueResults = new ResourceMap<IIncompleteNotebookFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		const uniqueResults = new ResourceMap<INotebookFileMatchNoModel | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
 		let numResults = 0;
 		for (const result of results) {
@@ -149,7 +149,7 @@ export class NotebookSearchService implements INotebookSearchService {
 	}
 
 	private async getLocalNotebookResults(query: ITextQuery, token: CancellationToken, widgets: Array<NotebookEditorWidget>, searchID: string): Promise<IOpenNotebookSearchResults> {
-		const localResults = new ResourceMap<ICompleteNotebookFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		const localResults = new ResourceMap<INotebookFileMatchWithModel | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		for (const widget of widgets) {
@@ -174,7 +174,7 @@ export class NotebookSearchService implements INotebookSearchService {
 					limitHit = true;
 					matches = matches.slice(0, askMax - 1);
 				}
-				const cellResults: ICompleteNotebookCellMatch[] = matches.map(match => {
+				const cellResults: INotebookCellMatchWithModel[] = matches.map(match => {
 					const contentResults = contentMatchesToTextSearchMatches(match.contentMatches, match.cell);
 					const webviewResults = webviewMatchesToTextSearchMatches(match.webviewMatches);
 					return {
@@ -185,7 +185,7 @@ export class NotebookSearchService implements INotebookSearchService {
 					};
 				});
 
-				const fileMatch: ICompleteNotebookFileMatch = {
+				const fileMatch: INotebookFileMatchWithModel = {
 					resource: widget.viewModel.uri, cellResults: cellResults
 				};
 				localResults.set(widget.viewModel.uri, fileMatch);
