@@ -138,7 +138,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
 	});
 
-	test.skip('basics (multi group)', async () => {
+	test.skip('basics (multi group)', async () => { // todo@bpasero
 		const [part, observer] = await createEditorObserver();
 
 		const rootGroup = part.activeGroup;
