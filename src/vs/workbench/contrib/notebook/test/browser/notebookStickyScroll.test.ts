@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isWeb } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { mock } from 'vs/base/test/common/mock';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { INotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -17,7 +19,6 @@ import { NotebookStickyLine, computeContent } from 'vs/workbench/contrib/noteboo
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 (isWeb ? suite.skip : suite)('NotebookEditorStickyScroll', () => {
@@ -44,8 +45,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 		return outline;
 	}
 
-	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]) {
+	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[], disposables: Pick<DisposableStore, 'add'>) {
 		const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
+		for (const stickyLine of output.values()) {
+			disposables.add(stickyLine.line);
+		}
 		return createStickyTestElement(output.values());
 	}
 
@@ -88,9 +92,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(0);
 				editor.visibleRanges = [{ start: 0, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
@@ -123,10 +129,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(175);
 				editor.visibleRanges = [{ start: 3, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
@@ -160,10 +168,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(325); // room for a single header
 				editor.visibleRanges = [{ start: 6, end: 9 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
@@ -198,10 +208,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(175); // room for a single header
 				editor.visibleRanges = [{ start: 3, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
@@ -235,10 +247,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(50);
 				editor.visibleRanges = [{ start: 0, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
@@ -274,10 +288,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(125);
 				editor.visibleRanges = [{ start: 2, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
@@ -313,10 +329,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(375);
 				editor.visibleRanges = [{ start: 7, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
@@ -354,10 +372,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 				editor.setScrollTop(350);
 				editor.visibleRanges = [{ start: 7, end: 12 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			}, disposables);
 	});
 
