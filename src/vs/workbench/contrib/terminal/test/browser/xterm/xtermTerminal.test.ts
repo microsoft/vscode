@@ -33,9 +33,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { Color, RGBA } from 'vs/base/common/color';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import type { Suite } from 'mocha'; // eslint-disable-line local/code-import-patterns
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -94,45 +92,9 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	unicodeVersion: '6'
 };
 
+suite('XtermTerminal', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-interface NoLeakSuiteFunction {
-	(title: string, fn: (this: Suite, store: Pick<DisposableStore, 'add'>) => void): Suite;
-	only(title: string, fn: (this: Suite, store: Pick<DisposableStore, 'add'>) => void): Suite;
-	skip(title: string, fn: (this: Suite, store: Pick<DisposableStore, 'add'>) => void): Suite | void;
-}
-function noLeakSuiteBaseFn(that: Suite, fn: (this: Suite, store: Pick<DisposableStore, 'add'>) => void): void {
-	let store: DisposableStore;
-	// Wrap store as the suite function is called before it's initialized
-	const testContext = {
-		add<T extends IDisposable>(o: T): T {
-			return store.add(o);
-		}
-	};
-	setup(() => store = new DisposableStore());
-	teardown(() => store.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
-	fn.bind(that)(testContext);
-}
-function noLeakSuiteFn(title: string, fn: (this: Suite, store: Pick<DisposableStore, 'add'>) => void): Suite {
-	return suite(title, function () {
-		noLeakSuiteBaseFn(this, fn);
-	});
-}
-noLeakSuiteFn.only = (title: string, fn: (this: Suite, store: Pick<DisposableStore, 'add'>) => void): Suite => {
-	return suite.only(title, function () { // eslint-disable-line local/code-no-test-only
-		noLeakSuiteBaseFn(this, fn);
-	});
-};
-noLeakSuiteFn.skip = (title: string, fn: (this: Suite, store: Pick<DisposableStore, 'add'>) => void): Suite | void => {
-	return suite.skip(title, function () {
-		noLeakSuiteBaseFn(this, fn);
-	});
-};
-const noLeakSuite: NoLeakSuiteFunction = noLeakSuiteFn;
-
-
-
-noLeakSuite('XtermTerminal', store => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
