@@ -7,7 +7,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { isCancellationError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -28,6 +27,7 @@ import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceD
 import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
+import { ICanonicalUriService } from 'vs/platform/workspace/common/canonicalUri';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -42,6 +42,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IEditSessionIdentityService private readonly _editSessionIdentityService: IEditSessionIdentityService,
+		@ICanonicalUriService private readonly _canonicalUriService: ICanonicalUriService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -142,18 +143,15 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	$startFileSearch(includePattern: string | null, _includeFolder: UriComponents | null, excludePatternOrDisregardExcludes: string | false | null, maxResults: number | null, token: CancellationToken): Promise<UriComponents[] | null> {
 		const includeFolder = URI.revive(_includeFolder);
 		const workspace = this._contextService.getWorkspace();
-		if (!workspace.folders.length) {
-			return Promise.resolve(null);
-		}
 
 		const query = this._queryBuilder.file(
 			includeFolder ? [includeFolder] : workspace.folders,
 			{
-				maxResults: withNullAsUndefined(maxResults),
+				maxResults: maxResults ?? undefined,
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
 				disregardSearchExcludeSettings: true,
 				disregardIgnoreFiles: true,
-				includePattern: withNullAsUndefined(includePattern),
+				includePattern: includePattern ?? undefined,
 				excludePattern: typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined,
 				_reason: 'startFileSearch'
 			});
@@ -268,5 +266,30 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		const disposable = this.registeredEditSessionProviders.get(handle);
 		disposable?.dispose();
 		this.registeredEditSessionProviders.delete(handle);
+	}
+
+	// --- canonical uri identities ---
+	private registeredCanonicalUriProviders = new Map<number, IDisposable>();
+
+	$registerCanonicalUriProvider(handle: number, scheme: string) {
+		const disposable = this._canonicalUriService.registerCanonicalUriProvider({
+			scheme: scheme,
+			provideCanonicalUri: async (uri: UriComponents, targetScheme: string, token: CancellationToken) => {
+				const result = await this._proxy.$provideCanonicalUri(uri, targetScheme, token);
+				if (result) {
+					return URI.revive(result);
+				}
+				return result;
+			}
+		});
+
+		this.registeredCanonicalUriProviders.set(handle, disposable);
+		this._toDispose.add(disposable);
+	}
+
+	$unregisterCanonicalUriProvider(handle: number) {
+		const disposable = this.registeredCanonicalUriProviders.get(handle);
+		disposable?.dispose();
+		this.registeredCanonicalUriProviders.delete(handle);
 	}
 }

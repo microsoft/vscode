@@ -145,7 +145,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	disableKeytar?: boolean;
 
 	crossOriginIsolated?: boolean;
-	isRemoteServer?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

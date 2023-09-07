@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/trond-snekvik/vscode-rst/commit/f0fe19ffde6509be52ad9267a57e1b3df665f072",
+	"version": "https://github.com/trond-snekvik/vscode-rst/commit/4f6f1a8f94e0d16e30dddc9c4e359d062b715408",
 	"scopeName": "source.rst",
 	"patterns": [
 		{
@@ -312,9 +312,16 @@
 			]
 		},
 		"block-comment": {
-			"begin": "^(\\s*)\\.{2}",
-			"while": "^\\1(?=\\s)|^\\s*$",
-			"name": "comment.block"
+			"begin": "^(\\s*)\\.{2}(\\s+|$)",
+			"end": "^(?=\\S)|^\\s*$",
+			"name": "comment.block",
+			"patterns": [
+				{
+					"begin": "^\\s{3,}(?=\\S)",
+					"while": "^\\s{3}.*|^\\s*$",
+					"name": "comment.block"
+				}
+			]
 		},
 		"literal-block": {
 			"begin": "^(\\s*)(.*)(::)\\s*$",

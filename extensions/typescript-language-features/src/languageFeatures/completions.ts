@@ -31,7 +31,6 @@ interface DotAccessorContext {
 interface CompletionContext {
 	readonly isNewIdentifierLocation: boolean;
 	readonly isMemberCompletion: boolean;
-	readonly isInValidCommitCharacterContext: boolean;
 
 	readonly dotAccessorContext?: DotAccessorContext;
 
@@ -40,8 +39,6 @@ interface CompletionContext {
 
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
-
-	readonly useFuzzyWordRangeLogic: boolean;
 }
 
 type ResolvedCompletionItem = {
@@ -61,7 +58,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		public readonly metadata: any | undefined,
 		client: ITypeScriptServiceClient,
 	) {
-		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
+		const label = tsEntry.name || (tsEntry.insertText ?? '');
+		super(label, MyCompletionItem.convertKind(tsEntry.kind));
 
 		if (tsEntry.source && tsEntry.hasAction && client.apiVersion.lt(API.v490)) {
 			// De-prioritze auto-imports
@@ -75,18 +73,18 @@ class MyCompletionItem extends vscode.CompletionItem {
 			// Render "fancy" when source is a workspace path
 			const qualifierCandidate = vscode.workspace.asRelativePath(tsEntry.source);
 			if (qualifierCandidate !== tsEntry.source) {
-				this.label = { label: tsEntry.name, description: qualifierCandidate };
+				this.label = { label, description: qualifierCandidate };
 			}
 
 		}
 
 		const { sourceDisplay, isSnippet } = tsEntry;
 		if (sourceDisplay) {
-			this.label = { label: tsEntry.name, description: Previewer.asPlainTextWithLinks(sourceDisplay, client) };
+			this.label = { label, description: Previewer.asPlainTextWithLinks(sourceDisplay, client) };
 		}
 
 		if (tsEntry.labelDetails) {
-			this.label = { label: tsEntry.name, ...tsEntry.labelDetails };
+			this.label = { label, ...tsEntry.labelDetails };
 		}
 
 		this.preselect = tsEntry.isRecommended;
@@ -96,12 +94,12 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
 		this.insertText = isSnippet && tsEntry.insertText ? new vscode.SnippetString(tsEntry.insertText) : tsEntry.insertText;
-		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
+		this.filterText = tsEntry.filterText || this.getFilterText(completionContext.line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext && !(this.insertText instanceof vscode.SnippetString)) {
 			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.textLabel);
 			if (!this.range) {
-				const replacementRange = this.getFuzzyWordRange();
+				const replacementRange = this.completionContext.wordRange;
 				if (replacementRange) {
 					this.range = {
 						inserting: completionContext.dotAccessorContext.range,
@@ -422,30 +420,13 @@ class MyCompletionItem extends vscode.CompletionItem {
 			return;
 		}
 
-		const replaceRange = this.getFuzzyWordRange();
+		const replaceRange = this.completionContext.wordRange;
 		if (replaceRange) {
 			this.range = {
 				inserting: new vscode.Range(replaceRange.start, this.position),
 				replacing: replaceRange
 			};
 		}
-	}
-
-	private getFuzzyWordRange() {
-		if (this.completionContext.useFuzzyWordRangeLogic) {
-			// Try getting longer, prefix based range for completions that span words
-			const text = this.completionContext.line.slice(Math.max(0, this.position.character - this.textLabel.length), this.position.character).toLowerCase();
-			const entryName = this.textLabel.toLowerCase();
-			for (let i = entryName.length; i >= 0; --i) {
-				if (text.endsWith(entryName.substr(0, i)) && (!this.completionContext.wordRange || this.completionContext.wordRange.start.character > this.position.character - i)) {
-					return new vscode.Range(
-						new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
-						this.position);
-				}
-			}
-		}
-
-		return this.completionContext.wordRange;
 	}
 
 	private static convertKind(kind: string): vscode.CompletionItemKind {
@@ -516,7 +497,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			return undefined;
 		}
 
-		if (context.isNewIdentifierLocation || !context.isInValidCommitCharacterContext) {
+		if (context.isNewIdentifierLocation) {
 			return undefined;
 		}
 
@@ -789,16 +770,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			metadata = response.metadata;
 		}
 
-		const completionContext = {
+		const completionContext: CompletionContext = {
 			isNewIdentifierLocation,
 			isMemberCompletion,
 			dotAccessorContext,
-			isInValidCommitCharacterContext: this.isInValidCommitCharacterContext(document, position),
 			enableCallCompletions: !completionConfiguration.completeFunctionCalls,
 			wordRange,
 			line: line.text,
 			completeFunctionCalls: completionConfiguration.completeFunctionCalls,
-			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
 		};
 
 		let includesPackageJsonImport = false;
@@ -863,26 +842,27 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
 		switch (context.triggerCharacter) {
-			case '@': // Workaround for https://github.com/microsoft/TypeScript/issues/27321
+			case '@': { // Workaround for https://github.com/microsoft/TypeScript/issues/27321
 				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
-
-			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
+			}
+			case '#': { // Workaround for https://github.com/microsoft/TypeScript/issues/36367
 				return this.client.apiVersion.lt(API.v381) ? undefined : '#';
-
+			}
 			case ' ': {
-				const space: Proto.CompletionsTriggerCharacter = ' ';
-				return this.client.apiVersion.gte(API.v430) ? space : undefined;
+				return this.client.apiVersion.gte(API.v430) ? ' ' : undefined;
 			}
 			case '.':
 			case '"':
 			case '\'':
 			case '`':
 			case '/':
-			case '<':
+			case '<': {
 				return context.triggerCharacter;
+			}
+			default: {
+				return undefined;
+			}
 		}
-
-		return undefined;
 	}
 
 	public async resolveCompletionItem(
@@ -891,25 +871,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	): Promise<MyCompletionItem | undefined> {
 		await item.resolveCompletionItem(this.client, token);
 		return item;
-	}
-
-	private isInValidCommitCharacterContext(
-		document: vscode.TextDocument,
-		position: vscode.Position
-	): boolean {
-		if (this.client.apiVersion.lt(API.v320)) {
-			// Workaround for https://github.com/microsoft/TypeScript/issues/27742
-			// Only enable dot completions when previous character not a dot preceded by whitespace.
-			// Prevents incorrectly completing while typing spread operators.
-			if (position.character > 1) {
-				const preText = document.getText(new vscode.Range(
-					position.line, 0,
-					position.line, position.character));
-				return preText.match(/(\s|^)\.$/ig) === null;
-			}
-		}
-
-		return true;
 	}
 
 	private shouldTrigger(

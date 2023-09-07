@@ -45,6 +45,10 @@ suite('Search - Viewlet', () => {
 		instantiation.stub(ILogService, new NullLogService());
 	});
 
+	teardown(() => {
+		instantiation.dispose();
+	});
+
 	test('Data Source', function () {
 		const result: SearchResult = aSearchResult();
 		result.query = {
@@ -74,7 +78,7 @@ suite('Search - Viewlet', () => {
 					endColumn: 1
 				}
 			}]
-		}]);
+		}], '');
 
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
@@ -177,7 +181,7 @@ suite('Search - Viewlet', () => {
 		};
 		return instantiation.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null);
+		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
 	}
 
 	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
@@ -186,7 +190,7 @@ suite('Search - Viewlet', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, parent ?? aSearchResult().folderMatches()[0], searchModel, null);
+		}, parent ?? aSearchResult().folderMatches()[0], searchModel.searchResult, null);
 	}
 
 	function aSearchResult(): SearchResult {
@@ -203,7 +207,7 @@ suite('Search - Viewlet', () => {
 		instantiationService.stub(IThemeService, new TestThemeService());
 
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+		config.setUserConfiguration('search', { searchOnType: true });
 		instantiationService.stub(IConfigurationService, config);
 
 		return instantiationService.createInstance(ModelService);

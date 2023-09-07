@@ -15,18 +15,18 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('TextResourceEditorInput', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('basics', async () => {

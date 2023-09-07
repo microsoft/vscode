@@ -7,10 +7,10 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
-import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
@@ -29,7 +29,7 @@ export interface ITerminalQuickFixProviderSelector {
 	provider: ITerminalQuickFixProvider;
 }
 
-export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixCommandAction | ITerminalQuickFixOpenerAction;
+export type TerminalQuickFixActionInternal = IAction | ITerminalQuickFixExecuteTerminalCommandAction | ITerminalQuickFixOpenerAction;
 export type TerminalQuickFixCallback = (matchResult: ITerminalCommandMatchResult) => TerminalQuickFixActionInternal[] | TerminalQuickFixActionInternal | undefined;
 export type TerminalQuickFixCallbackExtension = (terminalCommand: ITerminalCommand, lines: string[] | undefined, option: ITerminalQuickFixOptions, token: CancellationToken) => Promise<ITerminalQuickFix[] | ITerminalQuickFix | undefined>;
 
@@ -44,9 +44,10 @@ export interface ITerminalQuickFixProvider {
 }
 
 export enum TerminalQuickFixType {
-	Command = 0,
+	TerminalCommand = 0,
 	Opener = 1,
-	Port = 2
+	Port = 2,
+	VscodeCommand = 3
 }
 
 export interface ITerminalQuickFixOptions {
@@ -55,6 +56,7 @@ export interface ITerminalQuickFixOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	commandExitResult: 'success' | 'error';
+	kind?: 'fix' | 'explain';
 }
 
 export interface ITerminalQuickFix {
@@ -63,8 +65,8 @@ export interface ITerminalQuickFix {
 	source: string;
 }
 
-export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
-	type: TerminalQuickFixType.Command;
+export interface ITerminalQuickFixExecuteTerminalCommandAction extends ITerminalQuickFix {
+	type: TerminalQuickFixType.TerminalCommand;
 	terminalCommand: string;
 	// TODO: Should this depend on whether alt is held?
 	addNewLine?: boolean;
@@ -72,6 +74,9 @@ export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
 export interface ITerminalQuickFixOpenerAction extends ITerminalQuickFix {
 	type: TerminalQuickFixType.Opener;
 	uri: URI;
+}
+export interface ITerminalQuickFixCommandAction extends ITerminalQuickFix {
+	title: string;
 }
 
 export interface ITerminalCommandMatchResult {

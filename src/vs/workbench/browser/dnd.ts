@@ -12,7 +12,7 @@ import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -28,7 +28,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -327,6 +327,31 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
+
+		// Add a URI list entry
+		const uriListEntries: URI[] = [];
+		for (const editor of draggedEditors) {
+			if (editor.resource) {
+				uriListEntries.push(editor.resource);
+			} else if (isResourceDiffEditorInput(editor)) {
+				if (editor.modified.resource) {
+					uriListEntries.push(editor.modified.resource);
+				}
+			} else if (isResourceSideBySideEditorInput(editor)) {
+				if (editor.primary.resource) {
+					uriListEntries.push(editor.primary.resource);
+				}
+			} else if (isResourceMergeEditorInput(editor)) {
+				uriListEntries.push(editor.result.resource);
+			}
+		}
+
+		// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=239745, we can only set
+		// a single uri for the real `text/uri-list` type. Otherwise all uris end up joined together
+		// However we write the full uri-list to an internal type so that other parts of VS Code
+		// can use the full list.
+		event.dataTransfer.setData(Mimes.uriList, UriList.create(uriListEntries.slice(0, 1)));
+		event.dataTransfer.setData(DataTransfers.INTERNAL_URI_LIST, UriList.create(uriListEntries));
 	}
 }
 
@@ -402,6 +427,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	static get INSTANCE(): CompositeDragAndDropObserver {
 		if (!CompositeDragAndDropObserver.instance) {
 			CompositeDragAndDropObserver.instance = new CompositeDragAndDropObserver();
+			markAsSingleton(CompositeDragAndDropObserver.instance);
 		}
 
 		return CompositeDragAndDropObserver.instance;
@@ -498,7 +524,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		if (callbacks.onDragEnd) {
 			this.onDragEnd.event(e => {
 				callbacks.onDragEnd!(e);
-			});
+			}, this, disposableStore);
 		}
 
 		return this._register(disposableStore);

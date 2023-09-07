@@ -5,25 +5,29 @@
 
 use async_trait::async_trait;
 use shell_escape::windows::escape as shell_escape;
+use std::os::windows::process::CommandExt;
 use std::{
-	io,
 	path::PathBuf,
 	process::{Command, Stdio},
 };
-use sysinfo::{ProcessExt, System, SystemExt};
+use winapi::um::winbase::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS};
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
 use crate::{
 	constants::TUNNEL_ACTIVITY_NAME,
 	log,
 	state::LauncherPaths,
+	tunnels::{protocol, singleton_client::do_single_rpc_call},
 	util::errors::{wrap, wrapdbg, AnyError},
 };
 
 use super::service::{tail_log_file, ServiceContainer, ServiceManager as CliServiceManager};
 
+const DID_LAUNCH_AS_HIDDEN_PROCESS: &str = "VSCODE_CLI_DID_LAUNCH_AS_HIDDEN_PROCESS";
+
 pub struct WindowsService {
 	log: log::Logger,
+	tunnel_lock: PathBuf,
 	log_file: PathBuf,
 }
 
@@ -31,6 +35,7 @@ impl WindowsService {
 	pub fn new(log: log::Logger, paths: &LauncherPaths) -> Self {
 		Self {
 			log,
+			tunnel_lock: paths.tunnel_lockfile(),
 			log_file: paths.service_log_file(),
 		}
 	}
@@ -73,6 +78,7 @@ impl CliServiceManager for WindowsService {
 		cmd.stderr(Stdio::null());
 		cmd.stdout(Stdio::null());
 		cmd.stdin(Stdio::null());
+		cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
 		cmd.spawn()
 			.map_err(|e| wrapdbg(e, "error starting service"))?;
 
@@ -89,34 +95,54 @@ impl CliServiceManager for WindowsService {
 		launcher_paths: LauncherPaths,
 		mut handle: impl 'static + ServiceContainer,
 	) -> Result<(), AnyError> {
-		handle.run_service(self.log, launcher_paths).await
+		if std::env::var(DID_LAUNCH_AS_HIDDEN_PROCESS).is_ok() {
+			return handle.run_service(self.log, launcher_paths).await;
+		}
+
+		// Start as a hidden subprocess to avoid showing cmd.exe on startup.
+		// Fixes https://github.com/microsoft/vscode/issues/184058
+		// I also tried the winapi ShowWindow, but that didn't yield fruit.
+		Command::new(std::env::current_exe().unwrap())
+			.args(std::env::args().skip(1))
+			.env(DID_LAUNCH_AS_HIDDEN_PROCESS, "1")
+			.stderr(Stdio::null())
+			.stdout(Stdio::null())
+			.stdin(Stdio::null())
+			.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS)
+			.spawn()
+			.map_err(|e| wrap(e, "error starting nested process"))?;
+
+		Ok(())
+	}
+
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let key = WindowsService::open_key()?;
+		Ok(key.get_raw_value(TUNNEL_ACTIVITY_NAME).is_ok())
 	}
 
 	async fn unregister(&self) -> Result<(), AnyError> {
 		let key = WindowsService::open_key()?;
-		let prev_command_line: String = match key.get_value(TUNNEL_ACTIVITY_NAME) {
-			Ok(l) => l,
-			Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-			Err(e) => return Err(wrap(e, "error getting registry key").into()),
-		};
-
-		key.delete_value(TUNNEL_ACTIVITY_NAME)
-			.map_err(|e| AnyError::from(wrap(e, "error deleting registry key")))?;
-		info!(self.log, "Tunnel service uninstalled");
-
-		let mut sys = System::new();
-		sys.refresh_processes();
-
-		for process in sys.processes().values() {
-			let joined = process.cmd().join(" "); // this feels a little sketch, but seems to work fine
-			if joined == prev_command_line {
-				process.kill();
-				info!(self.log, "Successfully shut down running tunnel");
-				return Ok(());
-			}
+		match key.delete_value(TUNNEL_ACTIVITY_NAME) {
+			Ok(_) => {}
+			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+			Err(e) => return Err(wrap(e, "error deleting registry key").into()),
 		}
 
-		warning!(self.log, "The tunnel service has been unregistered, but we couldn't find a running tunnel process. You may need to restart or log out and back in to fully stop the tunnel.");
+		info!(self.log, "Tunnel service uninstalled");
+
+		let r = do_single_rpc_call::<_, ()>(
+			&self.tunnel_lock,
+			self.log.clone(),
+			protocol::singleton::METHOD_SHUTDOWN,
+			protocol::EmptyObject {},
+		)
+		.await;
+
+		if r.is_err() {
+			warning!(self.log, "The tunnel service has been unregistered, but we couldn't find a running tunnel process. You may need to restart or log out and back in to fully stop the tunnel.");
+		} else {
+			info!(self.log, "Successfully shut down running tunnel.");
+		}
 
 		Ok(())
 	}

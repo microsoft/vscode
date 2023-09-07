@@ -43,6 +43,7 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isWeb } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -661,6 +662,55 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const browseColorThemesInMarketplaceCommandId = 'workbench.action.browseColorThemesInMarketplace';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: browseColorThemesInMarketplaceCommandId,
+			title: { value: localize('browseColorThemeInMarketPlace.label', "Browse Color Themes in Marketplace"), original: 'Browse Color Themes in Marketplace' },
+			category: Categories.Preferences,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const marketplaceTag = 'category:themes';
+		const themeService = accessor.get(IWorkbenchThemeService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		const extensionResourceLoaderService = accessor.get(IExtensionResourceLoaderService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		if (!extensionGalleryService.isEnabled() || !extensionResourceLoaderService.supportsExtensionGalleryResources) {
+			return;
+		}
+		const currentTheme = themeService.getColorTheme();
+		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
+
+		let selectThemeTimeout: number | undefined;
+
+		const selectTheme = (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => {
+			if (selectThemeTimeout) {
+				clearTimeout(selectThemeTimeout);
+			}
+			selectThemeTimeout = window.setTimeout(() => {
+				selectThemeTimeout = undefined;
+				const newTheme = (theme ?? currentTheme) as IWorkbenchTheme;
+				themeService.setColorTheme(newTheme as IWorkbenchColorTheme, applyTheme ? 'auto' : 'preview').then(undefined,
+					err => {
+						onUnexpectedError(err);
+						themeService.setColorTheme(currentTheme, undefined);
+					}
+				);
+			}, applyTheme ? 0 : 200);
+		};
+
+		const marketplaceThemePicker = instantiationService.createInstance(MarketplaceThemesPicker, getMarketplaceColorThemes, marketplaceTag);
+		await marketplaceThemePicker.openQuickPick('', themeService.getColorTheme(), selectTheme).then(undefined, onUnexpectedError);
+	}
+});
+
 const ThemesSubMenu = new MenuId('ThemesSubMenu');
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 	title: localize('themes', "Themes"),
@@ -711,27 +761,32 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 		@IStorageService private readonly _storageService: IStorageService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
 			return;
 		}
-		if (this._workbenchThemeService.hasUpdatedDefaultThemes()) {
-			setTimeout(() => {
-				this._showYouGotMigratedNotification();
-			}, 6000);
-		} else {
-			const currentTheme = this._workbenchThemeService.getColorTheme().settingsId;
-			if (currentTheme === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD || currentTheme === ThemeSettingDefaults.COLOR_THEME_DARK_OLD) {
-				setTimeout(() => {
-					this._tryNewThemeNotification();
-				}, 6000);
+		setTimeout(async () => {
+			if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
+				return;
 			}
-		}
+			if (await this._hostService.hadLastFocus()) {
+				this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+				if (this._workbenchThemeService.hasUpdatedDefaultThemes()) {
+					this._showYouGotMigratedNotification();
+				} else {
+					const currentTheme = this._workbenchThemeService.getColorTheme().settingsId;
+					if (currentTheme === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD || currentTheme === ThemeSettingDefaults.COLOR_THEME_DARK_OLD) {
+						this._tryNewThemeNotification();
+					}
+				}
+			}
+		}, 3000);
 	}
 
 	private async _showYouGotMigratedNotification(): Promise<void> {
-		this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-		const newThemeSettingsId = isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const usingLight = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT;
+		const newThemeSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
 		const newTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
 		if (newTheme) {
 			const choices = [
@@ -752,7 +807,7 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 					label: localize('button.revert', "Revert"),
 					run: async () => {
 						this._writeTelemetry('keepOld');
-						const oldSettingsId = isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
+						const oldSettingsId = usingLight ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
 						const oldTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === oldSettingsId);
 						if (oldTheme) {
 							this._workbenchThemeService.setColorTheme(oldTheme, 'auto');
@@ -772,7 +827,6 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 	}
 
 	private async _tryNewThemeNotification(): Promise<void> {
-		this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 		const newThemeSettingsId = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
 		const theme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
 		if (theme) {
@@ -817,4 +871,4 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 	}
 }
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DefaultThemeUpdatedNotificationContribution, LifecyclePhase.Ready);
+workbenchRegistry.registerWorkbenchContribution(DefaultThemeUpdatedNotificationContribution, LifecyclePhase.Eventually);

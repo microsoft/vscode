@@ -125,9 +125,9 @@ export class Menubar {
 		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.workspacesHistoryMainService.clearRecentlyOpened();
 
 		// Help Menu Items
-		const twitterUrl = this.productService.twitterUrl;
-		if (twitterUrl) {
-			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(twitterUrl, 'openTwitterUrl');
+		const youTubeUrl = this.productService.youTubeUrl;
+		if (youTubeUrl) {
+			this.fallbackMenuHandlers['workbench.action.openYouTubeUrl'] = () => this.openUrl(youTubeUrl, 'openYouTubeUrl');
 		}
 
 		const requestFeatureUrl = this.productService.requestFeatureUrl;
@@ -596,9 +596,6 @@ export class Menubar {
 		const state = this.updateService.state;
 
 		switch (state.type) {
-			case StateType.Uninitialized:
-				return [];
-
 			case StateType.Idle:
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
@@ -638,6 +635,9 @@ export class Menubar {
 						this.updateService.quitAndInstall();
 					}
 				})];
+
+			default:
+				return [];
 		}
 	}
 

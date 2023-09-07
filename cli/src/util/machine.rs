@@ -52,3 +52,10 @@ pub fn find_running_process(name: &Path) -> Option<u32> {
 	}
 	None
 }
+
+pub async fn wait_until_exe_deleted(current_exe: &Path, poll_ms: u64) {
+	let duration = Duration::from_millis(poll_ms);
+	while current_exe.exists() {
+		tokio::time::sleep(duration).await;
+	}
+}

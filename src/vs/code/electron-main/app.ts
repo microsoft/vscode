@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
@@ -30,13 +31,12 @@ import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
+import { EncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
@@ -59,7 +59,7 @@ import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainServi
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -96,7 +96,6 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
@@ -117,6 +116,11 @@ import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/electronPtyHostStarter';
+import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
+import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
+import { Lazy } from 'vs/base/common/lazy';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -132,6 +136,7 @@ export class CodeApplication extends Disposable {
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly mainInstantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerService private readonly loggerService: ILoggerService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -155,22 +160,34 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
+		const allowedPermissionsInMainFrame = new Set(
+			this.productService.quality === 'stable' ? [] : ['media']
+		);
+
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
 		]);
 
-		session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
+		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
+			}
+
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+				return callback(allowedPermissionsInMainFrame.has(permission));
 			}
 
 			return callback(false);
 		});
 
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
+		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
+			}
+
+			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+				return allowedPermissionsInMainFrame.has(permission);
 			}
 
 			return false;
@@ -181,7 +198,7 @@ export class CodeApplication extends Disposable {
 		//#region Request filtering
 
 		// Block all SVG requests from unsupported origins
-		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
 		// But allow them if the are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
@@ -311,13 +328,29 @@ export class CodeApplication extends Disposable {
 		}
 
 		//#endregion
+
+		//#region UNC Host Allowlist (Windows)
+
+		if (isWindows) {
+			if (this.configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(this.configurationService.getValue('security.allowedUNCHosts'));
+			}
+		}
+
+		//#endregion
 	}
 
 	private registerListeners(): void {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
-		process.on('uncaughtException', error => onUnexpectedError(error));
+		process.on('uncaughtException', error => {
+			if (!isSigPipeError(error)) {
+				onUnexpectedError(error);
+			}
+		});
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Dispose on shutdown
@@ -552,6 +585,9 @@ export class CodeApplication extends Disposable {
 		// Setup Protocol URL Handlers
 		const initialProtocolUrls = appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
 
+		// Setup vscode-remote-resource protocol handler.
+		this.setupManagedRemoteResourceUrlHandler(mainProcessElectronServer);
+
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
@@ -601,6 +637,28 @@ export class CodeApplication extends Disposable {
 		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		return initialProtocolUrls;
+	}
+
+	private setupManagedRemoteResourceUrlHandler(mainProcessElectronServer: ElectronIPCServer) {
+		const notFound = (): Electron.ProtocolResponse => ({ statusCode: 404, data: 'Not found' });
+		const remoteResourceChannel = new Lazy(() => mainProcessElectronServer.getChannel(
+			NODE_REMOTE_RESOURCE_CHANNEL_NAME,
+			new NodeRemoteResourceRouter(),
+		));
+
+		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
+			const url = URI.parse(request.url);
+			if (!url.authority.startsWith('window:')) {
+				return callback(notFound());
+			}
+
+			remoteResourceChannel.value.call<NodeRemoteResourceResponse>(NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, [url]).then(
+				r => callback({ ...r, data: Buffer.from(r.body, 'base64') }),
+				err => {
+					this.logService.warn('error dispatching remote resource call', err);
+					callback({ statusCode: 500, data: String(err) });
+				});
+		});
 	}
 
 	private resolveInitialProtocolUrls(): IInitialProtocolUrls | undefined {
@@ -714,7 +772,17 @@ export class CodeApplication extends Disposable {
 			if (secondSlash !== -1) {
 				const authority = uri.path.substring(1, secondSlash);
 				const path = uri.path.substring(secondSlash);
-				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query: uri.query, fragment: uri.fragment });
+
+				let query = uri.query;
+				const params = new URLSearchParams(uri.query);
+				if (params.get('windowId') === '_blank') {
+					// Make sure to unset any `windowId=_blank` here
+					// https://github.com/microsoft/vscode/issues/191902
+					params.delete('windowId');
+					query = params.toString();
+				}
+
+				const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority, path, query, fragment: uri.fragment });
 
 				if (hasWorkspaceFileExtension(path)) {
 					return { workspaceUri: remoteUri };
@@ -886,16 +954,13 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
-
-		// Credentials
-		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
 
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
@@ -912,6 +977,20 @@ export class CodeApplication extends Disposable {
 		// Storage
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
+
+		// Terminal
+		const ptyHostStarter = new ElectronPtyHostStarter({
+			graceTime: LocalReconnectConstants.GraceTime,
+			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
+			scrollback: this.configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
+		}, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
+		const ptyHostService = new PtyHostService(
+			ptyHostStarter,
+			this.configurationService,
+			this.logService,
+			this.loggerService
+		);
+		services.set(ILocalPtyService, ptyHostService);
 
 		// External terminal
 		if (isWindows) {
@@ -1011,10 +1090,6 @@ export class CodeApplication extends Disposable {
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService));
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
 
-		// Credentials
-		const credentialsChannel = ProxyChannel.fromService(accessor.get(ICredentialsMainService));
-		mainProcessElectronServer.registerChannel('credentials', credentialsChannel);
-
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService));
 		mainProcessElectronServer.registerChannel('sign', signChannel);
@@ -1057,6 +1132,10 @@ export class CodeApplication extends Disposable {
 		// Profile Storage Changes Listener (shared process)
 		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
+
+		// Terminal
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService));
+		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));
@@ -1216,6 +1295,11 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
+
+		if (isMacintosh && app.runningUnderARM64Translation) {
+			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
+		}
+
 	}
 
 	private async installMutex(): Promise<void> {

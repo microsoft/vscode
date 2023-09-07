@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities, isUntitledWithAssociatedResource } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isReadable, isReadableStream } from 'vs/base/common/stream';
 import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -24,19 +24,18 @@ import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/lang
 
 suite('Untitled text editors', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(accessor.untitledTextEditorService as UntitledTextEditorService);
 	});
 
 	teardown(() => {
-		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('basics', async () => {
@@ -46,15 +45,17 @@ suite('Untitled text editors', () => {
 		const input1 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		await input1.resolve();
 		assert.strictEqual(service.get(input1.resource), input1.model);
-		assert.ok(!isUntitledWithAssociatedResource(input1.resource));
+		assert.ok(!accessor.untitledTextEditorService.isUntitledWithAssociatedResource(input1.resource));
 
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
 
 		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input1.isReadonly());
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Scratchpad));
 
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		assert.strictEqual(service.get(input2.resource), input2.model);
@@ -138,7 +139,7 @@ suite('Untitled text editors', () => {
 		});
 
 		const model = service.create({ associatedResource: file });
-		assert.ok(isUntitledWithAssociatedResource(model.resource));
+		assert.ok(accessor.untitledTextEditorService.isUntitledWithAssociatedResource(model.resource));
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, model);
 		assert.ok(untitled.isDirty());
 		assert.strictEqual(model, onDidChangeDirtyModel);
@@ -540,10 +541,14 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(input.getName(), '123456789012345678901234567890123456789');
 		assert.strictEqual(model.name, '123456789012345678901234567890123456789');
 
-		assert.strictEqual(counter, 6);
+		model.textEditorModel?.setValue('hello\u202Eworld'); // do not allow RTL in names (#190133)
+		assert.strictEqual(input.getName(), 'helloworld');
+		assert.strictEqual(model.name, 'helloworld');
+
+		assert.strictEqual(counter, 7);
 
 		model.textEditorModel?.setValue('Hello\nWorld');
-		assert.strictEqual(counter, 7);
+		assert.strictEqual(counter, 8);
 
 		function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
 			const range = new Range(
@@ -561,7 +566,7 @@ suite('Untitled text editors', () => {
 		}
 
 		model.textEditorModel?.applyEdits([createSingleEditOp('hello', 2, 2)]);
-		assert.strictEqual(counter, 7); // change was not on first line
+		assert.strictEqual(counter, 8); // change was not on first line
 
 		input.dispose();
 		model.dispose();

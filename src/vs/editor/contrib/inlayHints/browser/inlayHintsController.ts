@@ -495,6 +495,7 @@ export class InlayHintsController implements IEditorContribution {
 					fontSize: `${fontSize}px`,
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
 					verticalAlign: isUniform ? 'baseline' : 'middle',
+					unicodeBidi: 'isolate'
 				};
 
 				if (isNonEmptyArray(item.hint.textEdits)) {

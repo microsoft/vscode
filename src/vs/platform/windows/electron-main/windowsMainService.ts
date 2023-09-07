@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, WebContents } from 'electron';
+import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { Promises } from 'vs/base/node/pfs';
-import { hostname, release } from 'os';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
+import { hostname, release, arch } from 'os';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CharCode } from 'vs/base/common/charCode';
@@ -20,7 +21,7 @@ import { getMarks, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -798,7 +799,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				detail: uri.scheme === Schemas.file ?
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
 					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true))
-			}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			}, BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return undefined;
 		}));
@@ -867,6 +868,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
 
 				return undefined;
+			}
+			if (!uri.path) {
+				return uri.with({ path: '/' });
 			}
 
 			return uri;
@@ -1013,7 +1017,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return openable.fileUri;
 	}
 
-	private async doResolveFilePath(path: string, options: IPathResolveOptions): Promise<IPathToOpen<ITextEditorOptions> | undefined> {
+	private async doResolveFilePath(path: string, options: IPathResolveOptions, skipHandleUNCError?: boolean): Promise<IPathToOpen<ITextEditorOptions> | undefined> {
 
 		// Extract line/col information from path
 		let lineNumber: number | undefined;
@@ -1083,6 +1087,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				};
 			}
 		} catch (error) {
+
+			if (error.code === 'ERR_UNC_HOST_NOT_ALLOWED' && !skipHandleUNCError) {
+				return this.onUNCHostNotAllowed(path, options);
+			}
+
 			const fileUri = URI.file(path);
 
 			// since file does not seem to exist anymore, remove from recent
@@ -1096,6 +1105,43 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					exists: false
 				};
 			}
+		}
+
+		return undefined;
+	}
+
+	private async onUNCHostNotAllowed(path: string, options: IPathResolveOptions): Promise<IPathToOpen<ITextEditorOptions> | undefined> {
+		const uri = URI.file(path);
+
+		const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
+			type: 'warning',
+			buttons: [
+				localize({ key: 'allow', comment: ['&& denotes a mnemonic'] }, "&&Allow"),
+				localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel"),
+				localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+			],
+			message: localize('confirmOpenMessage', "The host '{0}' was not found in the list of allowed hosts. Do you want to allow it anyway?", uri.authority),
+			detail: localize('confirmOpenDetail', "The path '{0}' uses a host that is not allowed. Unless you trust the host, you should press 'Cancel'", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })),
+			checkboxLabel: localize('doNotAskAgain', "Permanently allow host '{0}'", uri.authority),
+			cancelId: 1
+		});
+
+		if (response === 0) {
+			addUNCHostToAllowlist(uri.authority);
+
+			if (checkboxChecked) {
+				this._register(Event.once(this.onDidOpenWindow)(window => {
+					window.sendWhenReady('vscode:configureAllowedUNCHost', CancellationToken.None, uri.authority);
+				}));
+			}
+
+			return this.doResolveFilePath(path, options, true /* do not handle UNC error again */);
+		}
+
+		if (response === 2) {
+			shell.openExternal('https://aka.ms/vscode-windows-unc');
+
+			return this.onUNCHostNotAllowed(path, options); // keep showing the dialog until decision (https://github.com/microsoft/vscode/issues/181956)
 		}
 
 		return undefined;
@@ -1355,8 +1401,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				profile: defaultProfile
 			},
 
-			homeDir: this.environmentMainService.userHome.fsPath,
-			tmpDir: this.environmentMainService.tmpDir.fsPath,
+			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
+			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
 
 			remoteAuthority: options.remoteAuthority,
@@ -1373,12 +1419,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				window: [],
 				global: this.loggerService.getRegisteredLoggers()
 			},
-			logsPath: this.environmentMainService.logsHome.fsPath,
+			logsPath: this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 
 			product,
 			isInitialStartup: options.initialStartup,
 			perfMarks: getMarks(),
-			os: { release: release(), hostname: hostname() },
+			os: { release: release(), hostname: hostname(), arch: arch() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,

@@ -25,7 +25,7 @@ import { TextEditorService } from 'vs/workbench/services/textfile/common/textEdi
 
 suite('Files - FileEditorInput', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -44,7 +44,6 @@ suite('Files - FileEditorInput', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService({
 			textEditorService: instantiationService => instantiationService.createInstance(TestTextEditorService)
 		}, disposables);
@@ -53,7 +52,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('Basics', async function () {
@@ -70,6 +69,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input.isReadonly());
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.RequiresTrust));
 
@@ -123,6 +123,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.ok(input.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input.isReadonly());
 	});
 
 	test('reports as readonly with readonly file scheme', async function () {
@@ -136,6 +137,7 @@ suite('Files - FileEditorInput', () => {
 
 			assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
 			assert.ok(input.hasCapability(EditorInputCapabilities.Readonly));
+			assert.ok(input.isReadonly());
 		} finally {
 			disposable.dispose();
 		}
@@ -256,9 +258,11 @@ suite('Files - FileEditorInput', () => {
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
+		assert.ok(input.isModified());
 
 		await input.save(0);
 		assert.ok(!input.isDirty());
+		assert.ok(!input.isModified());
 		resolved.dispose();
 	});
 
@@ -268,9 +272,11 @@ suite('Files - FileEditorInput', () => {
 		const resolved = await input.resolve() as TextFileEditorModel;
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
+		assert.ok(input.isModified());
 
 		await input.revert(0);
 		assert.ok(!input.isDirty());
+		assert.ok(!input.isModified());
 
 		input.dispose();
 		assert.ok(input.isDisposed());
@@ -431,6 +437,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.strictEqual(model.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 
 		const stat = await accessor.fileService.resolve(input.resource, { resolveMetadata: true });
 
@@ -441,8 +448,9 @@ suite('Files - FileEditorInput', () => {
 			accessor.fileService.readShouldThrowError = undefined;
 		}
 
-		assert.strictEqual(model.isReadonly(), true);
+		assert.strictEqual(!!model.isReadonly(), true);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(!!input.isReadonly(), true);
 		assert.strictEqual(listenerCount, 1);
 
 		try {
@@ -454,6 +462,7 @@ suite('Files - FileEditorInput', () => {
 
 		assert.strictEqual(model.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 		assert.strictEqual(listenerCount, 2);
 
 		input.dispose();

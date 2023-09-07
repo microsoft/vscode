@@ -41,7 +41,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { DebugHoverWidget, ShowDebugHoverResult } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
@@ -219,7 +219,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private gutterIsHovered = false;
 
 	private exceptionWidget: ExceptionWidget | undefined;
-	private configurationWidget: FloatingClickWidget | undefined;
+	private configurationWidget: FloatingEditorClickWidget | undefined;
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();
@@ -373,12 +373,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	async showHover(position: Position, focus: boolean): Promise<void> {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
-		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
+		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
 			const result = await this.hoverWidget.showAt(position, focus);
 			if (result === ShowDebugHoverResult.NOT_AVAILABLE) {
 				// When no expression available fallback to editor hover
 				this.showEditorHover(position, focus);
 			}
+		} else {
+			this.showEditorHover(position, focus);
 		}
 	}
 
@@ -406,7 +408,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get showHoverScheduler(): RunOnceScheduler {
 		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
-			if (this.hoverPosition) {
+			if (this.hoverPosition && !this.altPressed) {
 				this.showHover(this.hoverPosition, false);
 			}
 		}, hoverOption.delay * 2);

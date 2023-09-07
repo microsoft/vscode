@@ -15,7 +15,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 
 export function clearNode(node: HTMLElement): void {
@@ -921,8 +920,11 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
-		this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
-		this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
+		if (element instanceof HTMLElement) {
+			this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
+			this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
+		}
+
 	}
 
 	refreshState() {
@@ -1284,7 +1286,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 
 		// Resolve once the input event has fired once
 		event.Event.once(event.Event.fromDOMEventEmitter(input, 'input'))(() => {
-			resolve(withNullAsUndefined(input.files));
+			resolve(input.files ?? undefined);
 		});
 
 		input.click();
@@ -1865,7 +1867,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 				el.appendChild(c);
 			} else if (typeof c === 'string') {
 				el.append(c);
-			} else {
+			} else if ('root' in c) {
 				Object.assign(result, c);
 				el.appendChild(c.root);
 			}

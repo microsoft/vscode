@@ -9,12 +9,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
@@ -44,7 +42,7 @@ namespace LightBulbState {
 	export type State = typeof Hidden | Showing;
 }
 
-export class LightBulbWidget extends Disposable implements IEditorContribution, IContentWidget {
+export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	public static readonly ID = 'editor.contrib.lightbulbWidget';
 
@@ -52,7 +50,7 @@ export class LightBulbWidget extends Disposable implements IEditorContribution, 
 
 	private readonly _domNode: HTMLElement;
 
-	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet; trigger: CodeActionTrigger }>());
+	private readonly _onClick = this._register(new Emitter<{ readonly x: number; readonly y: number; readonly actions: CodeActionSet; readonly trigger: CodeActionTrigger }>());
 	public readonly onClick = this._onClick.event;
 
 	private _state: LightBulbState.State = LightBulbState.Hidden;
@@ -123,8 +121,8 @@ export class LightBulbWidget extends Disposable implements IEditorContribution, 
 		}));
 
 		this._register(Event.runAndSubscribe(keybindingService.onDidUpdateKeybindings, () => {
-			this._preferredKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel());
-			this._quickFixKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel());
+			this._preferredKbLabel = keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
+			this._quickFixKbLabel = keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined;
 
 			this._updateLightBulbTitleAndIcon();
 		}));

@@ -98,6 +98,41 @@ suite('EditorSimpleWorker', () => {
 		});
 	});
 
+	test('MoreMinimal, merge adjacent edits', async function () {
+
+		const model = worker.addModel([
+			'one',
+			'two',
+			'three',
+			'four',
+			'five'
+		], '\n');
+
+
+		const newEdits = await worker.computeMoreMinimalEdits(model.uri.toString(), [
+			{
+				range: new Range(1, 1, 2, 1),
+				text: 'one\ntwo\nthree\n',
+			}, {
+				range: new Range(2, 1, 3, 1),
+				text: '',
+			}, {
+				range: new Range(3, 1, 4, 1),
+				text: '',
+			}, {
+				range: new Range(4, 2, 4, 3),
+				text: '4',
+			}, {
+				range: new Range(5, 3, 5, 5),
+				text: '5',
+			}
+		], false);
+
+		assert.strictEqual(newEdits.length, 2);
+		assert.strictEqual(newEdits[0].text, '4');
+		assert.strictEqual(newEdits[1].text, '5');
+	});
+
 	test('MoreMinimal, issue #15385 newline changes only', function () {
 
 		const model = worker.addModel([
@@ -149,7 +184,7 @@ suite('EditorSimpleWorker', () => {
 		const smallerEdits = await worker.computeHumanReadableDiff(
 			model.uri.toString(),
 			edits,
-			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0 }
+			{ ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false }
 		);
 
 		const t1 = applyEdits(model.getValue(), edits);

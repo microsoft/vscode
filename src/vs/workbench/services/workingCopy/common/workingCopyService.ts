@@ -69,6 +69,18 @@ export interface IWorkingCopyService {
 	readonly dirtyWorkingCopies: readonly IWorkingCopy[];
 
 	/**
+	 * The number of modified working copies that are registered,
+	 * including scratchpads, which are never dirty.
+	 */
+	readonly modifiedCount: number;
+
+	/**
+	 * All working copies with unsaved changes,
+	 * including scratchpads, which are never dirty.
+	 */
+	readonly modifiedWorkingCopies: readonly IWorkingCopy[];
+
+	/**
 	 * Whether there is any registered working copy that is dirty.
 	 */
 	readonly hasDirty: boolean;
@@ -263,6 +275,22 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	get dirtyWorkingCopies(): IWorkingCopy[] {
 		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
+	}
+
+	get modifiedCount(): number {
+		let totalModifiedCount = 0;
+
+		for (const workingCopy of this._workingCopies) {
+			if (workingCopy.isModified()) {
+				totalModifiedCount++;
+			}
+		}
+
+		return totalModifiedCount;
+	}
+
+	get modifiedWorkingCopies(): IWorkingCopy[] {
+		return this.workingCopies.filter(workingCopy => workingCopy.isModified());
 	}
 
 	isDirty(resource: URI, typeId?: string): boolean {

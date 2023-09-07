@@ -559,24 +559,25 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 }
 
 function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
-	const subtoken = token.tokens[0];
-	if (subtoken.type === 'text') {
-		const lines = subtoken.raw.split('\n');
-		const lastLine = lines[lines.length - 1];
-		if (lastLine.includes('`')) {
-			return completeCodespan(token);
-		} else if (lastLine.includes('**')) {
-			return completeDoublestar(token);
-		} else if (lastLine.match(/\*\w/)) {
-			return completeStar(token);
-		} else if (lastLine.match(/(^|\s)__\w/)) {
-			return completeDoubleUnderscore(token);
-		} else if (lastLine.match(/(^|\s)_\w/)) {
-			return completeUnderscore(token);
-		} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
-			return completeLinkTarget(token);
-		} else if (lastLine.match(/(^|\s)\[\w/)) {
-			return completeLinkText(token);
+	for (const subtoken of token.tokens) {
+		if (subtoken.type === 'text') {
+			const lines = subtoken.raw.split('\n');
+			const lastLine = lines[lines.length - 1];
+			if (lastLine.includes('`')) {
+				return completeCodespan(token);
+			} else if (lastLine.includes('**')) {
+				return completeDoublestar(token);
+			} else if (lastLine.match(/\*\w/)) {
+				return completeStar(token);
+			} else if (lastLine.match(/(^|\s)__\w/)) {
+				return completeDoubleUnderscore(token);
+			} else if (lastLine.match(/(^|\s)_\w/)) {
+				return completeUnderscore(token);
+			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+				return completeLinkTarget(token);
+			} else if (lastLine.match(/(^|\s)\[\w/)) {
+				return completeLinkText(token);
+			}
 		}
 	}
 

@@ -5,7 +5,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -23,7 +23,7 @@ steps:
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
-  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa -bb
+  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
@@ -31,7 +31,10 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-      exec { npm config set always-auth=true --location=project }
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
       exec { yarn config set registry "$env:NPM_REGISTRY" }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
@@ -61,6 +64,6 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
-      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 -bb `@.build/node_modules_list.txt }
+      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive

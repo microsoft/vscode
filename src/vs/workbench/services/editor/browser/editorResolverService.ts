@@ -255,7 +255,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	getAssociationsForResource(resource: URI): EditorAssociations {
 		const associations = this.getAllUserAssociations();
-		const matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
+		let matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
+		// Sort matching associations based on glob length as a longer glob will be more specific
+		matchingAssociations = matchingAssociations.sort((a, b) => (b.filenamePattern?.length ?? 0) - (a.filenamePattern?.length ?? 0));
 		const allEditors: RegisteredEditors = this._registeredEditors;
 		// Ensure that the settings are valid editors
 		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));

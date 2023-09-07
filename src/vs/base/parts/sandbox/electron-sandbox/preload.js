@@ -252,11 +252,9 @@
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
 			get env() { return { ...process.env }; },
-			get pid() { return process.pid; },
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
-			get sandboxed() { return process.sandboxed; },
 
 			/**
 			 * @returns {string}

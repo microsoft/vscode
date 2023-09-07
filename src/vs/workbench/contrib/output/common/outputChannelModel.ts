@@ -22,6 +22,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
+import { isCancellationError } from 'vs/base/common/errors';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;
@@ -61,7 +62,11 @@ class OutputFileListener extends Disposable {
 
 	private poll(): void {
 		const loop = () => this.doWatch().then(() => this.poll());
-		this.syncDelayer.trigger(loop);
+		this.syncDelayer.trigger(loop).catch(error => {
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		});
 	}
 
 	private async doWatch(): Promise<void> {
@@ -206,7 +211,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		this.doUpdateModel(model, [EditOperation.delete(model.getFullModelRange())], VSBuffer.fromString(''));
 	}
 
-	private async appendContent(model: ITextModel, immediate: boolean, token: CancellationToken): Promise<void> {
+	private appendContent(model: ITextModel, immediate: boolean, token: CancellationToken): void {
 		this.appendThrottler.trigger(async () => {
 			/* Abort if operation is cancelled */
 			if (token.isCancellationRequested) {
@@ -234,7 +239,11 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 			const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
 			const edits = [EditOperation.insert(new Position(lastLine, lastLineMaxColumn), contentToAppend.toString())];
 			this.doUpdateModel(model, edits, contentToAppend);
-		}, immediate ? 0 : undefined);
+		}, immediate ? 0 : undefined).catch(error => {
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		});
 	}
 
 	private async replaceContent(model: ITextModel, token: CancellationToken): Promise<void> {

@@ -34,6 +34,7 @@ import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu }
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 /**
  * Suggest widget colors
@@ -208,7 +209,7 @@ export class SuggestWidget implements IDisposable {
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
-		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor);
+		const details = this._disposables.add(instantiationService.createInstance(SuggestDetailsWidget, this.editor));
 		details.onDidClose(this.toggleDetails, this, this._disposables);
 		this._details = new SuggestDetailsOverlay(details, this.editor);
 
@@ -237,9 +238,9 @@ export class SuggestWidget implements IDisposable {
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0}{1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0}{1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}', label, detail);
 						} else if (description) {
 							label = nls.localize('label.desc', '{0}, {1}', label, description);
 						}
@@ -398,10 +399,12 @@ export class SuggestWidget implements IDisposable {
 					}
 				}, 250);
 				const sub = token.onCancellationRequested(() => loading.dispose());
-				const result = await item.resolve(token);
-				loading.dispose();
-				sub.dispose();
-				return result;
+				try {
+					return await item.resolve(token);
+				} finally {
+					loading.dispose();
+					sub.dispose();
+				}
 			});
 
 			this._currentSuggestionDetails.then(() => {
@@ -463,6 +466,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.LOADING_MESSAGE);
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
@@ -472,6 +476,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.NO_SUGGESTIONS_MESSAGE);
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);

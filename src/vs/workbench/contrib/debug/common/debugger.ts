@@ -20,6 +20,7 @@ import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { filter } from 'vs/base/common/objects';
 
 export class Debugger implements IDebugger, IDebuggerMetadata {
 
@@ -225,6 +226,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		// fill in the default configuration attributes shared by all adapters.
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
 			const definitionId = `${this.type}:${request}`;
+			const platformSpecificDefinitionId = `${this.type}:${request}:platform`;
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
@@ -259,6 +261,11 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 			});
 
 			definitions[definitionId] = { ...attributes };
+			definitions[platformSpecificDefinitionId] = {
+				type: 'object',
+				additionalProperties: false,
+				properties: filter(properties, key => key !== 'type' && key !== 'request' && key !== 'name')
+			};
 
 			// Don't add the OS props to the real attributes object so they don't show up in 'definitions'
 			const attributesCopy = { ...attributes };
@@ -266,19 +273,16 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 				...properties,
 				...{
 					windows: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
-						required: [],
 					},
 					osx: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
-						required: [],
 					},
 					linux: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
-						required: [],
 					}
 				}
 			};

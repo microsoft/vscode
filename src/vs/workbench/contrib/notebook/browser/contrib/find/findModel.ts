@@ -12,7 +12,7 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contri
 import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { findFirstInSorted } from 'vs/base/common/arrays';
+import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
@@ -111,7 +111,7 @@ export class FindModel extends Disposable {
 			this._registerModelListener(this._notebookEditor.textModel);
 		}
 
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor);
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor, this._notebookEditor.getId());
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {
@@ -125,7 +125,7 @@ export class FindModel extends Disposable {
 
 		// we only update cell state if users are using the hybrid mode (both input and preview are enabled)
 		const updateEditingState = () => {
-			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			const viewModel = this._notebookEditor.getViewModel() as NotebookViewModel | undefined;
 			if (!viewModel) {
 				return;
 			}
@@ -148,14 +148,36 @@ export class FindModel extends Disposable {
 				if (cell && cell.cellKind === CellKind.Markup) {
 					const foundContentMatch = contentMatches.find(m => m.cell.handle === cell.handle && m.contentMatches.length > 0);
 					const targetState = foundContentMatch ? CellEditState.Editing : CellEditState.Preview;
-					if (cell.getEditState() !== targetState) {
+					const currentEditingState = cell.getEditState();
+
+					if (currentEditingState === CellEditState.Editing && cell.editStateSource !== 'find') {
+						// it's already in editing mode, we should not update
+						continue;
+					}
+					if (currentEditingState !== targetState) {
 						cell.updateEditState(targetState, 'find');
 					}
 				}
 			}
 		};
 
-		if (this._state.replaceString.length === 0) {
+
+		if (e.isReplaceRevealed && !this._state.isReplaceRevealed) {
+			// replace is hidden, we need to switch all markdown cells to preview mode
+			const viewModel = this._notebookEditor.getViewModel() as NotebookViewModel | undefined;
+			if (!viewModel) {
+				return;
+			}
+
+			for (let i = 0; i < viewModel.length; i++) {
+				const cell = viewModel.cellAt(i);
+				if (cell && cell.cellKind === CellKind.Markup) {
+					if (cell.getEditState() === CellEditState.Editing && cell.editStateSource === 'find') {
+						cell.updateEditState(CellEditState.Preview, 'find');
+					}
+				}
+			}
+
 			return;
 		}
 
@@ -319,7 +341,7 @@ export class FindModel extends Disposable {
 		}
 
 		const findFirstMatchAfterCellIndex = (cellIndex: number) => {
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= cellIndex);
+			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.index), index => index >= cellIndex);
 			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
 		};
 
@@ -381,7 +403,7 @@ export class FindModel extends Disposable {
 				return;
 			}
 
-			const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
+			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
 			if (findMatches[matchAfterSelection].index > oldCurrMatchCellIndex) {
 				// there is no search result in curr cell anymore, find the nearest one (from top to bottom)
 				this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
@@ -397,7 +419,7 @@ export class FindModel extends Disposable {
 				if (currMatchRangeInEditor !== null) {
 					// we find a range for the previous current match, let's find the nearest one after it (can overlap)
 					const cellMatch = findMatches[matchAfterSelection];
-					const matchAfterOldSelection = findFirstInSorted(cellMatch.contentMatches, match => Range.compareRangesUsingStarts((match as FindMatch).range, currMatchRangeInEditor) >= 0);
+					const matchAfterOldSelection = findFirstIdxMonotonousOrArrLen(cellMatch.contentMatches, match => Range.compareRangesUsingStarts((match as FindMatch).range, currMatchRangeInEditor) >= 0);
 					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection) + matchAfterOldSelection);
 				} else {
 					// no range found, let's fall back to finding the nearest match
@@ -407,7 +429,7 @@ export class FindModel extends Disposable {
 			}
 		} else {
 			// output now has the highlight
-			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex) % findMatches.length;
+			const matchAfterSelection = findFirstIdxMonotonousOrArrLen(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex) % findMatches.length;
 			this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
 		}
 	}
@@ -449,6 +471,9 @@ export class FindModel extends Disposable {
 	}
 
 	private async _compute(token: CancellationToken): Promise<CellFindMatchWithIndex[] | null> {
+		if (!this._notebookEditor.hasModel()) {
+			return null;
+		}
 		let ret: CellFindMatchWithIndex[] | null = null;
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
@@ -463,13 +488,8 @@ export class FindModel extends Disposable {
 			includeMarkupPreview: !!this._state.filters?.markupPreview,
 			includeOutput: !!this._state.filters?.codeOutput
 		};
-		if (!val) {
-			ret = null;
-		} else if (!this._notebookEditor.hasModel()) {
-			ret = null;
-		} else {
-			ret = await this._notebookEditor.find(val, options, token);
-		}
+
+		ret = await this._notebookEditor.find(val, options, token);
 
 		if (token.isCancellationRequested) {
 			return null;

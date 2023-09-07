@@ -11,7 +11,7 @@ import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -20,6 +20,8 @@ import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdo
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 const $ = dom.$;
 type TargetRect = {
@@ -89,6 +91,7 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -201,8 +204,9 @@ export class HoverWidget extends Widget {
 		} else {
 			if (options.hideOnHover === undefined) {
 				// When unset, will default to true when it's a string or when it's markdown that
-				// appears to have a link using a naive check for ']('
-				hideOnHover = typeof options.content === 'string' || isMarkdownString(options.content) && !options.content.value.includes('](');
+				// appears to have a link using a naive check for '](' and '</a>'
+				hideOnHover = typeof options.content === 'string' ||
+					isMarkdownString(options.content) && !options.content.value.includes('](') && !options.content.value.includes('</a>');
 			} else {
 				// It's set explicitly
 				hideOnHover = options.hideOnHover;
@@ -291,7 +295,11 @@ export class HoverWidget extends Widget {
 
 	public render(container: HTMLElement): void {
 		container.appendChild(this._hoverContainer);
+		const accessibleViewHint = getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
+		if (accessibleViewHint) {
 
+			status(accessibleViewHint);
+		}
 		this.layout();
 		this.addFocusTrap();
 	}

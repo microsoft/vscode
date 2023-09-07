@@ -13,21 +13,20 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Files - TextFileService', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let model: TextFileEditorModel;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(<ITestTextFileEditorModelManager>accessor.textFileService.files);
 	});
 
 	teardown(() => {
 		model?.dispose();
-		(<ITestTextFileEditorModelManager>accessor.textFileService.files).dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('isDirty/getDirty - files and untitled', async function () {

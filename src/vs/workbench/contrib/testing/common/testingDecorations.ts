@@ -7,7 +7,7 @@ import { IAction } from 'vs/base/common/actions';
 import { binarySearch } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITestMessage } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -40,7 +40,7 @@ export interface ITestingDecorationsService {
 	 * Gets the range where a test ID is displayed, in the given URI.
 	 * Returns undefined if there's no such decoration.
 	 */
-	getDecoratedRangeForTest(resource: URI, testId: string): Range | undefined;
+	getDecoratedTestPosition(resource: URI, testId: string): Position | undefined;
 }
 
 export interface ITestDecoration {

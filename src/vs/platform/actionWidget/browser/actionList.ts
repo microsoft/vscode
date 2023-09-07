@@ -149,6 +149,14 @@ class PreviewSelectedEvent extends UIEvent {
 	constructor() { super('previewSelectedAction'); }
 }
 
+function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undefined {
+	// Filter out header vs. action
+	if (item.kind === 'action') {
+		return item.label;
+	}
+	return undefined;
+}
+
 export class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
@@ -182,6 +190,8 @@ export class ActionList<T> extends Disposable {
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
+			typeNavigationEnabled: true,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -195,9 +205,10 @@ export class ActionList<T> extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
-				getWidgetRole: () => 'listbox'
+				getWidgetRole: () => 'listbox',
 			},
 		}));
+
 		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));

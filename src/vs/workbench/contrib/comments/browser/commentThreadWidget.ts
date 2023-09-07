@@ -28,13 +28,14 @@ import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
-	private _body!: CommentThreadBody<T>;
+	private _body: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
 	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
@@ -90,6 +91,21 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
+
+		const tracker = this._register(dom.trackFocus(bodyElement));
+		this._register(registerNavigableContainer({
+			focusNotifiers: [tracker],
+			focusNextWidget: () => {
+				if (!this._commentReply?.isCommentEditorFocused()) {
+					this._commentReply?.expandReplyAreaAndFocusCommentEditor();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (this._commentReply?.isCommentEditorFocused() && this._commentThread.comments?.length) {
+					this._body.focus();
+				}
+			}
+		}));
 
 		this._body = this._scopedInstatiationService.createInstance(
 			CommentThreadBody,
@@ -274,7 +290,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	getDimensions() {
-		return this._body?.getDimensions();
+		return this._body.getDimensions();
 	}
 
 	layout(widthInPixel?: number) {
@@ -296,9 +312,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
-			activeComment.submitComment();
+			return activeComment.submitComment();
 		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
-			this._commentReply?.submitComment();
+			return this._commentReply?.submitComment();
 		}
 	}
 

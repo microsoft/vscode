@@ -771,6 +771,16 @@ suite('ExtHostConfiguration', function () {
 		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
 	});
 
+	test('get return instance of array value', function () {
+		const testObject = createExtHostConfiguration({ 'far': { 'boo': [] } });
+
+		const value: string[] = testObject.getConfiguration().get('far.boo', []);
+		value.push('a');
+
+		const actual = testObject.getConfiguration().get('far.boo', []);
+		assert.deepStrictEqual(actual, []);
+	});
+
 	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {
 		return new WorkspaceFolder({ uri, name, index });
 	}

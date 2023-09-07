@@ -80,12 +80,12 @@ if (TRACK_DISPOSABLES) {
 	});
 }
 
-function trackDisposable<T extends IDisposable>(x: T): T {
+export function trackDisposable<T extends IDisposable>(x: T): T {
 	disposableTracker?.trackDisposable(x);
 	return x;
 }
 
-function markAsDisposed(disposable: IDisposable): void {
+export function markAsDisposed(disposable: IDisposable): void {
 	disposableTracker?.markAsDisposed(disposable);
 }
 
@@ -187,6 +187,8 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 
 /**
  * Turn a function that implements dispose into an {@link IDisposable}.
+ *
+ * @param fn Clean up function, guaranteed to be called only **once**.
  */
 export function toDisposable(fn: () => void): IDisposable {
 	const self = trackDisposable({

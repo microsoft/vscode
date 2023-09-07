@@ -66,6 +66,7 @@ export class CursorConfiguration {
 	public readonly multiCursorPaste: 'spread' | 'full';
 	public readonly multiCursorLimit: number;
 	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
+	public readonly autoClosingComments: EditorAutoClosingStrategy;
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingDelete: EditorAutoClosingEditStrategy;
 	public readonly autoClosingOvertype: EditorAutoClosingEditStrategy;
@@ -73,7 +74,8 @@ export class CursorConfiguration {
 	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean };
+	public readonly blockCommentStartToken: string | null;
+	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean; comment: (ch: string) => boolean };
 
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
@@ -87,6 +89,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.multiCursorPaste)
 			|| e.hasChanged(EditorOption.multiCursorLimit)
 			|| e.hasChanged(EditorOption.autoClosingBrackets)
+			|| e.hasChanged(EditorOption.autoClosingComments)
 			|| e.hasChanged(EditorOption.autoClosingQuotes)
 			|| e.hasChanged(EditorOption.autoClosingDelete)
 			|| e.hasChanged(EditorOption.autoClosingOvertype)
@@ -125,6 +128,7 @@ export class CursorConfiguration {
 		this.multiCursorPaste = options.get(EditorOption.multiCursorPaste);
 		this.multiCursorLimit = options.get(EditorOption.multiCursorLimit);
 		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
+		this.autoClosingComments = options.get(EditorOption.autoClosingComments);
 		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
 		this.autoClosingDelete = options.get(EditorOption.autoClosingDelete);
 		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
@@ -136,7 +140,8 @@ export class CursorConfiguration {
 
 		this.shouldAutoCloseBefore = {
 			quote: this._getShouldAutoClose(languageId, this.autoClosingQuotes, true),
-			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets, false)
+			comment: this._getShouldAutoClose(languageId, this.autoClosingComments, false),
+			bracket: this._getShouldAutoClose(languageId, this.autoClosingBrackets, false),
 		};
 
 		this.autoClosingPairs = this.languageConfigurationService.getLanguageConfiguration(languageId).getAutoClosingPairs();
@@ -147,6 +152,9 @@ export class CursorConfiguration {
 				this.surroundingPairs[pair.open] = pair.close;
 			}
 		}
+
+		const commentsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).comments;
+		this.blockCommentStartToken = commentsConfiguration?.blockCommentStartToken ?? null;
 	}
 
 	public get electricChars() {

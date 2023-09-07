@@ -5,6 +5,10 @@
 
 declare module 'vscode' {
 
+	// https://github.com/microsoft/vscode/issues/162950
+
+	export type SingleOrMany<T> = T[] | T;
+
 	export interface TerminalQuickFixProvider {
 		/**
 		 * Provides terminal quick fixes
@@ -12,7 +16,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token indicating the result is no longer needed
 		 * @return Terminal quick fix(es) if any
 		 */
-		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<(TerminalQuickFixCommand | TerminalQuickFixOpener)[] | TerminalQuickFixCommand | TerminalQuickFixOpener>;
+		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<SingleOrMany<TerminalQuickFixExecuteTerminalCommand | TerminalQuickFixOpener | Command>>;
 	}
 
 
@@ -33,7 +37,7 @@ declare module 'vscode' {
 		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
-	export class TerminalQuickFixCommand {
+	export class TerminalQuickFixExecuteTerminalCommand {
 		/**
 		 * The terminal command to run
 		 */
@@ -75,10 +79,5 @@ declare module 'vscode' {
 	enum TerminalOutputAnchor {
 		Top = 0,
 		Bottom = 1
-	}
-
-	enum TerminalQuickFixType {
-		Command = 0,
-		Opener = 1
 	}
 }

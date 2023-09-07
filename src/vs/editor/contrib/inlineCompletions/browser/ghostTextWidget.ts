@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
@@ -31,7 +32,7 @@ export interface IGhostTextWidgetModel {
 }
 
 export class GhostTextWidget extends Disposable {
-	private readonly isDisposed = observableValue('isDisposed', false);
+	private readonly isDisposed = observableValue(this, false);
 	private readonly currentTextModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
 
 	constructor(
@@ -45,7 +46,7 @@ export class GhostTextWidget extends Disposable {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly uiState = derived('uiState', reader => {
+	private readonly uiState = derived(this, reader => {
 		if (this.isDisposed.read(reader)) {
 			return undefined;
 		}
@@ -124,7 +125,7 @@ export class GhostTextWidget extends Disposable {
 		};
 	});
 
-	private readonly decorations = derived('decorations', reader => {
+	private readonly decorations = derived(this, reader => {
 		const uiState = this.uiState.read(reader);
 		if (!uiState) {
 			return [];
@@ -164,7 +165,8 @@ export class GhostTextWidget extends Disposable {
 		new AdditionalLinesWidget(
 			this.editor,
 			this.languageService.languageIdCodec,
-			derived('lines', (reader) => {
+			derived(reader => {
+				/** @description lines */
 				const uiState = this.uiState.read(reader);
 				return uiState ? {
 					lineNumber: uiState.lineNumber,
@@ -203,7 +205,8 @@ class AdditionalLinesWidget extends Disposable {
 	) {
 		super();
 
-		this._register(autorun('update view zone', reader => {
+		this._register(autorun(reader => {
+			/** @description update view zone */
 			const lines = this.lines.read(reader);
 			this.editorOptionsChanged.read(reader);
 
@@ -321,4 +324,4 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	domNode.innerHTML = trustedhtml as string;
 }
 
-const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('editorGhostText', { createHTML: value => value });

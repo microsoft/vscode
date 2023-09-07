@@ -102,7 +102,7 @@ interface IEditableResourcePreview extends IBaseResourcePreview, IResourcePrevie
 	acceptResult?: IAcceptResult;
 }
 
-interface ISyncResourcePreview extends IBaseSyncResourcePreview {
+export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
 	readonly remoteUserData: IRemoteUserData;
 	readonly lastSyncUserData: IRemoteUserData | null;
 	readonly resourcePreviews: IEditableResourcePreview[];

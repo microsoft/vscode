@@ -30,11 +30,11 @@ import { isEqual } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { TasksInitializer } from 'vs/platform/userDataSync/common/tasksSync';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IUserDataInitializer } from 'vs/workbench/services/userData/browser/userDataInit';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 
 export class UserDataSyncInitializer implements IUserDataInitializer {
 
@@ -46,7 +46,7 @@ export class UserDataSyncInitializer implements IUserDataInitializer {
 
 	constructor(
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
@@ -90,7 +90,7 @@ export class UserDataSyncInitializer implements IUserDataInitializer {
 
 					let authenticationSession;
 					try {
-						authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+						authenticationSession = await getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService);
 					} catch (error) {
 						this.logService.error(error);
 					}

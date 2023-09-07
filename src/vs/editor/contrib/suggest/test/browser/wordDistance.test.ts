@@ -26,6 +26,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { NullLogService } from 'vs/platform/log/common/log';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('suggest, word distance', function () {
 
@@ -88,6 +89,8 @@ suite('suggest, word distance', function () {
 		disposables.clear();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {
 		const suggestion: languages.CompletionItem = {
 			label,
@@ -99,6 +102,7 @@ suite('suggest, word distance', function () {
 			suggestions: [suggestion]
 		};
 		const provider: languages.CompletionItemProvider = {
+			_debugDisplayName: 'test',
 			provideCompletionItems(): any {
 				return;
 			}

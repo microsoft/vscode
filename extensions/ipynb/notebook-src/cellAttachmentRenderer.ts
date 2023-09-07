@@ -23,7 +23,7 @@ export async function activate(ctx: RendererContext<void>) {
 			const token = tokens[idx];
 			const src = token.attrGet('src');
 			const attachments: Record<string, Record<string, string>> | undefined = env.outputItem.metadata?.attachments;
-			if (attachments && src) {
+			if (attachments && src && src.startsWith('attachment:')) {
 				const imageAttachment = attachments[tryDecodeURIComponent(src.replace('attachment:', ''))];
 				if (imageAttachment) {
 					// objEntries will always be length 1, with objEntries[0] holding [0]=mime,[1]=b64
