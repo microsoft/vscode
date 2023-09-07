@@ -438,6 +438,7 @@ export abstract class TitleControl extends Themable {
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+
 		// Update title height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTitleHeight();
