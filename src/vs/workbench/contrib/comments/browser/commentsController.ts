@@ -741,7 +741,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | undefined, pendingEdits: { [key: number]: string } | undefined): void {
-		if (!this.editor) {
+		if (!this.editor?.getModel()) {
 			return;
 		}
 		if (this.isEditorInlineOriginal(this.editor)) {
