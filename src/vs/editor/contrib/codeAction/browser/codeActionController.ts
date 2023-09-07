@@ -253,8 +253,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			onHide: () => {
 				this._editor?.focus();
 			},
-			onFocus: async (action: CodeActionItem) => {
-				await action.resolve(CancellationToken.None);
+			onFocus: async (action: CodeActionItem, token: CancellationToken) => {
+				await action.resolve(token);
+				if (token.isCancellationRequested) {
+					return;
+				}
 				return { canPreview: !!action.action.edit?.edits.length };
 			}
 		};

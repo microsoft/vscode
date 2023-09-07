@@ -6,6 +6,7 @@ import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -24,7 +25,7 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
-	onFocus?(action: T): Promise<{ canPreview: boolean }>;
+	onFocus?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
 }
 
 export interface IActionListItem<T> {
@@ -169,6 +170,8 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
 
+	private readonly cts = new CancellationTokenSource();
+
 	constructor(
 		user: string,
 		preview: boolean,
@@ -231,6 +234,7 @@ export class ActionList<T> extends Disposable {
 
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
+		this.cts.cancel();
 		this._contextViewService.hideContextView();
 	}
 
@@ -309,16 +313,16 @@ export class ActionList<T> extends Disposable {
 		if (element) {
 			if (element.item && this.focusCondition(element)) {
 				if (this._delegate.onFocus) {
-					const result = await this._delegate.onFocus(element.item);
-					element.canPreview = result.canPreview;
+					const result = await this._delegate.onFocus(element.item, this.cts.token);
+					if (result) {
+						element.canPreview = result.canPreview;
+					}
 				}
 				if (e.index) {
 					this._list.splice(e.index, 1, [element]);
 				}
 			}
 		}
-
-		this._list.rerender();
 
 		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
