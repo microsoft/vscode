@@ -1492,6 +1492,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				terminal.xterm.write(chunk.buffer, () => pendingWrites.value--);
 			}
 		} else {
+			didWriteData = true;
 			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
 		}
 
