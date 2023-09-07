@@ -10,7 +10,7 @@ import { Server as UtilityProcessServer } from 'vs/base/parts/ipc/node/ipc.mp';
 import { localize } from 'vs/nls';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ConsoleLogger, getLogLevel } from 'vs/platform/log/common/log';
+import { getLogLevel } from 'vs/platform/log/common/log';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
@@ -33,7 +33,6 @@ async function startPtyHost() {
 		shortGraceTime: parseInt(process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME || '0'),
 		scrollback: parseInt(process.env.VSCODE_RECONNECT_SCROLLBACK || '100')
 	};
-	const lastPtyId = parseInt(process.env.VSCODE_LAST_PTY_ID || '0');
 
 	// Sanitize environment
 	delete process.env.VSCODE_RECONNECT_GRACE_TIME;
@@ -41,7 +40,12 @@ async function startPtyHost() {
 	delete process.env.VSCODE_RECONNECT_SCROLLBACK;
 	delete process.env.VSCODE_LATENCY;
 	delete process.env.VSCODE_STARTUP_DELAY;
-	delete process.env.VSCODE_LAST_PTY_ID;
+
+	// Delay startup if needed, this must occur before RPC is setup to avoid the channel from timing
+	// out.
+	if (startupDelay) {
+		await timeout(startupDelay);
+	}
 
 	// Setup RPC
 	const _isUtilityProcess = isUtilityProcess(process);
@@ -58,12 +62,11 @@ async function startPtyHost() {
 	const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 	server.registerChannel(TerminalIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
 	const logger = loggerService.createLogger('ptyhost', { name: localize('ptyHost', "Pty Host") });
-	const logService = new LogService(logger, [new ConsoleLogger()]);
+	const logService = new LogService(logger);
 
-	// Log and apply developer config
+	// Log developer config
 	if (startupDelay) {
 		logService.warn(`Pty Host startup is delayed ${startupDelay}ms`);
-		await timeout(startupDelay);
 	}
 	if (simulatedLatency) {
 		logService.warn(`Pty host is simulating ${simulatedLatency}ms latency`);
@@ -74,7 +77,7 @@ async function startPtyHost() {
 	server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(heartbeatService));
 
 	// Init pty service
-	const ptyService = new PtyService(lastPtyId, logService, productService, reconnectConstants, simulatedLatency);
+	const ptyService = new PtyService(logService, productService, reconnectConstants, simulatedLatency);
 	const ptyServiceChannel = ProxyChannel.fromService(ptyService);
 	server.registerChannel(TerminalIpcChannels.PtyHost, ptyServiceChannel);
 
@@ -85,6 +88,7 @@ async function startPtyHost() {
 
 	// Clean up
 	process.once('exit', () => {
+		logService.trace('Pty host exiting');
 		logService.dispose();
 		heartbeatService.dispose();
 		ptyService.dispose();

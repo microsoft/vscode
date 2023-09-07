@@ -7,12 +7,12 @@ import * as assert from 'assert';
 import { EditorActivation, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, IBaseSaveRevertAllEditorOptions, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { timeout } from 'vs/base/common/async';
@@ -20,8 +20,7 @@ import { FileOperationEvent, FileOperation } from 'vs/platform/files/common/file
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ErrorPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
@@ -50,9 +49,7 @@ suite('EditorService', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
-
-		const editorService = instantiationService.createInstance(EditorService);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
 
 		return [part, editorService, instantiationService.createInstance(TestServiceAccessor)];
@@ -589,13 +586,7 @@ suite('EditorService', () => {
 			lastUntitledEditorFactoryEditor = undefined;
 			lastDiffEditorFactoryEditor = undefined;
 
-			for (const group of part.groups) {
-				await group.closeAllEditors();
-			}
-
-			for (const group of part.groups) {
-				accessor.editorGroupService.removeGroup(group);
-			}
+			await workbenchTeardown(accessor.instantiationService);
 
 			rootGroup = part.activeGroup;
 		}
@@ -2172,6 +2163,61 @@ suite('EditorService', () => {
 		assert.strictEqual(input2.gotSaved, true);
 		assert.strictEqual(sameInput1.gotSaved, true);
 	});
+
+	test('saveAll, revertAll untitled (exclude untitled)', async function () {
+		await testSaveRevertUntitled({}, false, false);
+		await testSaveRevertUntitled({ includeUntitled: false }, false, false);
+	});
+
+	test('saveAll, revertAll untitled (include untitled)', async function () {
+		await testSaveRevertUntitled({ includeUntitled: true }, true, false);
+		await testSaveRevertUntitled({ includeUntitled: { includeScratchpad: false } }, true, false);
+	});
+
+	test('saveAll, revertAll untitled (include scratchpad)', async function () {
+		await testSaveRevertUntitled({ includeUntitled: { includeScratchpad: true } }, true, true);
+	});
+
+	async function testSaveRevertUntitled(options: IBaseSaveRevertAllEditorOptions, expectUntitled: boolean, expectScratchpad: boolean) {
+		const [, service] = await createEditorService();
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
+		input1.dirty = true;
+		const untitledInput = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
+		untitledInput.dirty = true;
+		untitledInput.capabilities = EditorInputCapabilities.Untitled;
+		const scratchpadInput = new TestFileEditorInput(URI.parse('my://resource3'), TEST_EDITOR_INPUT_ID);
+		scratchpadInput.modified = true;
+		scratchpadInput.capabilities = EditorInputCapabilities.Scratchpad | EditorInputCapabilities.Untitled;
+
+		await service.openEditor(input1, { pinned: true, sticky: true });
+		await service.openEditor(untitledInput, { pinned: true });
+		await service.openEditor(scratchpadInput, { pinned: true });
+
+		const revertRes = await service.revertAll(options);
+		assert.strictEqual(revertRes, true);
+		assert.strictEqual(input1.gotReverted, true);
+		assert.strictEqual(untitledInput.gotReverted, expectUntitled);
+		assert.strictEqual(scratchpadInput.gotReverted, expectScratchpad);
+
+		input1.gotSaved = false;
+		untitledInput.gotSavedAs = false;
+		scratchpadInput.gotReverted = false;
+
+		input1.gotSaved = false;
+		untitledInput.gotSavedAs = false;
+		scratchpadInput.gotReverted = false;
+
+		input1.dirty = true;
+		untitledInput.dirty = true;
+		scratchpadInput.modified = true;
+
+		const saveRes = await service.saveAll(options);
+		assert.strictEqual(saveRes.success, true);
+		assert.strictEqual(saveRes.editors.length, expectScratchpad ? 3 : expectUntitled ? 2 : 1);
+		assert.strictEqual(input1.gotSaved, true);
+		assert.strictEqual(untitledInput.gotSaved, expectUntitled);
+		assert.strictEqual(scratchpadInput.gotSaved, expectScratchpad);
+	}
 
 	test('file delete closes editor', async function () {
 		return testFileDeleteEditorClose(false);

@@ -431,7 +431,7 @@ registerAction2(class extends NotebookCellAction {
 
 function getPageSize(context: INotebookCellActionContext) {
 	const editor = context.notebookEditor;
-	const layoutInfo = editor._getViewModel().layoutInfo;
+	const layoutInfo = editor.getViewModel().layoutInfo;
 	const lineHeight = layoutInfo?.fontInfo.lineHeight || 17;
 	return Math.max(1, Math.floor((layoutInfo?.height || 0) / lineHeight) - 2);
 }

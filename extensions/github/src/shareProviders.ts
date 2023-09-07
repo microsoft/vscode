@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { API } from './typings/git';
 import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util';
-import { encodeURIComponentExceptSlashes, getRepositoryForFile, notebookCellRangeString, rangeString } from './links';
+import { encodeURIComponentExceptSlashes, ensurePublished, getRepositoryForFile, notebookCellRangeString, rangeString } from './links';
 
 export class VscodeDevShareProvider implements vscode.ShareProvider, vscode.Disposable {
 	readonly id: string = 'copyVscodeDevLink';
@@ -63,11 +63,13 @@ export class VscodeDevShareProvider implements vscode.ShareProvider, vscode.Disp
 		}
 	}
 
-	provideShare(item: vscode.ShareableItem, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.Uri> {
+	async provideShare(item: vscode.ShareableItem, _token: vscode.CancellationToken): Promise<vscode.Uri | undefined> {
 		const repository = getRepositoryForFile(this.gitAPI, item.resourceUri);
 		if (!repository) {
 			return;
 		}
+
+		await ensurePublished(repository, item.resourceUri);
 
 		let repo: { owner: string; repo: string } | undefined;
 		repository.state.remotes.find(remote => {

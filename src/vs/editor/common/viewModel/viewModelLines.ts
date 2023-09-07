@@ -830,16 +830,23 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertModelPositionToViewPosition(_modelLineNumber: number, _modelColumn: number, affinity: PositionAffinity = PositionAffinity.None, allowZeroLineNumber: boolean = false): Position {
+	public convertModelPositionToViewPosition(_modelLineNumber: number, _modelColumn: number, affinity: PositionAffinity = PositionAffinity.None, allowZeroLineNumber: boolean = false, belowHiddenRanges: boolean = false): Position {
 
 		const validPosition = this.model.validatePosition(new Position(_modelLineNumber, _modelColumn));
 		const inputLineNumber = validPosition.lineNumber;
 		const inputColumn = validPosition.column;
 
 		let lineIndex = inputLineNumber - 1, lineIndexChanged = false;
-		while (lineIndex > 0 && !this.modelLineProjections[lineIndex].isVisible()) {
-			lineIndex--;
-			lineIndexChanged = true;
+		if (belowHiddenRanges) {
+			while (lineIndex < this.modelLineProjections.length && !this.modelLineProjections[lineIndex].isVisible()) {
+				lineIndex++;
+				lineIndexChanged = true;
+			}
+		} else {
+			while (lineIndex > 0 && !this.modelLineProjections[lineIndex].isVisible()) {
+				lineIndex--;
+				lineIndexChanged = true;
+			}
 		}
 		if (lineIndex === 0 && !this.modelLineProjections[lineIndex].isVisible()) {
 			// Could not reach a real line
@@ -851,7 +858,11 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		let r: Position;
 		if (lineIndexChanged) {
-			r = this.modelLineProjections[lineIndex].getViewPositionOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1), affinity);
+			if (belowHiddenRanges) {
+				r = this.modelLineProjections[lineIndex].getViewPositionOfModelPosition(deltaLineNumber, 1, affinity);
+			} else {
+				r = this.modelLineProjections[lineIndex].getViewPositionOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1), affinity);
+			}
 		} else {
 			r = this.modelLineProjections[inputLineNumber - 1].getViewPositionOfModelPosition(deltaLineNumber, inputColumn, affinity);
 		}
@@ -1071,8 +1082,8 @@ class CoordinatesConverter implements ICoordinatesConverter {
 
 	// Model -> View conversion and related methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZero?: boolean): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity, allowZero);
+	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZero?: boolean, belowHiddenRanges?: boolean): Position {
+		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity, allowZero, belowHiddenRanges);
 	}
 
 	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {

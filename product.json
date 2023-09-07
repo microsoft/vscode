@@ -36,8 +36,8 @@
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.18",
-			"sha256": "b49ee134f452c88fe3de09ae62b7f77aa66d1d6dcd794c48e065bdc2c74d4a30",
+			"version": "1.1.2",
+			"sha256": "e034b8b41beb4e97e02c70f7175bd88abe66048374c2bd629f54bb33354bc2aa",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -52,8 +52,8 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.78.0",
-			"sha256": "9fbf0c15394fb436a4079b5f704d2718d305828be178b1219db85a9287e24870",
+			"version": "1.82.0",
+			"sha256": "4fba41b4b764c3f5a6591d6d9a5bdc59b417f2d799071c889c2b54163f256282",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",

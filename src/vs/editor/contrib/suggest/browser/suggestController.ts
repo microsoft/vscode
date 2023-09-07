@@ -8,7 +8,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeyCodeChord } from 'vs/base/common/keybindings';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -119,6 +119,9 @@ export class SuggestController implements IEditorContribution {
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
+	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
+	readonly onWillInsertSuggestItem: Event<{ item: CompletionItem }> = this._onWillInsertSuggestItem.event;
+
 	constructor(
 		editor: ICodeEditor,
 		@ISuggestMemoryService private readonly _memoryService: ISuggestMemoryService,
@@ -140,7 +143,7 @@ export class SuggestController implements IEditorContribution {
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
-		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
+		this._toDispose.add(this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode)));
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
@@ -292,6 +295,7 @@ export class SuggestController implements IEditorContribution {
 		this.widget.dispose();
 		this.model.dispose();
 		this._lineSuffix.dispose();
+		this._onWillInsertSuggestItem.dispose();
 	}
 
 	protected _insertSuggestion(
@@ -311,6 +315,8 @@ export class SuggestController implements IEditorContribution {
 		if (!snippetController) {
 			return;
 		}
+
+		this._onWillInsertSuggestItem.fire({ item: event.item });
 
 		const model = this.editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
@@ -333,6 +339,10 @@ export class SuggestController implements IEditorContribution {
 		this._memoryService.memorize(model, this.editor.getPosition(), item);
 
 		const isResolved = item.isResolved;
+
+		// telemetry data points: duration of command execution, info about async additional edits (-1=n/a, -2=none, 1=success, 0=failed)
+		let _commandExectionDuration = -1;
+		let _additionalEditsAppliedAsync = -1;
 
 		if (Array.isArray(item.completion.additionalTextEdits)) {
 
@@ -399,19 +409,7 @@ export class SuggestController implements IEditorContribution {
 				return true;
 			}).then(applied => {
 				this._logService.trace('[suggest] async resolving of edits DONE (ms, applied?)', sw.elapsed(), applied);
-				type AsyncSuggestEdits = { providerId: string; applied: boolean };
-				type AsyncSuggestEditsClassification = {
-					owner: 'jrieken';
-					comment: 'Information about async additional text edits';
-					providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
-					applied: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If async additional text edits could be applied' };
-				};
-				if (typeof applied === 'boolean') {
-					this._telemetryService.publicLog2<AsyncSuggestEdits, AsyncSuggestEditsClassification>('suggest.asyncAdditionalEdits', {
-						providerId: item.extensionId?.value ?? 'unknown',
-						applied
-					});
-				}
+				_additionalEditsAppliedAsync = applied === true ? 1 : applied === false ? 0 : -2;
 			}).finally(() => {
 				docListener.dispose();
 				typeListener.dispose();
@@ -446,12 +444,15 @@ export class SuggestController implements IEditorContribution {
 				this.model.trigger({ auto: true, retrigger: true });
 			} else {
 				// exec command, done
+				const sw = new StopWatch();
 				tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(e => {
 					if (item.completion.extensionId) {
 						onUnexpectedExternalError(e);
 					} else {
 						onUnexpectedError(e);
 					}
+				}).finally(() => {
+					_commandExectionDuration = sw.elapsed();
 				}));
 			}
 		}
@@ -482,14 +483,14 @@ export class SuggestController implements IEditorContribution {
 
 		// clear only now - after all tasks are done
 		Promise.all(tasks).finally(() => {
-			this._reportSuggestionAcceptedTelemetry(item, model, isResolved);
+			this._reportSuggestionAcceptedTelemetry(item, model, isResolved, _commandExectionDuration, _additionalEditsAppliedAsync);
 
 			this.model.clear();
 			cts.dispose();
 		});
 	}
 
-	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean) {
+	private _reportSuggestionAcceptedTelemetry(item: CompletionItem, model: ITextModel, itemResolved: boolean, commandExectionDuration: number, additionalEditsAppliedAsync: number) {
 
 		if (Math.floor(Math.random() * 100) === 0) {
 			// throttle telemetry event because accepting completions happens a lot
@@ -497,12 +498,16 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		type AcceptedSuggestion = {
-			providerId: string; fileExtension: string; languageId: string; basenameHash: string; kind: number;
+			extensionId: string; providerId: string;
+			fileExtension: string; languageId: string; basenameHash: string; kind: number;
 			resolveInfo: number; resolveDuration: number;
+			commandDuration: number;
+			additionalEditsAsync: number;
 		};
 		type AcceptedSuggestionClassification = {
 			owner: 'jrieken';
 			comment: 'Information accepting completion items';
+			extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Extension contributing the completions item' };
 			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Provider of the completions item' };
 			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Hash of the basename of the file into which the completion was inserted' };
 			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension of the file into which the completion was inserted' };
@@ -510,16 +515,21 @@ export class SuggestController implements IEditorContribution {
 			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The completion item kind' };
 			resolveInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the item was inserted before resolving was done' };
 			resolveDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long resolving took to finish' };
+			commandDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long a completion item command took' };
+			additionalEditsAsync: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Info about asynchronously applying additional edits' };
 		};
 
 		this._telemetryService.publicLog2<AcceptedSuggestion, AcceptedSuggestionClassification>('suggest.acceptedSuggestion', {
-			providerId: item.extensionId?.value ?? 'unknown',
+			extensionId: item.extensionId?.value ?? 'unknown',
+			providerId: item.provider._debugDisplayName ?? 'unknown',
 			kind: item.completion.kind,
 			basenameHash: hash(basename(model.uri)).toString(16),
 			languageId: model.getLanguageId(),
 			fileExtension: extname(model.uri),
 			resolveInfo: !item.provider.resolveCompletionItem ? -1 : itemResolved ? 1 : 0,
-			resolveDuration: item.resolveDuration
+			resolveDuration: item.resolveDuration,
+			commandDuration: commandExectionDuration,
+			additionalEditsAsync: additionalEditsAppliedAsync
 		});
 	}
 

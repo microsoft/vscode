@@ -59,6 +59,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.IGNORED: return l10n.t('Ignored');
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
 			case Status.INTENT_TO_RENAME: return l10n.t('Intent to Rename');
+			case Status.TYPE_CHANGED: return l10n.t('Type Changed');
 			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
 			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
 			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Deleted By Them');
@@ -112,6 +113,7 @@ export class Resource implements SourceControlResourceState {
 			Untracked: getIconUri('status-untracked', 'light'),
 			Ignored: getIconUri('status-ignored', 'light'),
 			Conflict: getIconUri('status-conflict', 'light'),
+			TypeChanged: getIconUri('status-type-changed', 'light')
 		},
 		dark: {
 			Modified: getIconUri('status-modified', 'dark'),
@@ -121,7 +123,8 @@ export class Resource implements SourceControlResourceState {
 			Copied: getIconUri('status-copied', 'dark'),
 			Untracked: getIconUri('status-untracked', 'dark'),
 			Ignored: getIconUri('status-ignored', 'dark'),
-			Conflict: getIconUri('status-conflict', 'dark')
+			Conflict: getIconUri('status-conflict', 'dark'),
+			TypeChanged: getIconUri('status-type-changed', 'dark')
 		}
 	};
 
@@ -138,6 +141,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.IGNORED: return Resource.Icons[theme].Ignored;
 			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
 			case Status.INTENT_TO_RENAME: return Resource.Icons[theme].Renamed;
+			case Status.TYPE_CHANGED: return Resource.Icons[theme].TypeChanged;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
 			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
@@ -197,6 +201,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_RENAMED:
 			case Status.INTENT_TO_RENAME:
 				return 'R';
+			case Status.TYPE_CHANGED:
+				return 'T';
 			case Status.UNTRACKED:
 				return 'U';
 			case Status.IGNORED:
@@ -223,6 +229,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_MODIFIED:
 				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
 			case Status.MODIFIED:
+			case Status.TYPE_CHANGED:
 				return new ThemeColor('gitDecoration.modifiedResourceForeground');
 			case Status.INDEX_DELETED:
 				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
@@ -257,6 +264,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
 			case Status.INDEX_COPIED:
+			case Status.TYPE_CHANGED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
@@ -525,6 +533,7 @@ class ResourceCommandResolver {
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED:
 				return toGitUri(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
@@ -560,7 +569,8 @@ class ResourceCommandResolver {
 			case Status.UNTRACKED:
 			case Status.IGNORED:
 			case Status.INTENT_TO_ADD:
-			case Status.INTENT_TO_RENAME: {
+			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -609,6 +619,9 @@ class ResourceCommandResolver {
 			case Status.INTENT_TO_RENAME:
 				return l10n.t('{0} (Intent to add)', basename);
 
+			case Status.TYPE_CHANGED:
+				return l10n.t('{0} (Type changed)', basename);
+
 			default:
 				return '';
 		}
@@ -618,6 +631,14 @@ class ResourceCommandResolver {
 interface BranchProtectionMatcher {
 	include?: picomatch.Matcher;
 	exclude?: picomatch.Matcher;
+}
+
+export interface IRepositoryResolver {
+	getRepository(sourceControl: SourceControl): Repository | undefined;
+	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
+	getRepository(path: string): Repository | undefined;
+	getRepository(resource: Uri): Repository | undefined;
+	getRepository(hint: any): Repository | undefined;
 }
 
 export class Repository implements Disposable {
@@ -752,6 +773,10 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
+	get rootRealPath(): string | undefined {
+		return this.repository.rootRealPath;
+	}
+
 	get dotGit(): { path: string; commonPath?: string } {
 		return this.repository.dotGit;
 	}
@@ -767,6 +792,7 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		private readonly repositoryResolver: IRepositoryResolver,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
@@ -993,13 +1019,13 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		// Ignore path that is inside a merge group
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
+		// Ignore path that is not inside the current repository
+		if (this.repositoryResolver.getRepository(uri) !== this) {
 			return undefined;
 		}
 
-		// Ignore path that is inside a submodule
-		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
+		// Ignore path that is inside a merge group
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
 			return undefined;
 		}
 
@@ -2188,6 +2214,7 @@ export class Repository implements Disposable {
 				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri)); break;
+				case 'T': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.TYPE_CHANGED, useIcons, renameUri)); break;
 			}
 
 			return undefined;

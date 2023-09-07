@@ -10,7 +10,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
@@ -39,7 +39,7 @@ export const VIEW_ID = 'workbench.explorer.fileView';
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true, { type: 'boolean', description: localize('explorerViewletVisible', "True when the EXPLORER viewlet is visible.") });
 export const FoldersViewVisibleContext = new RawContextKey<boolean>('foldersViewVisible', true, { type: 'boolean', description: localize('foldersViewVisible', "True when the FOLDERS view (the file tree within the explorer view container) is visible.") });
 export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false, { type: 'boolean', description: localize('explorerResourceIsFolder', "True when the focused item in the EXPLORER is a folder.") });
-export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false, { type: 'boolean', description: localize('explorerResourceReadonly', "True when the focused item in the EXPLORER is readonly.") });
+export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false, { type: 'boolean', description: localize('explorerResourceReadonly', "True when the focused item in the EXPLORER is read-only.") });
 export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
 /**
  * Comma separated list of editor ids that can be used for the selected explorer resource.
@@ -171,6 +171,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 	private static textFileToResource(resource: URI): URI {
 		const { scheme, query } = JSON.parse(resource.query);
+
 		return resource.with({ scheme, query });
 	}
 
@@ -188,14 +189,16 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 		// Make sure to keep contents up to date when it changes
 		if (!this.fileWatcherDisposable.value) {
-			this.fileWatcherDisposable.value = this.fileService.onDidFilesChange(changes => {
+			const disposables = new DisposableStore();
+			this.fileWatcherDisposable.value = disposables;
+			disposables.add(this.fileService.onDidFilesChange(changes => {
 				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
 					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 				}
-			});
+			}));
 
 			if (codeEditorModel) {
-				once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear());
+				disposables.add(once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear()));
 			}
 		}
 

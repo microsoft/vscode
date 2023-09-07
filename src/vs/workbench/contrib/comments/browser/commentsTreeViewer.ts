@@ -33,6 +33,7 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
+export const COMMENTS_VIEW_ORIGINAL_TITLE = 'Comments';
 export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
 
 interface IResourceTemplateData {
@@ -188,7 +189,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
-			templateData.threadMetadata.icon.style.color = `var(${commentViewThreadStateColorVar}`;
+			templateData.threadMetadata.icon.style.color = `var(${commentViewThreadStateColorVar})`;
 		}
 		templateData.threadMetadata.userNames.textContent = node.element.comment.userName;
 		templateData.threadMetadata.timestamp.setTimestamp(node.element.comment.timestamp ? new Date(node.element.comment.timestamp) : undefined);

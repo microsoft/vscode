@@ -90,7 +90,7 @@ export class EditorGroupWatermark extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.tips.enabled')) {

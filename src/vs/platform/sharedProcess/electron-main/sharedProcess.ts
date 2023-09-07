@@ -18,6 +18,8 @@ import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utility
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
 import { assertIsDefined } from 'vs/base/common/types';
+import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class SharedProcess extends Disposable {
 
@@ -33,6 +35,7 @@ export class SharedProcess extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -41,15 +44,18 @@ export class SharedProcess extends Disposable {
 
 	private registerListeners(): void {
 
-		// Shared process connections from workbench windows
-		validatedIpcMain.on('vscode:createSharedProcessMessageChannel', (e, nonce: string) => this.onWindowConnection(e, nonce));
+		// Shared process channel connections from workbench windows
+		validatedIpcMain.on(SharedProcessChannelConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, SharedProcessChannelConnection.response));
+
+		// Shared process raw connections from workbench windows
+		validatedIpcMain.on(SharedProcessRawConnection.request, (e, nonce: string) => this.onWindowConnection(e, nonce, SharedProcessRawConnection.response));
 
 		// Lifecycle
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
 	}
 
-	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
-		this.logService.trace('[SharedProcess] on vscode:createSharedProcessMessageChannel');
+	private async onWindowConnection(e: IpcMainEvent, nonce: string, responseChannel: string): Promise<void> {
+		this.logService.trace(`[SharedProcess] onWindowConnection for: ${responseChannel}`);
 
 		// release barrier if this is the first window connection
 		if (!this.firstWindowConnectionBarrier.isOpen()) {
@@ -62,8 +68,10 @@ export class SharedProcess extends Disposable {
 
 		await this.whenReady();
 
-		// connect to the shared process
-		const port = await this.connect();
+		// connect to the shared process passing the responseChannel
+		// as payload to give a hint what the connection is about
+
+		const port = await this.connect(responseChannel);
 
 		// Check back if the requesting window meanwhile closed
 		// Since shared process is delayed on startup there is
@@ -75,13 +83,13 @@ export class SharedProcess extends Disposable {
 		}
 
 		// send the port back to the requesting window
-		e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
+		e.sender.postMessage(responseChannel, nonce, [port]);
 	}
 
 	private onWillShutdown(): void {
 		this.logService.trace('[SharedProcess] onWillShutdown');
 
-		this.utilityProcess?.postMessage('vscode:electron-main->shared-process=exit');
+		this.utilityProcess?.postMessage(SharedProcessLifecycle.exit);
 		this.utilityProcess = undefined;
 	}
 
@@ -98,9 +106,9 @@ export class SharedProcess extends Disposable {
 
 				const whenReady = new DeferredPromise<void>();
 				if (this.utilityProcess) {
-					this.utilityProcess.once('vscode:shared-process->electron-main=init-done', () => whenReady.complete());
+					this.utilityProcess.once(SharedProcessLifecycle.initDone, () => whenReady.complete());
 				} else {
-					validatedIpcMain.once('vscode:shared-process->electron-main=init-done', () => whenReady.complete());
+					validatedIpcMain.once(SharedProcessLifecycle.initDone, () => whenReady.complete());
 				}
 
 				await whenReady.p;
@@ -125,9 +133,9 @@ export class SharedProcess extends Disposable {
 				// Wait for shared process indicating that IPC connections are accepted
 				const sharedProcessIpcReady = new DeferredPromise<void>();
 				if (this.utilityProcess) {
-					this.utilityProcess.once('vscode:shared-process->electron-main=ipc-ready', () => sharedProcessIpcReady.complete());
+					this.utilityProcess.once(SharedProcessLifecycle.ipcReady, () => sharedProcessIpcReady.complete());
 				} else {
-					validatedIpcMain.once('vscode:shared-process->electron-main=ipc-ready', () => sharedProcessIpcReady.complete());
+					validatedIpcMain.once(SharedProcessLifecycle.ipcReady, () => sharedProcessIpcReady.complete());
 				}
 
 				await sharedProcessIpcReady.p;
@@ -156,7 +164,8 @@ export class SharedProcess extends Disposable {
 			type: 'shared-process',
 			entryPoint: 'vs/code/node/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
-			execArgv
+			execArgv,
+			allowLoadingUnsignedLibraries: !!process.env.VSCODE_VOICE_MODULE_PATH && this.productService.quality !== 'stable' // TODO@bpasero package
 		});
 	}
 
@@ -175,13 +184,13 @@ export class SharedProcess extends Disposable {
 		};
 	}
 
-	async connect(): Promise<MessagePortMain> {
+	async connect(payload?: unknown): Promise<MessagePortMain> {
 
 		// Wait for shared process being ready to accept connection
 		await this.whenIpcReady;
 
 		// Connect and return message port
 		const utilityProcess = assertIsDefined(this.utilityProcess);
-		return utilityProcess.connect();
+		return utilityProcess.connect(payload);
 	}
 }

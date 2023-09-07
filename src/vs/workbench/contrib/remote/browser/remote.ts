@@ -583,6 +583,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 	private _onDidChangeHelpInformation = new Emitter<void>();
 	public onDidChangeHelpInformation: Event<void> = this._onDidChangeHelpInformation.event;
 	private hasSetSwitchForConnection: boolean = false;
+	private hasRegisteredHelpView: boolean = false;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -610,10 +611,12 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			this._onDidChangeHelpInformation.fire();
 
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-			if (this.helpInformation.length) {
+			if (this.helpInformation.length && !this.hasRegisteredHelpView) {
 				viewsRegistry.registerViews([this.helpPanelDescriptor], this.viewContainer);
-			} else {
+				this.hasRegisteredHelpView = true;
+			} else if (this.hasRegisteredHelpView) {
 				viewsRegistry.deregisterViews([this.helpPanelDescriptor], this.viewContainer);
+				this.hasRegisteredHelpView = false;
 			}
 		});
 	}

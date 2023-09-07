@@ -12,7 +12,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, EmitterOptions, Event, EventDeliveryQueue } from 'vs/base/common/event';
+import { Emitter, EmitterOptions, Event, EventDeliveryQueue, createEventDeliveryQueue } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -42,13 +42,12 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
@@ -60,7 +59,7 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditorContributions';
-import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 
 let EDITOR_ID = 0;
 
@@ -73,6 +72,8 @@ export interface ICodeEditorWidgetOptions {
 
 	/**
 	 * Contributions to instantiate.
+	 * When provided, only the contributions included will be instantiated.
+	 * To include the defaults, those must be provided as well via [...EditorExtensionsRegistry.getEditorContributions()]
 	 * Defaults to EditorExtensionsRegistry.getEditorContributions().
 	 */
 	contributions?: IEditorContributionDescription[];
@@ -114,7 +115,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	//#region Eventing
 
-	private readonly _deliveryQueue = new EventDeliveryQueue();
+	private readonly _deliveryQueue = createEventDeliveryQueue();
 	protected readonly _contributions: CodeEditorContributions = this._register(new CodeEditorContributions());
 
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -343,7 +344,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.id,
 				action.label,
 				action.alias,
-				withNullAsUndefined(action.precondition),
+				action.precondition ?? undefined,
 				(): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
 						return Promise.resolve(action.runEditorCommand(accessor, this, null));
@@ -1021,6 +1022,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
+	public handleInitialized(): void {
+		this._getViewModel()?.visibleLinesStabilized();
+	}
+
 	public onVisible(): void {
 		this._modelData?.view.refreshFocusState();
 	}
@@ -1308,7 +1313,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		for (const decorationOption of decorationOptions) {
 			let typeKey = decorationTypeKey;
 			if (decorationOption.renderOptions) {
-				// identify custom reder options by a hash code over all keys and values
+				// identify custom render options by a hash code over all keys and values
 				// For custom render options register a decoration type if necessary
 				const subType = hash(decorationOption.renderOptions).toString(16);
 				// The fact that `decorationTypeKey` appears in the typeKey has no influence
@@ -1847,7 +1852,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._themeService.getColorTheme(),
 			viewModel,
 			viewUserInputEvents,
-			this._overflowWidgetsDomNode
+			this._overflowWidgetsDomNode,
+			this._instantiationService
 		);
 
 		return [view, true];
@@ -1910,6 +1916,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private removeDropIndicator(): void {
 		this._dropIntoEditorDecorations.clear();
+	}
+
+	public setContextValue(key: string, value: ContextKeyValue): void {
+		this._contextKeyService.createKey(key, value);
 	}
 }
 
@@ -1974,7 +1984,7 @@ class EditorContextKeysManager extends Disposable {
 	private readonly _editorFocus: IContextKey<boolean>;
 	private readonly _textInputFocus: IContextKey<boolean>;
 	private readonly _editorTextFocus: IContextKey<boolean>;
-	private readonly _editorTabMovesFocus: IContextKey<boolean>;
+	private readonly _tabMovesFocus: IContextKey<boolean>;
 	private readonly _editorReadonly: IContextKey<boolean>;
 	private readonly _inDiffEditor: IContextKey<boolean>;
 	private readonly _editorColumnSelection: IContextKey<boolean>;
@@ -1997,7 +2007,7 @@ class EditorContextKeysManager extends Disposable {
 		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
 		this._textInputFocus = EditorContextKeys.textInputFocus.bindTo(contextKeyService);
 		this._editorTextFocus = EditorContextKeys.editorTextFocus.bindTo(contextKeyService);
-		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
+		this._tabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
 		this._inDiffEditor = EditorContextKeys.inDiffEditor.bindTo(contextKeyService);
 		this._editorColumnSelection = EditorContextKeys.columnSelection.bindTo(contextKeyService);
@@ -2014,7 +2024,7 @@ class EditorContextKeysManager extends Disposable {
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidChangeModel(() => this._updateFromModel()));
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromModel()));
-		this._register(TabFocus.onDidChangeTabFocus(() => this._editorTabMovesFocus.set(TabFocus.getTabFocusMode(TabFocusContext.Editor))));
+		this._register(TabFocus.onDidChangeTabFocus((tabFocusMode: boolean) => this._tabMovesFocus.set(tabFocusMode)));
 
 		this._updateFromConfig();
 		this._updateFromSelection();
@@ -2027,7 +2037,7 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromConfig(): void {
 		const options = this._editor.getOptions();
 
-		this._editorTabMovesFocus.set(TabFocus.getTabFocusMode(TabFocusContext.Editor));
+		this._tabMovesFocus.set(TabFocus.getTabFocusMode());
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));

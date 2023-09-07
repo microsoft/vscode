@@ -1,0 +1,51 @@
+From 853e4643b6737224a5aa0720a4108461a0230991 Mon Sep 17 00:00:00 2001
+From: Raymond Zhao <7199958+rzhao271@users.noreply.github.com>
+Date: Thu, 30 Mar 2023 05:23:36 -0700
+Subject: [PATCH] feat(msvs): add SpectreMitigation attribute (#190)
+
+Backports https://github.com/nodejs/gyp-next/commit/853e4643b6737224a5aa0720a4108461a0230991
+
+diff --git a/gyp/pylib/gyp/easy_xml_test.py b/gyp/pylib/gyp/easy_xml_test.py
+index 342f693..c5808b8 100755
+--- a/gyp/pylib/gyp/easy_xml_test.py
++++ b/gyp/pylib/gyp/easy_xml_test.py
+@@ -76,6 +76,7 @@ def test_EasyXml_complex(self):
+             '\'Debug|Win32\'" Label="Configuration">'
+             "<ConfigurationType>Application</ConfigurationType>"
+             "<CharacterSet>Unicode</CharacterSet>"
++            "<SpectreMitigation>SpectreLoadCF</SpectreMitigation>"
+             "</PropertyGroup>"
+             "</Project>"
+         )
+@@ -99,6 +100,7 @@ def test_EasyXml_complex(self):
+                     },
+                     ["ConfigurationType", "Application"],
+                     ["CharacterSet", "Unicode"],
++                    ["SpectreMitigation", "SpectreLoadCF"]
+                 ],
+             ]
+         )
+diff --git a/gyp/pylib/gyp/generator/msvs.py b/gyp/pylib/gyp/generator/msvs.py
+index 72269bd..85c354f 100644
+--- a/gyp/pylib/gyp/generator/msvs.py
++++ b/gyp/pylib/gyp/generator/msvs.py
+@@ -3006,6 +3006,10 @@ def _GetMSBuildConfigurationDetails(spec, build_file):
+         character_set = msbuild_attributes.get("CharacterSet")
+         config_type = msbuild_attributes.get("ConfigurationType")
+         _AddConditionalProperty(properties, condition, "ConfigurationType", config_type)
++        spectre_mitigation = msbuild_attributes.get('SpectreMitigation')
++        if spectre_mitigation:
++            _AddConditionalProperty(properties, condition, "SpectreMitigation",
++                                    spectre_mitigation)
+         if config_type == "Driver":
+             _AddConditionalProperty(properties, condition, "DriverType", "WDM")
+             _AddConditionalProperty(
+@@ -3094,6 +3098,8 @@ def _ConvertMSVSBuildAttributes(spec, config, build_file):
+             msbuild_attributes[a] = _ConvertMSVSCharacterSet(msvs_attributes[a])
+         elif a == "ConfigurationType":
+             msbuild_attributes[a] = _ConvertMSVSConfigurationType(msvs_attributes[a])
++        elif a == "SpectreMitigation":
++            msbuild_attributes[a] = msvs_attributes[a]
+         else:
+             print("Warning: Do not know how to convert MSVS attribute " + a)
+     return msbuild_attributes

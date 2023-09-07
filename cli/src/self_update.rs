@@ -11,7 +11,7 @@ use crate::{
 	options::Quality,
 	update_service::{unzip_downloaded_release, Platform, Release, TargetKind, UpdateService},
 	util::{
-		errors::{wrap, AnyError, CorruptDownload, UpdatesNotConfigured},
+		errors::{wrap, AnyError, CodeError, CorruptDownload},
 		http,
 		io::{ReportCopyProgress, SilentCopyProgress},
 	},
@@ -27,14 +27,16 @@ pub struct SelfUpdate<'a> {
 impl<'a> SelfUpdate<'a> {
 	pub fn new(update_service: &'a UpdateService) -> Result<Self, AnyError> {
 		let commit = VSCODE_CLI_COMMIT
-			.ok_or_else(|| UpdatesNotConfigured("unknown build commit".to_string()))?;
+			.ok_or_else(|| CodeError::UpdatesNotConfigured("unknown build commit"))?;
 
 		let quality = VSCODE_CLI_QUALITY
-			.ok_or_else(|| UpdatesNotConfigured("no configured quality".to_string()))
-			.and_then(|q| Quality::try_from(q).map_err(UpdatesNotConfigured))?;
+			.ok_or_else(|| CodeError::UpdatesNotConfigured("no configured quality"))
+			.and_then(|q| {
+				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
+			})?;
 
 		let platform = Platform::env_default().ok_or_else(|| {
-			UpdatesNotConfigured("Unknown platform, please report this error".to_string())
+			CodeError::UpdatesNotConfigured("Unknown platform, please report this error")
 		})?;
 
 		Ok(Self {

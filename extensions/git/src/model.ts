@@ -5,7 +5,7 @@
 
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Repository, RepositoryState } from './repository';
+import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -170,7 +170,7 @@ class UnsafeRepositoriesManager {
 	}
 }
 
-export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
+export class Model implements IRepositoryResolver, IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -493,8 +493,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
 		this.logger.trace(`Opening repository: ${repoPath}`);
-		if (this.getRepositoryExact(repoPath)) {
-			this.logger.trace(`Repository for path ${repoPath} already exists`);
+		const existingRepository = await this.getRepositoryExact(repoPath);
+		if (existingRepository) {
+			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root})`);
 			return;
 		}
 
@@ -524,8 +525,9 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
 			this.logger.trace(`Repository root for path ${repoPath} is: ${repositoryRoot}`);
 
-			if (this.getRepositoryExact(repositoryRoot)) {
-				this.logger.trace(`Repository for path ${repositoryRoot} already exists`);
+			const existingRepository = await this.getRepositoryExact(repositoryRoot);
+			if (existingRepository) {
+				this.logger.trace(`Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
 				return;
 			}
 
@@ -575,8 +577,8 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			}
 
 			// Open repository
-			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
+			const repository = new Repository(this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger), this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
@@ -610,6 +612,16 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			}
 
 			throw err;
+		}
+	}
+
+	private async getRepositoryRootRealPath(repositoryRoot: string): Promise<string | undefined> {
+		try {
+			const repositoryRootRealPath = await fs.promises.realpath(repositoryRoot);
+			return !pathEquals(repositoryRoot, repositoryRootRealPath) ? repositoryRootRealPath : undefined;
+		} catch (err) {
+			this.logger.warn(`Failed to get repository realpath for: "${repositoryRoot}". ${err}`);
+			return undefined;
 		}
 	}
 
@@ -763,10 +775,26 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 		return liveRepository && liveRepository.repository;
 	}
 
-	private getRepositoryExact(repoPath: string): Repository | undefined {
+	private async getRepositoryExact(repoPath: string): Promise<Repository | undefined> {
+		// Use the repository path
 		const openRepository = this.openRepositories
 			.find(r => pathEquals(r.repository.root, repoPath));
-		return openRepository?.repository;
+
+		if (openRepository) {
+			return openRepository.repository;
+		}
+
+		try {
+			// Use the repository real path
+			const repoPathRealPath = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
+			const openRepositoryRealPath = this.openRepositories
+				.find(r => pathEquals(r.repository.rootRealPath ?? '', repoPathRealPath));
+
+			return openRepositoryRealPath?.repository;
+		} catch (err) {
+			this.logger.warn(`Failed to get repository realpath for: "${repoPath}". ${err}`);
+			return undefined;
+		}
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;
@@ -931,12 +959,14 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			return true;
 		}
 
-		const result = await Promise.all(workspaceFolders.map(async folder => {
-			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
-			return workspaceFolderRealPath ? pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath) : undefined;
-		}));
+		// The repository path may be a canonical path or it may contain a symbolic link so we have
+		// to match it against the workspace folders and the canonical paths of the workspace folders
+		const workspaceFolderPaths = new Set<string | undefined>([
+			...workspaceFolders.map(folder => folder.uri.fsPath),
+			...await Promise.all(workspaceFolders.map(folder => this.getWorkspaceFolderRealPath(folder)))
+		]);
 
-		return !result.some(r => r);
+		return !Array.from(workspaceFolderPaths).some(folder => folder && (pathEquals(folder, repositoryPath) || isDescendant(folder, repositoryPath)));
 	}
 
 	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {

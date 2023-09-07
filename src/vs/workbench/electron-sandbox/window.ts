@@ -79,8 +79,6 @@ export class NativeWindow extends Disposable {
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
-	private previousConfiguredZoomLevel: number | undefined;
-
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
@@ -228,6 +226,22 @@ export class NativeWindow extends Disposable {
 			);
 		});
 
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
+				[{
+					label: localize('downloadArmBuild', "Download"),
+					run: () => {
+						const quality = this.productService.quality;
+						const stableURL = 'https://code.visualstudio.com/docs/?dv=osx';
+						const insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
+						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
+					}
+				}]
+			);
+		});
+
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true); });
 		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false); });
@@ -304,7 +318,6 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Zoom level changes
-		this.updateWindowZoomLevel();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
@@ -589,21 +602,10 @@ export class NativeWindow extends Disposable {
 
 	private updateWindowZoomLevel(): void {
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
+		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 
-		let configuredZoomLevel = 0;
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			configuredZoomLevel = windowConfig.window.zoomLevel;
-
-			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
-				return;
-			}
-
-			this.previousConfiguredZoomLevel = configuredZoomLevel;
-		}
-
-		if (getZoomLevel() !== configuredZoomLevel) {
-			applyZoom(configuredZoomLevel);
+		if (getZoomLevel() !== windowZoomLevel) {
+			applyZoom(windowZoomLevel);
 		}
 	}
 
@@ -721,88 +723,35 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Windows 7/8/8.1 warning
-		if (isWindows) {
-			const version = this.environmentService.os.release.split('.');
-			const majorVersion = version[0];
-			const minorVersion = version[1];
-			const eolReleases = new Map<string, Map<string, string>>([
-				['6', new Map<string, string>([
-					['1', 'Windows 7 / Windows Server 2008 R2'],
-					['2', 'Windows 8 / Windows Server 2012'],
-					['3', 'Windows 8.1 / Windows Server 2012 R2'],
-				])],
-			]);
+		// Windows 32-bit warning
+		if (isWindows && this.environmentService.os.arch === 'ia32') {
+			const message = localize('windows32eolmessage', "{0} on Windows 32-bit will soon stop receiving updates. Consider upgrading to the 64-bit build.", this.productService.nameLong);
+			const actions = [{
+				label: localize('windowseolBannerLearnMore', "Learn More"),
+				href: 'https://aka.ms/vscode-faq-old-windows'
+			}];
 
-			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
-			if (eolReleases.get(majorVersion)?.has(minorVersion)) {
-				const message = localize('windowseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your windows version.", this.productService.nameLong, eolReleases.get(majorVersion)?.get(minorVersion));
-				const actions = [{
-					label: localize('windowseolBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-faq-old-windows'
-				}];
+			this.bannerService.show({
+				id: 'windows32eol.banner',
+				message,
+				ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+				actions,
+				icon: Codicon.warning
+			});
 
-				this.bannerService.show({
-					id: 'windowseol.banner',
-					message,
-					ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-					actions,
-					icon: Codicon.warning
-				});
-
-				this.notificationService.prompt(
-					Severity.Warning,
-					message,
-					[{
-						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
-					}],
-					{
-						neverShowAgain: { id: 'windowseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
-						priority: NotificationPriority.URGENT,
-						sticky: true
-					}
-				);
-			}
-		}
-
-		// MacOS 10.11 and 10.12 warning
-		if (isMacintosh) {
-			const majorVersion = this.environmentService.os.release.split('.')[0];
-			const eolReleases = new Map<string, string>([
-				['15', 'OS X El Capitan'],
-				['16', 'macOS Sierra'],
-			]);
-			// Refs https://en.wikipedia.org/wiki/Darwin_%28operating_system%29#Release_history
-			if (eolReleases.has(majorVersion)) {
-				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
-				const actions = [{
-					label: localize('macoseolBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-faq-old-macOS'
-				}];
-
-				this.bannerService.show({
-					id: 'macoseol.banner',
-					message,
-					ariaLabel: localize('macoseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-					actions,
-					icon: Codicon.warning
-				});
-
-				this.notificationService.prompt(
-					Severity.Warning,
-					message,
-					[{
-						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
-					}],
-					{
-						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
-						priority: NotificationPriority.URGENT,
-						sticky: true
-					}
-				);
-			}
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
+				}],
+				{
+					neverShowAgain: { id: 'windows32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+					priority: NotificationPriority.URGENT,
+					sticky: true
+				}
+			);
 		}
 
 		// Slow shell environment progress indicator
@@ -870,15 +819,16 @@ export class NativeWindow extends Disposable {
 							}
 						} : undefined;
 						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);
-						if (!tunnel) {
+						if (!tunnel || (typeof tunnel === 'string')) {
 							tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						}
-						if (tunnel) {
-							const addressAsUri = URI.parse(tunnel.localAddress);
-							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
+						if (tunnel && (typeof tunnel !== 'string')) {
+							const constTunnel = tunnel;
+							const addressAsUri = URI.parse(constTunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: constTunnel.localAddress });
 							return {
 								resolved,
-								dispose: () => tunnel?.dispose(),
+								dispose: () => constTunnel.dispose(),
 							};
 						}
 					}

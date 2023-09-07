@@ -1066,7 +1066,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			rawEvents: [{
 				kind: NotebookCellsChangeType.Output,
 				index: this._cells.indexOf(cell),
-				outputs: cell.outputs ?? [],
+				outputs: cell.outputs.map(output => output.asDto()) ?? [],
 				append,
 				transient: this.transientOptions.transientOutputs,
 			}],

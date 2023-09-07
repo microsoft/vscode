@@ -282,9 +282,8 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 		if (activeViewlet) {
 			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
 			if (contextMenuActions.length) {
-				const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
+					getAnchor: () => event,
 					getActions: () => contextMenuActions.slice(),
 					getActionViewItem: action => this.actionViewItemProvider(action),
 					actionRunner: activeViewlet.getActionRunner(),

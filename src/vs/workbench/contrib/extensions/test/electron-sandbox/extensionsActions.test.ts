@@ -25,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -42,8 +42,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-sandbox/experimentService.test';
-import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestEnvironmentService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -54,7 +52,6 @@ import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/u
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
@@ -74,7 +71,7 @@ function setupTest() {
 	uninstallEvent = new Emitter<UninstallExtensionEvent>();
 	didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
-	instantiationService = new TestInstantiationService();
+	instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
@@ -129,7 +126,6 @@ function setupTest() {
 	instantiationService.stub(ILabelService, { onDidChangeFormatters: new Emitter<IFormatterChangeEvent>().event });
 
 	instantiationService.stub(ILifecycleService, new TestLifecycleService());
-	instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
 	instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
 	instantiationService.stub(IExtensionRecommendationsService, {});
 	instantiationService.stub(IURLService, NativeURLService);
@@ -143,7 +139,7 @@ function setupTest() {
 	instantiationService.stub(IUserDataSyncEnablementService, instantiationService.createInstance(UserDataSyncEnablementService));
 
 	instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
-	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 }
 
 
@@ -450,7 +446,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -465,7 +461,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage hide', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -482,7 +478,7 @@ suite('ExtensionsActions', () => {
 				installEvent.fire({ identifier: gallery.identifier, source: gallery });
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage hide', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -501,7 +497,7 @@ suite('ExtensionsActions', () => {
 		await promise;
 		assert.ok(testObject.enabled);
 		assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-		assert.strictEqual('', testObject.tooltip);
+		assert.strictEqual('Manage', testObject.tooltip);
 	});
 
 	test('Test ManageExtensionAction when extension is system extension', () => {
@@ -515,7 +511,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
@@ -532,7 +528,7 @@ suite('ExtensionsActions', () => {
 
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('Uninstalling', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 

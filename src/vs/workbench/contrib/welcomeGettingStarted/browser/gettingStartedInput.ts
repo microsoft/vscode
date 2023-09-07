@@ -26,6 +26,10 @@ export class GettingStartedInput extends EditorInput {
 		return GettingStartedInput.ID;
 	}
 
+	override get editorId(): string | undefined {
+		return this.typeId;
+	}
+
 	override toUntyped(): IUntypedEditorInput {
 		return {
 			resource: GettingStartedInput.RESOURCE,

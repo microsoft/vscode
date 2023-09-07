@@ -51,7 +51,14 @@ interface DocumentSortingParams {
 }
 
 namespace DocumentSortingRequest {
-	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+	export interface ITextEdit {
+		range: {
+			start: { line: number; character: number };
+			end: { line: number; character: number };
+		};
+		newText: string;
+	}
+	export const type: RequestType<DocumentSortingParams, ITextEdit[], any> = new RequestType('json/sort');
 }
 
 export interface ISchemaAssociations {
@@ -163,25 +170,14 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
+
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
-				const document = textEditor.document;
-				const filesConfig = workspace.getConfiguration('files', document);
-				const options: SortOptions = {
-					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
-					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
-					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
-					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
-					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
-				};
-				const params: DocumentSortingParams = {
-					uri: document.uri.toString(),
-					options
-				};
-				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				const documentOptions = textEditor.options;
+				const textEdits = await getSortTextEdits(textEditor.document, documentOptions.tabSize, documentOptions.insertSpaces);
 				const success = await textEditor.edit(mutator => {
 					for (const edit of textEdits) {
 						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
@@ -469,6 +465,29 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Downloading schemas is disabled. Click to configure.');
 			schemaResolutionErrorStatusBarItem.command = { command: 'workbench.action.openSettings', arguments: [SettingIds.enableSchemaDownload], title: '' };
 		}
+	}
+
+	async function getSortTextEdits(document: TextDocument, tabSize: string | number = 4, insertSpaces: string | boolean = true): Promise<TextEdit[]> {
+		const filesConfig = workspace.getConfiguration('files', document);
+		const options: SortOptions = {
+			tabSize: Number(tabSize),
+			insertSpaces: Boolean(insertSpaces),
+			trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+			trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+			insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+		};
+		const params: DocumentSortingParams = {
+			uri: document.uri.toString(),
+			options
+		};
+		const edits = await client.sendRequest(DocumentSortingRequest.type, params);
+		// Here we convert the JSON objects to real TextEdit objects
+		return edits.map((edit) => {
+			return new TextEdit(
+				new Range(edit.range.start.line, edit.range.start.character, edit.range.end.line, edit.range.end.character),
+				edit.newText
+			);
+		});
 	}
 
 	return client;

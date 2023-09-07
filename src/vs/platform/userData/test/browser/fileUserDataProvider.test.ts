@@ -20,6 +20,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import product from 'vs/platform/product/common/product';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -38,7 +39,7 @@ suite('FileUserDataProvider', () => {
 	let backupWorkspaceHomeOnDisk: URI;
 	let environmentService: IEnvironmentService;
 	let userDataProfilesService: IUserDataProfilesService;
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileUserDataProvider: FileUserDataProvider;
 
 	setup(async () => {
@@ -54,14 +55,12 @@ suite('FileUserDataProvider', () => {
 		await testObject.createFolder(backupWorkspaceHomeOnDisk);
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
-		userDataProfilesService = new UserDataProfilesService(environmentService, testObject, new UriIdentityService(testObject), logService);
+		userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, testObject, disposables.add(new UriIdentityService(testObject)), logService));
 
-		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService);
+		fileUserDataProvider = disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService));
 		disposables.add(fileUserDataProvider);
 		disposables.add(testObject.registerProvider(Schemas.vscodeUserData, fileUserDataProvider));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('exists return false when file does not exist', async () => {
 		const exists = await testObject.exists(userDataProfilesService.defaultProfile.settingsResource);
@@ -311,10 +310,10 @@ suite('FileUserDataProvider - Watching', () => {
 	const rootFileResource = joinPath(ROOT, 'User');
 	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.vscodeUserData });
 
-	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
-	disposables.add(fileEventEmitter);
+	let fileEventEmitter: Emitter<readonly IFileChange[]>;
 
 	setup(() => {
+		fileEventEmitter = disposables.add(new Emitter<readonly IFileChange[]>());
 		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, new NullLogService()));
 	});
 
