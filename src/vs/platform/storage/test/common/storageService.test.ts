@@ -5,6 +5,7 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>; teardown: (service: T) => Promise<void> }): void {
@@ -284,8 +285,17 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 }
 
 suite('StorageService (in-memory)', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
 	createSuite<InMemoryStorageService>({
-		setup: async () => new InMemoryStorageService(),
+		setup: async () => disposables.add(new InMemoryStorageService()),
 		teardown: async () => { }
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

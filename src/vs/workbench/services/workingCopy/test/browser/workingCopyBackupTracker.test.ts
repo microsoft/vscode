@@ -11,7 +11,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -19,7 +19,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
@@ -39,13 +39,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	});
 
 	teardown(async () => {
-		for (const copy of accessor.workingCopyService.workingCopies) {
-			await copy.revert();
-		}
-
-		for (const group of accessor.editorGroupService.groups) {
-			await group.closeAllEditors();
-		}
+		await workbenchTeardown(accessor.instantiationService);
 
 		disposables.clear();
 	});
@@ -114,9 +108,8 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = { resource: undefined }): Promise<void> {
 		const { accessor, workingCopyBackupService } = await createTracker();
 
-		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
-
-		const untitledTextModel = await untitledTextEditor.resolve();
+		const untitledTextEditor = disposables.add((await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput);
+		const untitledTextModel = disposables.add(await untitledTextEditor.resolve());
 
 		if (!untitled?.contents) {
 			untitledTextModel.textEditorModel?.setValue('Super Good');
@@ -307,7 +300,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 				return false;
 			},
 			createEditor: workingCopy => {
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+				return disposables.add(accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 			}
 		});
 
@@ -319,7 +312,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 				return false;
 			},
 			createEditor: workingCopy => {
-				return accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
+				return disposables.add(accessor.instantiationService.createInstance(TestUntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' })));
 			}
 		});
 
@@ -382,4 +375,6 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			}
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

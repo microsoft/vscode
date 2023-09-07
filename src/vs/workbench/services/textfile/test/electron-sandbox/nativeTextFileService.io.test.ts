@@ -22,6 +22,7 @@ import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/wor
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { TestInMemoryFileSystemProvider } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestNativeTextFileServiceWithEncodingOverrides, workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Files - NativeTextFileService i/o', function () {
 	const disposables = new DisposableStore();
@@ -104,4 +105,6 @@ suite('Files - NativeTextFileService i/o', function () {
 			return null; // ignore errors (like file not found)
 		}
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

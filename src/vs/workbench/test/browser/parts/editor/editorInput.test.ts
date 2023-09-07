@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_ASSOCIATION, IResourceDiffEditorInput, IResourceMergeEditorInput, IResourceSideBySideEditorInput, isEditorInput, isResourceDiffEditorInput, isResourceEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
@@ -85,8 +86,8 @@ suite('EditorInput', () => {
 
 	test('basics', () => {
 		let counter = 0;
-		const input = new MyEditorInput();
-		const otherInput = new MyEditorInput();
+		const input = disposables.add(new MyEditorInput());
+		const otherInput = disposables.add(new MyEditorInput());
 
 		assert.ok(isEditorInput(input));
 		assert.ok(!isEditorInput(undefined));
@@ -103,10 +104,10 @@ suite('EditorInput', () => {
 		assert(!input.matches(otherInput));
 		assert(input.getName());
 
-		input.onWillDispose(() => {
+		disposables.add(input.onWillDispose(() => {
 			assert(true);
 			counter++;
-		});
+		}));
 
 		input.dispose();
 		assert.strictEqual(counter, 1);
@@ -115,7 +116,7 @@ suite('EditorInput', () => {
 	test('untyped matches', () => {
 		const testInputID = 'untypedMatches';
 		const testInputResource = URI.file('/fake');
-		const testInput = new TestEditorInput(testInputResource, testInputID);
+		const testInput = disposables.add(new TestEditorInput(testInputResource, testInputID));
 		const testUntypedInput = { resource: testInputResource, options: { override: testInputID } };
 		const tetUntypedInputWrongResource = { resource: URI.file('/incorrectFake'), options: { override: testInputID } };
 		const testUntypedInputWrongId = { resource: testInputResource, options: { override: 'wrongId' } };
@@ -125,7 +126,6 @@ suite('EditorInput', () => {
 		assert.ok(!testInput.matches(tetUntypedInputWrongResource));
 		assert.ok(!testInput.matches(testUntypedInputWrongId));
 		assert.ok(!testInput.matches(testUntypedInputWrong));
-
 	});
 
 	test('Untpyed inputs properly match TextResourceEditorInput', () => {
@@ -235,4 +235,6 @@ suite('EditorInput', () => {
 		fileEditorInput1.dispose();
 		fileEditorInput2.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
