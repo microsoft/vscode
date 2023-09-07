@@ -32,7 +32,7 @@ export interface IGhostTextWidgetModel {
 }
 
 export class GhostTextWidget extends Disposable {
-	private readonly isDisposed = observableValue('isDisposed', false);
+	private readonly isDisposed = observableValue(this, false);
 	private readonly currentTextModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
 
 	constructor(
@@ -46,8 +46,7 @@ export class GhostTextWidget extends Disposable {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly uiState = derived(reader => {
-		/** @description uiState */
+	private readonly uiState = derived(this, reader => {
 		if (this.isDisposed.read(reader)) {
 			return undefined;
 		}
@@ -126,8 +125,7 @@ export class GhostTextWidget extends Disposable {
 		};
 	});
 
-	private readonly decorations = derived(reader => {
-		/** @description decorations */
+	private readonly decorations = derived(this, reader => {
 		const uiState = this.uiState.read(reader);
 		if (!uiState) {
 			return [];

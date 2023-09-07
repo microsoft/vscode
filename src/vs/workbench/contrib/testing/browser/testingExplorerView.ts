@@ -12,7 +12,7 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions';
-import { mapFind } from 'vs/base/common/arrays';
+import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { RunOnceScheduler, disposableTimeout } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -431,7 +431,7 @@ export class TestingExplorerView extends ViewPane {
 		this.dimensions.height = height;
 		this.dimensions.width = width;
 		this.container.style.height = `${height}px`;
-		this.viewModel.layout(height - this.treeHeader.clientHeight, width);
+		this.viewModel?.layout(height - this.treeHeader.clientHeight, width);
 		this.filter.value?.layout(width);
 	}
 }
@@ -509,7 +509,7 @@ class ResultSummaryView extends Disposable {
 			rerun.style.display = 'none';
 		} else {
 			const last = results[0];
-			const dominantState = mapFind(statesInOrder, s => last.counts[s] > 0 ? s : undefined);
+			const dominantState = mapFindFirst(statesInOrder, s => last.counts[s] > 0 ? s : undefined);
 			status.className = ThemeIcon.asClassName(icons.testingStatesToIcons.get(dominantState ?? TestResultState.Unset)!);
 			counts = collectTestStateCounts(false, [last]);
 			duration.textContent = last instanceof LiveTestResult ? formatDuration(last.completedAt! - last.startedAt) : '';

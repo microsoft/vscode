@@ -7,12 +7,11 @@ import * as assert from 'assert';
 import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestProductService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
-import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { NullLogService } from 'vs/platform/log/common/log';
 

@@ -75,7 +75,7 @@ export interface IViewContainerDescriptor {
 	/**
 	 * The title of the view container
 	 */
-	readonly title: ILocalizedString | string;
+	readonly title: ILocalizedString;
 
 	/**
 	 * Icon representation of the View container

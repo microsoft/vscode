@@ -622,11 +622,15 @@ export function peekStream<T>(stream: ReadableStream<T>, maxChunks: number): Pro
 
 		// Error Listener
 		const errorListener = (error: Error) => {
+			streamListeners.dispose();
+
 			return reject(error);
 		};
 
 		// End Listener
 		const endListener = () => {
+			streamListeners.dispose();
+
 			return resolve({ stream, buffer, ended: true });
 		};
 

@@ -26,12 +26,11 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 suite('NotebookCell#Document', function () {
-
-
 	let rpcProtocol: TestRPCProtocol;
 	let notebook: ExtHostNotebookDocument;
 	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
@@ -47,6 +46,8 @@ suite('NotebookCell#Document', function () {
 	teardown(function () {
 		disposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async function () {
 		rpcProtocol = new TestRPCProtocol();
@@ -149,7 +150,7 @@ suite('NotebookCell#Document', function () {
 
 		const p = new Promise<void>((resolve, reject) => {
 
-			extHostNotebookDocuments.onDidChangeNotebookDocument(e => {
+			disposables.add(extHostNotebookDocuments.onDidChangeNotebookDocument(e => {
 				try {
 					assert.strictEqual(e.contentChanges.length, 1);
 					assert.strictEqual(e.contentChanges[0].addedCells.length, 2);
@@ -169,7 +170,7 @@ suite('NotebookCell#Document', function () {
 				} catch (err) {
 					reject(err);
 				}
-			});
+			}));
 
 		});
 
@@ -361,7 +362,7 @@ suite('NotebookCell#Document', function () {
 
 	test('Opening a notebook results in VS Code firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
 		let count = 0;
-		extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1);
+		disposables.add(extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1));
 
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedEditors: [{
