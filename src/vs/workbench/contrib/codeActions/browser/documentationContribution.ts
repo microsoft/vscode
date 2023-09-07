@@ -68,8 +68,8 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 	}
 
 	public _getAdditionalMenuItems(context: languages.CodeActionContext, actions: readonly languages.CodeAction[]): languages.Command[] {
-		if (context.only !== CodeActionKind.Refactor.value) {
-			if (!actions.some(action => action.kind && CodeActionKind.Refactor.contains(new CodeActionKind(action.kind)))) {
+		if (context.only?.value !== CodeActionKind.Refactor.value) {
+			if (!actions.some(action => action.kind && CodeActionKind.Refactor.contains(new CodeActionKind(action.kind.value)))) {
 				return [];
 			}
 		}

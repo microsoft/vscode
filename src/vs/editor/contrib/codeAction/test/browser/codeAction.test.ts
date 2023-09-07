@@ -137,9 +137,9 @@ suite('CodeAction', () => {
 
 	test('getCodeActions should filter by scope', async () => {
 		const provider = staticCodeActionProvider(
-			{ title: 'a', kind: 'a' },
-			{ title: 'b', kind: 'b' },
-			{ title: 'a.b', kind: 'a.b' }
+			{ title: 'a', kind: new CodeActionKind('a') },
+			{ title: 'b', kind: new CodeActionKind('b') },
+			{ title: 'a.b', kind: new CodeActionKind('a.b') }
 		);
 
 		disposables.add(registry.register('fooLang', provider));
@@ -168,7 +168,7 @@ suite('CodeAction', () => {
 			provideCodeActions(_model: any, _range: Range, context: languages.CodeActionContext, _token: any): languages.CodeActionList {
 				return {
 					actions: [
-						{ title: context.only || '', kind: context.only }
+						{ title: context.only?.value || '', kind: context.only }
 					],
 					dispose: () => { }
 				};
@@ -184,8 +184,8 @@ suite('CodeAction', () => {
 
 	test('getCodeActions should not return source code action by default', async () => {
 		const provider = staticCodeActionProvider(
-			{ title: 'a', kind: CodeActionKind.Source.value },
-			{ title: 'b', kind: 'b' }
+			{ title: 'a', kind: CodeActionKind.Source },
+			{ title: 'b', kind: new CodeActionKind('b') }
 		);
 
 		disposables.add(registry.register('fooLang', provider));
@@ -205,9 +205,9 @@ suite('CodeAction', () => {
 
 	test('getCodeActions should support filtering out some requested source code actions #84602', async () => {
 		const provider = staticCodeActionProvider(
-			{ title: 'a', kind: CodeActionKind.Source.value },
-			{ title: 'b', kind: CodeActionKind.Source.append('test').value },
-			{ title: 'c', kind: 'c' }
+			{ title: 'a', kind: CodeActionKind.Source },
+			{ title: 'b', kind: CodeActionKind.Source.append('test') },
+			{ title: 'c', kind: new CodeActionKind('c') }
 		);
 
 		disposables.add(registry.register('fooLang', provider));
@@ -230,19 +230,19 @@ suite('CodeAction', () => {
 		const subType = CodeActionKind.Refactor.append('sub');
 
 		disposables.add(registry.register('fooLang', staticCodeActionProvider(
-			{ title: 'a', kind: baseType.value }
+			{ title: 'a', kind: baseType }
 		)));
 
 		let didInvoke = false;
 		disposables.add(registry.register('fooLang', new class implements languages.CodeActionProvider {
 
-			providedCodeActionKinds = [subType.value];
+			providedCodeActionKinds = [subType];
 
 			provideCodeActions(): languages.ProviderResult<languages.CodeActionList> {
 				didInvoke = true;
 				return {
 					actions: [
-						{ title: 'x', kind: subType.value }
+						{ title: 'x', kind: subType }
 					],
 					dispose: () => { }
 				};
@@ -270,7 +270,7 @@ suite('CodeAction', () => {
 				return { actions: [], dispose: () => { } };
 			}
 
-			providedCodeActionKinds = [CodeActionKind.Refactor.value];
+			providedCodeActionKinds = [CodeActionKind.Refactor];
 		};
 
 		disposables.add(registry.register('fooLang', provider));

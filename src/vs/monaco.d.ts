@@ -6347,7 +6347,7 @@ declare namespace monaco.languages {
 		/**
 		 * Requested kind of actions to return.
 		 */
-		readonly only?: string;
+		readonly only?: CodeActionKind;
 		/**
 		 * The reason why code actions were requested.
 		 */
@@ -6381,7 +6381,7 @@ declare namespace monaco.languages {
 		 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
 		 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 		 */
-		readonly providedCodeActionKinds?: readonly string[];
+		readonly providedCodeActionKinds?: readonly CodeActionKind[];
 		readonly documentation?: ReadonlyArray<{
 			readonly kind: string;
 			readonly command: Command;
@@ -6979,7 +6979,7 @@ declare namespace monaco.languages {
 		command?: Command;
 		edit?: WorkspaceEdit;
 		diagnostics?: editor.IMarkerData[];
-		kind?: string;
+		kind?: CodeActionKind;
 		isPreferred?: boolean;
 		disabled?: string;
 	}
@@ -6987,6 +6987,11 @@ declare namespace monaco.languages {
 	export enum CodeActionTriggerType {
 		Invoke = 1,
 		Auto = 2
+	}
+
+	export interface CodeActionKind {
+		value: string;
+		notebook?: boolean;
 	}
 
 	export interface CodeActionList extends IDisposable {

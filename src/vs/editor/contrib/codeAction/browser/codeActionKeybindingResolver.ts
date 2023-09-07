@@ -68,7 +68,7 @@ export class CodeActionKeybindingResolver {
 		if (!action.kind) {
 			return undefined;
 		}
-		const kind = new CodeActionKind(action.kind);
+		const kind = new CodeActionKind(action.kind.value);
 
 		return candidates
 			.filter(candidate => candidate.kind.contains(kind))

@@ -74,7 +74,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	}
 
 	public get hasAutoFix() {
-		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind.value)) && !!fix.isPreferred);
 	}
 }
 
@@ -90,8 +90,8 @@ export async function getCodeActions(
 ): Promise<CodeActionSet> {
 	const filter = trigger.filter || {};
 
-	const codeActionContext: languages.CodeActionContext = {
-		only: filter.include?.value,
+	const codeActionContext = {
+		only: filter.include,
 		trigger: trigger.type,
 	};
 
@@ -159,7 +159,7 @@ function getCodeActionProviders(
 				// We don't know what type of actions this provider will return.
 				return true;
 			}
-			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
+			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind.value)));
 		});
 }
 
@@ -172,7 +172,7 @@ function* getAdditionalDocumentationForShowingActions(
 	if (model && actionsToShow.length) {
 		for (const provider of registry.all(model)) {
 			if (provider._getAdditionalMenuItems) {
-				yield* provider._getAdditionalMenuItems?.({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action));
+				yield* provider._getAdditionalMenuItems?.({ trigger: trigger.type, only: trigger.filter?.include }, actionsToShow.map(item => item.action));
 			}
 		}
 	}
@@ -215,7 +215,7 @@ function getDocumentationFromProvider(
 		}
 
 		for (const entry of documentation) {
-			if (entry.kind.contains(new CodeActionKind(action.kind))) {
+			if (entry.kind.contains(new CodeActionKind(action.kind.value))) {
 				return entry.command;
 			}
 		}
@@ -258,7 +258,7 @@ export async function applyCodeAction(
 
 	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
 		codeActionTitle: item.action.title,
-		codeActionKind: item.action.kind,
+		codeActionKind: item.action.kind?.value,
 		codeActionIsPreferred: !!item.action.isPreferred,
 		reason: codeActionReason,
 	});

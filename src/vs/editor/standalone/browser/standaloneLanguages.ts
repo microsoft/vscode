@@ -693,7 +693,7 @@ export interface CodeActionContext {
 	/**
 	 * Requested kind of actions to return.
 	 */
-	readonly only?: string;
+	readonly only?: languages.CodeActionKind;
 
 	/**
 	 * The reason why code actions were requested.
@@ -731,7 +731,7 @@ export interface CodeActionProviderMetadata {
 	 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
 	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 	 */
-	readonly providedCodeActionKinds?: readonly string[];
+	readonly providedCodeActionKinds?: readonly languages.CodeActionKind[];
 
 	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: languages.Command }>;
 }

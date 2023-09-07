@@ -25,6 +25,8 @@ export class CodeActionKind {
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
 	public static readonly SurroundWith = CodeActionKind.Refactor.append('surround');
 
+	public notebook?: boolean;
+
 	constructor(
 		public readonly value: string
 	) { }
@@ -95,7 +97,7 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 }
 
 export function filtersAction(filter: CodeActionFilter, action: languages.CodeAction): boolean {
-	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
+	const actionKind = action.kind ? new CodeActionKind(action.kind.value) : undefined;
 
 	// Filter out actions by kind
 	if (filter.include) {

@@ -293,7 +293,7 @@ const newCommands: ApiCommand[] = [
 				} else {
 					const ret = new types.CodeAction(
 						codeAction.title,
-						codeAction.kind ? new types.CodeActionKind(codeAction.kind) : undefined
+						codeAction.kind ? new types.CodeActionKind(codeAction.kind.value) : undefined
 					);
 					if (codeAction.edit) {
 						ret.edit = typeConverters.WorkspaceEdit.to(codeAction.edit);

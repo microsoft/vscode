@@ -728,7 +728,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				title: nls.localize('manage workspace trust', "Manage Workspace Trust")
 			},
 			diagnostics,
-			kind: CodeActionKind.QuickFix.value
+			kind: CodeActionKind.QuickFix
 		}];
 	}
 

@@ -1873,7 +1873,7 @@ export interface ICodeActionDto {
 	edit?: IWorkspaceEditDto;
 	diagnostics?: Dto<IMarkerData[]>;
 	command?: ICommandDto;
-	kind?: string;
+	kind?: languages.CodeActionKind;
 	isPreferred?: boolean;
 	disabled?: string;
 }
@@ -1884,7 +1884,7 @@ export interface ICodeActionListDto {
 }
 
 export interface ICodeActionProviderMetadataDto {
-	readonly providedKinds?: readonly string[];
+	readonly providedKinds?: readonly languages.CodeActionKind[];
 	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: ICommandDto }>;
 }
 

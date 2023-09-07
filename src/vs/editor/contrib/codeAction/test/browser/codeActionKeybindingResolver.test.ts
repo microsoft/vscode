@@ -40,15 +40,15 @@ suite('CodeActionKeybindingResolver', () => {
 			undefined);
 
 		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.value }),
+			resolver({ title: '', kind: CodeActionKind.Refactor }),
 			refactorKeybinding.resolvedKeybinding);
 
 		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract').value }),
+			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract') }),
 			refactorKeybinding.resolvedKeybinding);
 
 		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.QuickFix.value }),
+			resolver({ title: '', kind: CodeActionKind.QuickFix }),
 			undefined);
 	});
 
@@ -58,11 +58,11 @@ suite('CodeActionKeybindingResolver', () => {
 		).getResolver();
 
 		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.value }),
+			resolver({ title: '', kind: CodeActionKind.Refactor }),
 			refactorKeybinding.resolvedKeybinding);
 
 		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract').value }),
+			resolver({ title: '', kind: CodeActionKind.Refactor.append('extract') }),
 			refactorExtractKeybinding.resolvedKeybinding);
 	});
 
@@ -72,7 +72,7 @@ suite('CodeActionKeybindingResolver', () => {
 		).getResolver();
 
 		assert.strictEqual(
-			resolver({ title: '', kind: CodeActionKind.SourceOrganizeImports.value }),
+			resolver({ title: '', kind: CodeActionKind.SourceOrganizeImports }),
 			organizeImportsKeybinding.resolvedKeybinding);
 	});
 });

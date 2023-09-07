@@ -188,7 +188,7 @@ export class CodeActionModel extends Disposable {
 			&& this._registry.has(model)
 			&& !this._editor.getOption(EditorOption.readOnly)
 		) {
-			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
+			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []).flatMap(kind => kind.value);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
 			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {

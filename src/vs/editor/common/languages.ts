@@ -744,7 +744,7 @@ export interface CodeAction {
 	command?: Command;
 	edit?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
-	kind?: string;
+	kind?: CodeActionKind;
 	isPreferred?: boolean;
 	disabled?: string;
 }
@@ -754,11 +754,16 @@ export const enum CodeActionTriggerType {
 	Auto = 2,
 }
 
+export interface CodeActionKind {
+	value: string;
+	notebook?: boolean;
+}
+
 /**
  * @internal
  */
 export interface CodeActionContext {
-	only?: string;
+	only?: CodeActionKind;
 	trigger: CodeActionTriggerType;
 }
 
@@ -788,7 +793,7 @@ export interface CodeActionProvider {
 	/**
 	 * Optional list of CodeActionKinds that this provider returns.
 	 */
-	readonly providedCodeActionKinds?: ReadonlyArray<string>;
+	readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
 
 	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: Command }>;
 

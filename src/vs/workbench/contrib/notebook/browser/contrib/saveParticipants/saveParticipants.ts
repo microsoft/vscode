@@ -30,8 +30,6 @@ import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'v
 import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { isEqual } from 'vs/base/common/resources';
 
-const NotebookCodeAction = new CodeActionKind('notebook');
-
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -120,23 +118,39 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return undefined;
 		}
 
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>(NotebookSetting.codeActionsOnSave);
+		const setting = this.configurationService.getValue<{ [kind: string]: { enabled: boolean; scope: string } }>(NotebookSetting.codeActionsOnSave);
 		if (!setting) {
 			return undefined;
 		}
 
-		const notebookModel = workingCopy.model.notebookModel;
-
-		const settingItems: string[] = Array.isArray(setting)
-			? setting
+		const settingKeys = Array.isArray(setting)
+			? []
 			: Object.keys(setting).filter(x => setting[x]);
 
-		if (!settingItems.length) {
-			return undefined;
-		}
+		const allCodeActions = this.createCodeActionsOnSave(settingKeys);
 
-		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => !NotebookCodeAction.contains(x));
-		const notebookCodeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => NotebookCodeAction.contains(x));
+		const notebookModel = workingCopy.model.notebookModel;
+
+		// create a list of excluded and included actions based on the enabled boolean
+		const includedActions = allCodeActions.filter(x => setting[x.value].enabled);
+		const excludedActions = allCodeActions.filter(x => !setting[x.value].enabled);
+
+		// update the notebook fields of each action based on the scope. If scope is 'notebook', set notebook field to true
+		includedActions.forEach(action => {
+			if (setting[action.value].scope === 'notebook') {
+				action.notebook = true;
+			}
+		});
+		excludedActions.forEach(action => {
+			if (setting[action.value].scope === 'notebook') {
+				action.notebook = true;
+			}
+		});
+
+		// const notebookCodeActionsOnSave should = all included actions with notebook field true
+		const notebookCodeActionsOnSave = includedActions.filter(x => x.notebook);
+		// const codeActionsOnSave should = all included actions with notebook field false or undefined
+		const codeActionsOnSave = includedActions.filter(x => !x.notebook);
 
 		// prioritize `source.fixAll` code actions
 		if (!Array.isArray(setting)) {
@@ -154,18 +168,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			});
 		}
 
-
-
-
 		if (!codeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
 			return undefined;
 		}
-
-		const excludedActions = Array.isArray(setting)
-			? []
-			: Object.keys(setting)
-				.filter(x => setting[x] === false)
-				.map(x => new CodeActionKind(x));
 
 		const nbDisposable = new DisposableStore();
 
@@ -248,7 +253,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				for (const action of actionsToRun.validActions) {
 					const codeActionEdits = action.action.edit?.edits;
 					let breakFlag = false;
-					if (!action.action.kind?.includes('notebook')) {
+					if (!action.action.kind?.notebook) {
 						for (const edit of codeActionEdits ?? []) {
 							const workspaceTextEdit = edit as IWorkspaceTextEdit;
 							if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
@@ -286,8 +291,6 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		}, progress, token);
 	}
 }
-
-
 
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
 	constructor(

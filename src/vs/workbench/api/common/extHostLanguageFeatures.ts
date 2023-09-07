@@ -405,11 +405,15 @@ class CodeActionAdapter {
 			}
 		}
 
-		const codeActionContext: vscode.CodeActionContext = {
+		const codeActionContext: vscode.CodeActionContext2 = {
 			diagnostics: allDiagnostics,
-			only: context.only ? new CodeActionKind(context.only) : undefined,
+			only: context.only ? new CodeActionKind(context.only.value) : undefined,
 			triggerKind: typeConvert.CodeActionTriggerKind.to(context.trigger),
 		};
+		if (codeActionContext.only) {
+			codeActionContext.only.notebook = context.only?.notebook;
+		}
+
 
 		const commandsOrActions = await this._provider.provideCodeActions(doc, ran, codeActionContext, token);
 		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested) {
@@ -455,7 +459,7 @@ class CodeActionAdapter {
 					command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 					diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
 					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
-					kind: candidate.kind && candidate.kind.value,
+					kind: candidate.kind,
 					isPreferred: candidate.isPreferred,
 					disabled: candidate.disabled?.reason
 				});
@@ -2129,7 +2133,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const store = new DisposableStore();
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
 		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector, extension), {
-			providedKinds: metadata?.providedCodeActionKinds?.map(kind => kind.value),
+			providedKinds: metadata?.providedCodeActionKinds,
 			documentation: metadata?.documentation?.map(x => ({
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),

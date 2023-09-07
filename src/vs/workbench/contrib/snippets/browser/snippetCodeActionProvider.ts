@@ -24,7 +24,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 	private static readonly _MAX_CODE_ACTIONS = 4;
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
-		kind: CodeActionKind.SurroundWith.value,
+		kind: CodeActionKind.SurroundWith,
 		title: SurroundWithSnippetEditorAction.options.title.value,
 		command: {
 			id: SurroundWithSnippetEditorAction.options.id,
@@ -54,7 +54,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 			}
 			actions.push({
 				title: localize('codeAction', "Surround With: {0}", snippet.name),
-				kind: CodeActionKind.SurroundWith.value,
+				kind: CodeActionKind.SurroundWith,
 				edit: asWorkspaceEdit(model, range, snippet)
 			});
 		}
@@ -72,14 +72,14 @@ class FileTemplateCodeActionProvider implements CodeActionProvider {
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
 		title: localize('overflow.start.title', 'Start with Snippet'),
-		kind: CodeActionKind.SurroundWith.value,
+		kind: CodeActionKind.SurroundWith,
 		command: {
 			id: ApplyFileSnippetAction.Id,
 			title: ''
 		}
 	};
 
-	readonly providedCodeActionKinds?: readonly string[] = [CodeActionKind.SurroundWith.value];
+	readonly providedCodeActionKinds?: readonly CodeActionKind[] = [CodeActionKind.SurroundWith];
 
 	constructor(@ISnippetsService private readonly _snippetService: ISnippetsService) { }
 
@@ -97,7 +97,7 @@ class FileTemplateCodeActionProvider implements CodeActionProvider {
 			}
 			actions.push({
 				title: localize('title', 'Start with: {0}', snippet.name),
-				kind: CodeActionKind.SurroundWith.value,
+				kind: CodeActionKind.SurroundWith,
 				edit: asWorkspaceEdit(model, model.getFullModelRange(), snippet)
 			});
 		}

@@ -53,7 +53,7 @@ export function toMenuItems(
 	const menuEntries = codeActionGroups.map(group => ({ group, actions: [] as CodeActionItem[] }));
 
 	for (const action of inputCodeActions) {
-		const kind = action.action.kind ? new CodeActionKind(action.action.kind) : CodeActionKind.None;
+		const kind = action.action.kind ? new CodeActionKind(action.action.kind.value) : CodeActionKind.None;
 		for (const menuEntry of menuEntries) {
 			if (menuEntry.group.kind.contains(kind)) {
 				menuEntry.actions.push(action);

@@ -966,8 +966,21 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.codeActionsOnSave]: {
 			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Experimental. Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `source.fixAll: true`"),
 			type: 'object',
-			additionalProperties: {
-				type: 'boolean'
+			properties: {
+				enabled: {
+					// todo: update this alongside the code actions on save setting #190516
+					// type: 'string',
+					// enum: ['always', 'never', 'explicit'],
+					// enumDescriptions: [nls.localize('alwaysSave', 'Always triggers Code Actions on save'), nls.localize('neverSave', 'Never triggers Code Actions on save'), nls.localize('explicitSave', 'Triggers Code Actions only when explicitly saved')],
+					// default: 'explicit',
+					type: 'boolean',
+					default: false
+				},
+				scope: {
+					type: 'string',
+					enum: ['notebook', 'cell', 'both'],
+					default: 'cell'
+				}
 			},
 			default: {}
 		},
