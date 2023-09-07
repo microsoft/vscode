@@ -123,7 +123,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
