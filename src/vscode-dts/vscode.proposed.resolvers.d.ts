@@ -150,37 +150,58 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * An ExecServer allows spawning processes on a remote machine. An ExecServer is provided by resolvers. Iy can be
+	 * An ExecServer allows spawning processes on a remote machine. An ExecServer is provided by resolvers. It can be
 	 * acquired by `workspace.getRemoteExecServer` or from the context when in a resolver (`RemoteAuthorityResolverContext.execServer`).
-	 * The exec server allows to spawn processes on the remote machine and to make file system operations.
 	 */
 	export interface ExecServer {
 		/**
 		 * Spawns a given subprocess with the given command and arguments.
+		 * @param command The command to execute.
+		 * @param args The arguments to pass to the command.
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that gives access to the process' stdin, stdout and stderr streams, as well as the process' exit code.
 		 */
 		spawn(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedCommand>;
 
 		/**
 		 * Spawns an exec server. It is assumed the command starts a Code CLI. Additional
 		 * arguments will be passed to the exec server.
-		 *
-		 * Returns an {@link IExecServer} as well a stream to which
-		 * standard log messages are written.
+		 * @param command The command to execute. It is assumed the command spawns a Code CLI executable.
+		 * @param args The arguments to pass to the exec server
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that gives access to the spawned {@link ExecServer}. It also provides a stream to which standard
+		 * log messages are written.
 		 */
 		spawnExecServer(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedExecServer>;
 
-		/** Downloads the CLI executable of the desired platform and quality and pipes it to the provided process' stdin. */
-		dowloadCliExecutable(buildOptions: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
+		/**
+		 * Downloads the CLI executable of the desired platform and quality and pipes it to the
+		 * provided process' stdin.
+		 * @param buildTarget The CLI build target to download.
+		 * @param command The command to execute. The downloaded bits will be piped to the command's stdin.
+		 * @param args The arguments to pass to the command.
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that resolves when the process exits with a {@link ProcessExit} object.
+		 */
+		dowloadCliExecutable(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
 
-		/** Starts a code server, returning a stream that can be used to communicate with it. */
-		serve(params: ServeParams): Thenable<DuplexStream>;
+		/**
+		 * Starts a code server, returning a stream that can be used to communicate with it.
+		 * @param params The parameters for the code server.
+		 * @returns A promise that resolves to a {@link ManagedMessagePassing} object that can be used with a
+		 */
+		serve(params: ServeParams): Thenable<ManagedMessagePassing>;
 
-		/** Gets the environment where the exec server is running. */
+		/**
+		 * Gets the environment where the exec server is running.
+		 * @returns A promise that resolves to an {@link ExecEnvironment} object.
+		 */
 		env(): Thenable<ExecEnvironment>;
 
-		/** Access to the file system of the remote */
+		/**
+		 * Access to the file system of the remote.
+		 */
 		readonly fs: RemoteFileSystem;
-
 	}
 
 	export type ProcessEnv = Record<string, string>;
