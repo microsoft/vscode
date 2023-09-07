@@ -39,6 +39,7 @@ import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -174,6 +175,7 @@ export class BreadcrumbsControl {
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
 	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
+	private readonly _cfSeparator: BreadcrumbsConfig<string>;
 
 	readonly domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
@@ -198,6 +200,7 @@ export class BreadcrumbsControl {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService,
+		@IClipboardService readonly clipboardService: IClipboardService
 	) {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('breadcrumbs-control');
@@ -206,6 +209,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
+		this._cfSeparator = BreadcrumbsConfig.Separator.bindTo(configurationService);
 
 		this._labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
 
@@ -215,6 +219,11 @@ export class BreadcrumbsControl {
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
+		this._disposables.add(
+			dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => this._onRightClickEvent(e))
+		);
+		this._disposables.add(Gesture.addTarget(this.domNode));
+		this._disposables.add(dom.addDisposableListener(this.domNode, TouchEventType.Contextmenu, e => this._onRightClickEvent(e)));
 
 		this._ckBreadcrumbsPossible = BreadcrumbsControl.CK_BreadcrumbsPossible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
@@ -352,6 +361,13 @@ export class BreadcrumbsControl {
 			this._breadcrumbsPickerIgnoreOnceItem = undefined;
 			this._widget.setSelection(event.item);
 		}
+	}
+	private _onRightClickEvent(event: IBreadcrumbsItemEvent) {
+		const textList = event.payload.ctrlKey
+			? this._widget.getTextListAll()
+			: this._widget.getTextListUptoNode(event.node);
+		const path = textList.join(this._cfSeparator.getValue());
+		this.clipboardService.writeText(path);
 	}
 
 	private _onSelectEvent(event: IBreadcrumbsItemEvent): void {
@@ -595,6 +611,38 @@ registerAction2(class FocusBreadcrumbs extends Action2 {
 	}
 });
 
+registerAction2(class CopyBreadcrumbs extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.copy',
+			title: {
+				value: localize('cmd.copy', "Copy Breadcrumbs"),
+				original: 'Copy Breadcrumbs'
+			},
+			precondition: BreadcrumbsControl.CK_BreadcrumbsVisible,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
+				when: BreadcrumbsControl.CK_BreadcrumbsPossible,
+			},
+			f1: true
+		});
+
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const config = accessor.get(IConfigurationService);
+		const clipboard = accessor.get(IClipboardService);
+		if (!widget) {
+			return;
+		}
+		const separator = BreadcrumbsConfig.Separator.bindTo(config).getValue();
+		const path = widget.getTextListAll().join(separator);
+		clipboard.writeText(path);
+	}
+});
 // this commands is only enabled when breadcrumbs are
 // disabled which it then enables and focuses
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -773,6 +821,28 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				preserveFocus: false
 			}, true);
 		}
+	}
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'breadcrumbs.copyToFocus',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
+	when: ContextKeyExpr.and(BreadcrumbsControl.CK_BreadcrumbsVisible, BreadcrumbsControl.CK_BreadcrumbsActive),
+	handler(accessor) {
+		const groups = accessor.get(IEditorGroupsService);
+		const breadcrumbs = accessor.get(IBreadcrumbsService);
+		const widget = breadcrumbs.getWidget(groups.activeGroup.id);
+		const config = accessor.get(IConfigurationService);
+		const clipboard = accessor.get(IClipboardService);
+
+		if (!widget) {
+			return;
+		}
+
+		const separator = BreadcrumbsConfig.Separator.bindTo(config).getValue();
+		const focusNode = widget.getFocusedNode();
+		const path = widget.getTextListUptoNode(focusNode).join(separator);
+		clipboard.writeText(path);
 	}
 });
 //#endregion

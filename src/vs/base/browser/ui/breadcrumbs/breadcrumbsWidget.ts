@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { commonPrefixLength } from 'vs/base/common/arrays';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -28,10 +28,10 @@ export interface IBreadcrumbsWidgetStyles {
 }
 
 export interface IBreadcrumbsItemEvent {
-	type: 'select' | 'focus';
+	type: 'select' | 'focus' | 'rightclick';
 	item: BreadcrumbsItem;
 	node: HTMLElement;
-	payload: any;
+	payload: StandardMouseEvent;
 }
 
 export class BreadcrumbsWidget {
@@ -42,10 +42,13 @@ export class BreadcrumbsWidget {
 
 	private readonly _onDidSelectItem = new Emitter<IBreadcrumbsItemEvent>();
 	private readonly _onDidFocusItem = new Emitter<IBreadcrumbsItemEvent>();
+	private readonly _onDidRightClick = new Emitter<IBreadcrumbsItemEvent>();
 	private readonly _onDidChangeFocus = new Emitter<boolean>();
+
 
 	readonly onDidSelectItem: Event<IBreadcrumbsItemEvent> = this._onDidSelectItem.event;
 	readonly onDidFocusItem: Event<IBreadcrumbsItemEvent> = this._onDidFocusItem.event;
+	readonly onDidRightClick: Event<IBreadcrumbsItemEvent> = this._onDidRightClick.event;
 	readonly onDidChangeFocus: Event<boolean> = this._onDidChangeFocus.event;
 
 	private readonly _items = new Array<BreadcrumbsItem>();
@@ -80,6 +83,7 @@ export class BreadcrumbsWidget {
 		this._separatorIcon = separatorIcon;
 		this._disposables.add(this._scrollable);
 		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
+		this._disposables.add(dom.addStandardDisposableListener(this._domNode, 'mousedown', e => this._onMousedown(e)));
 		container.appendChild(this._scrollable.getDomNode());
 
 		const styleElement = dom.createStyleSheet(this._domNode);
@@ -102,6 +106,7 @@ export class BreadcrumbsWidget {
 		this._pendingLayout?.dispose();
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
+		this._onDidRightClick.dispose();
 		this._onDidChangeFocus.dispose();
 		this._domNode.remove();
 		this._nodes.length = 0;
@@ -186,7 +191,9 @@ export class BreadcrumbsWidget {
 		}
 		return false;
 	}
-
+	getFocusedNode(): HTMLElement {
+		return this._nodes[this._focusedItemIdx];
+	}
 	getFocused(): BreadcrumbsItem {
 		return this._items[this._focusedItemIdx];
 	}
@@ -294,6 +301,14 @@ export class BreadcrumbsWidget {
 		}
 	}
 
+	getTextListUptoNode(target: HTMLElement | null): string[] {
+		const idx = target ? this._getTargetElemIdx(target) + 1 : this._nodes.length;
+		return this._getTextListUptoIndex(idx);
+	}
+	getTextListAll() {
+		return this._getTextListUptoIndex(this._nodes.length);
+	}
+
 	private _render(start: number): void {
 		let didChange = false;
 		for (; start < this._items.length && start < this._nodes.length; start++) {
@@ -344,17 +359,40 @@ export class BreadcrumbsWidget {
 		container.appendChild(iconContainer);
 	}
 
+	private _getTargetElemIdx(target: HTMLElement): number {
+		let result = -1;
+		for (let el: HTMLElement | null = target; el; el = el.parentElement) {
+			result = this._nodes.indexOf(el as HTMLDivElement);
+			if (0 <= result) {
+				break;
+			}
+		}
+		return result;
+	}
+
+	private _getTextListUptoIndex(index: number) {
+		const result = [];
+		for (let i = 0; i < index; i++) {
+			result.push(this._nodes[i].innerText);
+		}
+		return result;
+	}
+
 	private _onClick(event: IMouseEvent): void {
 		if (!this._enabled) {
 			return;
 		}
-		for (let el: HTMLElement | null = event.target; el; el = el.parentElement) {
-			const idx = this._nodes.indexOf(el as HTMLDivElement);
-			if (idx >= 0) {
-				this._focus(idx, event);
-				this._select(idx, event);
-				break;
-			}
+		const idx = this._getTargetElemIdx(event.target);
+		this._focus(idx, event);
+		this._select(idx, event);
+	}
+
+	private _onMousedown(event: IMouseEvent): void {
+		if (!event.rightButton || !this._enabled) {
+			return;
 		}
+		const idx = this._getTargetElemIdx(event.target);
+		this._focus(idx, event);
+		this._onDidRightClick.fire({ type: 'rightclick', item: this._items[idx], node: this._nodes[idx], payload: event });
 	}
 }
