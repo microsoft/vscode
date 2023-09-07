@@ -31,22 +31,20 @@ suite('Files - NativeTextFileService', function () {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const logService = new NullLogService();
-		const fileService = new FileService(logService);
+		const fileService = disposables.add(new FileService(logService));
 
 		const fileProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
+		collection.set(IWorkingCopyFileService, disposables.add(new WorkingCopyFileService(fileService, disposables.add(new WorkingCopyService()), instantiationService, disposables.add(new UriIdentityService(fileService)))));
 
-		collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new WorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
-
-		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
+		service = disposables.add(instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides));
+		disposables.add(<TextFileEditorModelManager>service.files);
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>service.files).dispose();
-
 		disposables.clear();
 	});
 

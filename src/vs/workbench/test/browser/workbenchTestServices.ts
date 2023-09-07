@@ -99,7 +99,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -121,7 +121,6 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalBackend, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ICreateTerminalOptions, IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -324,6 +323,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, hoverService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
+	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(false)));
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(IElevatedFileService, new BrowserElevatedFileService());
 	instantiationService.stub(IRemoteSocketFactoryService, new RemoteSocketFactoryService());
@@ -2091,4 +2091,23 @@ export class TestWebExtensionsScannerService implements IWebExtensionsScannerSer
 	scanExtensionManifest(extensionLocation: URI): Promise<Readonly<IRelaxedExtensionManifest> | null> {
 		throw new Error('Method not implemented.');
 	}
+}
+
+export async function workbenchTeardown(instantiationService: IInstantiationService): Promise<void> {
+	return instantiationService.invokeFunction(async accessor => {
+		const workingCopyService = accessor.get(IWorkingCopyService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		for (const workingCopy of workingCopyService.workingCopies) {
+			await workingCopy.revert();
+		}
+
+		for (const group of editorGroupService.groups) {
+			await group.closeAllEditors();
+		}
+
+		for (const group of editorGroupService.groups) {
+			editorGroupService.removeGroup(group);
+		}
+	});
 }

@@ -20,12 +20,11 @@ import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/e
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestStorageService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -50,7 +49,7 @@ class TestEditor extends EditorPane {
 	protected createEditor(): any { }
 }
 
-export class OtherTestEditor extends EditorPane {
+class OtherTestEditor extends EditorPane {
 
 	constructor() {
 		const disposables = new DisposableStore();
@@ -171,8 +170,6 @@ suite('EditorPane', () => {
 	test('Editor Pane Lookup favors specific class over superclass (match on specific class)', function () {
 		const d1 = EditorPaneDescriptor.create(TestEditor, 'id1', 'name');
 
-		const disposables = new DisposableStore();
-
 		disposables.add(registerTestResourceEditor());
 		disposables.add(editorRegistry.registerEditorPane(d1, [new SyncDescriptor(TestResourceEditorInput)]));
 
@@ -183,25 +180,18 @@ suite('EditorPane', () => {
 
 		const otherEditor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
-
-		disposables.dispose();
 	});
 
 	test('Editor Pane Lookup favors specific class over superclass (match on super class)', function () {
-		const disposables = new DisposableStore();
-
 		const inst = workbenchInstantiationService(undefined, disposables);
 
 		disposables.add(registerTestResourceEditor());
 		const editor = disposables.add(editorRegistry.getEditorPane(disposables.add(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined)))!.instantiate(inst));
 
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
-
-		disposables.dispose();
 	});
 
 	test('Editor Input Serializer', function () {
-		const disposables = new DisposableStore();
 		const testInput = disposables.add(new TestEditorInput(URI.file('/fake'), 'testTypeId'));
 		workbenchInstantiationService(undefined, disposables).invokeFunction(accessor => editorInputRegistry.start(accessor));
 		disposables.add(editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer));
@@ -214,8 +204,6 @@ suite('EditorPane', () => {
 
 		// throws when registering serializer for same type
 		assert.throws(() => editorInputRegistry.registerEditorSerializer(testInput.typeId, TestInputSerializer));
-
-		disposables.dispose();
 	});
 
 	test('EditorMemento - basics', function () {

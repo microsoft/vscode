@@ -28,22 +28,21 @@ suite('Files - TextFileEditorModel', () => {
 		return stat ? stat.mtime : -1;
 	}
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let content: string;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 		content = accessor.fileService.getContent();
+		disposables.add(<TextFileEditorModelManager>accessor.textFileService.files);
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 		accessor.fileService.setContent(content);
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('basic events', async function () {

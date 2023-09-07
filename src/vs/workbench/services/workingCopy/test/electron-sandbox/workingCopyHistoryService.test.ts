@@ -39,16 +39,13 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 		if (!fileService) {
 			fileService = disposables.add(new FileService(logService));
 			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
-			disposables.add(fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider()));
+			disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new InMemoryFileSystemProvider())));
 		}
 
 		const remoteAgentService = new TestRemoteAgentService();
-
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		const lifecycleService = disposables.add(new TestLifecycleService());
-
 		const labelService = disposables.add(new LabelService(environmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), disposables.add(new TestStorageService()), lifecycleService));
-
 		const configurationService = new TestConfigurationService();
 
 		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService, configurationService);

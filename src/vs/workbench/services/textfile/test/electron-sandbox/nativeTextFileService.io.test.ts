@@ -42,10 +42,10 @@ suite('Files - NativeTextFileService i/o', function () {
 
 			const collection = new ServiceCollection();
 			collection.set(IFileService, fileService);
-
-			collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new WorkingCopyService(), instantiationService, disposables.add(new UriIdentityService(fileService))));
+			collection.set(IWorkingCopyFileService, disposables.add(new WorkingCopyFileService(fileService, disposables.add(new WorkingCopyService()), instantiationService, disposables.add(new UriIdentityService(fileService)))));
 
 			service = disposables.add(instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides));
+			disposables.add(<TextFileEditorModelManager>service.files);
 
 			await fileProvider.mkdir(URI.file(testDir));
 			for (const fileName in files) {
@@ -60,8 +60,6 @@ suite('Files - NativeTextFileService i/o', function () {
 		},
 
 		teardown: async () => {
-			(<TextFileEditorModelManager>service.files).dispose();
-
 			disposables.clear();
 		},
 

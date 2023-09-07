@@ -25,7 +25,7 @@ import { TextEditorService } from 'vs/workbench/services/textfile/common/textEdi
 
 suite('Files - FileEditorInput', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -44,7 +44,6 @@ suite('Files - FileEditorInput', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService({
 			textEditorService: instantiationService => instantiationService.createInstance(TestTextEditorService)
 		}, disposables);
@@ -53,7 +52,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('Basics', async function () {

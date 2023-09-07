@@ -52,11 +52,8 @@ export class TestSharedProcessService implements ISharedProcessService {
 	declare readonly _serviceBrand: undefined;
 
 	createRawConnection(): never { throw new Error('Not Implemented'); }
-
 	getChannel(channelName: string): any { return undefined; }
-
 	registerChannel(channelName: string, channel: any): void { }
-
 	notifyRestored(): void { }
 }
 

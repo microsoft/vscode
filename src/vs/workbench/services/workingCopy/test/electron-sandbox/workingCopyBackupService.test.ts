@@ -172,7 +172,7 @@ suite('WorkingCopyBackupService', () => {
 	let service: NodeTestWorkingCopyBackupService;
 	let fileService: IFileService;
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 
 	const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 	const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
@@ -183,8 +183,6 @@ suite('WorkingCopyBackupService', () => {
 	const untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 
 	setup(async () => {
-		disposables = new DisposableStore();
-
 		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopybackupservice')).with({ scheme: Schemas.inMemory });
 		backupHome = joinPath(testDir, 'Backups');
 		workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
@@ -199,7 +197,7 @@ suite('WorkingCopyBackupService', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	suite('hashIdentifier', () => {

@@ -39,22 +39,11 @@ suite('Workbench editor utils', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	async function createServices(): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService(undefined, disposables);
-
-		const part = await createEditorPart(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, part);
-
-		const editorService = disposables.add(instantiationService.createInstance(EditorService));
-		instantiationService.stub(IEditorService, editorService);
-
-		return instantiationService.createInstance(TestServiceAccessor);
-	}
-
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
+		disposables.add(accessor.untitledTextEditorService);
 		disposables.add(registerTestFileEditor());
 		disposables.add(registerTestSideBySideEditor());
 		disposables.add(registerTestResourceEditor());
@@ -62,8 +51,6 @@ suite('Workbench editor utils', () => {
 	});
 
 	teardown(() => {
-		accessor.untitledTextEditorService.dispose();
-
 		disposables.clear();
 	});
 
@@ -433,6 +420,18 @@ suite('Workbench editor utils', () => {
 	test('whenEditorClosed (multiple custom editor)', async function () {
 		return testWhenEditorClosed(false, true, toResource.call(this, '/path/index.txt'), toResource.call(this, '/test.html'));
 	});
+
+	async function createServices(): Promise<TestServiceAccessor> {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+
+		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
+
+		const editorService = disposables.add(instantiationService.createInstance(EditorService));
+		instantiationService.stub(IEditorService, editorService);
+
+		return instantiationService.createInstance(TestServiceAccessor);
+	}
 
 	async function testWhenEditorClosed(sideBySide: boolean, custom: boolean, ...resources: URI[]): Promise<void> {
 		const accessor = await createServices();

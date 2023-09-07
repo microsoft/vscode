@@ -7,12 +7,10 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IWorkingCopyEditorHandler, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { createEditorPart, registerTestResourceEditor, TestEditorService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -42,11 +40,9 @@ suite('WorkingCopyEditorService', () => {
 			createEditor: workingCopy => { throw new Error(); }
 		};
 
-		const disposable = service.registerHandler(editorHandler);
+		disposables.add(service.registerHandler(editorHandler));
 
 		assert.strictEqual(handlerEvent, editorHandler);
-
-		disposable.dispose();
 	});
 
 	test('findEditor', async () => {
@@ -56,7 +52,6 @@ suite('WorkingCopyEditorService', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 

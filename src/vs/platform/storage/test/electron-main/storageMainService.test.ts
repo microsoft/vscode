@@ -29,6 +29,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('StorageMainService', function () {
 
+	const disposables = new DisposableStore();
+
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
 
 	const inMemoryProfileRoot = URI.file('/location').with({ scheme: Schemas.inMemory });
@@ -70,12 +72,12 @@ suite('StorageMainService', function () {
 		}
 
 		let storageChangeEvent: IStorageChangeEvent | undefined = undefined;
-		const storageChangeListener = storage.onDidChangeStorage(e => {
+		disposables.add(storage.onDidChangeStorage(e => {
 			storageChangeEvent = e;
-		});
+		}));
 
 		let storageDidClose = false;
-		const storageCloseListener = storage.onDidCloseStorage(() => storageDidClose = true);
+		disposables.add(storage.onDidCloseStorage(() => storageDidClose = true));
 
 		// Basic store/get/remove
 		const size = storage.items.size;
@@ -103,14 +105,7 @@ suite('StorageMainService', function () {
 		await storage.close();
 
 		strictEqual(storageDidClose, true);
-
-		storageChangeListener.dispose();
-		storageCloseListener.dispose();
-
-		storage.dispose();
 	}
-
-	const disposables = new DisposableStore();
 
 	teardown(() => {
 		disposables.clear();
@@ -193,12 +188,6 @@ suite('StorageMainService', function () {
 		notStrictEqual(workspaceStorage, workspaceStorage2);
 
 		await workspaceStorage2.close();
-
-		applicationStorage.dispose();
-		profileStorage.dispose();
-		profileStorage2.dispose();
-		workspaceStorage.dispose();
-		workspaceStorage2.dispose();
 	});
 
 	test('storage closed before init works', async function () {
@@ -231,10 +220,6 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
-
-		applicationStorage.dispose();
-		profileStorage.dispose();
-		workspaceStorage.dispose();
 	});
 
 	test('storage closed before init awaits works', async function () {
@@ -271,9 +256,6 @@ suite('StorageMainService', function () {
 		strictEqual(didCloseApplicationStorage, true);
 		strictEqual(didCloseProfileStorage, true);
 		strictEqual(didCloseWorkspaceStorage, true);
-
-		profileStorage.dispose();
-		workspaceStorage.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

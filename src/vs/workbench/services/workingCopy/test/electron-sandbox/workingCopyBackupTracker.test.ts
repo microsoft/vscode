@@ -28,7 +28,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -114,11 +114,10 @@ suite('WorkingCopyBackupTracker (native)', function () {
 	let workspaceBackupPath: URI;
 
 	let accessor: TestServiceAccessor;
-	let disposables: DisposableStore;
+
+	const disposables = new DisposableStore();
 
 	setup(async () => {
-		disposables = new DisposableStore();
-
 		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopybackuptracker')).with({ scheme: Schemas.inMemory });
 		backupHome = joinPath(testDir, 'Backups');
 		const workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
@@ -139,7 +138,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; instantiationService: IInstantiationService; cleanup: () => Promise<void> }> {
@@ -173,13 +172,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const cleanup = async () => {
 			await accessor.workingCopyBackupService.waitForAllBackups(); // File changes could also schedule some backup operations so we need to wait for them before finishing the test
 
-			for (const workingCopy of accessor.workingCopyService.workingCopies) {
-				await workingCopy.revert();
-			}
-
-			for (const group of part.groups) {
-				await group.closeAllEditors();
-			}
+			await workbenchTeardown(instantiationService);
 
 			part.dispose();
 			tracker.dispose();

@@ -71,7 +71,7 @@ suite('EditorAutoSave', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		const model = await accessor.textFileService.files.resolve(resource);
+		const model: ITextFileEditorModel = disposables.add(await accessor.textFileService.files.resolve(resource));
 		model.textEditorModel?.setValue('Super Good');
 
 		assert.ok(model.isDirty());
@@ -79,7 +79,6 @@ suite('EditorAutoSave', () => {
 		await awaitModelSaved(model);
 
 		assert.strictEqual(model.isDirty(), false);
-		model.dispose();
 	});
 
 	test('editor auto saves on focus change if configured', async function () {
@@ -88,7 +87,7 @@ suite('EditorAutoSave', () => {
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
 
-		const model = await accessor.textFileService.files.resolve(resource);
+		const model: ITextFileEditorModel = disposables.add(await accessor.textFileService.files.resolve(resource));
 		model.textEditorModel?.setValue('Super Good');
 
 		assert.ok(model.isDirty());
@@ -98,7 +97,6 @@ suite('EditorAutoSave', () => {
 		await awaitModelSaved(model);
 
 		assert.strictEqual(model.isDirty(), false);
-		model.dispose();
 
 		await editorPane?.group?.closeAllEditors();
 	});
