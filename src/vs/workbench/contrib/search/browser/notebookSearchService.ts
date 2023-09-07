@@ -17,14 +17,15 @@ import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchCon
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IIncompleteNotebookFileMatch } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IIncompleteNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
 
 interface IOpenNotebookSearchResults {
 	results: ResourceMap<ICompleteNotebookFileMatch | null>;
 	limitHit: boolean;
 }
 interface IClosedNotebookSearchResults {
-	results: IIncompleteNotebookFileMatch<URI>[];
+	results: ResourceMap<IIncompleteNotebookFileMatch<URI> | null>;
 	limitHit: boolean;
 }
 export class NotebookSearchService implements INotebookSearchService {
@@ -78,8 +79,8 @@ export class NotebookSearchService implements INotebookSearchService {
 					const openNotebookResult = resolvedPromise[0];
 					const closedNotebookResult = resolvedPromise[1];
 
-					const resolved = resolvedPromise.filter((e): e is IOpenNotebookSearchResults => !!e);
-					const resultArray = [...Array.from(openNotebookResult.results.values()), ...closedNotebookResult?.results ?? []];
+					const resolved = resolvedPromise.filter((e): e is IOpenNotebookSearchResults | IClosedNotebookSearchResults => !!e);
+					const resultArray = [...openNotebookResult.results.values(), ...closedNotebookResult?.results.values() ?? []];
 					const results = arrays.coalesce(resultArray);
 					if (onProgress) {
 						results.forEach(onProgress);
@@ -92,8 +93,9 @@ export class NotebookSearchService implements INotebookSearchService {
 					};
 				}),
 				allScannedFiles: promise.then(resolvedPromise => {
-					const openNotebookResult = resolvedPromise[0];
-					const results = arrays.coalesce([...openNotebookResult.results.keys()]);
+					const openNotebookResults = resolvedPromise[0];
+					const closedNotebookResults = resolvedPromise[1];
+					const results = arrays.coalesce([...openNotebookResults.results.keys(), ...closedNotebookResults?.results.keys() ?? []]);
 					return new ResourceSet(results, uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 				})
 			};
@@ -108,8 +110,7 @@ export class NotebookSearchService implements INotebookSearchService {
 
 	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<IClosedNotebookSearchResults> {
 
-
-		const contributedTypes = this.notebookService.getContributedNotebookTypes();
+		const sortedContributedTypes = [...this.notebookService.getContributedNotebookTypes()].sort((a, b) => priorityToRank(b.priority) - priorityToRank(a.priority));
 
 		const getResultsFromProviderInfo = async (providerInfo: NotebookProviderInfo) => {
 			const serializer = (await this.notebookService.withNotebookDataProvider(providerInfo.id)).serializer;
@@ -117,15 +118,33 @@ export class NotebookSearchService implements INotebookSearchService {
 		};
 
 		const start = Date.now();
-		const results = (await Promise.all(contributedTypes.map(async e => await getResultsFromProviderInfo(e)))).flat();
+		const searchComplete = (await Promise.all(sortedContributedTypes.map(async e => await getResultsFromProviderInfo(e))));
+		const results = searchComplete.flatMap(e => e.results);
+		let limitHit = searchComplete.some(e => e.limitHit);
+
+		// results are already sorted with high priority first, filter out duplicates.
+		const uniqueResults = new ResourceMap<IIncompleteNotebookFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+
+		let numResults = 0;
+		for (const result of results) {
+			if (textQuery.maxResults && numResults >= textQuery.maxResults) {
+				limitHit = true;
+				break;
+			}
+
+			if (!scannedFiles.has(result.resource) && !uniqueResults.has(result.resource)) {
+				uniqueResults.set(result.resource, result.cellResults.length > 0 ? result : null);
+				numResults++;
+			}
+		}
 
 		const end = Date.now();
 		this.logService.trace(`query: ${textQuery.contentPattern.pattern}`);
 		this.logService.trace(`closed notebook search time | ${end - start}ms`);
 
 		return {
-			results: results.filter(e => !scannedFiles.has(e.resource)),
-			limitHit: false
+			results: uniqueResults,
+			limitHit
 		};
 	}
 

@@ -3,64 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
+import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
+import { NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { NotebookDto } from 'vs/workbench/api/common/mainThreadNotebookDto';
+import { NotebookData, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { DefaultEndOfLine, FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IFileMatch, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
-
-export type IRawClosedNotebookFileMatch = IIncompleteNotebookFileMatch<UriComponents>;
-
-export interface IIncompleteNotebookFileMatch<U extends UriComponents = URI> extends IFileMatch<U> {
-	cellResults: IIncompleteNotebookCellMatch<U>[];
-}
-
-export interface IIncompleteNotebookCellMatch<U extends UriComponents = URI> {
-	index: number;
-	contentResults: ITextSearchMatch<U>[];
-	webviewResults: ITextSearchMatch<U>[];
-}
-export function isIIncompleteNotebookFileMatch(object: IFileMatch): object is IIncompleteNotebookFileMatch {
-	return 'cellResults' in object;
-}
-export function reviveIClosedNotebookCellMatch(cellMatch: IIncompleteNotebookCellMatch<UriComponents>): IIncompleteNotebookCellMatch<URI> {
-	return {
-		index: cellMatch.index,
-		contentResults: cellMatch.contentResults.map(e => {
-			return {
-				...e,
-				...{ uri: URI.revive(e.uri) }
-			};
-		}),
-		webviewResults: cellMatch.webviewResults.map(e => {
-			return {
-				...e,
-				...{ uri: URI.revive(e.uri) }
-			};
-		})
-	};
-}
-// export function reviveIFileMatchWithRawCells(fileMatch: IRawNotebookFileMatch): IFileMatchWithRawCells<URI> {
-// 	const resource = URI.revive(fileMatch.resource);
-// 	const bleh = {
-// 		...fileMatch,
-// 		...{
-// 			resource,
-// 			cellResults: fileMatch.cellResults.map(e => reviveICellSearchMatch(e))
-// 		},
-// 	};
-// 	return bleh;
-// }
 
 interface RawOutputFindMatch {
 	textBuffer: IReadonlyTextBuffer;
 	matches: FindMatch[];
 }
-
-export const rawCellPrefix = 'rawCell#';
 
 export interface ICellSearchModel {
 	inputTextBuffer: IReadonlyTextBuffer;
@@ -146,4 +106,47 @@ export class CellSearchModel extends Disposable implements ICellSearchModel {
 			};
 		}).filter((item): item is RawOutputFindMatch => !!item);
 	}
+}
+
+interface INotebookDataEditInfo {
+	notebookData: NotebookData;
+	mTime: number;
+}
+
+export class NotebookDataCache {
+	private _entries: ResourceMap<INotebookDataEditInfo>;
+
+	constructor(
+		private _extHostFileSystem: IExtHostConsumerFileSystem,
+	) {
+		this._entries = new ResourceMap<INotebookDataEditInfo>();
+	}
+
+	async getNotebookData(notebookUri: URI, dataToNotebook: (data: VSBuffer) => Promise<SerializableObjectWithBuffers<NotebookDataDto>>): Promise<NotebookData> {
+		const mTime = (await this._extHostFileSystem.value.stat(notebookUri)).mtime;
+
+		const entry = this._entries.get(notebookUri);
+
+		if (entry && entry.mTime === mTime) {
+			return entry.notebookData;
+		} else {
+
+			let _data: NotebookData = {
+				metadata: {},
+				cells: []
+			};
+
+			const content = await this._extHostFileSystem.value.readFile(notebookUri);
+			const bytes: VSBuffer = VSBuffer.fromString(content.toString());
+			// const serializer = await this.getSerializer(notebookUri);
+			// if (!serializer) {
+			// 	//unsupported
+			// 	throw new Error(`serializer not initialized`);
+			// }
+			_data = NotebookDto.fromNotebookDataDto((await dataToNotebook(bytes)).value);
+			this._entries.set(notebookUri, { notebookData: _data, mTime });
+			return _data;
+		}
+	}
+
 }

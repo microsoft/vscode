@@ -38,8 +38,8 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, ICompleteNotebookCellMatch, isICompleteNotebookFileMatch, isICompleteNotebookCellMatch, getIDFromINotebookCellMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
-import { IIncompleteNotebookCellMatch, isIIncompleteNotebookFileMatch, rawCellPrefix } from 'vs/workbench/contrib/search/common/cellSearchModel';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
+import { rawCellPrefix, IIncompleteNotebookCellMatch, isIIncompleteNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';

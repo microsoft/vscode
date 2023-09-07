@@ -6,16 +6,15 @@
 import { FindMatch } from 'vs/editor/common/model';
 import { IFileMatch, ITextSearchMatch, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
-import { genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
-import { CellSearchModel, IIncompleteNotebookCellMatch, ICellSearchModel, IIncompleteNotebookFileMatch, rawCellPrefix } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { IIncompleteNotebookCellMatch, IIncompleteNotebookFileMatch, genericCellMatchesToTextSearchMatches, rawCellPrefix } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
 import { CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
 
 // to text search results
-export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], cell: ICellViewModel | CellSearchModel): ITextSearchMatch[] {
+export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], cell: ICellViewModel): ITextSearchMatch[] {
 	return genericCellMatchesToTextSearchMatches(
 		contentMatches,
-		isICellSearchModel(cell) ? cell.inputTextBuffer : cell.textBuffer
+		cell.textBuffer
 	);
 }
 
@@ -45,9 +44,6 @@ export function isICompleteNotebookCellMatch(object: any): object is ICompleteNo
 	return 'cell' in object;
 }
 
-// export type IFileMatchWithCells<U extends UriComponents = URI> = IClosedNotebookFileMatch<U> | IOpenNotebookFileMatch;
-// export type ICellMatch<U extends UriComponents = URI> = IClosedNotebookCellMatch<U> | IOpenNotebookCellMatch;
-
 
 export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFindMatch[]): ITextSearchMatch[] {
 	return webviewMatches
@@ -59,9 +55,4 @@ export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFin
 					undefined,
 					rawMatch.index) : undefined
 		).filter((e): e is ITextSearchMatch => !!e);
-}
-
-
-export function isICellSearchModel(object: ICellViewModel | ICellSearchModel): object is ICellSearchModel {
-	return 'inputTextBuffer' in object && 'outputTextBuffer' in object;
 }

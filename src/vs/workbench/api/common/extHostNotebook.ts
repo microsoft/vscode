@@ -34,9 +34,8 @@ import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
-import { NotebookDataCache } from 'vs/workbench/api/common/notebookDataCache';
-import { CellSearchModel, IIncompleteNotebookCellMatch, ICellSearchModel, IIncompleteNotebookFileMatch, IRawClosedNotebookFileMatch } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { IIncompleteNotebookCellMatch, IIncompleteNotebookFileMatch, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+import { CellSearchModel, ICellSearchModel, NotebookDataCache } from 'vs/workbench/api/common/notebookSearch';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
@@ -379,11 +378,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return fileStats;
 	}
 
-	async $searchInNotebooks(handle: number, filenamePattern: string[], textQuery: ITextQuery, token: CancellationToken): Promise<IRawClosedNotebookFileMatch[]> {
+	async $searchInNotebooks(handle: number, filenamePattern: string[], textQuery: ITextQuery, token: CancellationToken): Promise<{ results: IRawClosedNotebookFileMatch[]; limitHit: boolean }> {
 
 		const serializer = this._notebookSerializer.get(handle)?.serializer;
 		if (!serializer) {
-			return [];
+			return {
+				limitHit: false,
+				results: []
+			};
 		}
 
 		const runFileQueries = async (includes: (string)[], token: CancellationToken, textQuery: ITextQuery): Promise<URI[]> => {
@@ -408,11 +410,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const filesToScan = await runFileQueries(filenamePattern, token, textQuery);
 
 		const results = new ResourceMap<IIncompleteNotebookFileMatch>();
+		let limitHit = false;
 		const promises = filesToScan.map(async (uri) => {
 			const cellMatches: IIncompleteNotebookCellMatch[] = [];
 
 			try {
 				if (token.isCancellationRequested) {
+					return;
+				}
+				if (textQuery.maxResults && [...results.values()].reduce((acc, value) => acc + value.cellResults.length, 0) > textQuery.maxResults) {
+					limitHit = true;
 					return;
 				}
 				const notebook = await this._notebookDataCache.getNotebookData(uri, async (data: VSBuffer) => {
@@ -448,12 +455,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					}
 				});
 
-				if (cellMatches.length > 0) {
-					const fileMatch = {
-						resource: uri, cellResults: cellMatches
-					};
-					results.set(uri, fileMatch);
-				}
+				const fileMatch = {
+					resource: uri, cellResults: cellMatches
+				};
+				results.set(uri, fileMatch);
 				return;
 
 			} catch (e) {
@@ -463,7 +468,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 
 		await Promise.all(promises);
-		return [...results.values()];
+		return {
+			limitHit,
+			results: [...results.values()]
+		};
 	}
 
 

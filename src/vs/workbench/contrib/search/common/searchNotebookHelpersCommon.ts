@@ -5,8 +5,44 @@
 
 
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { TextSearchMatch, IFileMatch, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
+import { URI, UriComponents } from 'vs/base/common/uri';
+
+export type IRawClosedNotebookFileMatch = IIncompleteNotebookFileMatch<UriComponents>;
+
+export interface IIncompleteNotebookFileMatch<U extends UriComponents = URI> extends IFileMatch<U> {
+	cellResults: IIncompleteNotebookCellMatch<U>[];
+}
+
+export interface IIncompleteNotebookCellMatch<U extends UriComponents = URI> {
+	index: number;
+	contentResults: ITextSearchMatch<U>[];
+	webviewResults: ITextSearchMatch<U>[];
+}
+
+export function isIIncompleteNotebookFileMatch(object: IFileMatch): object is IIncompleteNotebookFileMatch {
+	return 'cellResults' in object;
+}
+export function reviveIClosedNotebookCellMatch(cellMatch: IIncompleteNotebookCellMatch<UriComponents>): IIncompleteNotebookCellMatch<URI> {
+	return {
+		index: cellMatch.index,
+		contentResults: cellMatch.contentResults.map(e => {
+			return {
+				...e,
+				...{ uri: URI.revive(e.uri) }
+			};
+		}),
+		webviewResults: cellMatch.webviewResults.map(e => {
+			return {
+				...e,
+				...{ uri: URI.revive(e.uri) }
+			};
+		})
+	};
+}
+
+export const rawCellPrefix = 'rawCell#';
 
 export function genericCellMatchesToTextSearchMatches(contentMatches: FindMatch[], buffer: IReadonlyTextBuffer) {
 	let previousEndLine = -1;

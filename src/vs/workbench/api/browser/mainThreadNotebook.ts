@@ -19,8 +19,9 @@ import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contr
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
-import { IIncompleteNotebookFileMatch, reviveIClosedNotebookCellMatch } from 'vs/workbench/contrib/search/common/cellSearchModel';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { IIncompleteNotebookFileMatch, reviveIClosedNotebookCellMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
+
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
 
@@ -82,12 +83,12 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					resource: uri
 				};
 			},
-			searchInNotebooks: async (textQuery, token): Promise<IIncompleteNotebookFileMatch<URI>[]> => {
+			searchInNotebooks: async (textQuery, token): Promise<{ results: IIncompleteNotebookFileMatch<URI>[]; limitHit: boolean }> => {
 				let fileNames = data?.filenamePattern;
 				if (!fileNames) {
 					const contributedType = this._notebookService.getContributedNotebookType(viewType);
 					if (!contributedType) {
-						return [];
+						return { results: [], limitHit: false };
 					}
 					fileNames = contributedType.selectors;
 				}
@@ -97,15 +98,15 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					return globPattern.toString();
 				});
 
-				const results = await this._proxy.$searchInNotebooks(handle, includes, textQuery, token);
-				const revivedResults: IIncompleteNotebookFileMatch<URI>[] = results.map(result => {
+				const searchComplete = await this._proxy.$searchInNotebooks(handle, includes, textQuery, token);
+				const revivedResults: IIncompleteNotebookFileMatch<URI>[] = searchComplete.results.map(result => {
 					const resource = URI.revive(result.resource);
 					return {
 						resource,
 						cellResults: result.cellResults.map(e => reviveIClosedNotebookCellMatch(e))
 					};
 				});
-				return revivedResults;
+				return { results: revivedResults, limitHit: searchComplete.limitHit };
 			}
 		}));
 

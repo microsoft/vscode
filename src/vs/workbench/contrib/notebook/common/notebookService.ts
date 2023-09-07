@@ -15,8 +15,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { IIncompleteNotebookFileMatch } from 'vs/workbench/contrib/search/common/cellSearchModel';
 import { ITextQuery } from 'vs/workbench/services/search/common/search';
+import { IIncompleteNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpersCommon';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -33,7 +33,7 @@ export interface INotebookSerializer {
 	dataToNotebook(data: VSBuffer): Promise<NotebookData>;
 	notebookToData(data: NotebookData): Promise<VSBuffer>;
 	save(uri: URI, versionId: number, options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
-	searchInNotebooks(textQuery: ITextQuery, token: CancellationToken): Promise<IIncompleteNotebookFileMatch<URI>[]>;
+	searchInNotebooks(textQuery: ITextQuery, token: CancellationToken): Promise<{ results: IIncompleteNotebookFileMatch<URI>[]; limitHit: boolean }>;
 }
 
 export interface INotebookRawData {
