@@ -296,7 +296,7 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 		//address: string, offset: number, condition?: string, hitCondition?: string
-		model.addInstructionBreakpoint('0xCCCCFFFF', 0);
+		model.addInstructionBreakpoint('0xCCCCFFFF', 0, 0n);
 
 		assert.strictEqual(eventCount, 1);
 		let instructionBreakpoints = model.getInstructionBreakpoints();
@@ -304,7 +304,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(instructionBreakpoints[0].instructionReference, '0xCCCCFFFF');
 		assert.strictEqual(instructionBreakpoints[0].offset, 0);
 
-		model.addInstructionBreakpoint('0xCCCCEEEE', 1);
+		model.addInstructionBreakpoint('0xCCCCEEEE', 1, 0n);
 		assert.strictEqual(eventCount, 2);
 		instructionBreakpoints = model.getInstructionBreakpoints();
 		assert.strictEqual(instructionBreakpoints.length, 2);
