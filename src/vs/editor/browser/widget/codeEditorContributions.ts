@@ -10,7 +10,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import './diffEditor.contribution';
 
 export class CodeEditorContributions extends Disposable {
 

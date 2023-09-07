@@ -112,7 +112,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this._register(this._terminalService.onDidCreateInstance((i) => {
-			i.capabilities.onDidAddCapability(c => {
+			i.capabilities.onDidAddCapabilityType(c => {
 				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
 					this._parentDomElement?.classList.add('shell-integration');
 				}
@@ -244,9 +244,7 @@ export class TerminalViewPane extends ViewPane {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
 						this.tooltip = action.tooltip;
-					}
-					override dispose(): void {
-						action.dispose();
+						this._register(action);
 					}
 					override async run() {
 						const instance = that._terminalGroupService.activeInstance;

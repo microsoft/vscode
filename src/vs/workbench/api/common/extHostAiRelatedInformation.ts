@@ -20,12 +20,12 @@ export class ExtHostRelatedInformation implements ExtHostAiRelatedInformationSha
 
 	async $provideAiRelatedInformation(handle: number, query: string, token: CancellationToken): Promise<RelatedInformationResult[]> {
 		if (this._relatedInformationProviders.size === 0) {
-			throw new Error('No semantic similarity providers registered');
+			throw new Error('No related information providers registered');
 		}
 
 		const provider = this._relatedInformationProviders.get(handle);
 		if (!provider) {
-			throw new Error('Semantic similarity provider not found');
+			throw new Error('related information provider not found');
 		}
 
 		const result = await provider.provideRelatedInformation(query, token) ?? [];

@@ -537,7 +537,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// validate read operation
 		const statPromise = this.validateReadFile(resource, options).then(stat => stat, error => {
-			cancellableSource.cancel();
+			cancellableSource.dispose(true);
 
 			throw error;
 		});
@@ -571,6 +571,9 @@ export class FileService extends Disposable implements IFileService {
 			else {
 				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, options);
 			}
+
+			fileStream.on('end', () => cancellableSource.dispose());
+			fileStream.on('error', () => cancellableSource.dispose());
 
 			const fileStat = await statPromise;
 

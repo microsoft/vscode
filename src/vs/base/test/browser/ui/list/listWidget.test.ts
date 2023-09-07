@@ -8,8 +8,11 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { range } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ListWidget', function () {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Page up and down', async function () {
 		const element = document.createElement('div');
 		element.style.height = '200px';
@@ -30,6 +33,7 @@ suite('ListWidget', function () {
 		};
 
 		const listWidget = new List<number>('test', element, delegate, [renderer]);
+		ds.add(listWidget);
 
 		listWidget.layout(200);
 		assert.strictEqual(templatesCount, 0, 'no templates have been allocated');
@@ -75,6 +79,7 @@ suite('ListWidget', function () {
 		};
 
 		const listWidget = new List<number>('test', element, delegate, [renderer]);
+		ds.add(listWidget);
 
 		listWidget.layout(200);
 		assert.strictEqual(templatesCount, 0, 'no templates have been allocated');

@@ -97,8 +97,6 @@ export class TabsTitleControl extends TitleControl {
 		fit: 120
 	};
 
-	private static readonly TAB_HEIGHT = 35;
-
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
 
 	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
@@ -165,7 +163,9 @@ export class TabsTitleControl extends TitleControl {
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 	}
 
-	protected create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): void {
+		super.create(parent);
+
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
@@ -710,7 +710,8 @@ export class TabsTitleControl extends TitleControl {
 		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabActionBar));
 	}
 
-	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+		super.updateOptions(oldOptions, newOptions);
 
 		// A change to a label format options requires to recompute all labels
 		if (oldOptions.labelFormat !== newOptions.labelFormat) {
@@ -807,13 +808,13 @@ export class TabsTitleControl extends TitleControl {
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
-		tabActionBar.onWillRun(e => {
+		const tabActionListener = tabActionBar.onWillRun(e => {
 			if (e.action.id === this.closeEditorAction.id) {
 				this.blockRevealActiveTabOnce();
 			}
 		});
 
-		const tabActionBarDisposable = combinedDisposable(tabActionBar, toDisposable(insert(this.tabActionBars, tabActionBar)));
+		const tabActionBarDisposable = combinedDisposable(tabActionBar, tabActionListener, toDisposable(insert(this.tabActionBars, tabActionBar)));
 
 		// Tab Border Bottom
 		const tabBorderBottomContainer = document.createElement('div');
@@ -1549,7 +1550,7 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			total = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			total = TabsTitleControl.TAB_HEIGHT;
+			total = this.titleHeight;
 		}
 
 		const offset = total;
@@ -1707,7 +1708,7 @@ export class TabsTitleControl extends TitleControl {
 			if (tabsWrapMultiLine) {
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.titleHeight) ||	// if wrapping is not needed anymore
 					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);
@@ -2075,6 +2076,10 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover  {
 				outline: 1px solid;
 				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:focus {
+				outline-style: dashed;
 			}
 
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {

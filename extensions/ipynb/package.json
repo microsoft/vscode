@@ -58,8 +58,8 @@
 				"title": "%cleanInvalidImageAttachment.title%"
 			},
       {
-        "command": "notebook.cellOutput.copyToClipboard",
-        "title": "%copyOutputToClipboard.title%"
+        "command": "notebook.cellOutput.copy",
+        "title": "%copyCellOutput.title%"
       }
 		],
 		"notebooks": [
@@ -106,7 +106,7 @@
 			],
       "webview/context": [
         {
-          "command": "notebook.cellOutput.copyToClipboard",
+          "command": "notebook.cellOutput.copy",
           "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
         }
       ]

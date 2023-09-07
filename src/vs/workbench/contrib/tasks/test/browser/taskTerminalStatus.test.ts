@@ -21,8 +21,8 @@ class TestTaskService implements Partial<ITaskService> {
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
-	public triggerStateChange(event: ITaskEvent): void {
-		this._onDidStateChange.fire(event);
+	public triggerStateChange(event: Partial<ITaskEvent>): void {
+		this._onDidStateChange.fire(event as ITaskEvent);
 	}
 }
 
@@ -85,7 +85,7 @@ suite('Task Terminal Status', () => {
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
-		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
+		taskService.triggerStateChange({ kind: TaskEventKind.End });
 		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
 	});
 	test('Should add active status when a non-background task is run for a second time in the same terminal', () => {

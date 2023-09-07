@@ -23,7 +23,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { raceCancellation } from 'vs/base/common/async';
 
@@ -112,7 +112,7 @@ export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
-	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
+	private _lastTextModelChanges: readonly DetailedLineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -191,7 +191,7 @@ export class Session {
 		return this._lastTextModelChanges ?? [];
 	}
 
-	set lastTextModelChanges(changes: readonly LineRangeMapping[]) {
+	set lastTextModelChanges(changes: readonly DetailedLineRangeMapping[]) {
 		this._lastTextModelChanges = changes;
 	}
 
@@ -207,8 +207,8 @@ export class Session {
 		let startLine = Number.MAX_VALUE;
 		let endLine = Number.MIN_VALUE;
 		for (const change of this._lastTextModelChanges) {
-			startLine = Math.min(startLine, change.modifiedRange.startLineNumber);
-			endLine = Math.max(endLine, change.modifiedRange.endLineNumberExclusive);
+			startLine = Math.min(startLine, change.modified.startLineNumber);
+			endLine = Math.max(endLine, change.modified.endLineNumberExclusive);
 		}
 
 		return this.textModelN.getValueInRange(new Range(startLine, 1, endLine, Number.MAX_VALUE));

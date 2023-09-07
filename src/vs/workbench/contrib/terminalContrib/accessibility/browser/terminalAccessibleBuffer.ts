@@ -57,22 +57,11 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService _terminalService: ITerminalService
 	) {
-		super(ClassName.AccessibleBuffer, _instance, _xterm, TerminalContextKeys.accessibleBufferFocus, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
+		super(ClassName.AccessibleBuffer, _instance, _xterm, TerminalContextKeys.accessibleBufferFocus, TerminalContextKeys.accessibleBufferOnLastLine, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
 		this._bufferTracker = _instantiationService.createInstance(BufferContentTracker, _xterm);
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
+		_instance.onDidRequestFocus(() => this.hide(true));
 		this.updateEditor();
-		this.add(this.editorWidget.onDidFocusEditorText(async () => {
-			if (this.element.classList.contains(ClassName.Active)) {
-				// the user has focused the editor via mouse or
-				// Go to Command was run so we've already updated the editor
-				return;
-			}
-			// if the editor is focused via tab, we need to update the model
-			// and show it
-			this.registerListeners();
-			await this.updateEditor();
-			this.element.classList.add(ClassName.Active);
-		}));
 		// xterm's initial layout call has already happened
 		this.layout();
 	}
@@ -110,8 +99,9 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	}
 
 	private _getCommandsWithEditorLine(): ICommandWithEditorLine[] | undefined {
-		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		const currentCommand = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.currentCommand;
+		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
+		const commands = capability?.commands;
+		const currentCommand = capability?.currentCommand;
 		if (!commands?.length) {
 			return;
 		}

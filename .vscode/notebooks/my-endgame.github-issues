@@ -177,7 +177,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue label:bug label:verification-steps-needed"
+    "value": "$REPOS $MILESTONE -$MINE is:issue label:bug label:verification-steps-needed -label:verified"
   },
   {
     "kind": 1,

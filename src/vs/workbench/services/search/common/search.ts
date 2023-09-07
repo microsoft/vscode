@@ -414,6 +414,9 @@ export interface ISearchConfigurationProperties {
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
+		quickAccess: {
+			preserveInput: boolean;
+		};
 	};
 }
 

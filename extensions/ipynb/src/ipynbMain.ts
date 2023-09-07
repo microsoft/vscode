@@ -24,7 +24,7 @@ type NotebookMetadata = {
 		pygments_lexer?: string;
 		[propName: string]: unknown;
 	};
-	orig_nbformat: number;
+	orig_nbformat?: number;
 	[propName: string]: unknown;
 };
 
@@ -76,9 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
 		data.metadata = {
 			custom: {
 				cells: [],
-				metadata: {
-					orig_nbformat: 4
-				},
+				metadata: {},
 				nbformat: 4,
 				nbformat_minor: 2
 			}

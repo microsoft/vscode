@@ -376,7 +376,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
-		}
+		},
+		'search.experimental.quickAccess.preserveInput': {
+			'type': 'boolean',
+			'description': nls.localize('search.experimental.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
+			'default': false
+		},
 	}
 });
 
