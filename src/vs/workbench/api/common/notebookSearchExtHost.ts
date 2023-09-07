@@ -131,21 +131,16 @@ export class NotebookDataCache {
 			return entry.notebookData;
 		} else {
 
-			let _data: NotebookData = {
+			let data: NotebookData = {
 				metadata: {},
 				cells: []
 			};
 
 			const content = await this._extHostFileSystem.value.readFile(notebookUri);
 			const bytes: VSBuffer = VSBuffer.fromString(content.toString());
-			// const serializer = await this.getSerializer(notebookUri);
-			// if (!serializer) {
-			// 	//unsupported
-			// 	throw new Error(`serializer not initialized`);
-			// }
-			_data = NotebookDto.fromNotebookDataDto((await dataToNotebook(bytes)).value);
-			this._entries.set(notebookUri, { notebookData: _data, mTime });
-			return _data;
+			data = NotebookDto.fromNotebookDataDto((await dataToNotebook(bytes)).value);
+			this._entries.set(notebookUri, { notebookData: data, mTime });
+			return data;
 		}
 	}
 

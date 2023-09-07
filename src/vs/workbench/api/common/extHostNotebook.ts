@@ -35,7 +35,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { CellSearchModel, ICellSearchModel, NotebookDataCache } from 'vs/workbench/api/common/notebookSearch';
+import { CellSearchModel, ICellSearchModel, NotebookDataCache } from 'vs/workbench/api/common/notebookSearchExtHost';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
@@ -378,8 +378,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return fileStats;
 	}
 
+	/**
+	 * Search for query in all notebooks that can be deserialized by the serializer fetched by `handle`.
+	 *
+	 * @param handle used to get notebook serializer
+	 * @param filenamePattern the filename pattern to match files that can be deserialized
+	 * @param textQuery the text query to search using
+	 * @param token cancellation token
+	 * @returns `IRawClosedNotebookFileMatch` for every file. Files without matches will just have a `IRawClosedNotebookFileMatch`
+	 * 	with no `cellResults`. This allows the caller to know what was searched in already, even if it did not yield results.
+	 */
 	async $searchInNotebooks(handle: number, filenamePattern: string[], textQuery: ITextQuery, token: CancellationToken): Promise<{ results: IRawClosedNotebookFileMatch[]; limitHit: boolean }> {
-
 		const serializer = this._notebookSerializer.get(handle)?.serializer;
 		if (!serializer) {
 			return {
