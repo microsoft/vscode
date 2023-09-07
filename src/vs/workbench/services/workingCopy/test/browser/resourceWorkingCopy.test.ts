@@ -32,7 +32,7 @@ suite('ResourceWorkingCopy', function () {
 
 	}
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	const resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -43,16 +43,14 @@ suite('ResourceWorkingCopy', function () {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		workingCopy = disposables.add(createWorkingCopy());
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('orphaned tracking', async () => {

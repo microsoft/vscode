@@ -22,7 +22,7 @@ suite('EditorInput', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 
 	const testResource: URI = URI.from({ scheme: 'random', path: '/path' });
 	const untypedResourceEditorInput: IResourceEditorInput = { resource: testResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
@@ -52,7 +52,6 @@ suite('EditorInput', () => {
 	};
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
@@ -74,7 +73,7 @@ suite('EditorInput', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	class MyEditorInput extends EditorInput {

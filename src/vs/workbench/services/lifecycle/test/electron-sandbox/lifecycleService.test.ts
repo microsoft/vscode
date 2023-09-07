@@ -12,7 +12,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbo
 suite('Lifecycleservice', function () {
 
 	let lifecycleService: TestLifecycleService;
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 
 	class TestLifecycleService extends NativeLifecycleService {
 
@@ -26,14 +26,12 @@ suite('Lifecycleservice', function () {
 	}
 
 	setup(async () => {
-		disposables = new DisposableStore();
-
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		lifecycleService = instantiationService.createInstance(TestLifecycleService);
 	});
 
 	teardown(async () => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('onBeforeShutdown - final veto called after other vetos', async function () {

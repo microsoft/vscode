@@ -24,19 +24,18 @@ import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/lang
 
 suite('Untitled text editors', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(accessor.untitledTextEditorService as UntitledTextEditorService);
 	});
 
 	teardown(() => {
-		(accessor.untitledTextEditorService as UntitledTextEditorService).dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('basics', async () => {
