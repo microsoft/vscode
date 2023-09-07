@@ -36,6 +36,7 @@ import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('EditorModel', () => {
 
@@ -62,10 +63,10 @@ suite('EditorModel', () => {
 		instantiationService.stub(IUndoRedoService, undoRedoService);
 		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IThemeService, new TestThemeService());
-		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
-		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
+		instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 
-		return instantiationService.createInstance(ModelService);
+		return disposables.add(instantiationService.createInstance(ModelService));
 	}
 
 	let instantiationService: TestInstantiationService;
@@ -103,10 +104,12 @@ suite('EditorModel', () => {
 	test('BaseTextEditorModel', async () => {
 		const modelService = stubModelService(instantiationService);
 
-		const model = disposables.add(new MyTextEditorModel(modelService, languageService, instantiationService.createInstance(LanguageDetectionService), instantiationService.createInstance(TestAccessibilityService)));
+		const model = disposables.add(new MyTextEditorModel(modelService, languageService, disposables.add(instantiationService.createInstance(LanguageDetectionService)), instantiationService.createInstance(TestAccessibilityService)));
 		await model.resolve();
 
-		model.testCreateTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
+		disposables.add(model.testCreateTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text));
 		assert.strictEqual(model.isResolved(), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
