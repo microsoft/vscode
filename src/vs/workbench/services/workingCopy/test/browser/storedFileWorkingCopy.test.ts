@@ -18,6 +18,7 @@ import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { Promises, timeout } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -130,22 +131,17 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 	const factory = new TestStoredFileWorkingCopyModelWithCustomSaveFactory();
 
 	const disposables = new DisposableStore();
-	const resource = URI.file('test/resource');
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>;
-
-	function createWorkingCopy(uri: URI = resource) {
-		const workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave> = new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', uri, basename(uri), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
-
-		return workingCopy;
-	}
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = disposables.add(createWorkingCopy());
+		const resource = URI.file('test/resource');
+		workingCopy = disposables.add(new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', resource, basename(resource), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService));
 	});
 
 	teardown(() => {
@@ -155,15 +151,15 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 	test('save (custom implemented)', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
 			lastSaveEvent = e;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// unresolved
 		await workingCopy.save();
@@ -192,6 +188,8 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 		assert.strictEqual(saveErrorCounter, 1);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('StoredFileWorkingCopy', function () {
