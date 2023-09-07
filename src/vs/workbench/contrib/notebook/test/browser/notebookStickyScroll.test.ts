@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { isWeb } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -18,21 +17,19 @@ import { NotebookStickyLine, computeContent } from 'vs/workbench/contrib/noteboo
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 (isWeb ? suite.skip : suite)('NotebookEditorStickyScroll', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	const domNode: HTMLElement = document.createElement('div');
 
-	suiteSetup(() => {
-		disposables = new DisposableStore();
+	setup(() => {
 		instantiationService = setupInstantiationService(disposables);
 	});
-
-	suiteTeardown(() => disposables.dispose());
 
 	function getOutline(editor: any) {
 		if (!editor.hasModel()) {
@@ -84,7 +81,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -94,7 +91,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const notebookOutlineEntries = getOutline(editor).entries;
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 	test('test1: should render 0->1, 	visible range 3->8', async function () {
@@ -119,7 +116,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -130,7 +127,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 	test('test2: should render 0, 		visible range 6->9 so collapsing next 2 against following section', async function () {
@@ -156,7 +153,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -167,7 +164,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 	test('test3: should render 0->1, 	collapsing against equivalent level header', async function () {
@@ -194,7 +191,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -205,7 +202,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 	// outdated/improper behavior
@@ -231,7 +228,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -242,7 +239,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 	// outdated/improper behavior
@@ -270,7 +267,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -281,7 +278,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 	// outdated/improper behavior
@@ -309,7 +306,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -320,7 +317,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 	// waiting on behavior push to fix this.
@@ -350,7 +347,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
@@ -361,7 +358,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
 
 				await assertSnapshot(resultingMap);
-			});
+			}, disposables);
 	});
 
 
