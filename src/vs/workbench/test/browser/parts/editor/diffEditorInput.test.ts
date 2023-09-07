@@ -36,14 +36,10 @@ suite('Diff editor input', () => {
 		}
 	}
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
+	const disposables = new DisposableStore();
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('basics', () => {

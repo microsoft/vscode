@@ -17,21 +17,20 @@ import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantia
 
 suite('UntitledFileWorkingCopyManager', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
 		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
 
-		manager = new FileWorkingCopyManager(
+		manager = disposables.add(new FileWorkingCopyManager(
 			'testUntitledFileWorkingCopyType',
 			new TestStoredFileWorkingCopyModelFactory(),
 			new TestUntitledFileWorkingCopyModelFactory(),
@@ -40,12 +39,11 @@ suite('UntitledFileWorkingCopyManager', () => {
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
 			accessor.environmentService, accessor.dialogService, accessor.decorationsService
-		);
+		));
 	});
 
 	teardown(() => {
-		manager.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('basics', async () => {

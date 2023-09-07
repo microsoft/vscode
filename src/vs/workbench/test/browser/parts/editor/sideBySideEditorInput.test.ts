@@ -13,14 +13,10 @@ import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench
 
 suite('SideBySideEditorInput', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
+	const disposables = new DisposableStore();
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	class MyEditorInput extends EditorInput {

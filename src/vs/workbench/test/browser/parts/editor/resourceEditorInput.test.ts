@@ -16,7 +16,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 
 suite('ResourceEditorInput', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 
 	class TestResourceEditorInput extends AbstractResourceEditorInput {
@@ -34,12 +34,11 @@ suite('ResourceEditorInput', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('basics', async () => {
