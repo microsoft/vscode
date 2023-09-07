@@ -15,6 +15,7 @@ import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/re
 import { WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ResourceWorkingCopy', function () {
 
@@ -73,18 +74,19 @@ suite('ResourceWorkingCopy', function () {
 		});
 	});
 
-
 	test('dispose, isDisposed', async () => {
 		assert.strictEqual(workingCopy.isDisposed(), false);
 
 		let disposedEvent = false;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposedEvent = true;
-		});
+		}));
 
 		workingCopy.dispose();
 
 		assert.strictEqual(workingCopy.isDisposed(), true);
 		assert.strictEqual(disposedEvent, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

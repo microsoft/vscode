@@ -754,6 +754,11 @@ export class ResourceQueue implements IDisposable {
 				this.onDidQueueDrain();
 
 				this.drainListeners?.deleteAndDispose(drainListenerId);
+
+				if (this.drainListeners?.size === 0) {
+					this.drainListeners.dispose();
+					this.drainListeners = undefined;
+				}
 			});
 
 			if (!this.drainListeners) {
