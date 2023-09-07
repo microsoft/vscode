@@ -9,6 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class ResourceAccessorClass implements IItemAccessor<URI> {
 
@@ -1250,4 +1251,6 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(score[1][0], 7);
 		assert.strictEqual(score[1][1], 8);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

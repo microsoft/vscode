@@ -13,6 +13,7 @@ import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 type BrowserWatchEvent = {
 	type: 'watchDirectory' | 'watchFile';
@@ -40,6 +41,7 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		_configuration: TypeScriptServiceConfiguration,
 		_versionManager: TypeScriptVersionManager,
+		_nodeVersionManager: NodeVersionManager,
 		tsServerLog: TsServerLog | undefined,
 	) {
 		const tsServerPath = version.tsServerPath;

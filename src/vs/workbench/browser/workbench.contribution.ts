@@ -95,11 +95,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					key: 'untitledLabelFormat'
 				}, "Controls the format of the label for an untitled editor."),
 			},
-			'workbench.editor.untitled.hint': {
+			'workbench.editor.empty.hint': {
 				'type': 'string',
 				'enum': ['text', 'hidden'],
 				'default': 'text',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled text hint should be visible in the editor.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'emptyEditorHint' }, "Controls if the empty editor text hint should be visible in the editor.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',

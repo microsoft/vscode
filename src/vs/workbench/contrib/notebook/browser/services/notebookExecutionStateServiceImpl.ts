@@ -84,7 +84,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined {
 		const exeMap = this._executions.get(notebook);
-		return exeMap ?? undefined;
+		return exeMap ? new Map(exeMap.entries()) : undefined;
 	}
 
 	private _onCellExecutionDidChange(notebookUri: URI, cellHandle: number, exe: CellExecution): void {

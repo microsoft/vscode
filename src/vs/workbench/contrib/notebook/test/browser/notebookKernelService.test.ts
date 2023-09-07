@@ -26,6 +26,9 @@ suite('NotebookKernelService', () => {
 	let disposables: DisposableStore;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	setup(function () {
 		disposables = new DisposableStore();
@@ -50,10 +53,6 @@ suite('NotebookKernelService', () => {
 		});
 		kernelService = instantiationService.createInstance(NotebookKernelService);
 		instantiationService.set(INotebookKernelService, kernelService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('notebook priorities', function () {

@@ -58,9 +58,8 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookO
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestStorageService, TestWorkspaceTrustRequestService } from 'vs/workbench/test/common/workbenchTestServices';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/config/editorOptions';
 
@@ -189,7 +188,7 @@ export function setupInstantiationService(disposables = new DisposableStore()) {
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IClipboardService, TestClipboardService);
 	instantiationService.stub(IStorageService, new TestStorageService());
-	instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(true));
+	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(true)));
 	instantiationService.stub(INotebookExecutionStateService, new TestNotebookExecutionStateService());
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, new NotebookCellStatusBarService());
