@@ -560,7 +560,6 @@ export class DisassemblyView extends EditorPane {
 				}
 			}
 
-			console.log('splice', start, toDelete, newEntries);
 			da.splice(start, toDelete, newEntries);
 
 			return newEntries.length - toDelete;
