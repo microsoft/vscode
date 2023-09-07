@@ -35,6 +35,7 @@ suite('searchNotebookHelpers', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
 		mdInputCell = {
+			id: 'mdCell',
 			cellKind: CellKind.Markup, textBuffer: <IReadonlyTextBuffer>{
 				getLineContent(lineNumber: number): string {
 					if (lineNumber === 1) {
@@ -48,6 +49,7 @@ suite('searchNotebookHelpers', () => {
 
 		const findMatchMds = [new FindMatch(new Range(1, 15, 1, 19), ['Test'])];
 		codeCell = {
+			id: 'codeCell',
 			cellKind: CellKind.Code, textBuffer: <IReadonlyTextBuffer>{
 				getLineContent(lineNumber: number): string {
 					if (lineNumber === 1) {
