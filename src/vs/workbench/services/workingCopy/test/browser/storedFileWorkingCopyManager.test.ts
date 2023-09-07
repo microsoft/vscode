@@ -20,30 +20,28 @@ import { isWeb } from 'vs/base/common/platform';
 
 suite('StoredFileWorkingCopyManager', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IStoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		manager = new StoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>(
+		manager = disposables.add(new StoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>(
 			'testStoredFileWorkingCopyType',
 			new TestStoredFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService
-		);
+		));
 	});
 
 	teardown(() => {
-		manager.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('resolve', async () => {

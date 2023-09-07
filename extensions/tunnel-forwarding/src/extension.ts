@@ -231,8 +231,8 @@ class TunnelProvider implements vscode.TunnelProvider {
 		];
 
 		this.logger.log('info', '[forwarding] starting CLI');
-		const process = spawn(cliPath, args, { stdio: 'pipe' });
-		this.state = { state: State.Starting, process };
+		const child = spawn(cliPath, args, { stdio: 'pipe', env: { ...process.env, NO_COLOR: '1' } });
+		this.state = { state: State.Starting, process: child };
 
 		const progressP = new DeferredPromise<void>();
 		vscode.window.withProgress(
@@ -248,29 +248,29 @@ class TunnelProvider implements vscode.TunnelProvider {
 		);
 
 		let lastPortFormat: string | undefined;
-		process.on('exit', status => {
+		child.on('exit', status => {
 			const msg = `[forwarding] exited with code ${status}`;
 			this.logger.log('info', msg);
 			progressP.complete(); // make sure to clear progress on unexpected exit
-			if (this.isInStateWithProcess(process)) {
+			if (this.isInStateWithProcess(child)) {
 				this.state = { state: State.Error, error: msg };
 			}
 		});
 
-		process.on('error', err => {
+		child.on('error', err => {
 			this.logger.log('error', `[forwarding] ${err}`);
 			progressP.complete(); // make sure to clear progress on unexpected exit
-			if (this.isInStateWithProcess(process)) {
+			if (this.isInStateWithProcess(child)) {
 				this.state = { state: State.Error, error: String(err) };
 			}
 		});
 
-		process.stdout
+		child.stdout
 			.pipe(splitNewLines())
 			.on('data', line => this.logger.log('info', `[forwarding] ${line}`))
 			.resume();
 
-		process.stderr
+		child.stderr
 			.pipe(splitNewLines())
 			.on('data', line => {
 				try {
@@ -278,7 +278,7 @@ class TunnelProvider implements vscode.TunnelProvider {
 					if (l.port_format && l.port_format !== lastPortFormat) {
 						this.state = {
 							state: State.Active,
-							portFormat: l.port_format, process,
+							portFormat: l.port_format, process: child,
 							cleanupTimeout: 'cleanupTimeout' in this.state ? this.state.cleanupTimeout : undefined,
 						};
 						progressP.complete();
@@ -290,8 +290,8 @@ class TunnelProvider implements vscode.TunnelProvider {
 			.resume();
 
 		await new Promise((resolve, reject) => {
-			process.on('spawn', resolve);
-			process.on('error', reject);
+			child.on('spawn', resolve);
+			child.on('error', reject);
 		});
 	}
 }

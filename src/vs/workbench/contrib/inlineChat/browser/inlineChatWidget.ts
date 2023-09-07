@@ -22,7 +22,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IModelService } from 'vs/editor/common/services/model';
 import { URI } from 'vs/base/common/uri';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
@@ -170,7 +170,7 @@ export class InlineChatWidget {
 
 	private readonly _progressBar: ProgressBar;
 
-	private readonly _previewDiffEditor: IdleValue<EmbeddedDiffEditorWidget2>;
+	private readonly _previewDiffEditor: IdleValue<EmbeddedDiffEditorWidget>;
 	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
 	private readonly _previewCreateTitle: ResourceLabel;
@@ -359,7 +359,7 @@ export class InlineChatWidget {
 		this._store.add(feedbackToolbar);
 
 		// preview editors
-		this._previewDiffEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
+		this._previewDiffEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
 		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor))));

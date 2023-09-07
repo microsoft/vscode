@@ -223,25 +223,8 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
-
 		if (entry && response) {
-			// todo@jrieken move to type converter
-			let apiKind: extHostTypes.InteractiveEditorResponseFeedbackKind;
-			switch (kind) {
-				case InlineChatResponseFeedbackKind.Helpful:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Helpful;
-					break;
-				case InlineChatResponseFeedbackKind.Unhelpful:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Unhelpful;
-					break;
-				case InlineChatResponseFeedbackKind.Undone:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
-					break;
-				case InlineChatResponseFeedbackKind.Accepted:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Accepted;
-					break;
-			}
-
+			const apiKind = typeConvert.InteractiveEditorResponseFeedbackKind.to(kind);
 			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
 		}
 	}

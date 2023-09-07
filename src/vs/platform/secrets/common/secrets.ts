@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Lazy } from 'vs/base/common/lazy';
 
 export const ISecretStorageService = createDecorator<ISecretStorageService>('secretStorageService');
@@ -26,26 +26,28 @@ export interface ISecretStorageService extends ISecretStorageProvider {
 	onDidChangeSecret: Event<string>;
 }
 
-export class BaseSecretStorageService implements ISecretStorageService {
+export class BaseSecretStorageService extends Disposable implements ISecretStorageService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _storagePrefix = 'secret://';
 
-	protected readonly onDidChangeSecretEmitter = new Emitter<string>();
+	protected readonly onDidChangeSecretEmitter = this._register(new Emitter<string>());
 	onDidChangeSecret: Event<string> = this.onDidChangeSecretEmitter.event;
 
 	protected readonly _sequencer = new SequencerByKey<string>();
 
 	private _type: 'in-memory' | 'persisted' | 'unknown' = 'unknown';
 
-	private readonly _onDidChangeValueDisposable = new DisposableStore();
+	private readonly _onDidChangeValueDisposable = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _useInMemoryStorage: boolean,
 		@IStorageService private _storageService: IStorageService,
 		@IEncryptionService protected _encryptionService: IEncryptionService,
 		@ILogService protected readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+	}
 
 	/**
 	 * @Note initialize must be called first so that this can be resolved properly
@@ -134,7 +136,7 @@ export class BaseSecretStorageService implements ISecretStorageService {
 			}
 			this._logService.trace('[SecretStorageService] Encryption is not available, falling back to in-memory storage');
 			this._type = 'in-memory';
-			storageService = new InMemoryStorageService();
+			storageService = this._register(new InMemoryStorageService());
 		}
 
 		this._onDidChangeValueDisposable.clear();

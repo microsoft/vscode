@@ -43,7 +43,6 @@ import 'vs/workbench/services/extensionManagement/browser/webExtensionsScannerSe
 import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/browser/extensionUrlTrustService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';
-import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
