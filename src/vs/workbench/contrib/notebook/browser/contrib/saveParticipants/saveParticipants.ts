@@ -145,15 +145,15 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		const includedActions = allCodeActions
 			.filter(x => setting[x.value] === saveTrigger);
 
-		const codeActionsOnSave = includedActions.filter(x => !CodeActionKind.Notebook.contains(x));
+		const editorCodeActionsOnSave = includedActions.filter(x => !CodeActionKind.Notebook.contains(x));
 		const notebookCodeActionsOnSave = includedActions.filter(x => CodeActionKind.Notebook.contains(x));
-		if (!codeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
+		if (!editorCodeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
 			return undefined;
 		}
 
 		// prioritize `source.fixAll` code actions
 		if (!Array.isArray(setting)) {
-			codeActionsOnSave.sort((a, b) => {
+			editorCodeActionsOnSave.sort((a, b) => {
 				if (CodeActionKind.SourceFixAll.contains(a)) {
 					if (CodeActionKind.SourceFixAll.contains(b)) {
 						return 0;
@@ -194,7 +194,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 				const textEditorModel = ref.object.textEditorModel;
 
-				await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
+				await this.applyOnSaveActions(textEditorModel, editorCodeActionsOnSave, excludedActions, progress, token);
 			}));
 		} catch {
 			this.logService.error('Failed to apply code action on save');
