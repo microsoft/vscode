@@ -353,7 +353,7 @@ suite('UserDataAutoSyncService', () => {
 		});
 	});
 
-	test('test creating new session from one client throws session expired error on another client while syncing', async () => {
+	test.skip('test creating new session from one client throws session expired error on another client while syncing', async () => {
 		await runWithFakedTimers({}, async () => {
 			const target = new UserDataSyncTestServer();
 

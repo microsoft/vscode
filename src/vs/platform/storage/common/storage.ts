@@ -748,6 +748,10 @@ export class InMemoryStorageService extends AbstractStorageService {
 		// no-op when in-memory
 	}
 
+	protected override shouldFlushWhenIdle(): boolean {
+		return false;
+	}
+
 	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {
 		return false;
 	}

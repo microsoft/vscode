@@ -392,6 +392,10 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	private async doFlush(delay?: number): Promise<void> {
+		if (this.options.hint === StorageHint.STORAGE_IN_MEMORY) {
+			return this.flushPending(); // return early if in-memory
+		}
+
 		return this.flushDelayer.trigger(() => this.flushPending(), delay);
 	}
 
