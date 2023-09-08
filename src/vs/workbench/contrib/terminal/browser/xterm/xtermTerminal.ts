@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -115,7 +115,7 @@ function getFullBufferLineAsString(lineIndex: number, buffer: IBuffer): { lineDa
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
  * of the scope of this class.
  */
-export class XtermTerminal extends DisposableStore implements IXtermTerminal, IDetachedXtermTerminal, IInternalXtermTerminal {
+export class XtermTerminal extends Disposable implements IXtermTerminal, IDetachedXtermTerminal, IInternalXtermTerminal {
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
 	private _core: IXtermCore;
@@ -138,7 +138,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
 
-	private readonly _attachedDisposables = this.add(new DisposableStore());
+	private readonly _attachedDisposables = this._register(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
 	private readonly _anyFocusedTerminalHasSelection: IContextKey<boolean>;
 
@@ -147,21 +147,21 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 
-	private readonly _onDidRequestRunCommand = this.add(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
+	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
-	private readonly _onDidRequestFocus = this.add(new Emitter<void>());
+	private readonly _onDidRequestFocus = this._register(new Emitter<void>());
 	readonly onDidRequestFocus = this._onDidRequestFocus.event;
-	private readonly _onDidRequestSendText = this.add(new Emitter<string>());
+	private readonly _onDidRequestSendText = this._register(new Emitter<string>());
 	readonly onDidRequestSendText = this._onDidRequestSendText.event;
-	private readonly _onDidRequestFreePort = this.add(new Emitter<string>());
+	private readonly _onDidRequestFreePort = this._register(new Emitter<string>());
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
-	private readonly _onDidChangeFindResults = this.add(new Emitter<{ resultIndex: number; resultCount: number }>());
+	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
-	private readonly _onDidChangeSelection = this.add(new Emitter<void>());
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
-	private readonly _onDidChangeFocus = this.add(new Emitter<boolean>());
+	private readonly _onDidChangeFocus = this._register(new Emitter<boolean>());
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
-	private readonly _onDidDispose = this.add(new Emitter<void>());
+	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
@@ -209,7 +209,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
-		this.raw = this.add(new xtermCtor({
+		this.raw = this._register(new xtermCtor({
 			allowProposedApi: true,
 			cols,
 			rows,
@@ -244,7 +244,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._updateSmoothScrolling();
 		this._core = (this.raw as any)._core as IXtermCore;
 
-		this.add(this._configurationService.onDidChangeConfiguration(async e => {
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
 				XtermTerminal._suggestedRendererType = undefined;
 			}
@@ -256,11 +256,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 			}
 		}));
 
-		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this.add(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
 
 		// Refire events
-		this.add(this.raw.onSelectionChange(() => {
+		this._register(this.raw.onSelectionChange(() => {
 			this._onDidChangeSelection.fire();
 			if (this.isFocused) {
 				this._anyFocusedTerminalHasSelection.set(this.raw.hasSelection());
@@ -272,7 +272,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
-		this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e));
+		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
@@ -283,12 +283,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
 		// may still come in
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._suggestAddon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+			this._suggestAddon = this._register(this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey));
 			this.raw.loadAddon(this._suggestAddon);
-			this._suggestAddon.onAcceptedCompletion(async text => {
+			this._register(this._suggestAddon.onAcceptedCompletion(async text => {
 				this._onDidRequestFocus.fire();
 				this._onDidRequestSendText.fire(text);
-			});
+			}));
 		}
 	}
 
@@ -953,7 +953,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, ID
 		this.raw.write(data);
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		this._anyTerminalFocusContextKey.reset();
 		this._anyFocusedTerminalHasSelection.reset();
 		this._onDidDispose.fire();

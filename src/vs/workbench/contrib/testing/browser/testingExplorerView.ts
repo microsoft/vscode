@@ -431,7 +431,7 @@ export class TestingExplorerView extends ViewPane {
 		this.dimensions.height = height;
 		this.dimensions.width = width;
 		this.container.style.height = `${height}px`;
-		this.viewModel.layout(height - this.treeHeader.clientHeight, width);
+		this.viewModel?.layout(height - this.treeHeader.clientHeight, width);
 		this.filter.value?.layout(width);
 	}
 }

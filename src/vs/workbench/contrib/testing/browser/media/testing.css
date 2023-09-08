@@ -66,6 +66,7 @@
 
 .test-output-peek-tree {
 	color: var(--vscode-editor-foreground);
+	border-left: 1px solid var(--vscode-panelSection-border);
 }
 
 .test-output-peek-tree .monaco-list-row .monaco-action-bar,
