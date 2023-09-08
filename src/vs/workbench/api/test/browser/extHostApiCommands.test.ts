@@ -62,6 +62,8 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -81,6 +83,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	let mainThread: MainThreadLanguageFeatures;
 	let commands: ExtHostCommands;
 	let disposables: vscode.Disposable[] = [];
+	let testConfigurationService: TestConfigurationService;
 
 	let originalErrorHandler: (e: any) => any;
 
@@ -150,7 +153,16 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 		services.set(ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService));
 		services.set(IOutlineModelService, new SyncDescriptor(OutlineModelService));
-		services.set(IConfigurationService, new TestConfigurationService());
+		testConfigurationService = new TestConfigurationService({
+			editor: {
+				smartSelect: {
+					selectLeadingAndTrailingWhitespace: true,
+					selectSubwords: true
+				}
+			}
+		});
+		services.set(IConfigurationService, testConfigurationService);
+		services.set(ITextResourceConfigurationService, new TestTextResourceConfigurationService(testConfigurationService));
 
 		const insta = new InstantiationService(services);
 
@@ -1397,6 +1409,42 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
 		assert.strictEqual(value.length, 1);
 		assert.ok(value[0].parent);
+	});
+
+	test('Selection Range should respect settings', async function () {
+		model.setValue([
+			'This is the first line   ',
+			'This is the second line',
+			'This is the third line',
+		].join('\n'));
+		// TODO: how to reset this config after this test to avoid polluting other tests?
+		testConfigurationService.setUserConfiguration('editor', { smartSelect: { selectLeadingAndTrailingWhitespace: false } });
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges() {
+				return [
+					new types.SelectionRange(new types.Range(0, 0, 0, 23)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		const value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.strictEqual(value.length, 1);
+		assert.strictEqual(value[0].range.start.line, 0);
+		assert.strictEqual(value[0].range.start.character, 8);
+		assert.strictEqual(value[0].range.end.line, 0);
+		assert.strictEqual(value[0].range.end.character, 11);
+		assert.ok(value[0].parent);
+		assert.strictEqual(value[0].parent.range.start.line, 0);
+		assert.strictEqual(value[0].parent.range.start.character, 0);
+		assert.strictEqual(value[0].parent.range.end.line, 0);
+		assert.strictEqual(value[0].parent.range.end.character, 23);
+		assert.ok(value[0].parent.parent);
+		assert.strictEqual(value[0].parent.parent.range.start.line, 0);
+		assert.strictEqual(value[0].parent.parent.range.start.character, 0);
+		assert.strictEqual(value[0].parent.parent.range.end.line, 2);
+		assert.strictEqual(value[0].parent.parent.range.end.character, 22);
 	});
 
 	// --- call hierarchy

@@ -29,6 +29,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistr
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 class SelectionRanges {
 
@@ -311,10 +312,13 @@ CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async functio
 	assertType(URI.isUri(resource));
 
 	const registry = accessor.get(ILanguageFeaturesService).selectionRangeProvider;
+	const configurationService = accessor.get(ITextResourceConfigurationService);
 	const reference = await accessor.get(ITextModelService).createModelReference(resource);
 
+	const options: SelectionRangesOptions = configurationService.getValue<SelectionRangesOptions>(resource, 'editor.smartSelect');
+
 	try {
-		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None);
+		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, options, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}
