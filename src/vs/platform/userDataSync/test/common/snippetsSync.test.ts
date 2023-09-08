@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -148,12 +148,17 @@ const globalSnippet = `{
 
 suite('SnippetsSync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let testClient: UserDataSyncClient;
 	let client2: UserDataSyncClient;
 
 	let testObject: SnippetsSynchroniser;
+
+	teardown(async () => {
+		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
@@ -162,11 +167,6 @@ suite('SnippetsSync', () => {
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-	});
-
-	teardown(async () => {
-		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
-		disposableStore.clear();
 	});
 
 	test('when snippets does not exist', async () => {
