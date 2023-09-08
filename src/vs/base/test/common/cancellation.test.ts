@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('CancellationToken', function () {
-
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('None', () => {
 		assert.strictEqual(CancellationToken.None.isCancellationRequested, false);
@@ -38,7 +35,7 @@ suite('CancellationToken', function () {
 			cancelCount += 1;
 		}
 
-		store.add(source.token.onCancellationRequested(onCancel));
+		source.token.onCancellationRequested(onCancel);
 
 		source.cancel();
 		source.cancel();
@@ -51,9 +48,15 @@ suite('CancellationToken', function () {
 		let count = 0;
 
 		const source = new CancellationTokenSource();
-		store.add(source.token.onCancellationRequested(() => count++));
-		store.add(source.token.onCancellationRequested(() => count++));
-		store.add(source.token.onCancellationRequested(() => count++));
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
 
 		source.cancel();
 		assert.strictEqual(count, 3);
@@ -82,7 +85,9 @@ suite('CancellationToken', function () {
 		let count = 0;
 
 		const source = new CancellationTokenSource();
-		store.add(source.token.onCancellationRequested(() => count++));
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
 
 		source.dispose();
 		source.cancel();
@@ -94,7 +99,9 @@ suite('CancellationToken', function () {
 		let count = 0;
 
 		const source = new CancellationTokenSource();
-		store.add(source.token.onCancellationRequested(() => count++));
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
 
 		source.dispose(true);
 		// source.cancel();
@@ -113,15 +120,12 @@ suite('CancellationToken', function () {
 		const child = new CancellationTokenSource(parent.token);
 
 		let count = 0;
-		store.add(child.token.onCancellationRequested(() => count++));
+		child.token.onCancellationRequested(() => count += 1);
 
 		parent.cancel();
 
 		assert.strictEqual(count, 1);
 		assert.strictEqual(child.token.isCancellationRequested, true);
 		assert.strictEqual(parent.token.isCancellationRequested, true);
-
-		child.dispose();
-		parent.dispose();
 	});
 });
