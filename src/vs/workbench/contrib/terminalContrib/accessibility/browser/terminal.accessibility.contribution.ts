@@ -173,7 +173,8 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		widgetManager: TerminalWidgetManager,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService) {
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
