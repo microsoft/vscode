@@ -20,7 +20,7 @@ import { coalesce } from '../utils/arrays';
 import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-import { ChatPanelFollowup, EditorChatReplacementCommand2, CompositeCommand } from './util/copilot';
+import { EditorChatFollowUp, CompositeCommand } from './util/copilot';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -345,7 +345,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 		public readonly refactor: Proto.ApplicableRefactorInfo,
 		public readonly action: Proto.RefactorActionInfo,
 		public readonly range: vscode.Range,
-		public readonly airename?: (x: Proto.RefactorEditInfo) => vscode.Command,
+		public readonly copilotRename?: (info: Proto.RefactorEditInfo) => vscode.Command,
 	) {
 		super(action.description, InlinedCodeAction.getKind(action));
 
@@ -390,9 +390,8 @@ class InlinedCodeAction extends vscode.CodeAction {
 					command: CompositeCommand.ID,
 					title: '',
 					arguments: coalesce([
-						// TODO: this.bonus should really get renameLocation as well (at least most of the time)
 						this.command,
-						this.airename ? this.airename(response.body) : {
+						this.copilotRename ? this.copilotRename(response.body) : {
 							command: 'editor.action.rename',
 							arguments: [[
 								this.document.uri,
@@ -448,29 +447,7 @@ class SelectCodeAction extends vscode.CodeAction {
 		};
 	}
 }
-class InferTypesAction extends vscode.CodeAction {
-	constructor(
-		document: vscode.TextDocument,
-		rangeOrSelection: vscode.Range | vscode.Selection
-	) {
-		const title = "Copilot REFACTOR: Infer and add types"
-		super(title, vscode.CodeActionKind.Refactor);
-		this.command = {
-			title,
-			command: EditorChatReplacementCommand2.ID,
-			arguments: [<EditorChatReplacementCommand2.Args>{
-				message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
-				document,
-				expand: {
-					kind: 'none',
-					range: rangeOrSelection
-				}
-		}]
-		};
-	}
-}
-
-type TsCodeAction = InlinedCodeAction | MoveToFileCodeAction | SelectCodeAction | InferTypesAction;
+type TsCodeAction = InlinedCodeAction | MoveToFileCodeAction | SelectCodeAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
 
@@ -484,8 +461,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new SelectRefactorCommand(this.client));
 		commandManager.register(new MoveToFileRefactorCommand(this.client, didApplyRefactoringCommand));
-		commandManager.register(new EditorChatReplacementCommand2(this.client));
-		commandManager.register(new ChatPanelFollowup(this.client));
+		commandManager.register(new EditorChatFollowUp(this.client));
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
@@ -584,9 +560,6 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				}
 			}
 		}
-		if (true) {
-			yield new InferTypesAction(document, rangeOrSelection)
-		}
 	}
 
 	private refactorActionToCodeAction(
@@ -600,7 +573,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (action.name === 'Move to file') {
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
-			let airename: ((rename: Proto.RefactorEditInfo) => vscode.Command) | undefined
+			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined
 			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix')) {
 				if (Extract_Constant.matches(action)
 					|| Extract_Function.matches(action)
@@ -613,17 +586,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 						: Extract_Interface.matches(action) ? 'NewInterface'
 						: action.name.startsWith('Infer function return') ? 'newReturnType'
 						: '';
-					airename = refactorInfo => ({
+					copilotRename = info => ({
 						title: '',
-						command: EditorChatReplacementCommand2.ID,
-						arguments: [<EditorChatReplacementCommand2.Args>{
+						command: EditorChatFollowUp.ID,
+						arguments: [<EditorChatFollowUp.Args>{
 							message: `Rename ${newName} to a better name based on usage.`,
 							expand: Extract_Constant.matches(action) ?  {
 								kind: 'navtree-function',
-								pos: typeConverters.Position.fromLocation(refactorInfo.renameLocation!),
+								pos: typeConverters.Position.fromLocation(info.renameLocation!),
 							 } : {
 								kind: 'refactor-info',
-								refactor: refactorInfo,
+								refactor: info,
 							 },
 							document,
 						}]
@@ -631,7 +604,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				}
 
 			}
-			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, airename);
+			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, copilotRename);
 		}
 
 		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);

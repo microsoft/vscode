@@ -82,7 +82,7 @@ elif [ -f /.dockerenv ]; then
 	# leading to failed script loading.
 	code --disable-dev-shm-usage "$@"
 else
-	code --enable-proposed-api vscode.typescript-language-features "$@"
+	code "$@"
 fi
 
 exit $?

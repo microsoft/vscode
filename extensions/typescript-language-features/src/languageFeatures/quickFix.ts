@@ -18,7 +18,7 @@ import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-import { ChatPanelFollowup, Expand, EditorChatReplacementCommand2, CompositeCommand } from './util/copilot';
+import { Expand, EditorChatFollowUp, CompositeCommand } from './util/copilot';
 
 type ApplyCodeActionCommand_args = {
 	readonly document: vscode.TextDocument;
@@ -223,8 +223,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
-		commandManager.register(new EditorChatReplacementCommand2(client));
-		commandManager.register(new ChatPanelFollowup(client));
+		commandManager.register(new EditorChatFollowUp(client));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
 	}
@@ -345,7 +344,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				expand = { kind: 'code-action', action };
 			}
 			else if (action.fixName === fixNames.fixMissingFunctionDeclaration) {
-				message = `Provide a reasonable implementation of the function ${document.getText(diagnostic.range)}} given its type and the context it's called in.`;
+				message = `Provide a reasonable implementation of the function ${document.getText(diagnostic.range)} given its type and the context it's called in.`;
 				expand = { kind: 'code-action', action };
 			}
 			else if (action.fixName === fixNames.inferFromUsage) {
@@ -353,8 +352,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				inferFromBody.edit = new vscode.WorkspaceEdit();
 				inferFromBody.diagnostics = [diagnostic];
 				inferFromBody.command = {
-					command: EditorChatReplacementCommand2.ID,
-					arguments: [<EditorChatReplacementCommand2.Args>{
+					command: EditorChatFollowUp.ID,
+					arguments: [<EditorChatFollowUp.Args>{
 						message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
 						expand: { kind: 'navtree-function', pos: diagnostic.range.start },
 						document
@@ -376,9 +375,9 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 					command: CompositeCommand.ID,
 					title: '',
 					arguments: [codeAction.command,  {
-						command: EditorChatReplacementCommand2.ID,
+						command: EditorChatFollowUp.ID,
 						title: '',
-						arguments: [<EditorChatReplacementCommand2.Args>{
+						arguments: [<EditorChatFollowUp.Args>{
 							message,
 							expand,
 							document

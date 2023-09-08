@@ -2551,7 +2551,6 @@ declare module 'vscode' {
 	 * to refactor code.
 	 *
 	 * A CodeAction must set either {@linkcode CodeAction.edit edit} and/or a {@linkcode CodeAction.command command}. If both are supplied, the `edit` is applied first, then the command is executed.
-	 * NOTE: This is wrong: at least for VsCodeCodeAction; both edit and command are required.
 	 */
 	export class CodeAction {
 
