@@ -103,8 +103,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
 			if (
 				state === State.Inactive ||
-				toolBarLocation === 'docked' ||
-				toolBarLocation === 'hidden' ||
+				toolBarLocation !== 'floating' ||
 				this.debugService.getModel().getSessions().every(s => s.suppressDebugToolbar) ||
 				(state === State.Initializing && this.debugService.initializingOptions?.suppressDebugToolbar)
 			) {
