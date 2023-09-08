@@ -142,8 +142,8 @@ export class LinkDetector {
 			return [{ kind: 'text', value: text, captures: [] }];
 		}
 
-		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX, HTML_LINK_REGEX];
-		const kinds: LinkKind[] = ['web', 'path', 'html'];
+		const regexes: RegExp[] = [HTML_LINK_REGEX, WEB_LINK_REGEX, PATH_LINK_REGEX];
+		const kinds: LinkKind[] = ['html', 'web', 'path'];
 		const result: LinkPart[] = [];
 
 		const splitOne = (text: string, regexIndex: number) => {
