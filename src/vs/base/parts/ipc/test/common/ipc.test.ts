@@ -342,26 +342,27 @@ suite('Base IPC', function () {
 		});
 	});
 
-	suite.skip('one to one (proxy)', function () {
+	suite('one to one (proxy)', function () {
 		let server: IPCServer;
 		let client: IPCClient;
 		let service: TestService;
 		let ipcService: ITestService;
 
+		const disposables = new DisposableStore();
+
 		setup(function () {
 			service = store.add(new TestService());
-			const testServer = new TestIPCServer();
+			const testServer = disposables.add(new TestIPCServer());
 			server = testServer;
 
-			server.registerChannel(TestChannelId, ProxyChannel.fromService(service));
+			server.registerChannel(TestChannelId, ProxyChannel.fromService(service, disposables));
 
-			client = testServer.createConnection('client1');
+			client = disposables.add(testServer.createConnection('client1'));
 			ipcService = ProxyChannel.toService(client.getChannel(TestChannelId));
 		});
 
 		teardown(function () {
-			client.dispose();
-			server.dispose();
+			disposables.clear();
 		});
 
 		test('call success', async function () {
@@ -381,7 +382,7 @@ suite('Base IPC', function () {
 		test('listen to events', async function () {
 			const messages: string[] = [];
 
-			ipcService.onPong(msg => messages.push(msg));
+			disposables.add(ipcService.onPong(msg => messages.push(msg)));
 			await timeout(0);
 
 			assert.deepStrictEqual(messages, []);
@@ -408,26 +409,27 @@ suite('Base IPC', function () {
 		});
 	});
 
-	suite.skip('one to one (proxy, extra context)', function () {
+	suite('one to one (proxy, extra context)', function () {
 		let server: IPCServer;
 		let client: IPCClient;
 		let service: TestService;
 		let ipcService: ITestService;
 
+		const disposables = new DisposableStore();
+
 		setup(function () {
 			service = store.add(new TestService());
-			const testServer = new TestIPCServer();
+			const testServer = disposables.add(new TestIPCServer());
 			server = testServer;
 
-			server.registerChannel(TestChannelId, ProxyChannel.fromService(service));
+			server.registerChannel(TestChannelId, ProxyChannel.fromService(service, disposables));
 
-			client = testServer.createConnection('client1');
+			client = disposables.add(testServer.createConnection('client1'));
 			ipcService = ProxyChannel.toService(client.getChannel(TestChannelId), { context: 'Super Context' });
 		});
 
 		teardown(function () {
-			client.dispose();
-			server.dispose();
+			disposables.clear();
 		});
 
 		test('call extra context', async function () {

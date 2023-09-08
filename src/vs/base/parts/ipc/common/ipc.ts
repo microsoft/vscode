@@ -1087,7 +1087,7 @@ export namespace ProxyChannel {
 
 	export interface ICreateServiceChannelOptions extends IProxyOptions { }
 
-	export function fromService<TContext>(service: unknown, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
+	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options && options.disableMarshalling;
 
@@ -1096,7 +1096,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true, undefined, disposables));
 			}
 		}
 
