@@ -337,12 +337,12 @@ MenuRegistry.onDidChangeMenu(e => {
 });
 
 
-MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
+MenuRegistry.appendMenuItem(MenuId.CommandCenterCenter, {
 	submenu: MenuId.DebugToolBar,
 	title: 'Debug',
 	icon: Codicon.debug,
-	order: 500,
-	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive')
+	order: 1,
+	when: ContextKeyExpr.and(CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'commandCenter'))
 });
 
 registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
