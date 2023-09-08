@@ -7,12 +7,12 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, MultiEditorAction, registerEditorAction, registerEditorCommand, registerEditorContribution, registerMultiEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRegistry';
 import { IRange } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_REPLACE_INPUT_FOCUSED, FindModelBoundToEditorModel, FIND_IDS, ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
@@ -30,7 +30,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
@@ -58,47 +57,6 @@ export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFr
 	}
 
 	return null;
-}
-
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor, configurationService: IConfigurationService): string | null {
-
-	if (!isCodeEditor(editor) || !editor.hasModel()) {
-		return null;
-	}
-
-	const range = editor.getSelection();
-	if (!range) {
-		return null;
-	}
-
-	if (range.isEmpty()) {
-		if (allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			return wordAtPosition?.word ?? null;
-		} else {
-			return null;
-		}
-	}
-
-	let searchText = '';
-	for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-		let lineText = editor.getModel().getLineContent(i);
-		if (i === range.endLineNumber) {
-			lineText = lineText.substring(0, range.endColumn - 1);
-		}
-
-		if (i === range.startLineNumber) {
-			lineText = lineText.substring(range.startColumn - 1);
-		}
-
-		if (i !== range.startLineNumber) {
-			lineText = '\n' + lineText;
-		}
-
-		searchText += lineText;
-	}
-
-	return searchText;
 }
 
 export const enum FindStartFocusAction {

@@ -14,7 +14,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { getSelectionTextFromEditor } from 'vs/editor/contrib/find/browser/findController';
+import { getSelectionTextFromEditor } from 'vs/workbench/contrib/search/browser/searchView';
 
 registerAction2(class TextSearchQuickAccessAction extends Action2 {
 
