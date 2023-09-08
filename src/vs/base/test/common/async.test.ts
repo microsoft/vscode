@@ -790,12 +790,15 @@ suite('Async', () => {
 
 		test('cancel executing', async function () {
 			const sequentializer = new async.TaskSequentializer();
+			const ctsTimeout = store.add(new CancellationTokenSource());
 
 			let pendingCancelled = false;
-			sequentializer.run(1, async.timeout(1), () => pendingCancelled = true);
+			const timeout = async.timeout(1, ctsTimeout.token);
+			sequentializer.run(1, timeout, () => pendingCancelled = true);
 			sequentializer.cancelRunning();
 
 			assert.ok(pendingCancelled);
+			ctsTimeout.cancel();
 		});
 	});
 
