@@ -163,8 +163,10 @@
 	max-width: 600px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center.multiple {
-	justify-content: space-evenly;
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center.multiple .spacer {
+	height: 100%;
+	padding: 0 6px;
+	opacity: 0.5;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center:only-child {

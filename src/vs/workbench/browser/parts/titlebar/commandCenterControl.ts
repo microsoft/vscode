@@ -7,6 +7,7 @@ import { reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -107,7 +108,10 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 			}
 		}
 
-		for (const group of groups) {
+
+		for (let i = 0; i < groups.length; i++) {
+			const group = groups[i];
+
 			// nested toolbar
 			const toolbar = this._instaService.createInstance(WorkbenchToolBar, container, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -117,11 +121,18 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 						...options,
 						hoverDelegate: this._hoverDelegate,
 					});
-
 				}
 			});
 			toolbar.setActions(group);
 			this._store.add(toolbar);
+
+			// spacer
+			if (i < groups.length - 1) {
+				const icon = renderIcon(Codicon.circleSmallFilled);
+				icon.classList.add('spacer');
+				container.appendChild(icon);
+			}
+
 		}
 	}
 
