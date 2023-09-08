@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { getLocation, Location } from 'jsonc-parser';
-import { implicitActivationEvent, redundantImplicitActivationEvent } from './extensionLinter';
+import { implicitActivationEvent, redundantImplicitActivationEvent } from './constants';
 
 
 export class PackageDocument {
