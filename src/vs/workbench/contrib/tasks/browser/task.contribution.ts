@@ -147,16 +147,12 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 
 	private _ignoreEventForUpdateRunningTasksCount(event: ITaskEvent): boolean {
-		if (!this._taskService.inTerminal()) {
+		if (!this._taskService.inTerminal() || event.kind === TaskEventKind.Changed) {
 			return false;
 		}
 
 		if ((isString(event.group) ? event.group : event.group?._id) !== TaskGroup.Build._id) {
 			return true;
-		}
-
-		if (!event.__task) {
-			return false;
 		}
 
 		return event.__task.configurationProperties.problemMatchers === undefined || event.__task.configurationProperties.problemMatchers.length === 0;

@@ -15,7 +15,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 
 export enum DiffSide {
 	Original = 0,
@@ -85,7 +85,7 @@ export interface CellDiffSideBySideRenderTemplate extends CellDiffCommonRenderTe
 	readonly body: HTMLElement;
 	readonly diffEditorContainer: HTMLElement;
 	readonly elementDisposables: DisposableStore;
-	readonly sourceEditor: DiffEditorWidget2;
+	readonly sourceEditor: DiffEditorWidget;
 	readonly editorContainer: HTMLElement;
 	readonly inputToolbarContainer: HTMLElement;
 	readonly toolbar: WorkbenchToolBar;
