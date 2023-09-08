@@ -30,9 +30,6 @@ import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'v
 import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { isEqual } from 'vs/base/common/resources';
 
-const NotebookCodeAction = new CodeActionKind('notebook');
-
-
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -107,6 +104,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	}
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		const nbDisposable = new DisposableStore();
 		const isTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 		if (!isTrusted) {
 			return;
@@ -116,28 +114,42 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 			return;
 		}
 
+		let saveTrigger = '';
 		if (context.reason === SaveReason.AUTO) {
-			// do not run notebook codeactions upon auto save
-			return undefined;
-		}
-
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>(NotebookSetting.codeActionsOnSave);
-		if (!setting) {
+			// currently this won't happen, as vs/editor/contrib/codeAction/browser/codeAction.ts L#104 filters out codeactions on autosave. Just future-proofing
+			// ? notebook CodeActions on autosave seems dangerous (perf-wise)
+			saveTrigger = 'always';
+		} else if (context.reason === SaveReason.EXPLICIT) {
+			saveTrigger = 'explicit';
+		} else {
+			// 	SaveReason.FOCUS_CHANGE, WINDOW_CHANGE need to be addressed when autosaves are enabled
 			return undefined;
 		}
 
 		const notebookModel = workingCopy.model.notebookModel;
 
+		const setting = this.configurationService.getValue<{ [kind: string]: string }>(NotebookSetting.codeActionsOnSave);
+		if (!setting) {
+			return undefined;
+		}
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
 			: Object.keys(setting).filter(x => setting[x]);
-
 		if (!settingItems.length) {
 			return undefined;
 		}
 
-		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => !NotebookCodeAction.contains(x));
-		const notebookCodeActionsOnSave = this.createCodeActionsOnSave(settingItems).filter(x => NotebookCodeAction.contains(x));
+		const allCodeActions = this.createCodeActionsOnSave(settingItems);
+		const excludedActions = allCodeActions
+			.filter(x => setting[x.value] === 'never');
+		const includedActions = allCodeActions
+			.filter(x => setting[x.value] === saveTrigger);
+
+		const codeActionsOnSave = includedActions.filter(x => !CodeActionKind.Notebook.contains(x));
+		const notebookCodeActionsOnSave = includedActions.filter(x => CodeActionKind.Notebook.contains(x));
+		if (!codeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
+			return undefined;
+		}
 
 		// prioritize `source.fixAll` code actions
 		if (!Array.isArray(setting)) {
@@ -154,21 +166,6 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				return 0;
 			});
 		}
-
-
-
-
-		if (!codeActionsOnSave.length && !notebookCodeActionsOnSave.length) {
-			return undefined;
-		}
-
-		const excludedActions = Array.isArray(setting)
-			? []
-			: Object.keys(setting)
-				.filter(x => setting[x] === false)
-				.map(x => new CodeActionKind(x));
-
-		const nbDisposable = new DisposableStore();
 
 		// run notebook code actions
 		progress.report({ message: localize('notebookSaveParticipants.notebookCodeActions', "Running 'Notebook' code actions") });
@@ -189,7 +186,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		// run cell level code actions
 		const disposable = new DisposableStore();
-		progress.report({ message: localize('notebookSaveParticipants.cellCodeActions', "Running code actions") });
+		progress.report({ message: localize('notebookSaveParticipants.cellCodeActions', "Running 'Cell' code actions") });
 		try {
 			await Promise.all(notebookModel.cells.map(async cell => {
 				const ref = await this.textModelService.createModelReference(cell.uri);
@@ -249,7 +246,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 				for (const action of actionsToRun.validActions) {
 					const codeActionEdits = action.action.edit?.edits;
 					let breakFlag = false;
-					if (!action.action.kind?.includes('notebook')) {
+					if (!action.action.kind?.startsWith('notebook')) {
 						for (const edit of codeActionEdits ?? []) {
 							const workspaceTextEdit = edit as IWorkspaceTextEdit;
 							if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {

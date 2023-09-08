@@ -1398,6 +1398,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CandidatePortSource: CandidatePortSource,
 			CodeAction: extHostTypes.CodeAction,
 			CodeActionKind: extHostTypes.CodeActionKind,
+			CodeActionKind2: extHostTypes.CodeActionKind,
 			CodeActionTriggerKind: extHostTypes.CodeActionTriggerKind,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
@@ -1578,7 +1579,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,
-			NotebookCodeActionKind: extHostTypes.NotebookCodeActionKind,
 			RelatedInformationType: extHostTypes.RelatedInformationType
 		};
 	};
