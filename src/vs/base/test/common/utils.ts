@@ -49,15 +49,18 @@ interface DisposableInfo {
 	source: string | null;
 	parent: IDisposable | null;
 	isSingleton: boolean;
+	idx: number;
 }
 
 export class DisposableTracker implements IDisposableTracker {
+	private static idx = 0;
+
 	private readonly livingDisposables = new Map<IDisposable, DisposableInfo>();
 
 	private getDisposableData(d: IDisposable) {
 		let val = this.livingDisposables.get(d);
 		if (!val) {
-			val = { parent: null, source: null, isSingleton: false, value: d };
+			val = { parent: null, source: null, isSingleton: false, value: d, idx: DisposableTracker.idx++ };
 			this.livingDisposables.set(d, val);
 		}
 		return val;
@@ -146,9 +149,12 @@ export class DisposableTracker implements IDisposableTracker {
 			}
 		}
 
-		uncoveredLeakingObjs.sort(compareBy(l => getStackTracePath(l).length, numberComparator));
+		// Put earlier leaks first
+		uncoveredLeakingObjs.sort(compareBy(l => l.idx, numberComparator));
 
 		const maxReported = 10;
+
+		let message = '';
 
 		let i = 0;
 		for (const leaking of uncoveredLeakingObjs.slice(0, maxReported)) {
@@ -171,14 +177,16 @@ export class DisposableTracker implements IDisposableTracker {
 				stackTraceFormattedLines.unshift(line);
 			}
 
-			console.error(`\n\n\n==================== Leaking disposable ${i}/${uncoveredLeakingObjs.length}: ${leaking.value.constructor.name} ====================\n${stackTraceFormattedLines.join('\n')}\n============================================================\n\n`);
+			message += `\n\n\n==================== Leaking disposable ${i}/${uncoveredLeakingObjs.length}: ${leaking.value.constructor.name} ====================\n${stackTraceFormattedLines.join('\n')}\n============================================================\n\n`;
 		}
 
 		if (uncoveredLeakingObjs.length > maxReported) {
-			console.error(`\n\n\n... and ${uncoveredLeakingObjs.length - maxReported} more leaking disposables\n\n`);
+			message += `\n\n\n... and ${uncoveredLeakingObjs.length - maxReported} more leaking disposables\n\n`;
 		}
 
-		throw new Error(`There are ${uncoveredLeakingObjs.length} undisposed disposables! (check test output)`);
+		console.error(message);
+
+		throw new Error(`There are ${uncoveredLeakingObjs.length} undisposed disposables!${message}`);
 	}
 }
 
