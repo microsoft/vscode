@@ -211,7 +211,7 @@ colors.registerColor(
 	false
 );
 // background (inactive and active)
-colors.registerColor(
+export const CC_BACKGROUND = colors.registerColor(
 	'commandCenter.background',
 	{
 		dark: Color.white.transparent(0.05), hcDark: null, light: Color.black.transparent(0.05), hcLight: null
@@ -219,7 +219,7 @@ colors.registerColor(
 	localize('commandCenter-background', "Background color of the command center"),
 	false
 );
-colors.registerColor(
+export const CC_ACTIVE_BACKGROUND = colors.registerColor(
 	'commandCenter.activeBackground',
 	{ dark: Color.white.transparent(0.08), hcDark: MENUBAR_SELECTION_BACKGROUND, light: Color.black.transparent(0.08), hcLight: MENUBAR_SELECTION_BACKGROUND },
 	localize('commandCenter-activeBackground', "Active background color of the command center"),
