@@ -22,14 +22,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 
 (isWeb ? suite.skip : suite)('NotebookEditorStickyScroll', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
 	const domNode: HTMLElement = document.createElement('div');
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	function getOutline(editor: any) {

@@ -12,13 +12,21 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('ListViewInfoAccessor', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('basics', async function () {

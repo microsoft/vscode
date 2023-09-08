@@ -12,6 +12,7 @@ import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/b
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('NotebookSelection', () => {
 	test('focus is never empty', function () {
@@ -24,14 +25,20 @@ suite('NotebookSelection', () => {
 });
 
 suite('NotebookCellList focus/selection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageService: ILanguageService;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		languageService = instantiationService.get(ILanguageService);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('notebook cell list setFocus', async function () {

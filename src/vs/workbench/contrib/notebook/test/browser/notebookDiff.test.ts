@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -31,8 +32,18 @@ class CellSequence implements ISequence {
 
 
 suite('NotebookCommon', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let disposables: DisposableStore;
 	const configurationService = new TestConfigurationService();
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	test('diff different source', async () => {
 		await withTestNotebookDiffModel(disposables, [

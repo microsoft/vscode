@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCellList', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
