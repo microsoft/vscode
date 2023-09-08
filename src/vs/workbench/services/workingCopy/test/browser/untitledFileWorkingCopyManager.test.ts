@@ -43,7 +43,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 		));
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		for (const workingCopy of [...manager.untitled.workingCopies, ...manager.stored.workingCopies]) {
 			workingCopy.dispose();
 		}
