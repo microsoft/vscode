@@ -8,8 +8,9 @@ import { equals } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
+import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffProviderFactoryService, IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
+import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -31,7 +32,6 @@ import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/in
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('InteractiveChatController', function () {
-
 	class TestController extends InlineChatController {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
@@ -93,7 +93,7 @@ suite('InteractiveChatController', function () {
 		const serviceCollection = new ServiceCollection(
 			[IContextKeyService, contextKeyService],
 			[IInlineChatService, inlineChatService],
-			[IDiffProviderFactoryService, new SyncDescriptor(DiffProviderFactoryService)],
+			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionService)],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
