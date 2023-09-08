@@ -103,9 +103,9 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	}
 
 	getSymbols(): IAccessibleViewSymbol[] {
-		const commands = this._getCommandsWithEditorLine();
+		const commands = this._getCommandsWithEditorLine() ?? [];
 		const symbols: IAccessibleViewSymbol[] = [];
-		for (const command of commands ?? []) {
+		for (const command of commands) {
 			const label = command.command.command;
 			if (label) {
 				symbols.push({
