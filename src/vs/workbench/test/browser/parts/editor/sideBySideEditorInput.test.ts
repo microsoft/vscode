@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -13,14 +14,10 @@ import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench
 
 suite('SideBySideEditorInput', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
+	const disposables = new DisposableStore();
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	class MyEditorInput extends EditorInput {
@@ -62,19 +59,19 @@ suite('SideBySideEditorInput', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		let counter = 0;
-		const input = new MyEditorInput(URI.file('/fake'));
-		input.onWillDispose(() => {
+		const input = disposables.add(new MyEditorInput(URI.file('/fake')));
+		disposables.add(input.onWillDispose(() => {
 			assert(true);
 			counter++;
-		});
+		}));
 
-		const otherInput = new MyEditorInput(URI.file('/fake2'));
-		otherInput.onWillDispose(() => {
+		const otherInput = disposables.add(new MyEditorInput(URI.file('/fake2')));
+		disposables.add(otherInput.onWillDispose(() => {
 			assert(true);
 			counter++;
-		});
+		}));
 
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput);
+		const sideBySideInput = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput));
 		assert.strictEqual(sideBySideInput.getName(), 'name');
 		assert.strictEqual(sideBySideInput.getDescription(), 'description');
 
@@ -89,7 +86,7 @@ suite('SideBySideEditorInput', () => {
 		sideBySideInput.dispose();
 		assert.strictEqual(counter, 0);
 
-		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input);
+		const sideBySideInputSame = disposables.add(instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input));
 		assert.strictEqual(sideBySideInputSame.getName(), input.getName());
 		assert.strictEqual(sideBySideInputSame.getDescription(), input.getDescription());
 		assert.strictEqual(sideBySideInputSame.getTitle(), input.getTitle());
@@ -99,21 +96,21 @@ suite('SideBySideEditorInput', () => {
 	test('events dispatching', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
-		const input = new MyEditorInput();
-		const otherInput = new MyEditorInput();
+		const input = disposables.add(new MyEditorInput());
+		const otherInput = disposables.add(new MyEditorInput());
 
-		const sideBySideInut = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', otherInput, input);
+		const sideBySideInut = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', otherInput, input));
 
 		assert.ok(isSideBySideEditorInput(sideBySideInut));
 
 		let capabilitiesChangeCounter = 0;
-		sideBySideInut.onDidChangeCapabilities(() => capabilitiesChangeCounter++);
+		disposables.add(sideBySideInut.onDidChangeCapabilities(() => capabilitiesChangeCounter++));
 
 		let dirtyChangeCounter = 0;
-		sideBySideInut.onDidChangeDirty(() => dirtyChangeCounter++);
+		disposables.add(sideBySideInut.onDidChangeDirty(() => dirtyChangeCounter++));
 
 		let labelChangeCounter = 0;
-		sideBySideInut.onDidChangeLabel(() => labelChangeCounter++);
+		disposables.add(sideBySideInut.onDidChangeLabel(() => labelChangeCounter++));
 
 		input.fireCapabilitiesChangeEvent();
 		assert.strictEqual(capabilitiesChangeCounter, 1);
@@ -133,10 +130,10 @@ suite('SideBySideEditorInput', () => {
 	test('toUntyped', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
-		const primaryInput = new MyEditorInput(URI.file('/fake'));
-		const secondaryInput = new MyEditorInput(URI.file('/fake2'));
+		const primaryInput = disposables.add(new MyEditorInput(URI.file('/fake')));
+		const secondaryInput = disposables.add(new MyEditorInput(URI.file('/fake2')));
 
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
+		const sideBySideInput = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput));
 
 		const untypedSideBySideInput = sideBySideInput.toUntyped();
 		assert.ok(isResourceSideBySideEditorInput(untypedSideBySideInput));
@@ -145,9 +142,9 @@ suite('SideBySideEditorInput', () => {
 	test('untyped matches', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
-		const primaryInput = new TestFileEditorInput(URI.file('/fake'), 'primaryId');
-		const secondaryInput = new TestFileEditorInput(URI.file('/fake2'), 'secondaryId');
-		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
+		const primaryInput = disposables.add(new TestFileEditorInput(URI.file('/fake'), 'primaryId'));
+		const secondaryInput = disposables.add(new TestFileEditorInput(URI.file('/fake2'), 'secondaryId'));
+		const sideBySideInput = disposables.add(instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput));
 
 		const primaryUntypedInput = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
 		const secondaryUntypedInput = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
@@ -167,4 +164,6 @@ suite('SideBySideEditorInput', () => {
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

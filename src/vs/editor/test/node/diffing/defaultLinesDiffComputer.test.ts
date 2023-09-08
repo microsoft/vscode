@@ -6,12 +6,24 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { getLineRangeMapping } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { getLineRangeMapping } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
+import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
+import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
+
+suite('myers', () => {
+	test('1', () => {
+		const s1 = new LinesSliceCharSequence(['hello world'], new OffsetRange(0, 1), true);
+		const s2 = new LinesSliceCharSequence(['hallo welt'], new OffsetRange(0, 1), true);
+
+		const a = true ? new MyersDiffAlgorithm() : new DynamicProgrammingDiffing();
+		a.compute(s1, s2);
+	});
+});
 
 suite('lineRangeMapping', () => {
-	test('1', () => {
+	test('Simple', () => {
 		assert.deepStrictEqual(
 			getLineRangeMapping(
 				new RangeMapping(
@@ -32,7 +44,7 @@ suite('lineRangeMapping', () => {
 		);
 	});
 
-	test('2', () => {
+	test('Empty Lines', () => {
 		assert.deepStrictEqual(
 			getLineRangeMapping(
 				new RangeMapping(
@@ -56,8 +68,6 @@ suite('lineRangeMapping', () => {
 });
 
 suite('LinesSliceCharSequence', () => {
-	// Create tests for translateOffset
-
 	const sequence = new LinesSliceCharSequence(
 		[
 			'line1: foo',

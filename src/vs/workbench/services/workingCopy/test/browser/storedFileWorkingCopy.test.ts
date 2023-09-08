@@ -18,6 +18,7 @@ import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { Promises, timeout } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -129,43 +130,36 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 
 	const factory = new TestStoredFileWorkingCopyModelWithCustomSaveFactory();
 
-	let disposables: DisposableStore;
-	const resource = URI.file('test/resource');
+	const disposables = new DisposableStore();
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>;
 
-	function createWorkingCopy(uri: URI = resource) {
-		const workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave> = new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', uri, basename(uri), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
-
-		return workingCopy;
-	}
-
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		const resource = URI.file('test/resource');
+		workingCopy = disposables.add(new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', resource, basename(resource), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService));
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('save (custom implemented)', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
 			lastSaveEvent = e;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// unresolved
 		await workingCopy.save();
@@ -194,13 +188,15 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 		assert.strictEqual(saveErrorCounter, 1);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('StoredFileWorkingCopy', function () {
 
 	const factory = new TestStoredFileWorkingCopyModelFactory();
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	const resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -213,16 +209,14 @@ suite('StoredFileWorkingCopy', function () {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		workingCopy = disposables.add(createWorkingCopy());
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('registers with working copy service', async () => {

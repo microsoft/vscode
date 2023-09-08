@@ -26,8 +26,6 @@ interface IRenderedEditorLabel {
 
 export class NoTabsTitleControl extends TitleControl {
 
-	private static readonly HEIGHT = 35;
-
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
@@ -352,7 +350,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 	getHeight(): IEditorGroupTitleHeight {
 		return {
-			total: NoTabsTitleControl.HEIGHT,
+			total: this.titleHeight,
 			offset: 0
 		};
 	}
