@@ -311,6 +311,7 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		if (lineNumber === undefined) {
+			// Note that this scales poorly, thus isn't used for worst case scenarios like the terminal, for which a line number will always be provided.
 			// Parse the markdown to find the line number
 			const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.markdownToParse!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
 			if (index >= 0) {
