@@ -12,7 +12,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -621,7 +620,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		}, ACTIVE_GROUP);
 
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created
 		});
 	}
@@ -681,7 +680,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		}, ACTIVE_GROUP);
 
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created: false
 		});
 	}
@@ -721,7 +720,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	async openConfigFile({ preserveFocus, type, useInitialContent }: { preserveFocus: boolean; type?: string; useInitialContent?: boolean }): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const editor = await this.preferencesService.openUserSettings({ jsonEditor: true, preserveFocus, revealSetting: { key: 'launch' } });
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created: false
 		});
 	}

@@ -25,7 +25,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	private _configHelper: TerminalConfigHelper;
 	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
-	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
 	constructor(

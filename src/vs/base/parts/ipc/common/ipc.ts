@@ -8,7 +8,7 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import { CancellationError } from 'vs/base/common/errors';
+import { CancellationError, ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -1102,7 +1102,7 @@ export namespace ProxyChannel {
 					}
 				}
 
-				throw new Error(`Event not found: ${event}`);
+				throw new ErrorNoTelemetry(`Event not found: ${event}`);
 			}
 
 			call(_: unknown, command: string, args?: any[]): Promise<any> {
@@ -1119,7 +1119,7 @@ export namespace ProxyChannel {
 					return target.apply(handler, args);
 				}
 
-				throw new Error(`Method not found: ${command}`);
+				throw new ErrorNoTelemetry(`Method not found: ${command}`);
 			}
 		};
 	}
@@ -1185,7 +1185,7 @@ export namespace ProxyChannel {
 					};
 				}
 
-				throw new Error(`Property not found: ${String(propKey)}`);
+				throw new ErrorNoTelemetry(`Property not found: ${String(propKey)}`);
 			}
 		}) as T;
 	}

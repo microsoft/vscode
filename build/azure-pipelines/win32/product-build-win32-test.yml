@@ -15,6 +15,7 @@ steps:
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
+    retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:

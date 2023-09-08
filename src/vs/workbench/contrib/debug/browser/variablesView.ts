@@ -16,7 +16,6 @@ import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -127,7 +126,7 @@ export class VariablesView extends ViewPane {
 			}
 		});
 
-		this.tree.setInput(withUndefinedAsNull(this.debugService.getViewModel().focusedStackFrame));
+		this.tree.setInput(this.debugService.getViewModel().focusedStackFrame ?? null);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
@@ -150,6 +149,7 @@ export class VariablesView extends ViewPane {
 			forgetScopes = true;
 			this.tree.updateChildren();
 		}));
+		this._register(this.tree);
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this._register(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
 

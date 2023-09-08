@@ -6,6 +6,7 @@
 import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
@@ -55,7 +56,7 @@ interface ITerminalDimensions {
 	rows: number;
 }
 
-export class CommandDetectionCapability implements ICommandDetectionCapability {
+export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
 	protected _commands: ITerminalCommand[] = [];
@@ -78,6 +79,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		return undefined;
 	}
+	get currentCommand(): ICurrentPartialCommand | undefined {
+		return this._currentCommand;
+	}
 	get cwd(): string | undefined { return this._cwd; }
 	private get _isInputting(): boolean {
 		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
@@ -97,29 +101,30 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		return true;
 	}
 
-	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
+	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
-	private readonly _onBeforeCommandFinished = new Emitter<ITerminalCommand>();
+	private readonly _onBeforeCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
-	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
+	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandFinished = this._onCommandFinished.event;
-	private readonly _onCommandExecuted = new Emitter<void>();
+	private readonly _onCommandExecuted = this._register(new Emitter<void>());
 	readonly onCommandExecuted = this._onCommandExecuted.event;
-	private readonly _onCommandInvalidated = new Emitter<ITerminalCommand[]>();
+	private readonly _onCommandInvalidated = this._register(new Emitter<ITerminalCommand[]>());
 	readonly onCommandInvalidated = this._onCommandInvalidated.event;
-	private readonly _onCurrentCommandInvalidated = new Emitter<ICommandInvalidationRequest>();
+	private readonly _onCurrentCommandInvalidated = this._register(new Emitter<ICommandInvalidationRequest>());
 	readonly onCurrentCommandInvalidated = this._onCurrentCommandInvalidated.event;
 
 	constructor(
 		private readonly _terminal: Terminal,
 		private readonly _logService: ILogService
 	) {
+		super();
 		this._dimensions = {
 			cols: this._terminal.cols,
 			rows: this._terminal.rows
 		};
-		this._terminal.onResize(e => this._handleResize(e));
-		this._terminal.onCursorMove(() => this._handleCursorMove());
+		this._register(this._terminal.onResize(e => this._handleResize(e)));
+		this._register(this._terminal.onCursorMove(() => this._handleCursorMove()));
 		this._setupClearListeners();
 	}
 
@@ -159,7 +164,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
 		// cls will clear all commands in the viewport. This is not perfect but it's right most
 		// of the time.
-		this.onBeforeCommandFinished(command => {
+		this._register(this.onBeforeCommandFinished(command => {
 			if (this._isWindowsPty) {
 				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 					this._clearCommandsInViewport();
@@ -167,7 +172,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 				}
 			}
-		});
+		}));
 
 		// For non-Windows backends we can just listen to CSI J which is what the clear command
 		// typically emits.

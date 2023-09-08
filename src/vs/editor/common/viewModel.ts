@@ -114,6 +114,7 @@ export interface IViewLayout {
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
 
 	setMaxLineWidth(maxLineWidth: number): void;
+	setOverlayWidgetsMinWidth(overlayWidgetsMinWidth: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -443,5 +444,17 @@ export class OverviewRulerDecorationsGroup {
 			return 0;
 		}
 		return a.zIndex - b.zIndex;
+	}
+
+	public static equalsArr(a: OverviewRulerDecorationsGroup[], b: OverviewRulerDecorationsGroup[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0, len = a.length; i < len; i++) {
+			if (OverviewRulerDecorationsGroup.cmp(a[i], b[i]) !== 0) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

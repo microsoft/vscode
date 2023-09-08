@@ -52,6 +52,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super({ syncResource: SyncResource.Profiles, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		this._register(userDataProfilesService.onDidChangeProfiles(() => this.triggerLocalChange()));
 	}
 
 	async getLastSyncedProfiles(): Promise<ISyncUserDataProfile[] | null> {

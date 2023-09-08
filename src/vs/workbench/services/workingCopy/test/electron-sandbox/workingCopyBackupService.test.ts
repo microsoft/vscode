@@ -30,6 +30,8 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { generateUuid } from 'vs/base/common/uuid';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import product from 'vs/platform/product/common/product';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const homeDir = URI.file('home').with({ scheme: Schemas.inMemory });
 const tmpDir = URI.file('tmp').with({ scheme: Schemas.inMemory });
@@ -59,7 +61,7 @@ const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	execPath: process.execPath,
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
-	os: { release: 'unknown', hostname: 'unknown' },
+	os: { release: 'unknown', hostname: 'unknown', arch: 'unknown' },
 	product,
 	homeDir: homeDir.fsPath,
 	tmpDir: tmpDir.fsPath,
@@ -170,6 +172,8 @@ suite('WorkingCopyBackupService', () => {
 	let service: NodeTestWorkingCopyBackupService;
 	let fileService: IFileService;
 
+	const disposables = new DisposableStore();
+
 	const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 	const fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
 	const customFile = URI.parse('customScheme://some/path');
@@ -184,12 +188,16 @@ suite('WorkingCopyBackupService', () => {
 		workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
 		workspaceBackupPath = joinPath(backupHome, hash(workspaceResource.fsPath).toString(16));
 
-		service = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
+		service = disposables.add(new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath));
 		fileService = service._fileService;
 
 		await fileService.createFolder(backupHome);
 
 		return fileService.writeFile(workspacesJsonPath, VSBuffer.fromString(''));
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	suite('hashIdentifier', () => {
@@ -1296,4 +1304,6 @@ suite('WorkingCopyBackupService', () => {
 			assert.ok(backups.every(backup => backup.typeId === ''));
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

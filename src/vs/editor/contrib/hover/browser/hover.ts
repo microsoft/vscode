@@ -17,7 +17,7 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -31,8 +31,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { status } from 'vs/base/browser/ui/aria/aria';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -363,9 +361,6 @@ class ShowOrFocusHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const configurationService = accessor.get(IConfigurationService);
-		const accessibilityService = accessor.get(IAccessibilityService);
-		const keybindingService = accessor.get(IKeybindingService);
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -381,11 +376,6 @@ class ShowOrFocusHoverAction extends EditorAction {
 			controller.focus();
 		} else {
 			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
-		}
-		if (configurationService.getValue('accessibility.verbosity.hover') && accessibilityService.isScreenReaderOptimized()) {
-			const keybinding = keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
-			const hint = keybinding ? nls.localize('chatAccessibleViewHint', "Inspect this in the accessible view with {0}", keybinding) : nls.localize('chatAccessibleViewHintNoKb', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
-			status(hint);
 		}
 	}
 }

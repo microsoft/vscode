@@ -7,13 +7,14 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { terminalTabFocusModeContextKey } from 'vs/platform/terminal/common/terminal';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { TerminalSettingId, terminalTabFocusModeContextKey } from 'vs/platform/terminal/common/terminal';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
@@ -22,7 +23,30 @@ import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
+import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
 import type { Terminal } from 'xterm';
+
+
+class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
+	static readonly ID = 'terminal.textAreaSync';
+	static get(instance: ITerminalInstance): TextAreaSyncContribution | null {
+		return instance.getContribution<TextAreaSyncContribution>(TextAreaSyncContribution.ID);
+	}
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		processManager: ITerminalProcessManager,
+		widgetManager: TerminalWidgetManager,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+		super();
+	}
+	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
+		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
+		xterm.raw.loadAddon(addon);
+		addon.activate(xterm.raw);
+	}
+}
+registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.accessible-buffer';
@@ -36,9 +60,18 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
+		this.add(_instance.onDidRunText(() => {
+			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
+			if (focusAfterRun === 'terminal') {
+				_instance.focus(true);
+			} else if (focusAfterRun === 'accessible-buffer') {
+				this.show();
+			}
+		}));
 	}
 	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
 		this._xterm = xterm;
@@ -60,6 +93,9 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	navigateToCommand(type: NavigationType): void {
 		return this._accessibleBufferWidget?.navigateToCommand(type);
 	}
+	hide(): void {
+		this._accessibleBufferWidget?.hide();
+	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
 
@@ -79,7 +115,7 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 				return;
 			}
 			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
-		}, TerminalContextKeys.focus));
+		}, ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.accessibleBufferFocus)));
 	}
 }
 registerTerminalContribution(TerminalAccessibilityHelpContribution.ID, TerminalAccessibilityHelpContribution);
@@ -90,7 +126,12 @@ registerTerminalAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
-			primary: KeyMod.Shift | KeyCode.Tab,
+			primary: KeyMod.Alt | KeyCode.F2,
+			secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+			linux: {
+				primary: KeyMod.Alt | KeyCode.F2 | KeyMod.Shift,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow]
+			},
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus, ContextKeyExpr.or(terminalTabFocusModeContextKey, TerminalContextKeys.accessibleBufferFocus.negate()))
 		}
@@ -138,8 +179,7 @@ registerTerminalAction({
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		},
 		{
-			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-			mac: { primary: KeyMod.Alt | KeyCode.DownArrow },
+			primary: KeyMod.Alt | KeyCode.DownArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		}
@@ -166,8 +206,7 @@ registerTerminalAction({
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		},
 		{
-			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-			mac: { primary: KeyMod.Alt | KeyCode.UpArrow },
+			primary: KeyMod.Alt | KeyCode.UpArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.accessibleBufferFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 			weight: KeybindingWeight.WorkbenchContrib + 2
 		}

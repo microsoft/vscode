@@ -64,6 +64,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
 import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/controller/editActions';
+import 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
 import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
 import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 
@@ -112,10 +113,11 @@ import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/brow
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/services/notebookLoggingServiceImpl';
 import product from 'vs/platform/product/common/product';
-import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
 import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/contrib/notebook/browser/notebookAccessibility';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -453,7 +455,7 @@ class CellInfoContentProvider {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
 
 		const mode = this._languageService.createById('json');
-		const op = cell.outputs.find(op => op.outputId === data.outputId);
+		const op = cell.outputs.find(op => op.outputId === data.outputId || op.alternativeOutputId === data.outputId);
 		const streamOutputData = this.parseStreamOutput(op);
 		if (streamOutputData) {
 			result = streamOutputData;
@@ -489,7 +491,7 @@ class CellInfoContentProvider {
 		}
 
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
+		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId || op.alternativeOutputId === data.outputId));
 
 		if (!cell) {
 			ref.dispose();
@@ -699,7 +701,9 @@ class NotebookAccessibleViewContribution extends Disposable {
 			const editorService = accessor.get(IEditorService);
 
 			return showAccessibleOutput(accessibleViewService, editorService);
-		}, NOTEBOOK_OUTPUT_FOCUSED));
+		},
+			ContextKeyExpr.and(NOTEBOOK_OUTPUT_FOCUSED, ContextKeyExpr.equals('resourceExtname', '.ipynb'))
+		));
 	}
 }
 

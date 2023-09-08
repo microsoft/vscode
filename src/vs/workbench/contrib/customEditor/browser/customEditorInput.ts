@@ -22,7 +22,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IOverlayWebview, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 interface CustomEditorInputInitInfo {
@@ -300,14 +300,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 
 		return (await this.rename(groupId, target))?.editor;
-	}
-
-	override isSaving(): boolean {
-		if (this.isDirty() && !this.hasCapability(EditorInputCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // will be saved soon
-		}
-
-		return super.isSaving();
 	}
 
 	public override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {

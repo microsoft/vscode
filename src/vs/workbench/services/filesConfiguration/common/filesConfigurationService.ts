@@ -20,7 +20,6 @@ import { IdleValue } from 'vs/base/common/async';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
@@ -168,7 +167,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 		if (
 			this.uriIdentityService.extUri.isEqualOrParent(resource, this.environmentService.userRoamingDataHome) ||
-			this.uriIdentityService.extUri.isEqual(resource, withNullAsUndefined(this.contextService.getWorkspace().configuration))
+			this.uriIdentityService.extUri.isEqual(resource, this.contextService.getWorkspace().configuration ?? undefined)
 		) {
 			return false; // explicitly exclude some paths from readonly that we need for configuration
 		}

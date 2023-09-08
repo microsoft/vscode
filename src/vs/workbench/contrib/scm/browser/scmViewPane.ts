@@ -96,6 +96,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
+import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1237,16 +1238,16 @@ class ViewModel {
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
 
-		this.storageService.onWillSaveState(e => {
+		this.disposables.add(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 
 			this.mode = this.getViewModelMode();
 			this.sortKey = this.getViewModelSortKey();
-		});
+		}));
 
-		this.storageService.onDidChangeValue(e => {
+		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
 			switch (e.key) {
 				case 'scm.viewMode':
 					this.mode = this.getViewModelMode();
@@ -1255,7 +1256,7 @@ class ViewModel {
 					this.sortKey = this.getViewModelSortKey();
 					break;
 			}
-		});
+		}));
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
@@ -2025,6 +2026,7 @@ class SCMInputWidget {
 			quickSuggestions: false,
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
+			formatOnType: true,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true }
 		};
@@ -2045,6 +2047,7 @@ class SCMInputWidget {
 				SuggestController.ID,
 				InlineCompletionsController.ID,
 				CodeActionController.ID,
+				FormatOnType.ID
 			])
 		};
 

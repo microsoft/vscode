@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - task: DownloadPipelineArtifact@0
     displayName: "Download Pipeline Artifact"

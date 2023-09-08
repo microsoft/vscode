@@ -25,8 +25,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IntervalCounter } from 'vs/base/common/async';
 import { assertIsDefined } from 'vs/base/common/types';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -85,9 +83,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IHostService private readonly hostService: IHostService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -191,24 +187,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
-				let accessibleViewHint: string | undefined;
-				const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel();
-				if (this._configurationService.getValue('accessibility.verbosity.notification')) {
-					accessibleViewHint = keybinding ? localize('chatAccessibleViewHint', "Inspect the response in the accessible view with {0}", keybinding) : localize('chatAccessibleViewHintNoKb', "Inspect the response in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding");
-				}
 
 				if (!item.source) {
-					if (accessibleViewHint) {
-						return localize('notificationAriaLabelViewHint', "{0}, notification {1}", item.message.raw, accessibleViewHint);
-					} else {
-						return localize('notificationAriaLabel', "{0}, notification", item.message.raw);
-					}
+					return localize('notificationAriaLabel', "{0}, notification", item.message.raw);
 				}
-				if (accessibleViewHint) {
-					return localize('notificationWithSourceAriaLabelViewHint', "{0}, source: {1}, notification {2}", item.message.raw, item.source, accessibleViewHint);
-				} else {
-					return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source);
-				}
+				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source);
 			})()
 		});
 		itemDisposables.add(notificationList);

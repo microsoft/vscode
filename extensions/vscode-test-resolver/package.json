@@ -33,7 +33,7 @@
   "main": "./out/extension",
   "browser": "./dist/browser/testResolverMain",
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "capabilities": {
     "untrustedWorkspaces": {

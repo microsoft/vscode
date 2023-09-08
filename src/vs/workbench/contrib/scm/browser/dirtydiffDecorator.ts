@@ -50,7 +50,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -662,13 +662,13 @@ async function playAudioCueForChange(change: IChange, audioCueService: IAudioCue
 	const changeType = getChangeType(change);
 	switch (changeType) {
 		case ChangeType.Add:
-			audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+			audioCueService.playAudioCue(AudioCue.diffLineInserted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
 			break;
 		case ChangeType.Delete:
-			audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
+			audioCueService.playAudioCue(AudioCue.diffLineDeleted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
 			break;
 		case ChangeType.Modify:
-			audioCueService.playAudioCue(AudioCue.diffLineModified, true);
+			audioCueService.playAudioCue(AudioCue.diffLineModified, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
 			break;
 	}
 }
@@ -862,10 +862,12 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		Event.chain(model.onDidChange)
-			.filter(e => e.diff.length > 0)
-			.map(e => e.diff)
-			.event(this.onDidModelChange, this, disposables);
+		const onDidModelChange = Event.chain(model.onDidChange, $ =>
+			$.filter(e => e.diff.length > 0)
+				.map(e => e.diff)
+		);
+
+		onDidModelChange(this.onDidModelChange, this, disposables);
 
 		disposables.add(this.widget);
 		disposables.add(toDisposable(() => {
@@ -918,7 +920,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		}
 
 		const data = e.target.detail;
-		const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+		const offsetLeftInGutter = e.target.element.offsetLeft;
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding

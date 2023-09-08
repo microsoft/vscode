@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -39,7 +39,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { isString } from 'vs/base/common/types';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
@@ -146,16 +145,12 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 
 	private _ignoreEventForUpdateRunningTasksCount(event: ITaskEvent): boolean {
-		if (!this._taskService.inTerminal()) {
+		if (!this._taskService.inTerminal() || event.kind === TaskEventKind.Changed) {
 			return false;
 		}
 
 		if ((isString(event.group) ? event.group : event.group?._id) !== TaskGroup.Build._id) {
 			return true;
-		}
-
-		if (!event.__task) {
-			return false;
 		}
 
 		return event.__task.configurationProperties.problemMatchers === undefined || event.__task.configurationProperties.problemMatchers.length === 0;
@@ -355,43 +350,32 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 class UserTasksGlobalActionContribution extends Disposable implements IWorkbenchContribution {
 
-	constructor(
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-	) {
+	constructor() {
 		super();
 		this.registerActions();
 	}
 
 	private registerActions() {
-		const registerOpenUserTasksActionDisposables = this._register(new DisposableStore());
-		const registerOpenSettingsAction = () => {
-			registerOpenUserTasksActionDisposables.clear();
-			const id = 'workbench.action.tasks.openUserTasks';
-			const userTasksTitle = nls.localize('userTasks', "User Tasks");
-			const title = !this.userDataProfileService.currentProfile.isDefault && this.userDataProfileService.currentProfile.useDefaultFlags?.tasks
-				? `${userTasksTitle} (${nls.localize('default profile', "Default Profile")})`
-				: userTasksTitle;
-			registerOpenUserTasksActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-				command: {
-					id,
-					title
-				},
-				when: TaskExecutionSupportedContext,
-				group: '2_configuration',
-				order: 4
-			}));
-			registerOpenUserTasksActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-				command: {
-					id,
-					title
-				},
-				when: TaskExecutionSupportedContext,
-				group: '2_configuration',
-				order: 4
-			}));
-		};
-		registerOpenSettingsAction();
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenSettingsAction()));
+		const id = 'workbench.action.tasks.openUserTasks';
+		const title = nls.localize('userTasks', "User Tasks");
+		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 4
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 4
+		}));
 	}
 }
 workbenchRegistry.registerWorkbenchContribution(UserTasksGlobalActionContribution, LifecyclePhase.Restored);
@@ -420,7 +404,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 	prefix: TasksQuickAccessProvider.PREFIX,
 	contextKey: tasksPickerContextKey,
 	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
-	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task") }]
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), commandCenterOrder: 60 }]
 });
 
 // tasks.json validation

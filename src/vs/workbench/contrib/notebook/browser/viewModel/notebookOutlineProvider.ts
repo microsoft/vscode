@@ -184,7 +184,9 @@ export class NotebookCellOutlineProvider {
 	}
 
 	dispose(): void {
-		// selectionListener.clear();
+		this._entries.length = 0;
+		this._activeEntry = undefined;
+		this._entriesDisposables.dispose();
 		this._dispoables.dispose();
 	}
 
@@ -329,6 +331,11 @@ export class NotebookCellOutlineProvider {
 			};
 			if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
 				markerServiceListener.value = this._markerService.onMarkerChanged(e => {
+					if (notebookEditorWidget.isDisposed) {
+						console.error('notebook editor is disposed');
+						return;
+					}
+
 					if (e.some(uri => notebookEditorWidget.getCellsInRange().some(cell => isEqual(cell.uri, uri)))) {
 						doUpdateMarker(false);
 						this._onDidChange.fire({});

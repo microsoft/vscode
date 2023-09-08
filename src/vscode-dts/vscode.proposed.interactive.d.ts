@@ -64,6 +64,8 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
+		label: string;
+
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
@@ -119,19 +121,35 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveProgressContent {
-		content: string;
+		content: string | MarkdownString;
 	}
 
 	export interface InteractiveProgressId {
 		responseId: string;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
+	export interface InteractiveProgressTask {
+		placeholder: string;
+		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
+	}
+
+	export interface FileTreeData {
+		label: string;
+		uri: Uri;
+		children?: FileTreeData[];
+	}
+
+	export interface InteractiveProgressFileTree {
+		treeData: FileTreeData;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
 		args?: any[];
 		title: string; // supports codicon strings
+		when?: string;
 	}
 
 	export interface InteractiveSessionSlashCommand {
@@ -141,6 +159,7 @@ declare module 'vscode' {
 		shouldRepopulate?: boolean;
 		followupPlaceholder?: string;
 		executeImmediately?: boolean;
+		yieldTo?: ReadonlyArray<{ readonly command: string }>;
 	}
 
 	export interface InteractiveSessionReplyFollowup {

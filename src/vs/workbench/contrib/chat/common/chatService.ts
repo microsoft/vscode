@@ -5,11 +5,13 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
@@ -25,6 +27,7 @@ export interface IChat {
 export interface IChatRequest {
 	session: IChat;
 	message: string | IChatReplyFollowup;
+	variables: Record<string, IChatRequestVariableValue[]>;
 }
 
 export interface IChatResponseErrorDetails {
@@ -42,8 +45,14 @@ export interface IChatResponse {
 	};
 }
 
+export interface IChatResponseProgressFileTreeData {
+	label: string;
+	uri: URI;
+	children?: IChatResponseProgressFileTreeData[];
+}
+
 export type IChatProgress =
-	{ content: string } | { requestId: string };
+	{ content: string | IMarkdownString } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -59,15 +68,8 @@ export interface IChatProvider {
 	removeRequest?(session: IChat, requestId: string): void;
 }
 
-export interface ISlashCommandProvider {
-	chatProviderId: string;
-	provideSlashCommands(token: CancellationToken): ProviderResult<ISlashCommand[]>;
-	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
-}
-
 export interface ISlashCommand {
 	command: string;
-	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
 
@@ -88,6 +90,11 @@ export interface ISlashCommand {
 	 * Has no effect if `shouldRepopulate` is `false`.
 	 */
 	followupPlaceholder?: string;
+	/**
+	 * The slash command(s) that this command wants to be
+	 * deprioritized in favor of.
+	 */
+	yieldsTo?: ReadonlyArray<{ readonly command: string }>;
 }
 
 export interface IChatReplyFollowup {
@@ -103,6 +110,7 @@ export interface IChatResponseCommandFollowup {
 	commandId: string;
 	args?: any[];
 	title: string; // supports codicon strings
+	when?: string;
 }
 
 export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
@@ -175,8 +183,9 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string;
+	message: string | (IMarkdownString | IChatResponseProgressFileTreeData)[];
 	errorDetails?: IChatResponseErrorDetails;
+	followups?: IChatFollowup[];
 }
 
 export interface IChatDetail {
@@ -189,18 +198,23 @@ export interface IChatProviderInfo {
 	displayName: string;
 }
 
+export interface IChatTransferredSessionData {
+	sessionId: string;
+	inputValue: string;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
-	transferredSessionId: string | undefined;
+	transferredSessionData: IChatTransferredSessionData | undefined;
 
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
-	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
+	getSessionId(sessionProviderId: number): string | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
 
@@ -221,5 +235,5 @@ export interface IChatService {
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
 
-	transferChatSession(sessionProviderId: number, toWorkspace: URI): void;
+	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }

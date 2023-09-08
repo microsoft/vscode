@@ -78,7 +78,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
 import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -473,7 +472,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -517,31 +515,32 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	// Global actions
 	private registerGlobalActions(): void {
-		const getTitle = (title: string) => !this.userDataProfileService.currentProfile.isDefault && this.userDataProfileService.currentProfile.useDefaultFlags?.extensions
-			? `${title} (${localize('default profile', "Default Profile")})`
-			: title;
-		const registerOpenExtensionsActionDisposables = this._register(new DisposableStore());
-		const registerOpenExtensionsAction = () => {
-			registerOpenExtensionsActionDisposables.clear();
-			registerOpenExtensionsActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-				command: {
-					id: VIEWLET_ID,
-					title: getTitle(localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions"))
-				},
-				group: '2_configuration',
-				order: 3
-			}));
-			registerOpenExtensionsActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-				command: {
-					id: VIEWLET_ID,
-					title: getTitle(localize('showExtensions', "Extensions"))
-				},
-				group: '2_configuration',
-				order: 3
-			}));
-		};
-		registerOpenExtensionsAction();
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenExtensionsAction()));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			command: {
+				id: VIEWLET_ID,
+				title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+			},
+			group: '2_configuration',
+			order: 3
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			command: {
+				id: VIEWLET_ID,
+				title: localize('showExtensions', "Extensions")
+			},
+			group: '2_configuration',
+			order: 3
+		}));
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.focusExtensionsView',
+			title: { value: localize('focusExtensions', "Focus on Extensions View"), original: 'Focus on Extensions View' },
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			run: async (accessor: ServicesAccessor) => {
+				await accessor.get(IPaneCompositePartService).openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+			}
+		});
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
@@ -1319,7 +1318,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.not('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+				when: ContextKeyExpr.and(ContextKeyExpr.not('installedExtensionIsPreReleaseVersion'), ContextKeyExpr.not('installedExtensionIsOptedTpPreRelease'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -1432,7 +1431,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate(), ContextKeyExpr.has('isBuiltinExtension').negate()),
 				order: 3
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {

@@ -108,6 +108,14 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		}
 	}
 
+	get hasErrorState(): boolean {
+		if (this._workingCopy && 'hasState' in this._workingCopy) {
+			return this._workingCopy.hasState(StoredFileWorkingCopyState.ERROR);
+		}
+
+		return false;
+	}
+
 	revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
 		return this._workingCopy!.revert(options);
@@ -133,7 +141,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
 			}
-			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined, this._workingCopyListeners);
+			this._workingCopyListeners.add(this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined));
 
 			this._workingCopyListeners.add(this._workingCopy.onWillDispose(() => {
 				this._workingCopyListeners.clear();

@@ -19,7 +19,7 @@ import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IIns
 import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { withNullAsUndefined, assertType } from 'vs/base/common/types';
+import { assertType } from 'vs/base/common/types';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -307,7 +307,7 @@ export abstract class EditorCommand extends Command {
 
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (!kbService.contextMatchesRules(withNullAsUndefined(precondition))) {
+			if (!kbService.contextMatchesRules(precondition ?? undefined)) {
 				// precondition does not hold
 				return;
 			}
@@ -460,7 +460,7 @@ export abstract class EditorAction2 extends Action2 {
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
 			const logService = editorAccessor.get(ILogService);
-			const enabled = kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition));
+			const enabled = kbService.contextMatchesRules(this.desc.precondition ?? undefined);
 			if (!enabled) {
 				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
 				return;

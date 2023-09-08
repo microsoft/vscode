@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
@@ -58,7 +58,8 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
-		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.APPLICATION && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
+		const disposable = this._register(new DisposableStore());
+		this._register(Event.filter(storageService.onDidChangeValue(StorageScope.APPLICATION, SYNC_SERVICE_URL_TYPE, disposable), () => this.userDataSyncStoreType !== this.userDataSyncStore?.type, disposable)(() => this.updateUserDataSyncStore()));
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -534,8 +535,8 @@ export class UserDataSyncStoreClient extends Disposable {
 		if (isSuccess) {
 			this.logService.trace('Request succeeded', requestInfo);
 		} else {
-			this.logService.info('Request failed', requestInfo);
 			failureMessage = await asText(context) || '';
+			this.logService.info('Request failed', requestInfo, failureMessage);
 		}
 
 		if (context.res.statusCode === 401 || context.res.statusCode === 403) {
