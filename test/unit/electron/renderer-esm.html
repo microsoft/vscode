@@ -4,6 +4,7 @@
 	<meta charset="utf-8">
 	<title>VSCode Tests</title>
 	<link href="../../../node_modules/mocha/mocha.css" rel="stylesheet" />
+
 </head>
 
 <body>
@@ -45,7 +46,8 @@
 		const argv = JSON.parse(urlParams.get('argv'));
 
 		const outdir = argv.build ? 'out-build' : 'out';
-		const baseUrl = require('url').pathToFileURL(require('path').join(__dirname, `../../../${outdir}/`));
+		const basePath = require('path').join(__dirname, `../../../${outdir}/`);
+		const baseUrl = require('url').pathToFileURL(basePath);
 
 		// generate import map
 		const importMap = {
@@ -72,7 +74,7 @@
 			try {
 				_mod = require(name);
 
-			} catch(err) {
+			} catch (err) {
 				// These are somewhat expected because of platform differences (windows vs mac vs linux) or because of node/electron binary differences
 				// console.error(`[ESM] Failed to require ${name}`);
 				// console.error(err);
@@ -81,7 +83,7 @@
 
 			// export all properties and the module itself as default
 			let jsSrc = `const _mod = require('${name}')\n`;
-			for(const name of Object.keys(_mod)) {
+			for (const name of Object.keys(_mod)) {
 				jsSrc += `export const ${name} = _mod['${name}'];\n`;
 			}
 			jsSrc += `export default _mod;\n`;
@@ -91,11 +93,33 @@
 			importMap.imports[name] = url;
 		}
 
-		const rawImportMap = JSON.stringify(importMap, undefined, 2);
-		const importMapScript = document.createElement('script');
-		importMapScript.type = 'importmap';
-		importMapScript.textContent = rawImportMap;
-		document.currentScript?.after(importMapScript);
+		//2: CSS modules
+		const style = document.createElement('style');
+		style.type = 'text/css';
+		document.head.appendChild(style);
+
+		globalThis._VSCODE_CSS_LOAD = function (url) {
+			style.sheet.insertRule(`@import url(${url});`);
+		};
+
+		const { promisify } = require('util');
+		globalThis._VSCODE_TEST_INIT = promisify(require('glob'))('**/*.css', { cwd: basePath }).then(cssModules => {
+			for (const cssModule of cssModules) {
+				const cssUrl = new URL(cssModule, baseUrl).href;
+				const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+				const blob = new Blob([jsSrc], { type: 'application/javascript' });
+				importMap.imports[cssUrl] = URL.createObjectURL(blob);
+			}
+
+		}).then(() => {
+
+			const rawImportMap = JSON.stringify(importMap, undefined, 2);
+			const importMapScript = document.createElement('script');
+			importMapScript.type = 'importmap';
+			importMapScript.textContent = rawImportMap;
+			document.head.append(importMapScript);
+		});
+
 	</script>
 	<script src="./renderer-esm.js"></script>
 </body>

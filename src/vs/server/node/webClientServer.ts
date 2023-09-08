@@ -15,7 +15,7 @@ import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { extname, dirname, join, normalize } from 'vs/base/common/path';
+import { extname, dirname, join, normalize, relative } from 'vs/base/common/path';
 import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -31,6 +31,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isESM } from 'vs/base/common/amd';
+import { spawn } from 'child_process';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -345,6 +346,32 @@ export class WebClientServer {
 			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
+		// DEV ---------------------------------------------------------------------------------------
+		// DEV: This is for development and enables loading CSS via import-statements via import-maps.
+		// DEV: The server needs to send along all CSS modules so that the client can construct the
+		// DEV: import-map.
+		// DEV ---------------------------------------------------------------------------------------
+		if (!this._environmentService.isBuilt && isESM) {
+			// SCAN all CSS files and inline them as importmap
+			const rg = await import('@vscode/ripgrep');
+			const cssModules = await new Promise<string[]>((resolve, reject) => {
+				const chunks: string[][] = [];
+				const decoder = new TextDecoder();
+				const process = spawn(rg.rgPath, ['-g', '**/*.css', '--files', join(APP_ROOT, 'out')], {});
+
+				process.stdout.on('data', data => {
+					const chunk = decoder.decode(data, { stream: true });
+					chunks.push(chunk.split('\n'));
+				});
+				process.on('error', err => reject(err));
+				process.on('close', () => {
+					resolve(chunks.flat().map(path => relative(APP_ROOT, path)));
+				});
+			});
+
+			values['WORKBENCH_DEV_CSS_MODULES'] = JSON.stringify(cssModules.filter(Boolean));
+		}
+
 		if (useTestResolver) {
 			const bundledExtensions: { extensionPath: string; packageJSON: IExtensionManifest }[] = [];
 			for (const extensionPath of ['vscode-test-resolver', 'github-authentication']) {
@@ -367,7 +394,7 @@ export class WebClientServer {
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' 'sha256-OFamA3tyjcAu68sYOODXgCBYQzkGSFLQStx0u4hWd/8=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html and src/vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html
+			`script-src 'self' 'unsafe-eval' blob: 'nonce-1nline-m4p' ${this._getScriptCspHashes(data).join(' ')} 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' 'sha256-OFamA3tyjcAu68sYOODXgCBYQzkGSFLQStx0u4hWd/8=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html and src/vs/workbench/services/extensions/worker/webWorkerExtensionHost-esm.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
 			'worker-src \'self\' data: blob:;',

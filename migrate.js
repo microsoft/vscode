@@ -156,7 +156,7 @@ function migrateTS(filePath, fileContents) {
 		return writeDestFile(filePath, fileContents);
 	}
 
-	fileContents = patchCSSImportsAdoptedStyleSheet(filePath, fileContents);
+	// fileContents = patchCSSImportsAdoptedStyleSheet(filePath, fileContents);
 	// fileContents = patchFileAccess(filePath, fileContents);
 
 	const imports = discoverImports(fileContents);

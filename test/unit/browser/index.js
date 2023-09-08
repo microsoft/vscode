@@ -20,6 +20,7 @@ const { applyReporter } = require('../reporter');
 const http = require('http');
 const { join } = require('path');
 const { readFileSync } = require('fs');
+const { promisify } = require('util');
 
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -140,6 +141,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	let server;
 	if (argv.esm) {
 
+		// 1: setup a server because ESM doesn't support file://
 		const port = 3000 + Math.ceil(Math.random() * 5080);
 		const base = join(__dirname, '../../../');
 
@@ -170,6 +172,12 @@ async function runTestsInBrowser(testModules, browserType) {
 		server.listen(port);
 
 		target = new URL(`http://localhost:${port}/test/unit/browser/renderer-esm.html`);
+
+		// 2: glob all CSS files for import-maps
+		const cssModules = (await promisify(glob)('**/*.css', { cwd: out })).sort();
+		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+		const cssDataBase64 = Buffer.from(cssData).toString('base64');
+		target.searchParams.set('css', cssDataBase64);
 	}
 
 	const browser = await playwright[browserType].launch({ headless: !isDebug, devtools: isDebug });

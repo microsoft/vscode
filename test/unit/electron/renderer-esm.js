@@ -341,14 +341,18 @@ function runTests(opts) {
 	});
 }
 
-ipcRenderer.on('run', (e, opts) => {
+ipcRenderer.on('run', async (_e, opts) => {
 	initLoader(opts);
-	runTests(opts).catch(err => {
+
+	await Promise.resolve(globalThis._VSCODE_TEST_INIT);
+
+	try {
+		await runTests(opts);
+	} catch (err) {
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
-
 		console.error(err);
 		ipcRenderer.send('error', err);
-	});
+	}
 });

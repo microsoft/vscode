@@ -101,7 +101,53 @@ const isESM = false;
 			if (typeof options?.beforeRequire === 'function') {
 				options.beforeRequire();
 			}
-			globalThis._VSCODE_FILE_ROOT = `${configuration.appRoot}/out`;
+
+			const fileRoot = `${configuration.appRoot}/out`;
+			globalThis._VSCODE_FILE_ROOT = fileRoot;
+
+
+			// DEV ---------------------------------------------------------------------------------------
+			// DEV: This is for development and enables loading CSS via import-statements via import-maps.
+			// DEV: For each CSS modules that we have we define an entry in the import map that maps to
+			// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
+			// DEV ---------------------------------------------------------------------------------------
+			const cssDataBase64 = new URLSearchParams(window.location.search).get('_devCssData');
+			if (cssDataBase64) {
+
+				const style = document.createElement('style');
+				style.type = 'text/css';
+				style.media = 'screen';
+				style.id = 'vscode-css-loading';
+				document.head.appendChild(style);
+
+				globalThis._VSCODE_CSS_LOAD = function (url) {
+					// @ts-ignore
+					style.sheet.insertRule(`@import url(${url});`);
+				};
+
+				const baseUrl = new URL(`vscode-file://vscode-app${fileRoot}/`);
+				const importMap = { imports: {} };
+				const cssData = Uint8Array.from(atob(cssDataBase64), c => c.charCodeAt(0));
+				await new Response(new Blob([cssData], { type: 'application/octet-binary' }).stream().pipeThrough(new DecompressionStream('gzip'))).text().then(value => {
+					const cssModules = value.split(',');
+					for (const cssModule of cssModules) {
+						const cssUrl = new URL(cssModule, baseUrl).href;
+						const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+						const blob = new Blob([jsSrc], { type: 'application/javascript' });
+						importMap.imports[cssUrl] = URL.createObjectURL(blob);
+					}
+				});
+
+				const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
+				const importMapSrc = JSON.stringify(importMap, undefined, 2);
+				const importMapScript = document.createElement('script');
+				importMapScript.type = 'importmap';
+				importMapScript.setAttribute('nonce', '0c6a828f1297');
+				// @ts-ignore
+				importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
+				document.head.appendChild(importMapScript);
+			}
+
 			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));
 			const result = Promise.all(filePaths.map((filePath) => import(filePath)));
 			result.then((res) => invokeResult(res[0]), onUnexpectedError);
