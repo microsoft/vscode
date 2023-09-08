@@ -4,21 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService, IAccessibleViewSymbol, NavigationType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibleViewService, NavigationType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -31,6 +27,7 @@ import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminal
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
 import type { Terminal } from 'xterm';
 import { Position } from 'vs/editor/common/core/position';
+import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -54,112 +51,6 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
 
 
-export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View };
-	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
-	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
-	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
-		private _bufferTracker: BufferContentTracker,
-		@IModelService _modelService: IModelService,
-		@IConfigurationService _configurationService: IConfigurationService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
-	) {
-		super();
-		this.add(_instance.onDidRunText(() => {
-			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
-			if (focusAfterRun === 'terminal') {
-				_instance.focus(true);
-			} else if (focusAfterRun === 'accessible-buffer') {
-				_accessibleViewService.show(this);
-			}
-		}));
-		this.registerListeners();
-	}
-
-	onClose() {
-		this._instance.focus();
-	}
-	registerListeners(): void {
-		if (!this._xterm) {
-			return;
-		}
-		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._xterm!.raw.buffer.active.baseY === 0) {
-				this.provideContent();
-				this._accessibleViewService.show(this);
-			}
-		}));
-		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
-		this.add(onRequestUpdateEditor(() => this._accessibleViewService.show(this)));
-	}
-
-	provideContent(): string {
-		this._bufferTracker.update();
-		return this._bufferTracker.lines.join('\n');
-	}
-
-	getSymbols(): IAccessibleViewSymbol[] {
-		const commands = this._getCommandsWithEditorLine() ?? [];
-		const symbols: IAccessibleViewSymbol[] = [];
-		for (const command of commands) {
-			const label = command.command.command;
-			if (label) {
-				symbols.push({
-					label,
-					lineNumber: command.lineNumber
-				});
-			}
-		}
-		return symbols;
-	}
-
-	private _getCommandsWithEditorLine(): ICommandWithEditorLine[] | undefined {
-		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		const commands = capability?.commands;
-		const currentCommand = capability?.currentCommand;
-		if (!commands?.length) {
-			return;
-		}
-		const result: ICommandWithEditorLine[] = [];
-		for (const command of commands) {
-			const lineNumber = this._getEditorLineForCommand(command);
-			if (!lineNumber) {
-				continue;
-			}
-			result.push({ command, lineNumber });
-		}
-		if (currentCommand) {
-			const lineNumber = this._getEditorLineForCommand(currentCommand);
-			if (!!lineNumber) {
-				result.push({ command: currentCommand, lineNumber });
-			}
-		}
-		return result;
-	}
-	private _getEditorLineForCommand(command: ITerminalCommand | ICurrentPartialCommand): number | undefined {
-		let line: number | undefined;
-		if ('marker' in command) {
-			line = command.marker?.line;
-		} else if ('commandStartMarker' in command) {
-			line = command.commandStartMarker?.line;
-		}
-		if (line === undefined || line < 0) {
-			return;
-		}
-		line = this._bufferTracker.bufferToEditorLineMapping.get(line);
-		if (line === undefined) {
-			return;
-		}
-		return line + 1;
-	}
-}
-interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
-
-
 export class TerminalAccessibleViewContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.accessibleBufferProvider';
 	static get(instance: ITerminalInstance): TerminalAccessibleViewContribution | null {
@@ -173,8 +64,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		widgetManager: TerminalWidgetManager,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
-	) {
+		@ITerminalService private readonly _terminalService: ITerminalService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
