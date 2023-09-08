@@ -32,7 +32,8 @@ import { status } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { OUTPUT_VIEW_ID } from 'vs/workbench/services/output/common/output';
+import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
+import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
 
 const $ = dom.$;
 
@@ -96,10 +97,11 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		const model = this.editor.getModel();
 
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
-		const shouldRenderInlineChatHint = this.editor.getId() !== OUTPUT_VIEW_ID && inlineChatProviders.length > 0;
-		const shouldRenderDefaultHint = model?.getLanguageId() === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		const languageId = model?.getLanguageId();
+		const shouldRenderInlineChatHint = !this.editor.getOption(EditorOption.readOnly) && languageId !== OUTPUT_MODE_ID && languageId !== LOG_MODE_ID && languageId !== SEARCH_RESULT_LANGUAGE_ID && inlineChatProviders.length > 0;
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
 
-		if (model && (model.uri.scheme === Schemas.untitled && shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue !== 'hidden') {
+		if ((shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue !== 'hidden') {
 			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
 				this.editorGroupsService,

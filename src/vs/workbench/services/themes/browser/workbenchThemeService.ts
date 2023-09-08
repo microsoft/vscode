@@ -114,7 +114,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
-		@IUserDataInitializationService userDataInitializationService: IUserDataInitializationService,
+		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService languageService: ILanguageService
 	) {
 		this.container = layoutService.container;
@@ -180,7 +180,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.applyAndSetProductIconTheme(productIconData, true);
 		}
 
-		Promise.all([extensionService.whenInstalledExtensionsRegistered(), userDataInitializationService.whenInitializationFinished()]).then(_ => {
+		extensionService.whenInstalledExtensionsRegistered().then(_ => {
 			this.installConfigurationListener();
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();
@@ -209,16 +209,22 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (devThemes.length) {
 				return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 			}
-			const fallbackTheme = this.currentColorTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
-			const theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, fallbackTheme);
 
 			const preferredColorScheme = this.getPreferredColorScheme();
 			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE);
 			if (preferredColorScheme !== prevScheme) {
 				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, PERSISTED_OS_COLOR_SCHEME_SCOPE, StorageTarget.USER);
-				if (preferredColorScheme && theme?.type !== preferredColorScheme) {
+				if (preferredColorScheme && this.currentColorTheme.type !== preferredColorScheme) {
 					return this.applyPreferredColorTheme(preferredColorScheme);
 				}
+			}
+			let theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, undefined);
+			if (!theme) {
+				// If the current theme is not available, first make sure setting sync is complete
+				await this.userDataInitializationService.whenInitializationFinished();
+				// try to get the theme again, now with a fallback to the default themes
+				const fallbackTheme = this.currentColorTheme.type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+				theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, fallbackTheme);
 			}
 			return this.setColorTheme(theme && theme.id, undefined);
 		};
@@ -228,7 +234,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (devThemes.length) {
 				return this.setFileIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 			}
-			const theme = this.fileIconThemeRegistry.findThemeBySettingsId(this.settings.fileIconTheme);
+			let theme = this.fileIconThemeRegistry.findThemeBySettingsId(this.settings.fileIconTheme);
+			if (!theme) {
+				// If the current theme is not available, first make sure setting sync is complete
+				await this.userDataInitializationService.whenInitializationFinished();
+				theme = this.fileIconThemeRegistry.findThemeBySettingsId(this.settings.fileIconTheme);
+			}
 			return this.setFileIconTheme(theme ? theme.id : DEFAULT_FILE_ICON_THEME_ID, undefined);
 		};
 
@@ -237,7 +248,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (devThemes.length) {
 				return this.setProductIconTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
 			}
-			const theme = this.productIconThemeRegistry.findThemeBySettingsId(this.settings.productIconTheme);
+			let theme = this.productIconThemeRegistry.findThemeBySettingsId(this.settings.productIconTheme);
+			if (!theme) {
+				// If the current theme is not available, first make sure setting sync is complete
+				await this.userDataInitializationService.whenInitializationFinished();
+				theme = this.productIconThemeRegistry.findThemeBySettingsId(this.settings.productIconTheme);
+			}
 			return this.setProductIconTheme(theme ? theme.id : DEFAULT_PRODUCT_ICON_THEME_ID, undefined);
 		};
 
