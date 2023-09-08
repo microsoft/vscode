@@ -6,7 +6,7 @@ import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { category } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
@@ -22,11 +22,6 @@ registerAction2(class TextSearchQuickAccessAction extends Action2 {
 				original: 'Quick Text Search (Experimental)'
 			},
 			category,
-			menu: [{
-				id: MenuId.SearchContext,
-				group: 'search_2',
-				order: 1
-			}],
 			f1: true
 		});
 

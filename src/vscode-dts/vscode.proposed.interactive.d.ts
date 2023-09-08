@@ -159,6 +159,7 @@ declare module 'vscode' {
 		shouldRepopulate?: boolean;
 		followupPlaceholder?: string;
 		executeImmediately?: boolean;
+		yieldTo?: ReadonlyArray<{ readonly command: string }>;
 	}
 
 	export interface InteractiveSessionReplyFollowup {

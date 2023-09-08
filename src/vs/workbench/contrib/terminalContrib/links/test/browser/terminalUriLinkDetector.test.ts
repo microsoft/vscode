@@ -16,8 +16,11 @@ import { URI } from 'vs/base/common/uri';
 import type { Terminal } from 'xterm';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Workbench - TerminalUriLinkDetector', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let detector: TerminalUriLinkDetector;
 	let xterm: Terminal;
@@ -25,7 +28,7 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {

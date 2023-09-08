@@ -37,8 +37,8 @@ import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/ed
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -68,6 +68,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -78,7 +79,6 @@ import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detac
 import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
@@ -1149,7 +1149,7 @@ const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { act
 	message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 
 class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
-	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget2>());
+	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
 
@@ -1179,13 +1179,13 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 		const model = this.model.value = new SimpleDiffEditorModel(original, modified);
 		if (!this.widget.value) {
 			this.widget.value = this.editor ? this.instantiationService.createInstance(
-				EmbeddedDiffEditorWidget2,
+				EmbeddedDiffEditorWidget,
 				this.container,
 				diffEditorOptions,
 				{},
 				this.editor,
 			) : this.instantiationService.createInstance(
-				DiffEditorWidget2,
+				DiffEditorWidget,
 				this.container,
 				diffEditorOptions,
 				{},
@@ -1493,6 +1493,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				terminal.xterm.write(chunk.buffer, () => pendingWrites.value--);
 			}
 		} else {
+			didWriteData = true;
 			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
 		}
 
@@ -1528,7 +1529,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 
 	private writeNotice(terminal: IDetachedTerminalInstance, str: string) {
-		terminal.xterm.write(`\x1b[2m${str}\x1b[0m`);
+		terminal.xterm.write(formatMessageForTerminal(str));
 	}
 
 	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
@@ -1605,7 +1606,7 @@ function getOuterEditorFromDiffEditor(codeEditorService: ICodeEditorService): IC
 	const diffEditors = codeEditorService.listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget2) {
+		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
 			return diffEditor.getParentEditor();
 		}
 	}
@@ -1704,15 +1705,7 @@ class TestCaseElement implements ITreeElement {
 		private readonly task: ITestRunTask,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
-	) {
-		for (const parent of resultItemParents(results, test)) {
-			if (parent !== test) {
-				this.description = this.description
-					? parent.item.label + flatTestItemDelimiter + this.description
-					: parent.item.label;
-			}
-		}
-	}
+	) { }
 }
 
 class TaskElement implements ITreeElement {
@@ -1871,7 +1864,7 @@ class OutputPeekTree extends Disposable {
 			return test.tasks[taskIndex].messages
 				.map((m, messageIndex) =>
 					m.type === TestMessageType.Error
-						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: true }
+						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: false }
 						: undefined
 				)
 				.filter(isDefined);
@@ -2103,8 +2096,8 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ITreeElement>, FuzzyScore>, _index: number, templateData: TemplateData): void {
 		const chain = node.element.elements;
 		const lastElement = chain[chain.length - 1];
-		if (lastElement instanceof TaskElement && chain.length >= 2) {
-			this.doRender(chain[chain.length - 2], templateData);
+		if ((lastElement instanceof TaskElement || lastElement instanceof TestMessageElement) && chain.length >= 2) {
+			this.doRender(chain[chain.length - 2], templateData, lastElement);
 		} else {
 			this.doRender(lastElement, templateData);
 		}
@@ -2148,20 +2141,26 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	}
 
 	/** Called to render a new element */
-	private doRender(element: ITreeElement, templateData: TemplateData) {
+	private doRender(element: ITreeElement, templateData: TemplateData, subjectElement?: ITreeElement) {
 		templateData.elementDisposable.clear();
-		templateData.elementDisposable.add(element.onDidChange(() => this.doRender(element, templateData)));
-		this.doRenderInner(element, templateData);
+		templateData.elementDisposable.add(
+			element.onDidChange(() => this.doRender(element, templateData, subjectElement)),
+		);
+		this.doRenderInner(element, templateData, subjectElement);
 	}
 
 	/** Called, and may be re-called, to render or re-render an element */
-	private doRenderInner(element: ITreeElement, templateData: TemplateData) {
-		if (element.labelWithIcons) {
-			dom.reset(templateData.label, ...element.labelWithIcons);
-		} else if (element.description) {
-			dom.reset(templateData.label, element.label, dom.$('span.test-label-description', {}, element.description));
+	private doRenderInner(element: ITreeElement, templateData: TemplateData, subjectElement: ITreeElement | undefined) {
+		let { label, labelWithIcons, description } = element;
+		if (subjectElement instanceof TestMessageElement) {
+			description = subjectElement.label;
+		}
+
+		const descriptionElement = description ? dom.$('span.test-label-description', {}, description) : '';
+		if (labelWithIcons) {
+			dom.reset(templateData.label, ...labelWithIcons, descriptionElement);
 		} else {
-			dom.reset(templateData.label, element.label);
+			dom.reset(templateData.label, label, descriptionElement);
 		}
 
 		const icon = element.icon;
@@ -2248,14 +2247,6 @@ class TreeActionsProvider {
 
 		if (element instanceof TestCaseElement) {
 			const extId = element.test.item.extId;
-			primary.push(new Action(
-				'testing.outputPeek.goToFile',
-				localize('testing.goToFile', "Go to Source"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', extId),
-			));
-
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
@@ -2293,6 +2284,14 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
 				));
 			}
+
+			primary.push(new Action(
+				'testing.outputPeek.goToFile',
+				localize('testing.goToFile', "Go to Source"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				undefined,
+				() => this.commandService.executeCommand('vscode.revealTest', extId),
+			));
 		}
 
 		if (element instanceof TestMessageElement) {

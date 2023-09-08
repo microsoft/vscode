@@ -345,10 +345,10 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		const disposables = new DisposableStore();
 		try {
 			const recommendationsNotification = new RecommendationsNotification(severity, message, choices, this.notificationService);
-			Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
+			disposables.add(Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification()));
 			if (this.visibleNotification) {
 				const index = this.pendingNotificaitons.length;
-				token.onCancellationRequested(() => this.pendingNotificaitons.splice(index, 1), disposables);
+				disposables.add(token.onCancellationRequested(() => this.pendingNotificaitons.splice(index, 1)));
 				this.pendingNotificaitons.push({ recommendationsNotification, source, token });
 				if (source !== RecommendationSource.EXE && source <= this.visibleNotification!.source) {
 					this.hideVisibleNotification(3000);

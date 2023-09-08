@@ -1894,7 +1894,6 @@ export class SearchView extends ViewPane {
 			pinned,
 			selection,
 			revealIfVisible: true,
-			indexedCellOptions: element instanceof MatchInNotebook ? { index: element.cellIndex, selection: element.range() } : undefined,
 		};
 
 		try {
@@ -2077,6 +2076,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private _saveSearchHistoryService() {
+		if (this.searchWidget === undefined) {
+			return;
+		}
 		const history: ISearchHistoryValues = Object.create(null);
 
 		const searchHistory = this.searchWidget.getSearchHistory();

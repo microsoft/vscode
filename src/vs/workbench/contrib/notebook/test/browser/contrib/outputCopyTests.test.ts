@@ -7,7 +7,7 @@ import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/noteb
 import { mock } from 'vs/base/test/common/mock';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ILogService } from 'vs/platform/log/common/log';
-import assert = require('assert');
+import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { copyCellOutput } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';

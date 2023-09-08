@@ -152,6 +152,7 @@ export interface IFocusNotebookCellOptions {
 	readonly focusEditorLine?: number;
 	readonly minimalScrolling?: boolean;
 	readonly outputId?: string;
+	readonly altOutputId?: string;
 }
 
 //#endregion

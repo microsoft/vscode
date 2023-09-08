@@ -1429,6 +1429,9 @@ suite('Editor Controller', () => {
 	function setupAutoClosingLanguage() {
 		disposables.add(languageService.registerLanguage({ id: autoClosingLanguageId }));
 		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+			comments: {
+				blockComment: ['/*', '*/']
+			},
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
 				{ open: '[', close: ']' },
@@ -5340,6 +5343,24 @@ suite('Editor Controller', () => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('*', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+	});
+
+	test('autoClosingPairs - doc comments can be turned off', () => {
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: autoClosingLanguageId,
+			editorOpts: {
+				autoClosingComments: 'never'
+			}
+		}, (editor, model, viewModel) => {
+
+			model.setValue('/*');
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/**');
 		});
 	});
 

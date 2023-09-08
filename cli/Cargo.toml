@@ -18,8 +18,8 @@ open = "4.1.0"
 reqwest = { version = "0.11.18", default-features = false, features = ["json", "stream", "native-tls"] }
 tokio = { version = "1.28.2", features = ["full"] }
 tokio-util = { version = "0.7.8", features = ["compat", "codec"] }
-flate2 = "1.0.26"
-zip = { version = "0.6.6", default-features = false, features = ["time", "deflate"] }
+flate2 = { version = "1.0.26", default-features = false, features = ["zlib"] }
+zip = { version = "0.6.6", default-features = false, features = ["time", "deflate-zlib"] }
 regex = "1.8.3"
 lazy_static = "1.4.0"
 sysinfo = { version = "0.29.0", default-features = false }

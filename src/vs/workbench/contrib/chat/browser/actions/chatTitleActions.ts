@@ -15,7 +15,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -104,44 +104,6 @@ export function registerChatTitleActions() {
 		}
 	});
 
-	registerAction2(class MentionAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.chat.mention',
-				title: {
-					value: localize('interactive.mention.label', "Mention"),
-					original: 'Mention'
-				},
-				f1: false,
-				category: CHAT_CATEGORY,
-				icon: Codicon.add,
-				menu: {
-					id: MenuId.ChatMessageTitle,
-					group: 'navigation',
-					order: 3,
-					when: CONTEXT_RESPONSE
-				}
-			});
-		}
-
-		run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
-			if (!isResponseVM(item)) {
-				return;
-			}
-
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const widget = chatWidgetService.lastFocusedWidget!;
-			const num = widget.viewModel!.getItems()
-				.filter(isResponseVM)
-				.indexOf(item) + 1;
-			widget.inputEditor.setValue(`${widget.inputEditor.getValue()} @response:${num} `);
-			const lastLine = widget.inputEditor.getModel()!.getLineCount();
-			const lastCol = widget.inputEditor.getModel()!.getLineLength(lastLine);
-			widget.inputEditor.setSelection({ startColumn: lastCol, endColumn: lastCol, startLineNumber: lastLine, endLineNumber: lastLine });
-		}
-	});
-
 	registerAction2(class InsertToNotebookAction extends Action2 {
 		constructor() {
 			super({
@@ -157,7 +119,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CONTEXT_RESPONSE)
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED.negate())
 				}
 			});
 		}

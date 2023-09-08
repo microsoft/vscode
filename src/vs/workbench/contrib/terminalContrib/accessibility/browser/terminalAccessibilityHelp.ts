@@ -11,7 +11,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ShellIntegrationStatus, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -60,7 +60,14 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 			const kb = this._keybindingService.lookupKeybindings(commandId);
 			// Run recent command has multiple keybindings. lookupKeybinding just returns the first one regardless of the when context.
 			// Thus, we have to check if accessibility mode is enabled to determine which keybinding to use.
-			return this._accessibilityService.isScreenReaderOptimized() ? format(msg, kb[1].getAriaLabel()) : format(msg, kb[0].getAriaLabel());
+			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (isScreenReaderOptimized && kb[1]) {
+				format(msg, kb[1].getAriaLabel());
+			} else if (kb[0]) {
+				format(msg, kb[0].getAriaLabel());
+			} else {
+				return format(noKbMsg, commandId);
+			}
 		}
 		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService)?.getAriaLabel();
 		return !kb ? format(noKbMsg, commandId) : format(msg, kb);
@@ -86,6 +93,7 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		}
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.')));
 		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.'), localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.')));
+		content.push(localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun));
 		content.push(localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.'));
 		return content.join('\n\n');
 	}

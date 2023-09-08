@@ -212,6 +212,7 @@ impl ActiveTunnel {
 
 const VSCODE_CLI_TUNNEL_TAG: &str = "vscode-server-launcher";
 const VSCODE_CLI_FORWARDING_TAG: &str = "vscode-port-forward";
+const OWNED_TUNNEL_TAGS: &[&str] = &[VSCODE_CLI_TUNNEL_TAG, VSCODE_CLI_FORWARDING_TAG];
 const MAX_TUNNEL_NAME_LENGTH: usize = 20;
 
 fn get_host_token_from_tunnel(tunnel: &Tunnel) -> String {
@@ -635,7 +636,7 @@ impl DevTunnels {
 			"Tunnel limit hit, trying to recycle an old tunnel"
 		);
 
-		let existing_tunnels = self.list_all_server_tunnels().await?;
+		let existing_tunnels = self.list_tunnels_with_tag(OWNED_TUNNEL_TAGS).await?;
 
 		let recyclable = existing_tunnels
 			.iter()
@@ -667,13 +668,15 @@ impl DevTunnels {
 		}
 	}
 
-	async fn list_all_server_tunnels(&mut self) -> Result<Vec<Tunnel>, AnyError> {
+	async fn list_tunnels_with_tag(
+		&mut self,
+		tags: &[&'static str],
+	) -> Result<Vec<Tunnel>, AnyError> {
 		let tunnels = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.listall"),
 			self.client.list_all_tunnels(&TunnelRequestOptions {
-				tags: vec![self.tag.to_string()],
-				require_all_tags: true,
+				tags: tags.iter().map(|t| t.to_string()).collect(),
 				..Default::default()
 			})
 		)
@@ -711,7 +714,7 @@ impl DevTunnels {
 		preferred_name: Option<&str>,
 		mut use_random_name: bool,
 	) -> Result<String, AnyError> {
-		let existing_tunnels = self.list_all_server_tunnels().await?;
+		let existing_tunnels = self.list_tunnels_with_tag(&[self.tag]).await?;
 		let is_name_free = |n: &str| {
 			!existing_tunnels.iter().any(|v| {
 				v.status

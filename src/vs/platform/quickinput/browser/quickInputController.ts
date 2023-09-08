@@ -21,6 +21,7 @@ import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
 import { QuickInputList, QuickInputListFocus } from 'vs/platform/quickinput/browser/quickInputList';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -50,7 +51,8 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
-	constructor(private options: IQuickInputOptions) {
+	constructor(private options: IQuickInputOptions,
+		private readonly themeService: IThemeService) {
 		super();
 		this.idPrefix = options.idPrefix;
 		this.parentElement = options.container;
@@ -81,12 +83,13 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const leftActionBar = this._register(new ActionBar(titleBar));
+		const actionBarOption = this.options.hoverDelegate ? { hoverDelegate: this.options.hoverDelegate } : undefined;
+		const leftActionBar = this._register(new ActionBar(titleBar, actionBarOption));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar));
+		const rightActionBar = this._register(new ActionBar(titleBar, actionBarOption));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
@@ -121,14 +124,14 @@ export class QuickInputController extends Disposable {
 		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge);
 
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const ok = new Button(okContainer, this.styles.button);
+		const ok = this._register(new Button(okContainer, this.styles.button));
 		ok.label = localize('ok', "OK");
 		this._register(ok.onDidClick(e => {
 			this.onDidAcceptEmitter.fire();
 		}));
 
 		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const customButton = new Button(customButtonContainer, this.styles.button);
+		const customButton = this._register(new Button(customButtonContainer, this.styles.button));
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();
@@ -136,7 +139,7 @@ export class QuickInputController extends Disposable {
 
 		const message = dom.append(inputContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
-		const progressBar = new ProgressBar(container, this.styles.progressBar);
+		const progressBar = this._register(new ProgressBar(container, this.styles.progressBar));
 		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const widget = dom.append(container, $('.quick-input-html-widget'));
@@ -145,7 +148,7 @@ export class QuickInputController extends Disposable {
 		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const listId = this.idPrefix + 'list';
-		const list = this._register(new QuickInputList(container, listId, this.options));
+		const list = this._register(new QuickInputList(container, listId, this.options, this.themeService));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
