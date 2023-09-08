@@ -97,7 +97,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
 		const languageId = model?.getLanguageId();
-		const shouldRenderInlineChatHint = languageId !== OUTPUT_MODE_ID && languageId !== LOG_MODE_ID && inlineChatProviders.length > 0;
+		const shouldRenderInlineChatHint = !this.editor.getOption(EditorOption.readOnly) && languageId !== OUTPUT_MODE_ID && languageId !== LOG_MODE_ID && inlineChatProviders.length > 0;
 		const shouldRenderDefaultHint = languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
 
 		if (model && (model.uri.scheme === Schemas.untitled && shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue !== 'hidden') {
