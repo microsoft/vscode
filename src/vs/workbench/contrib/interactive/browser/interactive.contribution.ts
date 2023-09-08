@@ -699,7 +699,11 @@ registerAction2(class extends Action2 {
 			id: 'interactive.input.focus',
 			title: { value: localize('interactive.input.focus', "Focus Input Editor"), original: 'Focus Input Editor' },
 			category: interactiveWindowCategory,
-			f1: true
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.equals('interactiveWindowOpen', true),
+			},
+			precondition: ContextKeyExpr.equals('interactiveWindowOpen', true),
 		});
 	}
 
