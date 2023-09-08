@@ -36,6 +36,7 @@ import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IEx
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration.js';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -159,6 +160,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		@IProductService private readonly productService: IProductService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -388,7 +390,8 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 
 	private async scanDefaultSystemExtensions(useCache: boolean, language: string | undefined): Promise<IRelaxedScannedExtension[]> {
 		this.logService.trace('Started scanning system extensions');
-		const extensionsScannerInput = await this.createExtensionScannerInput(this.systemExtensionsLocation, false, ExtensionType.System, true, language, true, undefined, false);
+		const validateSystemExtensionsCache = this.configurationService.getValue<boolean>('extensions.validateSystemExtensionsCache'); // TODO check if this works as expected
+		const extensionsScannerInput = await this.createExtensionScannerInput(this.systemExtensionsLocation, false, ExtensionType.System, true, language, true, undefined, validateSystemExtensionsCache);
 		const extensionsScanner = useCache && !extensionsScannerInput.devMode ? this.systemExtensionsCachedScanner : this.extensionsScanner;
 		const result = await extensionsScanner.scanExtensions(extensionsScannerInput);
 		this.logService.trace('Scanned system extensions:', result.length);
@@ -983,13 +986,14 @@ export class NativeExtensionsScannerService extends AbstractExtensionsScannerSer
 		productService: IProductService,
 		uriIdentityService: IUriIdentityService,
 		instantiationService: IInstantiationService,
+		configurationService: IConfigurationService
 	) {
 		super(
 			systemExtensionsLocation,
 			userExtensionsLocation,
 			joinPath(userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
 			currentProfile,
-			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService, configurationService);
 		this.translationsPromise = (async () => {
 			if (platform.translationsConfigFile) {
 				try {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration.js';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IExtensionsScannerService, NativeExtensionsScannerService, } from 'vs/platform/extensionManagement/common/extensionsScannerService';
@@ -28,13 +29,14 @@ export class ExtensionsScannerService extends NativeExtensionsScannerService imp
 		@IProductService productService: IProductService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
 			URI.file(environmentService.builtinExtensionsPath),
 			URI.file(environmentService.extensionsPath),
 			environmentService.userHome,
 			userDataProfileService.currentProfile,
-			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService);
+			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService, configurationService);
 	}
 
 }
