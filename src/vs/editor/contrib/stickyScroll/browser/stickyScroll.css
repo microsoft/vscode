@@ -47,7 +47,7 @@
 }
 
 .monaco-editor .sticky-line-number-inner {
-	display: block;
+	display: inline-block;
 	text-align: right;
 }
 
