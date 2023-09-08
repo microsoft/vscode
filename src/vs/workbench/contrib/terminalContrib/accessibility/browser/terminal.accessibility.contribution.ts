@@ -85,7 +85,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return;
 		}
 		if (!this._bufferTracker) {
-			this._bufferTracker = this._instantiationService.createInstance(BufferContentTracker, this._xterm);
+			this._bufferTracker = this._register(this._instantiationService.createInstance(BufferContentTracker, this._xterm));
 		}
 		this._accessibleViewService.show(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
 		// wait for the render to happen so that the line count is correct and
