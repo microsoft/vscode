@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { SetMap, groupBy } from 'vs/base/common/collections';
 import { DisposableStore, IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-import { trim } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
@@ -44,20 +41,19 @@ export async function assertThrowsAsync(block: () => any, message: string | Erro
 	throw err;
 }
 
-interface DisposableInfo {
-	value: IDisposable;
+interface DisposableData {
 	source: string | null;
 	parent: IDisposable | null;
 	isSingleton: boolean;
 }
 
 export class DisposableTracker implements IDisposableTracker {
-	private readonly livingDisposables = new Map<IDisposable, DisposableInfo>();
+	private readonly livingDisposables = new Map<IDisposable, DisposableData>();
 
 	private getDisposableData(d: IDisposable) {
 		let val = this.livingDisposables.get(d);
 		if (!val) {
-			val = { parent: null, source: null, isSingleton: false, value: d };
+			val = { parent: null, source: null, isSingleton: false };
 			this.livingDisposables.set(d, val);
 		}
 		return val;
@@ -84,7 +80,7 @@ export class DisposableTracker implements IDisposableTracker {
 		this.getDisposableData(disposable).isSingleton = true;
 	}
 
-	private getRootParent(data: DisposableInfo, cache: Map<DisposableInfo, DisposableInfo>): DisposableInfo {
+	private getRootParent(data: DisposableData, cache: Map<DisposableData, DisposableData>): DisposableData {
 		const cacheValue = cache.get(data);
 		if (cacheValue) {
 			return cacheValue;
@@ -96,7 +92,7 @@ export class DisposableTracker implements IDisposableTracker {
 	}
 
 	getTrackedDisposables() {
-		const rootParentCache = new Map<DisposableInfo, DisposableInfo>();
+		const rootParentCache = new Map<DisposableData, DisposableData>();
 
 		const leaking = [...this.livingDisposables.entries()]
 			.filter(([, v]) => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton)
@@ -107,79 +103,25 @@ export class DisposableTracker implements IDisposableTracker {
 	}
 
 	ensureNoLeakingDisposables() {
-		const rootParentCache = new Map<DisposableInfo, DisposableInfo>();
+		const rootParentCache = new Map<DisposableData, DisposableData>();
+		const leaking = [...this.livingDisposables.values()]
+			.filter(v => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton);
 
-		const leakingObjects = [...this.livingDisposables.values()]
-			.filter((info) => info.source !== null && !this.getRootParent(info, rootParentCache).isSingleton);
+		if (leaking.length > 0) {
+			const count = 10;
+			const firstLeaking = leaking.slice(0, count);
+			const remainingCount = leaking.length - count;
 
-		if (leakingObjects.length === 0) {
-			return;
-		}
-		const leakingObjsSet = new Set(leakingObjects.map(o => o.value));
-
-		// Remove all objects that are a child of other leaking objects. Assumes there are no cycles.
-		const uncoveredLeakingObjs = leakingObjects.filter(l => {
-			return !(l.parent && leakingObjsSet.has(l.parent));
-		});
-
-		if (uncoveredLeakingObjs.length === 0) {
-			throw new Error('There are cyclic diposable chains!');
-		}
-
-		function getStackTracePath(leaking: DisposableInfo): string[] {
-			function removePrefix(array: string[], linesToRemove: (string | RegExp)[]) {
-				while (array.length > 0 && linesToRemove.some(regexp => typeof regexp === 'string' ? regexp === array[0] : array[0].match(regexp))) {
-					array.shift();
-				}
+			const separator = '\n--------------------\n\n';
+			let s = firstLeaking.map(l => l.source).join(separator);
+			if (remainingCount > 0) {
+				s += `${separator}+ ${remainingCount} more`;
 			}
 
-			const lines = leaking.source!.split('\n').map(p => trim(p.trim(), 'at ')).filter(l => l !== '');
-			removePrefix(lines, ['Error', /^trackDisposable \(.*\)$/, /^DisposableTracker.trackDisposable \(.*\)$/]);
-			return lines.reverse();
+			throw new Error(`These disposables were not disposed:\n${s}`);
 		}
-
-		const stackTraceStarts = new SetMap<string, DisposableInfo>();
-		for (const leaking of uncoveredLeakingObjs) {
-			const stackTracePath = getStackTracePath(leaking);
-			for (let i = 0; i <= stackTracePath.length; i++) {
-				stackTraceStarts.add(stackTracePath.slice(0, i).join('\n'), leaking);
-			}
-		}
-
-		uncoveredLeakingObjs.sort(compareBy(l => getStackTracePath(l).length, numberComparator));
-
-		const maxReported = 10;
-
-		let i = 0;
-		for (const leaking of uncoveredLeakingObjs.slice(0, maxReported)) {
-			i++;
-			const stackTracePath = getStackTracePath(leaking);
-			const stackTraceFormattedLines = [];
-
-			for (let i = 0; i < stackTracePath.length; i++) {
-				let line = stackTracePath[i];
-				const starts = stackTraceStarts.get(stackTracePath.slice(0, i + 1).join('\n'));
-				line = `(shared with ${starts.size}/${uncoveredLeakingObjs.length} leaks) at ${line}`;
-
-				const prevStarts = stackTraceStarts.get(stackTracePath.slice(0, i).join('\n'));
-				const continuations = groupBy([...prevStarts].map(d => getStackTracePath(d)[i]), v => v);
-				delete continuations[stackTracePath[i]];
-				for (const [cont, set] of Object.entries(continuations)) {
-					stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
-				}
-
-				stackTraceFormattedLines.unshift(line);
-			}
-
-			console.error(`\n\n\n==================== Leaking disposable ${i}/${uncoveredLeakingObjs.length}: ${leaking.value.constructor.name} ====================\n${stackTraceFormattedLines.join('\n')}\n============================================================\n\n`);
-		}
-
-		if (uncoveredLeakingObjs.length > maxReported) {
-			console.error(`\n\n\n... and ${uncoveredLeakingObjs.length - maxReported} more leaking disposables\n\n`);
-		}
-
-		throw new Error(`There are ${uncoveredLeakingObjs.length} undisposed disposables! (check test output)`);
 	}
+
 }
 
 /**
