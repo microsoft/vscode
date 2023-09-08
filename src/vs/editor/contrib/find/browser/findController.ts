@@ -31,7 +31,6 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
-
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
 export function getSelectionSearchString(editor: ICodeEditor, seedSearchStringFromSelection: 'single' | 'multiple' = 'single', seedSearchStringFromNonEmptySelection: boolean = false): string | null {
