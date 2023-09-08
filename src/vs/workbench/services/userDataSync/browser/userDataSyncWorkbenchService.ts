@@ -175,15 +175,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
 
-		this._register(
+		this._register(Event.filter(
 			Event.any(
-				Event.filter(
-					Event.any(
-						this.authenticationService.onDidRegisterAuthenticationProvider,
-						this.authenticationService.onDidUnregisterAuthenticationProvider,
-					), info => this.isSupportedAuthenticationProviderId(info.id)),
-				Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive))
-				(() => this.update()));
+				this.authenticationService.onDidRegisterAuthenticationProvider,
+				this.authenticationService.onDidUnregisterAuthenticationProvider,
+			), info => this.isSupportedAuthenticationProviderId(info.id))(() => this.update()));
+
+		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive)(() => this.update('token failure')));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
@@ -205,7 +203,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}));
 	}
 
-	private async update(): Promise<void> {
+	private async update(reason?: string): Promise<void> {
+
+		if (reason) {
+			this.logService.info(`Settings Sync: Updating due to ${reason}`);
+		}
 
 		this.updateAuthenticationProviders();
 		await this.updateCurrentAccount();
@@ -611,20 +613,20 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private async onDidAuthFailure(): Promise<void> {
 		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
-		await this.update();
+		await this.update('auth failure');
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
 		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
-		this.update();
+		this.update('change in sessions');
 	}
 
 	private onDidChangeStorage(): void {
 		if (this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
 			this._cachedCurrentSessionId = null;
-			this.update();
+			this.update('change in storage');
 		}
 	}
 

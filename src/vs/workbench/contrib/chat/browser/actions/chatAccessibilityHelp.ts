@@ -12,7 +12,7 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor.contribution';
+import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -56,13 +56,12 @@ function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, 
 	return format(noKbMsg, commandId);
 }
 
-export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor, type: 'panelChat' | 'inlineChat'): Promise<void> {
+export async function runAccessibilityHelpAction(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat'): Promise<void> {
 	const widgetService = accessor.get(IChatWidgetService);
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const inputEditor: ICodeEditor | undefined = type === 'panelChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
-	const editorUri = editor.getModel()?.uri;
 
-	if (!inputEditor || !editorUri) {
+	if (!inputEditor) {
 		return;
 	}
 	const domNode = inputEditor.getDomNode() ?? undefined;
@@ -81,7 +80,9 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
 			} else if (type === 'inlineChat') {
-				InlineChatController.get(editor)?.focus();
+				if (editor) {
+					InlineChatController.get(editor)?.focus();
+				}
 			}
 		},
 		options: { type: AccessibleViewType.Help }

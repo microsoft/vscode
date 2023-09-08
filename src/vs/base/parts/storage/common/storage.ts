@@ -123,7 +123,7 @@ export class Storage extends Disposable implements IStorage {
 
 	private cache = new Map<string, string>();
 
-	private readonly flushDelayer = new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY);
+	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY));
 
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
@@ -392,6 +392,10 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	private async doFlush(delay?: number): Promise<void> {
+		if (this.options.hint === StorageHint.STORAGE_IN_MEMORY) {
+			return this.flushPending(); // return early if in-memory
+		}
+
 		return this.flushDelayer.trigger(() => this.flushPending(), delay);
 	}
 
@@ -405,12 +409,6 @@ export class Storage extends Disposable implements IStorage {
 
 	isInMemory(): boolean {
 		return this.options.hint === StorageHint.STORAGE_IN_MEMORY;
-	}
-
-	override dispose(): void {
-		this.flushDelayer.dispose();
-
-		super.dispose();
 	}
 }
 
