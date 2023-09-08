@@ -309,7 +309,8 @@ export class AccessibleView extends Disposable {
 		if (lineNumber === undefined && symbol.markdownToParse === undefined) {
 			// No symbols provided and we cannot parse this language
 			return;
-		} else if (lineNumber === undefined) {
+		}
+		if (lineNumber === undefined) {
 			// Parse the markdown to find the line number
 			const index = this._currentContent.split('\n').findIndex(line => line.includes(symbol.markdownToParse!.split('\n')[0]) || (symbol.firstListItem && line.includes(symbol.firstListItem))) ?? -1;
 			if (index >= 0) {
