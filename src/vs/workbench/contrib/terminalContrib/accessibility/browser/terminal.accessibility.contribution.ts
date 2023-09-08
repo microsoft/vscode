@@ -87,12 +87,12 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		if (!this._xterm) {
 			return;
 		}
-		this._xterm.raw.onWriteParsed(async () => {
+		this.add(this._xterm.raw.onWriteParsed(async () => {
 			if (this._xterm!.raw.buffer.active.baseY === 0) {
 				this.provideContent();
 				this._accessibleViewService.show(this);
 			}
-		});
+		}));
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this.add(onRequestUpdateEditor(() => this._accessibleViewService.show(this)));
 	}
