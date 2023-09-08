@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/TabBarControl';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isSafari, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor, EditorInputCapabilities, preventEditorClose, EditorCloseMethod, IUntypedEditorInput, GroupIdentifier, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -22,9 +22,9 @@ import { IDisposable, dispose, DisposableStore, combinedDisposable, toDisposable
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, Themable, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BORDER, WORKBENCH_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND } from 'vs/workbench/common/theme';
+import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, ResourcesDropHandler } from 'vs/workbench/browser/dnd';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { GroupsArrangement, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -52,6 +52,7 @@ import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndServ
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Color } from 'vs/base/common/color';
 
 interface IEditorInputLabel {
 	editor: EditorInput;
@@ -1744,3 +1745,243 @@ export class TabBarControl extends Themable {
 		this.tabDisposables = dispose(this.tabDisposables);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+
+	// Add bottom border to tabs when wrapping
+	const borderColor = theme.getColor(TAB_BORDER);
+	if (borderColor) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {
+				border-bottom: 1px solid ${borderColor};
+			}
+		`);
+	}
+
+	// Styling with Outline color (e.g. high contrast theme)
+	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
+	if (activeContrastBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active,
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:hover  {
+				outline: 1px solid;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.active:focus {
+				outline-style: dashed;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+				outline: 1px dotted;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+				outline: 1px dashed;
+				outline-offset: -5px;
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
+				opacity: 1 !important;
+			}
+		`);
+	}
+
+	// High Contrast Border Color for Editor Actions
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+				outline: 1px solid ${contrastBorderColor}
+			}
+		`);
+	}
+
+	// Hover Background
+	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
+	if (tabHoverBackground) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
+				background-color: ${tabHoverBackground} !important;
+			}
+		`);
+	}
+
+	const tabUnfocusedHoverBackground = theme.getColor(TAB_UNFOCUSED_HOVER_BACKGROUND);
+	if (tabUnfocusedHoverBackground) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+				background-color: ${tabUnfocusedHoverBackground} !important;
+			}
+		`);
+	}
+
+	// Hover Foreground
+	const tabHoverForeground = theme.getColor(TAB_HOVER_FOREGROUND);
+	if (tabHoverForeground) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover  {
+				color: ${tabHoverForeground} !important;
+			}
+		`);
+	}
+
+	const tabUnfocusedHoverForeground = theme.getColor(TAB_UNFOCUSED_HOVER_FOREGROUND);
+	if (tabUnfocusedHoverForeground) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover  {
+				color: ${tabUnfocusedHoverForeground} !important;
+			}
+		`);
+	}
+
+	// Hover Border
+	//
+	// Unfortunately we need to copy a lot of CSS over from the
+	// tabsTitleControl.css because we want to reuse the same
+	// styles we already have for the normal bottom-border.
+	const tabHoverBorder = theme.getColor(TAB_HOVER_BORDER);
+	if (tabHoverBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover > .tab-border-bottom-container {
+				display: block;
+				position: absolute;
+				left: 0;
+				pointer-events: none;
+				width: 100%;
+				z-index: 10;
+				bottom: 0;
+				height: 1px;
+				background-color: ${tabHoverBorder};
+			}
+		`);
+	}
+
+	const tabUnfocusedHoverBorder = theme.getColor(TAB_UNFOCUSED_HOVER_BORDER);
+	if (tabUnfocusedHoverBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-border-bottom-container  {
+				display: block;
+				position: absolute;
+				left: 0;
+				pointer-events: none;
+				width: 100%;
+				z-index: 10;
+				bottom: 0;
+				height: 1px;
+				background-color: ${tabUnfocusedHoverBorder};
+			}
+		`);
+	}
+
+	// Fade out styles via linear gradient (when tabs are set to shrink or fixed)
+	// But not when:
+	// - in high contrast theme
+	// - if we have a contrast border (which draws an outline - https://github.com/microsoft/vscode/issues/109117)
+	// - on Safari (https://github.com/microsoft/vscode/issues/108996)
+	if (!isHighContrast(theme.type) && !isSafari && !activeContrastBorderColor) {
+		const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+		const editorBackgroundColor = theme.getColor(editorBackground);
+		const editorGroupHeaderTabsBackground = theme.getColor(EDITOR_GROUP_HEADER_TABS_BACKGROUND);
+		const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
+
+		let adjustedTabBackground: Color | undefined;
+		if (editorGroupHeaderTabsBackground && editorBackgroundColor) {
+			adjustedTabBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorBackgroundColor, workbenchBackground);
+		}
+
+		let adjustedTabDragBackground: Color | undefined;
+		if (editorGroupHeaderTabsBackground && editorBackgroundColor && editorDragAndDropBackground && editorBackgroundColor) {
+			adjustedTabDragBackground = editorGroupHeaderTabsBackground.flatten(editorBackgroundColor, editorDragAndDropBackground, editorBackgroundColor, workbenchBackground);
+		}
+
+		// Adjust gradient for focused and unfocused hover background
+		const makeTabHoverBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after,
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-fixed:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
+				background: linear-gradient(to left, ${color}, transparent) !important;
+			}
+
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after,
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-fixed:not(.dragged):not(.sticky-compact):hover > .tab-label > .monaco-icon-label-container::after {
+				background: linear-gradient(to left, ${colorDrag}, transparent) !important;
+			}
+		`;
+
+		// Adjust gradient for (focused) hover background
+		if (tabHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabHoverBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabHoverBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(makeTabHoverBackgroundRule(adjustedColor, adjustedColorDrag, true));
+		}
+
+		// Adjust gradient for unfocused hover background
+		if (tabUnfocusedHoverBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabUnfocusedHoverBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabUnfocusedHoverBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(makeTabHoverBackgroundRule(adjustedColor, adjustedColorDrag));
+		}
+
+		// Adjust gradient for drag and drop background
+		if (editorDragAndDropBackground && adjustedTabDragBackground) {
+			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(`
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-fixed.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-fixed.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
+					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
+				}
+		`);
+		}
+
+		const makeTabBackgroundRule = (color: Color, colorDrag: Color, focused: boolean, active: boolean) => `
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-fixed${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
+					background: linear-gradient(to left, ${color}, transparent);
+				}
+
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-fixed${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label > .monaco-icon-label-container::after {
+					background: linear-gradient(to left, ${colorDrag}, transparent);
+				}
+		`;
+
+		// Adjust gradient for focused active tab background
+		const tabActiveBackground = theme.getColor(TAB_ACTIVE_BACKGROUND);
+		if (tabActiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabActiveBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabActiveBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, true, true));
+		}
+
+		// Adjust gradient for unfocused active tab background
+		const tabUnfocusedActiveBackground = theme.getColor(TAB_UNFOCUSED_ACTIVE_BACKGROUND);
+		if (tabUnfocusedActiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabUnfocusedActiveBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabUnfocusedActiveBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, false, true));
+		}
+
+		// Adjust gradient for focused inactive tab background
+		const tabInactiveBackground = theme.getColor(TAB_INACTIVE_BACKGROUND);
+		if (tabInactiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabInactiveBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabInactiveBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, true, false));
+		}
+
+		// Adjust gradient for unfocused inactive tab background
+		const tabUnfocusedInactiveBackground = theme.getColor(TAB_UNFOCUSED_INACTIVE_BACKGROUND);
+		if (tabUnfocusedInactiveBackground && adjustedTabBackground && adjustedTabDragBackground) {
+			const adjustedColor = tabUnfocusedInactiveBackground.flatten(adjustedTabBackground);
+			const adjustedColorDrag = tabUnfocusedInactiveBackground.flatten(adjustedTabDragBackground);
+			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, false, false));
+		}
+	}
+});

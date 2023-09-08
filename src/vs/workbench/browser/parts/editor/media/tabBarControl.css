@@ -423,3 +423,24 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.tab-actions-off > .tab-actions {
 	pointer-events: none; /* don't allow tab actions to be clicked when running without tab actions */
 }
+
+/* Editor Actions Toolbar */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions {
+	cursor: default;
+	flex: initial;
+	padding: 0 8px 0 4px;
+	height: var(--editor-group-title-height);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item {
+	margin-right: 4px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {
+
+	/* When tabs are wrapped, position the editor actions at the end of the very last row */
+	position: absolute;
+	bottom: 0;
+	right: 0;
+}
