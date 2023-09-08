@@ -616,9 +616,10 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		return lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 	}
 	setPosition(position: Position, reveal?: boolean): void {
-		this._accessibleView?.editorWidget.setPosition(position);
+		const editorWidget = this._accessibleView?.editorWidget;
+		editorWidget?.setPosition(position);
 		if (reveal) {
-			this._accessibleView?.editorWidget.revealLine(position.lineNumber);
+			editorWidget?.revealLine(position.lineNumber);
 		}
 	}
 }
