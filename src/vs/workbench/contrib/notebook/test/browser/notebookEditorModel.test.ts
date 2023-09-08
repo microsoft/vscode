@@ -25,12 +25,12 @@ suite('NotebookFileWorkingCopyModel', function () {
 	let instantiationService: TestInstantiationService;
 	const configurationService = new TestConfigurationService();
 
-	suiteSetup(() => {
+	teardown(() => disposables.dispose());
+
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 	});
-
-	suiteTeardown(() => disposables.dispose());
 
 	test('no transient output is send to serializer', async function () {
 
@@ -44,7 +44,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		{ // transient output
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -58,7 +58,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 					}
 				),
 				configurationService
-			);
+			));
 
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
@@ -66,7 +66,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		{ // NOT transient output
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -80,7 +80,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 					}
 				),
 				configurationService
-			);
+			));
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}

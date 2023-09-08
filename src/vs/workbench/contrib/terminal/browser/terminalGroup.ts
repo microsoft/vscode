@@ -5,7 +5,7 @@
 
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -300,6 +300,12 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this.attachToElement(this._container);
 		}
 		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL);
+		this._register(toDisposable(() => {
+			if (this._container && this._groupElement) {
+				this._container.removeChild(this._groupElement);
+				this._groupElement = undefined;
+			}
+		}));
 	}
 
 	addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance, parentTerminalId?: number): void {
@@ -328,13 +334,9 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	override dispose(): void {
-		super.dispose();
-		if (this._container && this._groupElement) {
-			this._container.removeChild(this._groupElement);
-			this._groupElement = undefined;
-		}
 		this._terminalInstances = [];
 		this._onInstancesChanged.fire();
+		super.dispose();
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {

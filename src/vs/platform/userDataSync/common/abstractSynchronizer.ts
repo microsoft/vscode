@@ -133,7 +133,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	private _onDidChangeConflicts = this._register(new Emitter<IUserDataSyncResourceConflicts>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
-	private readonly localChangeTriggerThrottler = new ThrottledDelayer<void>(50);
+	private readonly localChangeTriggerThrottler = this._register(new ThrottledDelayer<void>(50));
 	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
