@@ -36,7 +36,6 @@
 .monaco-editor .sticky-line-number .codicon-folding-expanded,
 .monaco-editor .sticky-line-number .codicon-folding-collapsed {
 	float: right;
-	padding-right: 2px;
 	transition: var(--vscode-editorStickyScroll-foldingOpacityTransition);
 }
 
