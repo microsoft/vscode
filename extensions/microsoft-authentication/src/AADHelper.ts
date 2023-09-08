@@ -120,12 +120,12 @@ export class AzureActiveDirectoryService {
 	}
 
 	public async initialize(): Promise<void> {
-		this._logger.info('Reading sessions from secret storage...');
+		this._logger.trace('Reading sessions from secret storage...');
 		const sessions = await this._tokenStorage.getAll(item => this.sessionMatchesEndpoint(item));
-		this._logger.info(`Got ${sessions.length} stored sessions`);
+		this._logger.trace(`Got ${sessions.length} stored sessions`);
 
 		const refreshes = sessions.map(async session => {
-			this._logger.trace(`Read the following stored session '${session.id}' with scopes: ${session.scope}`);
+			this._logger.trace(`[${session.scope}] '${session.id}' Read stored session`);
 			const scopes = session.scope.split(' ');
 			const scopeData: IScopeData = {
 				scopes,
@@ -223,10 +223,10 @@ export class AzureActiveDirectoryService {
 		modifiedScopes = modifiedScopes.sort();
 
 		let modifiedScopesStr = modifiedScopes.join(' ');
-		this._logger.info(`Getting sessions for the following scopes: ${modifiedScopesStr}`);
+		this._logger.info(`[${modifiedScopesStr}] Getting sessions`);
 
 		if (this._refreshingPromise) {
-			this._logger.info('Refreshing in progress. Waiting for completion before continuing.');
+			this._logger.trace('Refreshing in progress. Waiting for completion before continuing.');
 			try {
 				await this._refreshingPromise;
 			} catch (e) {
@@ -241,9 +241,10 @@ export class AzureActiveDirectoryService {
 		// without an idtoken.
 		if (!matchingTokens.length) {
 			const fallbackOrderedScopes = scopes.sort().join(' ');
-			this._logger.trace(`No session found with idtoken scopes... Using fallback scope list of: ${fallbackOrderedScopes}`);
+			this._logger.trace(`[${modifiedScopesStr}] No session found with idtoken scopes... Using fallback scope list of: ${fallbackOrderedScopes}`);
 			matchingTokens = this._tokens.filter(token => token.scope === fallbackOrderedScopes);
 			if (matchingTokens.length) {
+				this._logger.trace(`[${modifiedScopesStr}] Found ${matchingTokens.length} sessions with fallback scope list of: ${fallbackOrderedScopes}`);
 				modifiedScopesStr = fallbackOrderedScopes;
 			}
 		}
@@ -270,16 +271,17 @@ export class AzureActiveDirectoryService {
 				: this._tokens.find(t => t.refreshToken && t.scope.includes(`VSCODE_CLIENT_ID:${clientId}`));
 
 			if (token) {
+				this._logger.trace(`[${modifiedScopesStr}] '${token.sessionId}' Found a matching token with a different scopes '${token.scope}'. Attempting to get a new session using the existing session.`);
 				try {
 					const itoken = await this.refreshToken(token.refreshToken, scopeData);
 					matchingTokens.push(itoken);
 				} catch (err) {
-					this._logger.error(`Attempted to get a new session for scopes '${scopeData.scopeStr}' using the existing session with scopes '${token.scope}' but it failed due to: ${err.message ?? err}`);
+					this._logger.error(`[${modifiedScopesStr}] Attempted to get a new session using the existing session with scopes '${token.scope}' but it failed due to: ${err.message ?? err}`);
 				}
 			}
 		}
 
-		this._logger.info(`Got ${matchingTokens.length} sessions for scopes: ${modifiedScopesStr}`);
+		this._logger.info(`[${modifiedScopesStr}] Got ${matchingTokens.length} sessions`);
 		const results = await Promise.allSettled(matchingTokens.map(token => this.convertToSession(token, scopeData)));
 		return results
 			.filter(result => result.status === 'fulfilled')
@@ -311,7 +313,7 @@ export class AzureActiveDirectoryService {
 			tenant: this.getTenantId(scopes),
 		};
 
-		this._logger.info(`Logging in for the following scopes: ${scopeData.scopeStr}`);
+		this._logger.info(`[${scopeData.scopeStr}] Creating session`);
 
 		const runsRemote = vscode.env.remoteName !== undefined;
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
@@ -327,7 +329,7 @@ export class AzureActiveDirectoryService {
 		try {
 			return await this.createSessionWithLocalServer(scopeData);
 		} catch (e) {
-			this._logger.error(`Error creating session for scopes: ${scopeData.scopeStr} Error: ${e}`);
+			this._logger.error(`[${scopeData.scopeStr}] Error creating session: ${e}`);
 
 			// If the error was about starting the server, try directly hitting the login endpoint instead
 			if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
@@ -339,6 +341,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async createSessionWithLocalServer(scopeData: IScopeData) {
+		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow with local server`);
 		const codeVerifier = generateCodeVerifier();
 		const codeChallenge = await generateCodeChallenge(codeVerifier);
 		const qs = new URLSearchParams({
@@ -367,11 +370,14 @@ export class AzureActiveDirectoryService {
 		}
 
 		const session = await this.exchangeCodeForSession(codeToExchange, codeVerifier, scopeData);
+		this._logger.trace(`[${scopeData.scopeStr}] '${session.id}' Sending change event for added session`);
 		this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+		this._logger.info(`[${scopeData.scopeStr}] '${session.id}' session successfully created!`);
 		return session;
 	}
 
 	private async createSessionWithoutLocalServer(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
+		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow without local server`);
 		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
 		const nonce = generateCodeVerifier();
 		const callbackQuery = new URLSearchParams(callbackUri.query);
@@ -433,25 +439,19 @@ export class AzureActiveDirectoryService {
 	}
 
 	public async removeSessionById(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
-		this._logger.info(`Logging out of session '${sessionId}'`);
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
 		if (tokenIndex === -1) {
-			this._logger.info(`Session not found '${sessionId}'`);
+			this._logger.warn(`'${sessionId}' Session not found to remove`);
 			return Promise.resolve(undefined);
 		}
 
 		const token = this._tokens.splice(tokenIndex, 1)[0];
 		const session = await this.removeSessionByIToken(token, writeToDisk);
-
-		if (session) {
-			this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
-		}
-
 		return session;
 	}
 
 	public async clearSessions() {
-		this._logger.info('Logging out of all sessions');
+		this._logger.trace('Logging out of all sessions');
 		this._tokens = [];
 		await this._tokenStorage.deleteAll(item => this.sessionMatchesEndpoint(item));
 
@@ -460,9 +460,11 @@ export class AzureActiveDirectoryService {
 		});
 
 		this._refreshTimeouts.clear();
+		this._logger.trace('All sessions logged out');
 	}
 
 	private async removeSessionByIToken(token: IToken, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+		this._logger.info(`[${token.scope}] '${token.sessionId}' Logging out of session`);
 		this.removeSessionTimeout(token.sessionId);
 
 		if (writeToDisk) {
@@ -475,9 +477,9 @@ export class AzureActiveDirectoryService {
 		}
 
 		const session = this.convertToSessionSync(token);
-		this._logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
+		this._logger.trace(`[${token.scope}] '${token.sessionId}' Sending change event for session that was removed`);
 		this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
-		this._logger.info(`Logged out of session '${token.sessionId}' with scopes: ${token.scope}`);
+		this._logger.info(`[${token.scope}] '${token.sessionId}' Logged out of session successfully!`);
 		return session;
 	}
 
@@ -486,12 +488,14 @@ export class AzureActiveDirectoryService {
 	//#region timeout
 
 	private setSessionTimeout(sessionId: string, refreshToken: string, scopeData: IScopeData, timeout: number) {
+		this._logger.trace(`[${scopeData.scopeStr}] '${sessionId}' Setting refresh timeout for ${timeout} milliseconds`);
 		this.removeSessionTimeout(sessionId);
 		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 			try {
 				const refreshedToken = await this.refreshToken(refreshToken, scopeData, sessionId);
-				this._logger.info('Triggering change session event...');
+				this._logger.trace(`[${scopeData.scopeStr}] '${sessionId}' Sending change event for session that was refreshed`);
 				this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
+				this._logger.trace(`[${scopeData.scopeStr}] '${sessionId}' refresh timeout complete`);
 			} catch (e) {
 				if (e.message !== REFRESH_NETWORK_FAILURE) {
 					vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
@@ -515,12 +519,13 @@ export class AzureActiveDirectoryService {
 
 	private convertToTokenSync(json: ITokenResponse, scopeData: IScopeData, existingId?: string): IToken {
 		let claims = undefined;
+		this._logger.trace(`[${scopeData.scopeStr}] '${existingId ?? 'new'}' Attempting to parse token response.`);
 
 		try {
 			if (json.id_token) {
 				claims = JSON.parse(base64Decode(json.id_token.split('.')[1]));
 			} else {
-				this._logger.info('Attempting to parse access_token instead since no id_token was included in the response.');
+				this._logger.warn(`[${scopeData.scopeStr}] '${existingId ?? 'new'}' Attempting to parse access_token instead since no id_token was included in the response.`);
 				claims = JSON.parse(base64Decode(json.access_token.split('.')[1]));
 			}
 		} catch (e) {
@@ -535,6 +540,8 @@ export class AzureActiveDirectoryService {
 		}
 
 		const id = `${claims.tid}/${(claims.oid ?? (claims.altsecid ?? '' + claims.ipd ?? ''))}`;
+		const sessionId = existingId || `${id}/${randomUUID()}`;
+		this._logger.trace(`[${scopeData.scopeStr}] '${sessionId}' Token response parsed successfully.`);
 		return {
 			expiresIn: json.expires_in,
 			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
@@ -542,7 +549,7 @@ export class AzureActiveDirectoryService {
 			idToken: json.id_token,
 			refreshToken: json.refresh_token,
 			scope: scopeData.scopeStr,
-			sessionId: existingId || `${id}/${randomUUID()}`,
+			sessionId,
 			account: {
 				label,
 				id,
@@ -567,9 +574,7 @@ export class AzureActiveDirectoryService {
 
 	private async convertToSession(token: IToken, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
-			token.expiresAt
-				? this._logger.info(`Token available from cache (for scopes ${token.scope}), expires in ${token.expiresAt - Date.now()} milliseconds`)
-				: this._logger.info(`Token available from cache (for scopes ${token.scope})`);
+			this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Token available from cache${token.expiresAt ? `, expires in ${token.expiresAt - Date.now()} milliseconds` : ''}.`);
 			return {
 				id: token.sessionId,
 				accessToken: token.accessToken,
@@ -580,7 +585,7 @@ export class AzureActiveDirectoryService {
 		}
 
 		try {
-			this._logger.info(`Token expired or unavailable (for scopes ${token.scope}), trying refresh`);
+			this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Token expired or unavailable, trying refresh`);
 			const refreshedToken = await this.refreshToken(token.refreshToken, scopeData, token.sessionId);
 			if (refreshedToken.accessToken) {
 				return {
@@ -614,7 +619,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async doRefreshToken(refreshToken: string, scopeData: IScopeData, sessionId?: string): Promise<IToken> {
-		this._logger.info(`Refreshing token '${sessionId ?? 'new'}' for scopes: ${scopeData.scopeStr}`);
+		this._logger.trace(`[${scopeData.scopeStr}] '${sessionId ?? 'new'}' Refreshing token`);
 		const postData = new URLSearchParams({
 			refresh_token: refreshToken,
 			client_id: scopeData.clientId,
@@ -629,7 +634,7 @@ export class AzureActiveDirectoryService {
 				this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
 			}
 			this.setToken(token, scopeData);
-			this._logger.info(`Token refresh success for scopes: ${token.scope}`);
+			this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Token refresh success`);
 			return token;
 		} catch (e) {
 			if (e.message === REFRESH_NETWORK_FAILURE) {
@@ -640,7 +645,7 @@ export class AzureActiveDirectoryService {
 				}
 				throw e;
 			}
-			this._logger.error(`Refreshing token failed (for scopes: ${scopeData.scopeStr}): ${e.message}`);
+			this._logger.error(`[${scopeData.scopeStr}] '${sessionId ?? 'new'}' Refreshing token failed: ${e.message}`);
 			throw e;
 		}
 	}
@@ -705,6 +710,7 @@ export class AzureActiveDirectoryService {
 
 					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
 					this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+					this._logger.info(`[${scopeData.scopeStr}] '${session.id}' session successfully created!`);
 					resolve(session);
 				} catch (err) {
 					reject(err);
@@ -720,6 +726,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async handleCodeInputBox(inputBox: vscode.InputBox, verifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
+		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow with input box`);
 		inputBox.ignoreFocusOut = true;
 		inputBox.title = vscode.l10n.t('Microsoft Authentication');
 		inputBox.prompt = vscode.l10n.t('Provide the authorization code to complete the sign in flow.');
@@ -731,7 +738,9 @@ export class AzureActiveDirectoryService {
 				if (code) {
 					inputBox.dispose();
 					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
+					this._logger.trace(`[${scopeData.scopeStr}] '${session.id}' sending session changed event because session was added.`);
 					this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+					this._logger.trace(`[${scopeData.scopeStr}] '${session.id}' session successfully created!`);
 					resolve(session);
 				}
 			});
@@ -745,7 +754,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async exchangeCodeForSession(code: string, codeVerifier: string, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
-		this._logger.info(`Exchanging login code for token for scopes: ${scopeData.scopeStr}`);
+		this._logger.trace(`[${scopeData.scopeStr}] Exchanging login code for session`);
 		let token: IToken | undefined;
 		try {
 			const postData = new URLSearchParams({
@@ -758,10 +767,10 @@ export class AzureActiveDirectoryService {
 			}).toString();
 
 			const json = await this.fetchTokenResponse(postData, scopeData);
-			this._logger.info(`Exchanging login code for token (for scopes: ${scopeData.scopeStr}) succeeded!`);
+			this._logger.trace(`[${scopeData.scopeStr}] Exchanging code for token succeeded!`);
 			token = this.convertToTokenSync(json, scopeData);
 		} catch (e) {
-			this._logger.error(`Error exchanging code for token (for scopes ${scopeData.scopeStr}): ${e}`);
+			this._logger.error(`[${scopeData.scopeStr}] Error exchanging code for token: ${e}`);
 			throw e;
 		}
 
@@ -769,7 +778,7 @@ export class AzureActiveDirectoryService {
 			this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
 		}
 		this.setToken(token, scopeData);
-		this._logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
+		this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Exchanging login code for session succeeded!`);
 		return await this.convertToSession(token, scopeData);
 	}
 
@@ -804,7 +813,7 @@ export class AzureActiveDirectoryService {
 
 			if (!result || result.status > 499) {
 				if (attempts > 3) {
-					this._logger.error(`Fetching token failed for scopes (${scopeData.scopeStr}): ${result ? await result.text() : errorMessage}`);
+					this._logger.error(`[${scopeData.scopeStr}] Fetching token failed: ${result ? await result.text() : errorMessage}`);
 					break;
 				}
 				// Exponential backoff
@@ -828,7 +837,7 @@ export class AzureActiveDirectoryService {
 	//#region storage operations
 
 	private setToken(token: IToken, scopeData: IScopeData): void {
-		this._logger.info(`Setting token '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
+		this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Setting token`);
 
 		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
 		if (existingTokenIndex > -1) {
@@ -844,9 +853,9 @@ export class AzureActiveDirectoryService {
 	private async storeToken(token: IToken, scopeData: IScopeData): Promise<void> {
 		if (!vscode.window.state.focused) {
 			if (this._pendingTokensToStore.has(token.sessionId)) {
-				this._logger.info(`Window is not focused, replacing token to be stored with id '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
+				this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Window is not focused, replacing token to be stored`);
 			} else {
-				this._logger.info(`Window is not focused, pending storage of token '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
+				this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Window is not focused, pending storage of token`);
 			}
 			this._pendingTokensToStore.set(token.sessionId, token);
 			return;
@@ -859,21 +868,21 @@ export class AzureActiveDirectoryService {
 			account: token.account,
 			endpoint: this._env.activeDirectoryEndpointUrl,
 		});
-		this._logger.info(`Stored token '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
+		this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Stored token`);
 	}
 
 	private async storePendingTokens(): Promise<void> {
 		if (this._pendingTokensToStore.size === 0) {
-			this._logger.info('No pending tokens to store');
+			this._logger.trace('No pending tokens to store');
 			return;
 		}
 
 		const tokens = [...this._pendingTokensToStore.values()];
 		this._pendingTokensToStore.clear();
 
-		this._logger.info(`Storing ${tokens.length} pending tokens...`);
+		this._logger.trace(`Storing ${tokens.length} pending tokens...`);
 		await Promise.allSettled(tokens.map(async token => {
-			this._logger.info(`Storing pending token '${token.sessionId}' for scopes: ${token.scope}`);
+			this._logger.trace(`[${token.scope}] '${token.sessionId}' Storing pending token`);
 			await this._tokenStorage.store(token.sessionId, {
 				id: token.sessionId,
 				refreshToken: token.refreshToken,
@@ -881,9 +890,9 @@ export class AzureActiveDirectoryService {
 				account: token.account,
 				endpoint: this._env.activeDirectoryEndpointUrl,
 			});
-			this._logger.info(`Stored pending token '${token.sessionId}' for scopes: ${token.scope}`);
+			this._logger.trace(`[${token.scope}] '${token.sessionId}' Stored pending token`);
 		}));
-		this._logger.info('Done storing pending tokens');
+		this._logger.trace('Done storing pending tokens');
 	}
 
 	private async checkForUpdates(e: IDidChangeInOtherWindowEvent<IStoredSession>): Promise<void> {
@@ -891,7 +900,7 @@ export class AzureActiveDirectoryService {
 			const session = await this._tokenStorage.get(key);
 			if (!session) {
 				this._logger.error('session not found that was apparently just added');
-				return;
+				continue;
 			}
 
 			if (!this.sessionMatchesEndpoint(session)) {
@@ -911,30 +920,33 @@ export class AzureActiveDirectoryService {
 						clientId: this.getClientId(scopes),
 						tenant: this.getTenantId(scopes),
 					};
-					this._logger.info(`Session added in another window with scopes: ${session.scope}`);
+					this._logger.trace(`[${scopeData.scopeStr}] '${session.id}' Session added in another window`);
 					const token = await this.refreshToken(session.refreshToken, scopeData, session.id);
-					this._logger.info(`Sending change event for session that was added with scopes: ${scopeData.scopeStr}`);
+					this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Sending change event for session that was added`);
 					this._sessionChangeEmitter.fire({ added: [this.convertToSessionSync(token)], removed: [], changed: [] });
-					return;
+					this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Session added in another window added here`);
+					continue;
 				} catch (e) {
 					// Network failures will automatically retry on next poll.
 					if (e.message !== REFRESH_NETWORK_FAILURE) {
 						vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
 						await this.removeSessionById(session.id);
 					}
-					return;
+					continue;
 				}
 			}
 		}
 
 		for (const { value } of e.removed) {
+			this._logger.trace(`[${value.scope}] '${value.id}' Session removed in another window`);
 			if (!this.sessionMatchesEndpoint(value)) {
 				// If the session wasn't made for this login endpoint, ignore this update
+				this._logger.trace(`[${value.scope}] '${value.id}' Session doesn't match endpoint. Skipping...`);
 				continue;
 			}
 
-			this._logger.info(`Session removed in another window with scopes: ${value.scope}`);
 			await this.removeSessionById(value.id, false);
+			this._logger.trace(`[${value.scope}] '${value.id}' Session removed in another window removed here`);
 		}
 
 		// NOTE: We don't need to handle changed sessions because all that really would give us is a new refresh token
@@ -945,7 +957,7 @@ export class AzureActiveDirectoryService {
 		// we cancel any pending token storage operations.
 		for (const sessionId of e.updated) {
 			if (this._pendingTokensToStore.delete(sessionId)) {
-				this._logger.info(`Cancelled pending token storage for session '${sessionId}'`);
+				this._logger.trace(`'${sessionId}' Cancelled pending token storage because token was updated in another window`);
 			}
 		}
 	}
