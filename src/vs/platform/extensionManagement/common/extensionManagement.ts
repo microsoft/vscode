@@ -18,6 +18,7 @@ export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTER
 export const WEB_EXTENSION_TAG = '__web_extension';
 export const EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT = 'skipWalkthrough';
 export const EXTENSION_INSTALL_SYNC_CONTEXT = 'extensionsSync';
+export const EXTENSION_INSTALL_DEP_PACK_CONTEXT = 'dependecyOrPackExtensionInstall';
 
 export function TargetPlatformToString(targetPlatform: TargetPlatform) {
 	switch (targetPlatform) {
@@ -407,7 +408,6 @@ export enum ExtensionManagementErrorCode {
 	Deprecated = 'Deprecated',
 	Malicious = 'Malicious',
 	Incompatible = 'Incompatible',
-	IncompatiblePreRelease = 'IncompatiblePreRelease',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
 	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',
@@ -479,6 +479,7 @@ export interface IExtensionManagementService {
 	installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
+	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;

@@ -5,25 +5,17 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCellList', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
-	let notebookDefaultOptions: NotebookOptions;
-	let topInsertToolbarHeight: number;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-		notebookDefaultOptions = new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false);
-		topInsertToolbarHeight = notebookDefaultOptions.computeTopInsertToolbarHeight();
-
 	});
 
 	suiteTeardown(() => disposables.dispose());
@@ -51,7 +43,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 				// scroll a bit, scrollTop to bottom: 5, 215
 				cellList.scrollTop = 5;
 
@@ -98,7 +90,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -144,7 +136,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -179,7 +171,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -221,7 +213,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -274,7 +266,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);
@@ -310,7 +302,7 @@ suite('NotebookCellList', () => {
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
-				cellList.layout(210 + topInsertToolbarHeight, 100);
+				cellList.layout(210, 100);
 
 				// init scrollTop and scrollBottom
 				assert.deepStrictEqual(cellList.scrollTop, 0);

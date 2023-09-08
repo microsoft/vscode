@@ -13,11 +13,13 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { clearChatEditor, clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+
+export const ACTION_ID_CLEAR_CHAT = `workbench.action.chat.clear`;
 
 export function registerClearActions() {
 
@@ -48,7 +50,7 @@ export function registerClearActions() {
 	registerAction2(class GlobalClearChatAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.clear`,
+				id: ACTION_ID_CLEAR_CHAT,
 				title: {
 					value: localize('interactiveSession.clear.label', "Clear"),
 					original: 'Clear'
@@ -68,7 +70,7 @@ export function registerClearActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IChatWidgetService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -76,7 +78,7 @@ export function registerClearActions() {
 				return;
 			}
 
-			await clearChatSession(accessor, widget);
+			widget.clear();
 		}
 	});
 }

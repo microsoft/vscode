@@ -9,7 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export interface IUpdate {
 	version: string;
 	productVersion: string;
-	supportsFastUpdate?: boolean;
 	url?: string;
 	hash?: string;
 }

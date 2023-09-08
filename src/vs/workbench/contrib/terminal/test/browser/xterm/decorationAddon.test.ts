@@ -20,6 +20,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('DecorationAddon', () => {
 	let decorationAddon: DecorationAddon;
@@ -71,7 +72,9 @@ suite('DecorationAddon', () => {
 		instantiationService.dispose();
 	});
 
-	suite('registerDecoration', async () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('registerDecoration', () => {
 		test('should throw when command has no marker', async () => {
 			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});

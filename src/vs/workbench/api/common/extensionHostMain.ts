@@ -97,8 +97,8 @@ export abstract class ErrorHandler {
 				return _prepareStackTrace;
 			},
 			set(v) {
-				if (v === prepareStackTraceAndFindExtension || v[_wasWrapped]) {
-					_prepareStackTrace = v;
+				if (v === prepareStackTraceAndFindExtension || !v || v[_wasWrapped]) {
+					_prepareStackTrace = v || prepareStackTraceAndFindExtension;
 					return;
 				}
 

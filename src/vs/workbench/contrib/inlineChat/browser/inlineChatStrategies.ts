@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -17,13 +17,14 @@ import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_SHOWING_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
@@ -41,8 +42,6 @@ export abstract class EditModeStrategy {
 	abstract undoChanges(response: EditResponse): Promise<void>;
 
 	abstract renderChanges(response: EditResponse): Promise<void>;
-
-	abstract toggleDiff(): void;
 
 	abstract hasFocus(): boolean;
 
@@ -67,7 +66,9 @@ export class PreviewStrategy extends EditModeStrategy {
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
-			this._ctxDocumentChanged.set(!_session.textModelN.equalsTextBuffer(_session.textModel0.getTextBuffer()));
+			if (!_session.textModelN.isDisposed() && !_session.textModel0.isDisposed()) {
+				this._ctxDocumentChanged.set(_session.hasChangedText);
+			}
 		});
 	}
 
@@ -135,10 +136,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		} else {
 			this._widget.hideCreatePreview();
 		}
-	}
-
-	toggleDiff(): void {
-		// nothing to do
 	}
 
 	getWidgetPosition(): Position | undefined {
@@ -223,11 +220,11 @@ class InlineDiffDecorations {
 
 export class LiveStrategy extends EditModeStrategy {
 
-	private static _inlineDiffStorageKey: string = 'interactiveEditor.storage.inlineDiff';
 	protected _diffEnabled: boolean = false;
 
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
-	private readonly _ctxShowingDiff: IContextKey<boolean>;
+	private readonly _store: DisposableStore = new DisposableStore();
+
 	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
@@ -236,30 +233,29 @@ export class LiveStrategy extends EditModeStrategy {
 		protected readonly _editor: ICodeEditor,
 		protected readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configService: IConfigurationService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
-		this._diffEnabled = _storageService.getBoolean(LiveStrategy._inlineDiffStorageKey, StorageScope.PROFILE, true);
+		this._diffEnabled = configService.getValue<boolean>('inlineChat.showDiff');
 
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
-		this._ctxShowingDiff = CTX_INLINE_CHAT_SHOWING_DIFF.bindTo(contextKeyService);
-		this._ctxShowingDiff.set(this._diffEnabled);
 		this._inlineDiffDecorations.visible = this._diffEnabled;
+
+		this._store.add(configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('inlineChat.showDiff')) {
+				this._diffEnabled = !this._diffEnabled;
+				this._doToggleDiff();
+			}
+		}));
 	}
 
 	override dispose(): void {
 		this._inlineDiffDecorations.clear();
-		this._ctxShowingDiff.reset();
-	}
-
-	toggleDiff(): void {
-		this._diffEnabled = !this._diffEnabled;
-		this._ctxShowingDiff.set(this._diffEnabled);
-		this._storageService.store(LiveStrategy._inlineDiffStorageKey, this._diffEnabled, StorageScope.PROFILE, StorageTarget.USER);
-		this._doToggleDiff();
+		this._store.dispose();
 	}
 
 	protected _doToggleDiff(): void {
@@ -358,7 +354,7 @@ export class LiveStrategy extends EditModeStrategy {
 		const lastTextModelChanges = this._session.lastTextModelChanges;
 		let lastLineOfLocalEdits: number | undefined;
 		for (const change of lastTextModelChanges) {
-			const changeEndLineNumber = change.modifiedRange.endLineNumberExclusive - 1;
+			const changeEndLineNumber = change.modified.endLineNumberExclusive - 1;
 			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
 				lastLineOfLocalEdits = changeEndLineNumber;
 			}
@@ -385,12 +381,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 		editor: ICodeEditor,
 		widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
-		super(session, editor, widget, contextKeyService, storageService, bulkEditService, editorWorkerService, instaService);
+		super(session, editor, widget, contextKeyService, configService, storageService, bulkEditService, editorWorkerService, instaService);
 
 		this._diffZone = new Lazy(() => instaService.createInstance(InlineChatLivePreviewWidget, editor, session));
 		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));

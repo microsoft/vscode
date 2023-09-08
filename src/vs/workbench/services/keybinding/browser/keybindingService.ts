@@ -51,7 +51,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IKeyboard, INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -192,6 +193,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IKeyboardLayoutService private readonly keyboardLayoutService: IKeyboardLayoutService
 	) {
@@ -210,7 +212,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this._cachedResolver = null;
 
-		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService, fileService, logService));
+		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService, uriIdentityService, fileService, logService));
 		this.userKeybindings.initialize().then(() => {
 			if (this.userKeybindings.keybindings.length) {
 				this.updateResolver();
@@ -699,6 +701,7 @@ class UserKeybindings extends Disposable {
 
 	constructor(
 		private readonly userDataProfileService: IUserDataProfileService,
+		private readonly uriIdentityService: IUriIdentityService,
 		private readonly fileService: IFileService,
 		logService: ILogService,
 	) {
@@ -724,10 +727,14 @@ class UserKeybindings extends Disposable {
 			}
 		}));
 
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenCurrentProfileChanged(e))));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.keybindingsResource, e.profile.keybindingsResource)) {
+				e.join(this.whenCurrentProfileChanged());
+			}
+		}));
 	}
 
-	private async whenCurrentProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+	private async whenCurrentProfileChanged(): Promise<void> {
 		this.watch();
 		this.reloadConfigurationScheduler.schedule();
 	}

@@ -16,6 +16,8 @@ import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage'
 import { Memento } from 'vs/workbench/common/memento';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { sep } from 'vs/base/common/path';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('URI Label', () => {
 	let labelService: LabelService;
@@ -225,13 +227,14 @@ suite('URI Label', () => {
 
 suite('multi-root workspace', () => {
 	let labelService: LabelService;
+	const disposables = new DisposableStore();
 
 	setup(() => {
 		const sources = URI.file('folder1/src');
 		const tests = URI.file('folder1/test');
 		const other = URI.file('folder2');
 
-		labelService = new LabelService(
+		labelService = disposables.add(new LabelService(
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
@@ -241,9 +244,13 @@ suite('multi-root workspace', () => {
 				])),
 			new TestPathService(),
 			new TestRemoteAgentService(),
-			new TestStorageService(),
-			new TestLifecycleService()
-		);
+			disposables.add(new TestStorageService()),
+			disposables.add(new TestLifecycleService())
+		));
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
@@ -320,7 +327,7 @@ suite('multi-root workspace', () => {
 	test('relative label without formatter', () => {
 		const rootFolder = URI.parse('myscheme://myauthority/');
 
-		labelService = new LabelService(
+		labelService = disposables.add(new LabelService(
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
@@ -328,9 +335,9 @@ suite('multi-root workspace', () => {
 				])),
 			new TestPathService(undefined, rootFolder.scheme),
 			new TestRemoteAgentService(),
-			new TestStorageService(),
-			new TestLifecycleService()
-		);
+			disposables.add(new TestStorageService()),
+			disposables.add(new TestLifecycleService())
+		));
 
 		const generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true });
 		if (isWindows) {
@@ -339,6 +346,8 @@ suite('multi-root workspace', () => {
 			assert.strictEqual(generated, 'some/folder/test.txt');
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('workspace at FSP root', () => {
@@ -405,4 +414,6 @@ suite('workspace at FSP root', () => {
 		generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '\\' });
 		assert.strictEqual(generated, 'some\\folder\\test.txt');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

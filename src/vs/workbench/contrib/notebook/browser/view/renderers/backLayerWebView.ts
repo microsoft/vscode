@@ -767,7 +767,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						const uri = URI.parse(data.href);
 						this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
-						this._handleResourceOpening(data.href);
+						// Uri without scheme, such as a file path
+						this._handleResourceOpening(tryDecodeURIComponent(data.href));
 					} else {
 						// uri with scheme
 						if (osPath.isAbsolute(data.href)) {
@@ -1073,10 +1074,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				allowScripts: true,
 				localResourceRoots: this.localResourceRootsCache,
 			},
-			extension: undefined
+			extension: undefined,
+			providedViewType: 'notebook.output'
 		});
 
 		webview.setHtml(content);
+		webview.setContextKeyService(this.contextKeyService);
 		return webview;
 	}
 
@@ -1413,15 +1416,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		// create new output
-		const createOutput = () => {
-			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
-			this._sendMessageToWebview(message, transferable);
-			this.insetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
-			this.hiddenInsetMapping.delete(content.source);
-			this.reversedInsetMapping.set(message.outputId, content.source);
-		};
-
-		createOutput();
+		const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
+		this._sendMessageToWebview(message, transferable);
+		this.insetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
+		this.hiddenInsetMapping.delete(content.source);
+		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
 	private createMetadata(output: ICellOutput, mimeType: string) {
@@ -1503,6 +1502,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		const outputCache = this.insetMapping.get(content.source)!;
+
+		if (outputCache.versionId === content.source.model.versionId) {
+			// already sent this output version to the renderer
+			return;
+		}
+
 		this.hiddenInsetMapping.delete(content.source);
 		let updatedContent: ICreationContent | undefined = undefined;
 
@@ -1510,6 +1515,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			const firstBuffer = output.outputs.find(op => op.mime === content.mimeType)!;
+			const appenededData = output.appendedSinceVersion(outputCache.versionId, content.mimeType);
+			const appended = appenededData ? { valueBytes: appenededData.buffer, previousVersion: outputCache.versionId } : undefined;
 
 			const valueBytes = copyBufferIfNeeded(firstBuffer.data.buffer, transfer);
 			updatedContent = {
@@ -1519,6 +1526,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				output: {
 					mime: content.mimeType,
 					valueBytes,
+					appended: appended
 				},
 				allOutputs: output.outputs.map(output => ({ mime: output.mime }))
 			};
@@ -1535,6 +1543,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		outputCache.versionId = content.source.model.versionId;
 		return;
+	}
+
+	async copyImage(output: ICellOutputViewModel): Promise<void> {
+		this._sendMessageToWebview({
+			type: 'copyImage',
+			outputId: output.model.outputId,
+			altOutputId: output.model.alternativeOutputId
+		});
 	}
 
 	removeInsets(outputs: readonly ICellOutputViewModel[]): void {
@@ -1593,7 +1609,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview?.focus();
 	}
 
-	focusOutput(cellId: string, viewFocused: boolean) {
+	focusOutput(cellOrOutputId: string, alternateId: string | undefined, viewFocused: boolean) {
 		if (this._disposed) {
 			return;
 		}
@@ -1604,12 +1620,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		this._sendMessageToWebview({
 			type: 'focus-output',
-			cellId,
+			cellOrOutputId: cellOrOutputId,
+			alternateId: alternateId
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }): Promise<IFindMatch[]> {
 		if (query === '') {
+			this._sendMessageToWebview({
+				type: 'findStop',
+				ownerID: options.ownerID
+			});
 			return [];
 		}
 
@@ -1632,16 +1653,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return ret;
 	}
 
-	findStop() {
+	findStop(ownerID: string) {
 		this._sendMessageToWebview({
-			type: 'findStop'
+			type: 'findStop',
+			ownerID
 		});
 	}
 
-	async findHighlight(index: number): Promise<number> {
+	async findHighlightCurrent(index: number, ownerID: string): Promise<number> {
 		const p = new Promise<number>(resolve => {
 			const sub = this.webview?.onMessage(e => {
-				if (e.message.type === 'didFindHighlight') {
+				if (e.message.type === 'didFindHighlightCurrent') {
 					resolve(e.message.offset);
 					sub?.dispose();
 				}
@@ -1649,18 +1671,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 
 		this._sendMessageToWebview({
-			type: 'findHighlight',
-			index
+			type: 'findHighlightCurrent',
+			index,
+			ownerID
 		});
 
 		const ret = await p;
 		return ret;
 	}
 
-	async findUnHighlight(index: number): Promise<void> {
+	async findUnHighlightCurrent(index: number, ownerID: string): Promise<void> {
 		this._sendMessageToWebview({
-			type: 'findUnHighlight',
-			index
+			type: 'findUnHighlightCurrent',
+			index,
+			ownerID
 		});
 	}
 
@@ -1782,4 +1806,12 @@ function getTokenizationCss() {
 	const colorMap = TokenizationRegistry.getColorMap();
 	const tokenizationCss = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 	return tokenizationCss;
+}
+
+function tryDecodeURIComponent(uri: string) {
+	try {
+		return decodeURIComponent(uri);
+	} catch {
+		return uri;
+	}
 }

@@ -2951,13 +2951,13 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scm.providerCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scm.providerCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
@@ -2993,32 +2993,32 @@
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
+        "when": "config.git.enabled && git.state == initialized && scm.providerCount == 0",
         "group": "5_scm@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.learnMore%",
-        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
+        "when": "config.git.enabled && git.state == initialized && scm.providerCount == 0",
         "group": "5_scm@10"
       }
     ]
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "0.7.5",
+    "@vscode/extension-telemetry": "^0.8.4",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
     "jschardet": "3.0.0",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
-    "which": "3.0.1"
+    "which": "4.0.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },

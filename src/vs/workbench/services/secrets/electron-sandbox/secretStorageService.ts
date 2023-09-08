@@ -8,8 +8,8 @@ import { isLinux } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEncryptionService, KnownStorageProvider, isGnome, isKwallet } from 'vs/platform/encryption/common/encryptionService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEncryptionService, KnownStorageProvider, PasswordStoreCLIOption, isGnome, isKwallet } from 'vs/platform/encryption/common/encryptionService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
@@ -25,19 +25,25 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IJSONEditingService private readonly _jsonEditingService: IJSONEditingService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IStorageService storageService: IStorageService,
 		@IEncryptionService encryptionService: IEncryptionService,
 		@ILogService logService: ILogService
 	) {
-		super(storageService, encryptionService, logService);
+		super(
+			// TODO: rename disableKeytar to disableSecretStorage or similar
+			!!_environmentService.disableKeytar,
+			storageService,
+			encryptionService,
+			logService
+		);
 	}
 
 	override set(key: string, value: string): Promise<void> {
 		this._sequencer.queue(key, async () => {
 			await this.resolvedStorageService;
 
-			if (this.type !== 'persisted') {
+			if (this.type !== 'persisted' && !this._environmentService.disableKeytar) {
 				this._logService.trace('[NativeSecretStorageService] Notifying user that secrets are not being stored on disk.');
 				await this.notifyOfNoEncryptionOnce();
 			}
@@ -72,7 +78,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 				label: localize('usePlainText', "Use weaker encryption"),
 				run: async () => {
 					await this._encryptionService.setUsePlainTextEncryption();
-					await this._jsonEditingService.write(this._environmentService.argvResource, [{ path: ['password-store'], value: 'basic_text' }], true);
+					await this._jsonEditingService.write(this._environmentService.argvResource, [{ path: ['password-store'], value: PasswordStoreCLIOption.basic }], true);
 					this.reinitialize();
 				}
 			};

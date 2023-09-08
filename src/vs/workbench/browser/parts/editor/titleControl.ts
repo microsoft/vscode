@@ -33,7 +33,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
 import { isCancellationError } from 'vs/base/common/errors';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -93,6 +93,11 @@ export abstract class TitleControl extends Themable {
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
+	private static readonly EDITOR_TITLE_HEIGHT = {
+		normal: 35,
+		compact: 22
+	};
+
 	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
 
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
@@ -115,7 +120,7 @@ export abstract class TitleControl extends Themable {
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
-		parent: HTMLElement,
+		private parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected group: IEditorGroupView,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
@@ -150,7 +155,9 @@ export abstract class TitleControl extends Themable {
 		this.create(parent);
 	}
 
-	protected abstract create(parent: HTMLElement): void;
+	protected create(parent: HTMLElement): void {
+		this.updateTitleHeight();
+	}
 
 	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
 		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
@@ -199,7 +206,8 @@ export abstract class TitleControl extends Themable {
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
-			maxNumberOfItems: 9
+			maxNumberOfItems: 9,
+			highlightToggledItems: true,
 		}));
 
 		// Context
@@ -251,7 +259,7 @@ export abstract class TitleControl extends Themable {
 		this.contextKeyService.bufferChangeEvents(() => {
 			const activeEditor = this.group.activeEditor;
 
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 
 			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
 			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
@@ -360,7 +368,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
-		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
 		const currentEditorIsFirstContext = !!this.editorIsFirstContext.get();
@@ -379,10 +387,9 @@ export abstract class TitleControl extends Themable {
 		applyAvailableEditorIds(this.editorAvailableEditorIds, editor, this.editorResolverService);
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number; y: number } = node;
+		let anchor: HTMLElement | StandardMouseEvent = node;
 		if (e instanceof MouseEvent) {
-			const event = new StandardMouseEvent(e);
-			anchor = { x: event.posx, y: event.posy };
+			anchor = new StandardMouseEvent(e);
 		}
 
 		// Show it
@@ -419,7 +426,23 @@ export abstract class TitleControl extends Themable {
 	protected getKeybindingLabel(action: IAction): string | undefined {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
+		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
+	}
+
+	protected get titleHeight() {
+		return this.accessor.partOptions.tabHeight !== 'compact' ? TitleControl.EDITOR_TITLE_HEIGHT.normal : TitleControl.EDITOR_TITLE_HEIGHT.compact;
+	}
+
+	protected updateTitleHeight(): void {
+		this.parent.style.setProperty('--editor-group-title-height', `${this.titleHeight}px`);
+	}
+
+	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+
+		// Update title height
+		if (oldOptions.tabHeight !== newOptions.tabHeight) {
+			this.updateTitleHeight();
+		}
 	}
 
 	abstract openEditor(editor: EditorInput): void;
@@ -445,8 +468,6 @@ export abstract class TitleControl extends Themable {
 	abstract updateEditorLabel(editor: EditorInput): void;
 
 	abstract updateEditorDirty(editor: EditorInput): void;
-
-	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
 
 	abstract layout(dimensions: ITitleControlDimensions): Dimension;
 
