@@ -88,7 +88,7 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 	});
 
-	test.skip('back / forward: is editor group aware', async function () { // todo@bpasero
+	test('back / forward: is editor group aware', async function () {
 		const [part, historyService, editorService, , instantiationService] = await createServices();
 
 		const resource: URI = toResource.call(this, '/path/index.txt');
@@ -297,7 +297,7 @@ suite('HistoryService', function () {
 		assert.strictEqual(options.selection?.endColumn, expected.endColumn);
 	}
 
-	test.skip('back / forward: tracks editor moves across groups', async function () { // TODO@bpasero
+	test('back / forward: tracks editor moves across groups', async function () {
 		const [part, historyService, editorService, , instantiationService] = await createServices();
 
 		const resource1: URI = toResource.call(this, '/path/one.txt');
@@ -328,7 +328,7 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
-	test.skip('back / forward: tracks group removals', async function () { // TODO@bpasero
+	test('back / forward: tracks group removals', async function () {
 		const [part, historyService, editorService, , instantiationService] = await createServices();
 
 		const resource1 = toResource.call(this, '/path/one.txt');
@@ -510,7 +510,7 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
-	test.skip('back / forward: editor group scope', async function () { // TODO@bpasero
+	test('back / forward: editor group scope', async function () {
 		const [part, historyService, editorService, , instantiationService] = await createServices(GoScope.EDITOR_GROUP);
 
 		const resource1 = toResource.call(this, '/path/one.txt');
@@ -734,7 +734,7 @@ suite('HistoryService', function () {
 		return workbenchTeardown(instantiationService);
 	});
 
-	test.skip('open next/previous recently used editor (multi group)', async () => { // TODO@bpasero
+	test('open next/previous recently used editor (multi group)', async () => {
 		const [part, historyService, editorService, , instantiationService] = await createServices();
 		const rootGroup = part.activeGroup;
 
