@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import * as objects from 'vs/base/common/objects';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { getNodeType, parse, ParseError } from 'vs/base/common/json';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import * as objects from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { basename, isEqual, joinPath } from 'vs/base/common/resources';
@@ -24,18 +25,16 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
+import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
+import { BUILTIN_MANIFEST_CACHE_FILE, ExtensionIdentifier, ExtensionIdentifierMap, ExtensionType, IExtensionDescription, IExtensionIdentifier, IExtensionManifest, IRelaxedExtensionManifest, TargetPlatform, UNDEFINED_PUBLISHER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Emitter, Event } from 'vs/base/common/event';
-import { revive } from 'vs/base/common/marshalling';
-import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -669,6 +668,7 @@ class ExtensionsScanner extends Disposable {
 		const manifestLocation = joinPath(extensionLocation, 'package.json');
 		let content;
 		try {
+			console.log('read', manifestLocation.toString());
 			content = (await this.fileService.readFile(manifestLocation)).value.toString();
 		} catch (error) {
 			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
@@ -842,7 +842,7 @@ interface IExtensionCacheData {
 class CachedExtensionsScanner extends ExtensionsScanner {
 
 	private input: ExtensionScannerInput | undefined;
-	private readonly cacheValidatorThrottler: ThrottledDelayer<void> = this._register(new ThrottledDelayer(3000));
+	// private readonly cacheValidatorThrottler: ThrottledDelayer<void> = this._register(new ThrottledDelayer(3000));
 
 	private readonly _onDidChangeCache = this._register(new Emitter<void>());
 	readonly onDidChangeCache = this._onDidChangeCache.event;
@@ -863,15 +863,18 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		const cacheFile = this.getCacheFile(input);
 		const cacheContents = await this.readExtensionCache(cacheFile);
 		this.input = input;
+
 		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
+			console.log('has cached and is equal');
 			this.logService.debug('Using cached extensions scan result', input.location.toString());
-			this.cacheValidatorThrottler.trigger(() => this.validateCache());
+			// this.cacheValidatorThrottler.trigger(() => this.validateCache());
 			return cacheContents.result.map((extension) => {
 				// revive URI object
 				extension.location = URI.revive(extension.location);
 				return extension;
 			});
 		}
+		console.log('write to cache');
 		const result = await super.scanExtensions(input);
 		await this.writeExtensionCache(cacheFile, { input, result });
 		return result;
@@ -896,6 +899,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		}
 	}
 
+	// @ts-ignore
 	private async validateCache(): Promise<void> {
 		if (!this.input) {
 			// Input has been unset by the time we get here, so skip validation
