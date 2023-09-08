@@ -11,8 +11,6 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadTreeViewsShape, MainContext, MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TreeDataProvider, TreeItem } from 'vscode';
 import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mock } from 'vs/base/test/common/mock';
 import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -55,7 +53,6 @@ suite('ExtHostTreeView', function () {
 	let tree: { [key: string]: any };
 	let labels: { [key: string]: string };
 	let nodes: { [key: string]: { key: string } };
-	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		tree = {
@@ -73,12 +70,6 @@ suite('ExtHostTreeView', function () {
 		nodes = {};
 
 		const rpcProtocol = new TestRPCProtocol();
-		// Use IInstantiationService to get typechecking when instantiating
-		let inst: IInstantiationService;
-		{
-			instantiationService = store.add(new TestInstantiationService());
-			inst = instantiationService;
-		}
 
 		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
 			override $registerCommand() { }
