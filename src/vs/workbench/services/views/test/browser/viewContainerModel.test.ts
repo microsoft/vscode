@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,6 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { Event } from 'vs/base/common/event';
 import { getViewsStateStorageId } from 'vs/workbench/services/views/common/viewContainerModel';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -43,22 +44,20 @@ class ViewDescriptorSequence {
 suite('ViewContainerModel', () => {
 
 	let container: ViewContainer;
-	let disposableStore: DisposableStore;
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 	let contextKeyService: IContextKeyService;
 	let viewDescriptorService: IViewDescriptorService;
 	let storageService: IStorageService;
 
 	setup(() => {
-		disposableStore = new DisposableStore();
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposableStore);
-		contextKeyService = instantiationService.createInstance(ContextKeyService);
+		contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		storageService = instantiationService.get(IStorageService);
-		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
+		viewDescriptorService = disposableStore.add(instantiationService.createInstance(ViewDescriptorService));
 	});
 
 	teardown(() => {
-		disposableStore.dispose();
 		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
 		ViewContainerRegistry.deregisterViewContainer(container);
 	});
@@ -380,7 +379,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy();
-		testObject.onDidRemoveVisibleViewDescriptors(targetEvent);
+		disposableStore.add(testObject.onDidRemoveVisibleViewDescriptors(targetEvent));
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
 		assert.ok(!targetEvent.called, 'remove event should not be called since it is already hidden');
@@ -406,7 +405,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(targetEvent);
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(targetEvent));
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is already visible');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -433,7 +432,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(targetEvent);
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(targetEvent));
 		testObject.setVisible('view1', false);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -464,7 +463,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(targetEvent);
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(targetEvent));
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -543,8 +542,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(targetEvent);
-		Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', true));
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(targetEvent));
+		disposableStore.add(Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', true)));
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
 		assert.strictEqual(targetEvent.callCount, 1);
@@ -573,8 +572,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(targetEvent);
-		Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', false));
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(targetEvent));
+		disposableStore.add(Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', false)));
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
 		assert.strictEqual(targetEvent.callCount, 0);
@@ -631,10 +630,10 @@ suite('ViewContainerModel', () => {
 		ViewsRegistry.registerViews([viewDescriptor1, viewDescriptor2, viewDescriptor3], container);
 
 		const remomveEvent = sinon.spy();
-		testObject.onDidRemoveVisibleViewDescriptors(remomveEvent);
+		disposableStore.add(testObject.onDidRemoveVisibleViewDescriptors(remomveEvent));
 
 		const addEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(addEvent);
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(addEvent));
 
 		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
 			id: viewDescriptor1.id,
@@ -691,10 +690,10 @@ suite('ViewContainerModel', () => {
 		testObject.setVisible(viewDescriptor3.id, false);
 
 		const removeEvent = sinon.spy();
-		testObject.onDidRemoveVisibleViewDescriptors(removeEvent);
+		disposableStore.add(testObject.onDidRemoveVisibleViewDescriptors(removeEvent));
 
 		const addEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(addEvent);
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(addEvent));
 
 		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
 			id: viewDescriptor1.id,
@@ -764,10 +763,10 @@ suite('ViewContainerModel', () => {
 		testObject.setVisible(viewDescriptor1.id, false);
 
 		const removeEvent = sinon.spy();
-		testObject.onDidRemoveVisibleViewDescriptors(removeEvent);
+		disposableStore.add(testObject.onDidRemoveVisibleViewDescriptors(removeEvent));
 
 		const addEvent = sinon.spy();
-		testObject.onDidAddVisibleViewDescriptors(addEvent);
+		disposableStore.add(testObject.onDidAddVisibleViewDescriptors(addEvent));
 
 		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
 			id: viewDescriptor1.id,

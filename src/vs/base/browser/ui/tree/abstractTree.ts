@@ -814,7 +814,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.mode = mode;
 
 		const emitter = this._register(new DomEmitter(this.findInput.inputBox.inputElement, 'keydown'));
-		const onKeyDown = Event.chain2(emitter.event, $ => $.map(e => new StandardKeyboardEvent(e)));
+		const onKeyDown = Event.chain(emitter.event, $ => $.map(e => new StandardKeyboardEvent(e)));
 
 		this._register(onKeyDown((e): any => {
 			// Using equals() so we reserve modified keys for future use
@@ -884,7 +884,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 			}));
 		}));
 
-		const onGrabKeyDown = Event.chain2(this._register(new DomEmitter(this.elements.grab, 'keydown')).event, $ => $.map(e => new StandardKeyboardEvent(e)));
+		const onGrabKeyDown = Event.chain(this._register(new DomEmitter(this.elements.grab, 'keydown')).event, $ => $.map(e => new StandardKeyboardEvent(e)));
 
 		this._register(onGrabKeyDown((e): any => {
 			let right: number | undefined;
@@ -1640,14 +1640,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		onDidChangeActiveNodes.input = activeNodesEmitter.event;
 
 		if (_options.keyboardSupport !== false) {
-			const onKeyDown = Event.chain2(this.view.onKeyDown, $ =>
+			const onKeyDown = Event.chain(this.view.onKeyDown, $ =>
 				$.filter(e => !isInputElement(e.target as HTMLElement))
 					.map(e => new StandardKeyboardEvent(e))
 			);
 
-			Event.chain2(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.LeftArrow))(this.onLeftArrow, this, this.disposables);
-			Event.chain2(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.RightArrow))(this.onRightArrow, this, this.disposables);
-			Event.chain2(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.Space))(this.onSpace, this, this.disposables);
+			Event.chain(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.LeftArrow))(this.onLeftArrow, this, this.disposables);
+			Event.chain(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.RightArrow))(this.onRightArrow, this, this.disposables);
+			Event.chain(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.Space))(this.onSpace, this, this.disposables);
 		}
 
 		if ((_options.findWidgetEnabled ?? true) && _options.keyboardNavigationLabelProvider && _options.contextViewProvider) {
