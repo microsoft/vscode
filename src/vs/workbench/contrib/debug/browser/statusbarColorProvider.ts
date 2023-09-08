@@ -8,12 +8,12 @@ import { ColorTransformType, asCssVariable, asCssVariableName, registerColor } f
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, State, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
+import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from 'vs/workbench/common/theme';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { CC_BACKGROUND } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
+
 
 // colors for theming
 
@@ -38,7 +38,7 @@ export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBor
 	hcLight: STATUS_BAR_BORDER
 }, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
-const CC_DEBUGGING_BACKGROUND = registerColor(
+export const COMMAND_CENTER_DEBUGGING_BACKGROUND = registerColor(
 	'commandCenter.debuggingBackground',
 	{
 		dark: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 },
@@ -100,8 +100,8 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 		}
 
 		const isInCommandCenter = debugConfig.toolBarLocation === 'commandCenter';
-		this.layoutService.container.style.setProperty(asCssVariableName(CC_BACKGROUND), isInCommandCenter && isInDebugMode
-			? asCssVariable(CC_DEBUGGING_BACKGROUND)
+		this.layoutService.container.style.setProperty(asCssVariableName(COMMAND_CENTER_BACKGROUND), isInCommandCenter && isInDebugMode
+			? asCssVariable(COMMAND_CENTER_DEBUGGING_BACKGROUND)
 			: ''
 		);
 
