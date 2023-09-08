@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { IPager, PagedModel } from 'vs/base/common/paging';
