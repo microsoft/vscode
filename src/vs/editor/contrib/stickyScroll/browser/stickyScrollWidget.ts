@@ -155,11 +155,10 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private _updateWidgetWidth(): void {
 		const layoutInfo = this._editor.getLayoutInfo();
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
-		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
+		const lineNumbersWidth = layoutInfo.contentLeft;
 		this._lineNumbersDomNode.style.width = `${lineNumbersWidth}px`;
 		this._linesDomNodeScrollable.style.setProperty('--vscode-editorStickyScroll-scrollableWidth', `${this._editor.getScrollWidth() - layoutInfo.verticalScrollbarWidth}px`);
-		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.minimap.minimapCanvasOuterWidth - layoutInfo.verticalScrollbarWidth}px`;
+		this._rootDomNode.style.width = `${layoutInfo.width - layoutInfo.verticalScrollbarWidth}px`;
 	}
 
 	private _clearStickyWidget() {
@@ -192,6 +191,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			const stickyLine = (line >= rebuildFromLine || previousStickyLine?.lineNumber !== line)
 				? this._renderChildNode(index, line, foldingModel, layoutInfo)
 				: this._updateTopAndZIndexOfStickyLine(previousStickyLine);
+			if (!stickyLine) {
+				return;
+			}
 			this._linesDomNode.appendChild(stickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
 			this._stickyLines.push(stickyLine);
@@ -210,13 +212,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._lineNumbersDomNode.style.height = `${widgetHeight}px`;
 		this._linesDomNodeScrollable.style.height = `${widgetHeight}px`;
 		this._rootDomNode.style.height = `${widgetHeight}px`;
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 
-		if (minimapSide === 'left') {
-			this._rootDomNode.style.marginLeft = layoutInfo.minimap.minimapCanvasOuterWidth + 'px';
-		} else {
-			this._rootDomNode.style.marginLeft = '0px';
-		}
+		this._rootDomNode.style.marginLeft = '0px';
 		this._updateMinContentWidth();
 		this._editor.layoutOverlayWidget(this);
 	}
@@ -238,11 +235,13 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}));
 	}
 
-	private _renderChildNode(index: number, line: number, foldingModel: FoldingModel | null, layoutInfo: EditorLayoutInfo): RenderedStickyLine {
+	private _renderChildNode(index: number, line: number, foldingModel: FoldingModel | null, layoutInfo: EditorLayoutInfo): RenderedStickyLine | undefined {
 		const viewModel = this._editor._getViewModel();
-		const viewLineNumber = viewModel!.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
+		if (!viewModel) {
+			return;
+		}
+		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
-		const minimapSide = this._editor.getOption(EditorOption.minimap).side;
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 
 		let actualInlineDecorations: LineDecoration[];
@@ -285,7 +284,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineNumberHTMLNode.setAttribute(STICKY_IS_LINE_NUMBER_ATTR, '');
 		lineNumberHTMLNode.className = 'sticky-line-number';
 		lineNumberHTMLNode.style.lineHeight = `${this._lineHeight}px`;
-		const lineNumbersWidth = minimapSide === 'left' ? layoutInfo.contentLeft - layoutInfo.minimap.minimapCanvasOuterWidth : layoutInfo.contentLeft;
+		const lineNumbersWidth = layoutInfo.contentLeft;
 		lineNumberHTMLNode.style.width = `${lineNumbersWidth}px`;
 
 		const innerLineNumberHTML = document.createElement('span');
@@ -297,12 +296,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		innerLineNumberHTML.className = 'sticky-line-number-inner';
 		innerLineNumberHTML.style.lineHeight = `${this._lineHeight}px`;
 		innerLineNumberHTML.style.width = `${layoutInfo.lineNumbersWidth}px`;
-		innerLineNumberHTML.style.float = 'left';
-		if (minimapSide === 'left') {
-			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft - layoutInfo.minimap.minimapCanvasOuterWidth}px`;
-		} else if (minimapSide === 'right') {
-			innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
-		}
+		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
+
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
 		const foldingIcon = this._renderFoldingIconForLine(foldingModel, line);
 		if (foldingIcon) {

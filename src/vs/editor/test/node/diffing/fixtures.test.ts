@@ -12,7 +12,7 @@ import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 
-suite('diff fixtures', () => {
+suite('diffing fixtures', () => {
 	setup(() => {
 		setUnexpectedErrorHandler(e => {
 			throw e;

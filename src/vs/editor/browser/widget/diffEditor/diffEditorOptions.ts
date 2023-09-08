@@ -20,7 +20,8 @@ export class DiffEditorOptions {
 		this._options = observableValue(this, optionsCopy);
 	}
 
-	public readonly couldShowInlineViewBecauseOfSize = derived(this, reader => this._options.read(reader).renderSideBySide && this.diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
+	public readonly couldShowInlineViewBecauseOfSize = derived(this, reader =>
+		this._options.read(reader).renderSideBySide && this.diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
 	);
 
 	public readonly renderOverviewRuler = derived(this, reader => this._options.read(reader).renderOverviewRuler);
