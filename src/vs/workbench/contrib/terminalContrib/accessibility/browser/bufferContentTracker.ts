@@ -46,7 +46,7 @@ export class BufferContentTracker extends Disposable {
 		this._removeViewportContent();
 		this._updateCachedContent();
 		this._updateViewportContent();
-		this._lastCachedMarker = this._xterm.raw.registerMarker();
+		this._lastCachedMarker = this._register(this._xterm.raw.registerMarker());
 		this._logService.debug('Buffer content tracker: set ', this._lines.length, ' lines');
 	}
 
