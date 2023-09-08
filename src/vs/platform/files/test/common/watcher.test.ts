@@ -5,17 +5,21 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { IDiskFileChange, coalesceEvents, toFileChanges, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
-class TestFileWatcher {
+class TestFileWatcher extends Disposable {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>;
 
 	constructor() {
-		this._onDidFilesChange = new Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>();
+		super();
+
+		this._onDidFilesChange = this._register(new Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>());
 	}
 
 	get onDidFilesChange(): Event<{ raw: IFileChange[]; event: FileChangesEvent }> {
@@ -103,12 +107,20 @@ suite('Watcher', () => {
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('Watcher Events Normalizer', () => {
 
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
 	test('simple add/update/delete', done => {
-		const watch = new TestFileWatcher();
+		const watch = disposables.add(new TestFileWatcher());
 
 		const added = uri.file('/users/data/src/added.txt');
 		const updated = uri.file('/users/data/src/updated.txt');
@@ -120,7 +132,7 @@ suite('Watcher Events Normalizer', () => {
 			{ path: deleted.fsPath, type: FileChangeType.DELETED },
 		];
 
-		watch.onDidFilesChange(({ event, raw }) => {
+		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
 			assert.ok(event);
 			assert.strictEqual(raw.length, 3);
 			assert.ok(event.contains(added, FileChangeType.ADDED));
@@ -128,14 +140,14 @@ suite('Watcher Events Normalizer', () => {
 			assert.ok(event.contains(deleted, FileChangeType.DELETED));
 
 			done();
-		});
+		}));
 
 		watch.report(raw);
 	});
 
 	(isWindows ? [Path.WINDOWS, Path.UNC] : [Path.UNIX]).forEach(path => {
 		test(`delete only reported for top level folder (${path})`, done => {
-			const watch = new TestFileWatcher();
+			const watch = disposables.add(new TestFileWatcher());
 
 			const deletedFolderA = uri.file(path === Path.UNIX ? '/users/data/src/todelete1' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
 			const deletedFolderB = uri.file(path === Path.UNIX ? '/users/data/src/todelete2' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2' : '\\\\localhost\\users\\data\\src\\todelete2');
@@ -158,7 +170,7 @@ suite('Watcher Events Normalizer', () => {
 				{ path: updatedFile.fsPath, type: FileChangeType.UPDATED }
 			];
 
-			watch.onDidFilesChange(({ event, raw }) => {
+			disposables.add(watch.onDidFilesChange(({ event, raw }) => {
 				assert.ok(event);
 				assert.strictEqual(raw.length, 5);
 
@@ -169,14 +181,14 @@ suite('Watcher Events Normalizer', () => {
 				assert.ok(event.contains(updatedFile, FileChangeType.UPDATED));
 
 				done();
-			});
+			}));
 
 			watch.report(raw);
 		});
 	});
 
 	test('event coalescer: ignore CREATE followed by DELETE', done => {
-		const watch = new TestFileWatcher();
+		const watch = disposables.add(new TestFileWatcher());
 
 		const created = uri.file('/users/data/src/related');
 		const deleted = uri.file('/users/data/src/related');
@@ -188,20 +200,20 @@ suite('Watcher Events Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onDidFilesChange(({ event, raw }) => {
+		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
 			assert.ok(event);
 			assert.strictEqual(raw.length, 1);
 
 			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
-		});
+		}));
 
 		watch.report(raw);
 	});
 
 	test('event coalescer: flatten DELETE followed by CREATE into CHANGE', done => {
-		const watch = new TestFileWatcher();
+		const watch = disposables.add(new TestFileWatcher());
 
 		const deleted = uri.file('/users/data/src/related');
 		const created = uri.file('/users/data/src/related');
@@ -213,7 +225,7 @@ suite('Watcher Events Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onDidFilesChange(({ event, raw }) => {
+		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
 			assert.ok(event);
 			assert.strictEqual(raw.length, 2);
 
@@ -221,13 +233,13 @@ suite('Watcher Events Normalizer', () => {
 			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
-		});
+		}));
 
 		watch.report(raw);
 	});
 
 	test('event coalescer: ignore UPDATE when CREATE received', done => {
-		const watch = new TestFileWatcher();
+		const watch = disposables.add(new TestFileWatcher());
 
 		const created = uri.file('/users/data/src/related');
 		const updated = uri.file('/users/data/src/related');
@@ -239,7 +251,7 @@ suite('Watcher Events Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onDidFilesChange(({ event, raw }) => {
+		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
 			assert.ok(event);
 			assert.strictEqual(raw.length, 2);
 
@@ -248,13 +260,13 @@ suite('Watcher Events Normalizer', () => {
 			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
-		});
+		}));
 
 		watch.report(raw);
 	});
 
 	test('event coalescer: apply DELETE', done => {
-		const watch = new TestFileWatcher();
+		const watch = disposables.add(new TestFileWatcher());
 
 		const updated = uri.file('/users/data/src/related');
 		const updated2 = uri.file('/users/data/src/related');
@@ -268,7 +280,7 @@ suite('Watcher Events Normalizer', () => {
 			{ path: updated.fsPath, type: FileChangeType.DELETED }
 		];
 
-		watch.onDidFilesChange(({ event, raw }) => {
+		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
 			assert.ok(event);
 			assert.strictEqual(raw.length, 2);
 
@@ -277,13 +289,13 @@ suite('Watcher Events Normalizer', () => {
 			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
-		});
+		}));
 
 		watch.report(raw);
 	});
 
 	test('event coalescer: track case renames', done => {
-		const watch = new TestFileWatcher();
+		const watch = disposables.add(new TestFileWatcher());
 
 		const oldPath = uri.file('/users/data/src/added');
 		const newPath = uri.file('/users/data/src/ADDED');
@@ -293,7 +305,7 @@ suite('Watcher Events Normalizer', () => {
 			{ path: oldPath.fsPath, type: FileChangeType.DELETED }
 		];
 
-		watch.onDidFilesChange(({ event, raw }) => {
+		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
 			assert.ok(event);
 			assert.strictEqual(raw.length, 2);
 
@@ -308,8 +320,10 @@ suite('Watcher Events Normalizer', () => {
 			}
 
 			done();
-		});
+		}));
 
 		watch.report(raw);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

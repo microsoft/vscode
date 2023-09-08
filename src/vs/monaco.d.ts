@@ -7343,10 +7343,6 @@ declare namespace monaco.languages {
 		 * Prefer spaces over tabs.
 		 */
 		insertSpaces: boolean;
-		/**
-		 * The list of multiple ranges to format at once, if the provider supports it.
-		 */
-		ranges?: Range[];
 	}
 
 	/**

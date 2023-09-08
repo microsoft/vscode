@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { isSupportedEnvironment } from './utils';
+import { IntervalTimer, isSupportedEnvironment } from './utils';
 import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
 import { LoopbackAuthServer } from './node/authServer';
@@ -96,6 +96,9 @@ export class AzureActiveDirectoryService {
 	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
 	private _codeVerfifiers = new Map<string, string>();
 
+	// Used to keep track of tokens that we need to store but can't because we aren't the focused window.
+	private _pendingTokensToStore: Map<string, IToken> = new Map<string, IToken>();
+
 	constructor(
 		private readonly _logger: vscode.LogOutputChannel,
 		_context: vscode.ExtensionContext,
@@ -105,6 +108,15 @@ export class AzureActiveDirectoryService {
 		private readonly _env: Environment
 	) {
 		_context.subscriptions.push(this._tokenStorage.onDidChangeInOtherWindow((e) => this.checkForUpdates(e)));
+		_context.subscriptions.push(vscode.window.onDidChangeWindowState(async (e) => e.focused && await this.storePendingTokens()));
+
+		// In the event that a window isn't focused for a long time, we should still try to store the tokens at some point.
+		const timer = new IntervalTimer();
+		timer.cancelAndSet(
+			() => !vscode.window.state.focused && this.storePendingTokens(),
+			// 5 hours + random extra 0-30 seconds so that each window doesn't try to store at the same time
+			(18000000) + Math.floor(Math.random() * 30000));
+		_context.subscriptions.push(timer);
 	}
 
 	public async initialize(): Promise<void> {
@@ -113,7 +125,7 @@ export class AzureActiveDirectoryService {
 		this._logger.info(`Got ${sessions.length} stored sessions`);
 
 		const refreshes = sessions.map(async session => {
-			this._logger.trace(`Read the following stored session with scopes: ${session.scope}`);
+			this._logger.trace(`Read the following stored session '${session.id}' with scopes: ${session.scope}`);
 			const scopes = session.scope.split(' ');
 			const scopeData: IScopeData = {
 				scopes,
@@ -268,7 +280,10 @@ export class AzureActiveDirectoryService {
 		}
 
 		this._logger.info(`Got ${matchingTokens.length} sessions for scopes: ${modifiedScopesStr}`);
-		return Promise.all(matchingTokens.map(token => this.convertToSession(token, scopeData)));
+		const results = await Promise.allSettled(matchingTokens.map(token => this.convertToSession(token, scopeData)));
+		return results
+			.filter(result => result.status === 'fulfilled')
+			.map(result => (result as PromiseFulfilledResult<vscode.AuthenticationSession>).value);
 	}
 
 	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
@@ -554,7 +569,7 @@ export class AzureActiveDirectoryService {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
 			token.expiresAt
 				? this._logger.info(`Token available from cache (for scopes ${token.scope}), expires in ${token.expiresAt - Date.now()} milliseconds`)
-				: this._logger.info('Token available from cache (for scopes ${token.scope})');
+				: this._logger.info(`Token available from cache (for scopes ${token.scope})`);
 			return {
 				id: token.sessionId,
 				accessToken: token.accessToken,
@@ -599,7 +614,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async doRefreshToken(refreshToken: string, scopeData: IScopeData, sessionId?: string): Promise<IToken> {
-		this._logger.info(`Refreshing token for scopes: ${scopeData.scopeStr}`);
+		this._logger.info(`Refreshing token '${sessionId ?? 'new'}' for scopes: ${scopeData.scopeStr}`);
 		const postData = new URLSearchParams({
 			refresh_token: refreshToken,
 			client_id: scopeData.clientId,
@@ -813,7 +828,7 @@ export class AzureActiveDirectoryService {
 	//#region storage operations
 
 	private setToken(token: IToken, scopeData: IScopeData): void {
-		this._logger.info(`Setting token for scopes: ${scopeData.scopeStr}`);
+		this._logger.info(`Setting token '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
 
 		const existingTokenIndex = this._tokens.findIndex(t => t.sessionId === token.sessionId);
 		if (existingTokenIndex > -1) {
@@ -823,41 +838,18 @@ export class AzureActiveDirectoryService {
 		}
 
 		// Don't await because setting the token is only useful for any new windows that open.
-		this.storeToken(token, scopeData);
+		void this.storeToken(token, scopeData);
 	}
 
 	private async storeToken(token: IToken, scopeData: IScopeData): Promise<void> {
 		if (!vscode.window.state.focused) {
-			const shouldStore = await new Promise((resolve, _) => {
-				// To handle the case where the window is not focused for a long time. We want to store the token
-				// at some point so that the next time they _do_ interact with VS Code, they don't have to sign in again.
-				const timer = setTimeout(
-					() => resolve(true),
-					// 5 hours + random extra 0-30 seconds so that each window doesn't try to store at the same time
-					(18000000) + Math.floor(Math.random() * 30000)
-				);
-				const dispose = vscode.Disposable.from(
-					vscode.window.onDidChangeWindowState(e => {
-						if (e.focused) {
-							resolve(true);
-							dispose.dispose();
-							clearTimeout(timer);
-						}
-					}),
-					this._tokenStorage.onDidChangeInOtherWindow(e => {
-						if (e.updated.includes(token.sessionId)) {
-							resolve(false);
-							dispose.dispose();
-							clearTimeout(timer);
-						}
-					})
-				);
-			});
-
-			if (!shouldStore) {
-				this._logger.info(`Not storing token for scopes ${scopeData.scopeStr} because it was added in another window`);
-				return;
+			if (this._pendingTokensToStore.has(token.sessionId)) {
+				this._logger.info(`Window is not focused, replacing token to be stored with id '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
+			} else {
+				this._logger.info(`Window is not focused, pending storage of token '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
 			}
+			this._pendingTokensToStore.set(token.sessionId, token);
+			return;
 		}
 
 		await this._tokenStorage.store(token.sessionId, {
@@ -867,7 +859,31 @@ export class AzureActiveDirectoryService {
 			account: token.account,
 			endpoint: this._env.activeDirectoryEndpointUrl,
 		});
-		this._logger.info(`Stored token for scopes: ${scopeData.scopeStr}`);
+		this._logger.info(`Stored token '${token.sessionId}' for scopes: ${scopeData.scopeStr}`);
+	}
+
+	private async storePendingTokens(): Promise<void> {
+		if (this._pendingTokensToStore.size === 0) {
+			this._logger.info('No pending tokens to store');
+			return;
+		}
+
+		const tokens = [...this._pendingTokensToStore.values()];
+		this._pendingTokensToStore.clear();
+
+		this._logger.info(`Storing ${tokens.length} pending tokens...`);
+		await Promise.allSettled(tokens.map(async token => {
+			this._logger.info(`Storing pending token '${token.sessionId}' for scopes: ${token.scope}`);
+			await this._tokenStorage.store(token.sessionId, {
+				id: token.sessionId,
+				refreshToken: token.refreshToken,
+				scope: token.scope,
+				account: token.account,
+				endpoint: this._env.activeDirectoryEndpointUrl,
+			});
+			this._logger.info(`Stored pending token '${token.sessionId}' for scopes: ${token.scope}`);
+		}));
+		this._logger.info('Done storing pending tokens');
 	}
 
 	private async checkForUpdates(e: IDidChangeInOtherWindowEvent<IStoredSession>): Promise<void> {
@@ -925,6 +941,13 @@ export class AzureActiveDirectoryService {
 		// because access tokens are not stored in Secret Storage due to their short lifespan. This new refresh token
 		// is not useful in this window because we really only care about the lifetime of the _access_ token which we
 		// are already managing (see usages of `setSessionTimeout`).
+		// However, in order to minimize the amount of times we store tokens, if a token was stored via another window,
+		// we cancel any pending token storage operations.
+		for (const sessionId of e.updated) {
+			if (this._pendingTokensToStore.delete(sessionId)) {
+				this._logger.info(`Cancelled pending token storage for session '${sessionId}'`);
+			}
+		}
 	}
 
 	private sessionMatchesEndpoint(session: IStoredSession): boolean {
