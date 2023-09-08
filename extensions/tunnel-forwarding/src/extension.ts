@@ -201,7 +201,7 @@ class TunnelProvider implements vscode.TunnelProvider {
 		const continueOpt = vscode.l10n.t('Continue');
 		const dontShowAgain = vscode.l10n.t("Don't show again");
 		const r = await vscode.window.showWarningMessage(
-			vscode.l10n.t("You're about to create a publicly forwarded port. Anyone on internet will be able to connect the service listening on port {0}. You should only proceed if this service is secure and non-sensitive.", portNumber),
+			vscode.l10n.t("You're about to create a publicly forwarded port. Anyone on the internet will be able to connect to the service listening on port {0}. You should only proceed if this service is secure and non-sensitive.", portNumber),
 			{ modal: true },
 			continueOpt,
 			dontShowAgain,
