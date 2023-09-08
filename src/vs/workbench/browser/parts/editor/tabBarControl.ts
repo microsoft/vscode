@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/TabBarControl';
+import 'vs/css!./media/tabbarcontrol';
 import { isMacintosh, isSafari, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor, EditorInputCapabilities, preventEditorClose, EditorCloseMethod, IUntypedEditorInput, GroupIdentifier, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
