@@ -192,7 +192,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				? this._renderChildNode(index, line, foldingModel, layoutInfo)
 				: this._updateTopAndZIndexOfStickyLine(previousStickyLine);
 			if (!stickyLine) {
-				return;
+				continue;
 			}
 			this._linesDomNode.appendChild(stickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
