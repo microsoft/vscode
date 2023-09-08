@@ -84,7 +84,7 @@ export const REFRESH_NETWORK_FAILURE = 'Network failure';
 
 export class AzureActiveDirectoryService {
 	// For details on why this is set to 2/3... see https://github.com/microsoft/vscode/issues/133201#issuecomment-966668197
-	private static REFRESH_TIMEOUT_MODIFIER = 1000 * 2 / 384;
+	private static REFRESH_TIMEOUT_MODIFIER = 1000 * 2 / 3;
 	private static POLLING_CONSTANT = 1000 * 60 * 30;
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();

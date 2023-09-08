@@ -8,7 +8,9 @@ import { equals } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
+import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -30,7 +32,6 @@ import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/in
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('InteractiveChatController', function () {
-
 	class TestController extends InlineChatController {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
@@ -92,6 +93,7 @@ suite('InteractiveChatController', function () {
 		const serviceCollection = new ServiceCollection(
 			[IContextKeyService, contextKeyService],
 			[IInlineChatService, inlineChatService],
+			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionService)],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
@@ -229,7 +231,7 @@ suite('InteractiveChatController', function () {
 	test('typing outside of wholeRange finishes session', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
 		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
-		ctrl.run({ message: 'Hello', autoSend: true });
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
 		await p;
 
@@ -241,6 +243,7 @@ suite('InteractiveChatController', function () {
 		editor.trigger('test', 'type', { text: 'a' });
 
 		await ctrl.waitFor([State.ACCEPT]);
+		await r;
 	});
 
 	test('\'whole range\' isn\'t updated for edits outside whole range #4346', async function () {
@@ -270,7 +273,7 @@ suite('InteractiveChatController', function () {
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
 		const p = ctrl.waitFor(TestController.INIT_SEQUENCE);
-		ctrl.run({ message: 'Hello', autoSend: false });
+		const r = ctrl.run({ message: 'Hello', autoSend: false });
 
 		await p;
 
@@ -283,6 +286,9 @@ suite('InteractiveChatController', function () {
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
+
+		ctrl.cancelSession();
+		await r;
 	});
 
 	test('Stuck inline chat widget #211', async function () {

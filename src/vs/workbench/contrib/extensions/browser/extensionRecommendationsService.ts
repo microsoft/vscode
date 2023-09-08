@@ -71,14 +71,14 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	) {
 		super();
 
-		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations);
-		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations);
-		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations);
-		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations);
-		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations);
-		this.webRecommendations = instantiationService.createInstance(WebRecommendations);
-		this.languageRecommendations = instantiationService.createInstance(LanguageRecommendations);
-		this.remoteRecommendations = instantiationService.createInstance(RemoteRecommendations);
+		this.workspaceRecommendations = this._register(instantiationService.createInstance(WorkspaceRecommendations));
+		this.fileBasedRecommendations = this._register(instantiationService.createInstance(FileBasedRecommendations));
+		this.configBasedRecommendations = this._register(instantiationService.createInstance(ConfigBasedRecommendations));
+		this.exeBasedRecommendations = this._register(instantiationService.createInstance(ExeBasedRecommendations));
+		this.keymapRecommendations = this._register(instantiationService.createInstance(KeymapRecommendations));
+		this.webRecommendations = this._register(instantiationService.createInstance(WebRecommendations));
+		this.languageRecommendations = this._register(instantiationService.createInstance(LanguageRecommendations));
+		this.remoteRecommendations = this._register(instantiationService.createInstance(RemoteRecommendations));
 
 		if (!this.isEnabled()) {
 			this.sessionSeed = 0;

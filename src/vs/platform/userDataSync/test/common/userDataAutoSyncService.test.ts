@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { joinPath } from 'vs/base/common/resources';
@@ -380,7 +379,7 @@ suite('UserDataAutoSyncService', () => {
 			const errorPromise = Event.toPromise(testObject.onError);
 			await testObject.sync();
 
-			const e = await Promise.race([errorPromise, timeout(0)]);
+			const e = await errorPromise;
 			assert.ok(e instanceof UserDataAutoSyncError);
 			assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.SessionExpired);
 			assert.deepStrictEqual(target.requests, [
