@@ -1550,7 +1550,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			total = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			total = this.titleHeight;
+			total = this.tabHeight;
 		}
 
 		const offset = total;
@@ -1708,7 +1708,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (tabsWrapMultiLine) {
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.titleHeight) ||	// if wrapping is not needed anymore
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.tabHeight) ||	// if wrapping is not needed anymore
 					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);

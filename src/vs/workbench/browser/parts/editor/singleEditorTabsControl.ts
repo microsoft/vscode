@@ -350,7 +350,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	getHeight(): IEditorGroupTitleHeight {
 		return {
-			total: this.titleHeight,
+			total: this.tabHeight,
 			offset: 0
 		};
 	}

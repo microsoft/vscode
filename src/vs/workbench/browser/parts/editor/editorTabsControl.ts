@@ -93,9 +93,9 @@ export abstract class EditorTabsControl extends Themable {
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
-	private static readonly EDITOR_TITLE_HEIGHT = {
-		normal: 35,
-		compact: 22
+	private static readonly EDITOR_TAB_HEIGHT = {
+		normal: 35 as const,
+		compact: 22 as const
 	};
 
 	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
@@ -156,7 +156,7 @@ export abstract class EditorTabsControl extends Themable {
 	}
 
 	protected create(parent: HTMLElement): void {
-		this.updateTitleHeight();
+		this.updateTabHeight();
 	}
 
 	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
@@ -429,19 +429,19 @@ export abstract class EditorTabsControl extends Themable {
 		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
 	}
 
-	protected get titleHeight() {
-		return this.accessor.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TITLE_HEIGHT.normal : EditorTabsControl.EDITOR_TITLE_HEIGHT.compact;
+	protected get tabHeight() {
+		return this.accessor.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
 	}
 
-	protected updateTitleHeight(): void {
-		this.parent.style.setProperty('--editor-group-title-height', `${this.titleHeight}px`);
+	protected updateTabHeight(): void {
+		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 
-		// Update title height
+		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
-			this.updateTitleHeight();
+			this.updateTabHeight();
 		}
 	}
 

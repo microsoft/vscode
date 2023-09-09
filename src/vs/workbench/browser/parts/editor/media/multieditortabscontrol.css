@@ -71,7 +71,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
 	display: flex;
-	height: var(--editor-group-title-height);
+	height: var(--editor-group-tab-height);
 	scrollbar-width: none; /* Firefox: hide scrollbar */
 }
 
@@ -97,7 +97,7 @@
 	display: flex;
 	white-space: nowrap;
 	cursor: pointer;
-	height: var(--editor-group-title-height);
+	height: var(--editor-group-tab-height);
 	box-sizing: border-box;
 	padding-left: 10px;
 }
@@ -265,7 +265,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	margin-top: auto;
 	margin-bottom: auto;
-	line-height: var(--editor-group-title-height); /* aligns icon and label vertically centered in the tab */
+	line-height: var(--editor-group-tab-height); /* aligns icon and label vertically centered in the tab */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink .tab-label,
@@ -473,7 +473,7 @@
 	cursor: default;
 	flex: initial;
 	padding: 0 8px 0 4px;
-	height: var(--editor-group-title-height);
+	height: var(--editor-group-tab-height);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item {
