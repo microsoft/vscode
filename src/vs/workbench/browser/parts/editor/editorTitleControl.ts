@@ -7,11 +7,25 @@ import { Dimension, clearNode } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorTabsControl, IEditorTabsControlDimensions } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+
+export interface IEditorTitleControlDimensions {
+
+	/**
+	 * The size of the parent container the title control is layed out in.
+	 */
+	readonly container: Dimension;
+
+	/**
+	 * The maximum size the title control is allowed to consume based on
+	 * other controls that are positioned inside the container.
+	 */
+	readonly available: Dimension;
+}
 
 export class EditorTitleControl extends Themable {
 
@@ -102,7 +116,7 @@ export class EditorTitleControl extends Themable {
 		this.editorTabsControl.updateOptions(oldOptions, newOptions);
 	}
 
-	layout(dimensions: IEditorTabsControlDimensions): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 		return this.editorTabsControl.layout(dimensions);
 	}
 

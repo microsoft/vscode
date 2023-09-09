@@ -6,7 +6,7 @@
 import 'vs/css!./media/singleeditortabscontrol';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorTabsControl, IToolbarActions, IEditorTabsControlDimensions } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { EditorTabsControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -18,6 +18,7 @@ import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/edito
 import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
@@ -355,7 +356,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		};
 	}
 
-	layout(dimensions: IEditorTabsControlDimensions): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 		this.breadcrumbsControl?.layout(undefined);
 
 		return new Dimension(dimensions.container.width, this.getHeight().total);

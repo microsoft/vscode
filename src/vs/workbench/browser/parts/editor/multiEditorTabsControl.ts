@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, IEditorTabsControlDimensions, IToolbarActions, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { EditorCommandsContextActionRunner, IToolbarActions, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -55,6 +55,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -119,7 +120,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimensions: IEditorTabsControlDimensions & { used?: Dimension } = {
+	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
 		available: Dimension.None
 	};
@@ -1563,7 +1564,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return { total, offset };
 	}
 
-	layout(dimensions: IEditorTabsControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1597,7 +1598,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return this.dimensions.used;
 	}
 
-	private doLayout(dimensions: IEditorTabsControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
+	private doLayout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
@@ -1630,13 +1631,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
-	private doLayoutBreadcrumbs(dimensions: IEditorTabsControlDimensions): void {
+	private doLayoutBreadcrumbs(dimensions: IEditorTitleControlDimensions): void {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			this.breadcrumbsControl.layout(new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT));
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: IEditorTabsControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1649,7 +1650,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private doLayoutTabsWrapping(dimensions: IEditorTabsControlDimensions): boolean {
+	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:

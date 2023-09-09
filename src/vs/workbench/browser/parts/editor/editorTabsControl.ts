@@ -41,24 +41,11 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 
 export interface IToolbarActions {
 	readonly primary: IAction[];
 	readonly secondary: IAction[];
-}
-
-export interface IEditorTabsControlDimensions {
-
-	/**
-	 * The size of the parent container the title control is layed out in.
-	 */
-	readonly container: Dimension;
-
-	/**
-	 * The maximum size the title control is allowed to consume based on
-	 * other controls that are positioned inside the container.
-	 */
-	readonly available: Dimension;
 }
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
@@ -469,7 +456,7 @@ export abstract class EditorTabsControl extends Themable {
 
 	abstract updateEditorDirty(editor: EditorInput): void;
 
-	abstract layout(dimensions: IEditorTabsControlDimensions): Dimension;
+	abstract layout(dimensions: IEditorTitleControlDimensions): Dimension;
 
 	abstract getHeight(): IEditorGroupTitleHeight;
 
