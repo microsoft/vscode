@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notabstitlecontrol';
+import 'vs/css!./media/singleeditortabscontrol';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
@@ -24,7 +24,7 @@ interface IRenderedEditorLabel {
 	pinned: boolean;
 }
 
-export class NoTabsTitleControl extends TitleControl {
+export class SingleEditorTabsControl extends TitleControl {
 
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
@@ -36,7 +36,7 @@ export class NoTabsTitleControl extends TitleControl {
 		const titleContainer = this.titleContainer = parent;
 		titleContainer.draggable = true;
 
-		//Container listeners
+		// Container listeners
 		this.registerContainerListeners(titleContainer);
 
 		// Gesture Support

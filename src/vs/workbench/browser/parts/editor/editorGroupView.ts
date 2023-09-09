@@ -34,7 +34,7 @@ import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState, Edi
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
-import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
+import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -470,7 +470,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this.accessor.partOptions.showTabs) {
 			this.titleAreaControl = this.scopedInstantiationService.createInstance(TabsTitleControl, this.titleContainer, this.accessor, this);
 		} else {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(NoTabsTitleControl, this.titleContainer, this.accessor, this);
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(SingleEditorTabsControl, this.titleContainer, this.accessor, this);
 		}
 
 		return this.titleAreaControl;
