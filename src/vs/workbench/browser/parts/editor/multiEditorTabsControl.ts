@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, ITitleControlDimensions, IToolbarActions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorCommandsContextActionRunner, IEditorTabsControlDimensions, IToolbarActions, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -84,7 +84,7 @@ interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 	options?: IMultiEditorTabsControlLayoutOptions;
 }
 
-export class MultiEditorTabsControl extends TitleControl {
+export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private static readonly SCROLLBAR_SIZES = {
 		default: 3,
@@ -119,7 +119,7 @@ export class MultiEditorTabsControl extends TitleControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimensions: ITitleControlDimensions & { used?: Dimension } = {
+	private dimensions: IEditorTabsControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
 		available: Dimension.None
 	};
@@ -1563,7 +1563,7 @@ export class MultiEditorTabsControl extends TitleControl {
 		return { total, offset };
 	}
 
-	layout(dimensions: ITitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
+	layout(dimensions: IEditorTabsControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1597,7 +1597,7 @@ export class MultiEditorTabsControl extends TitleControl {
 		return this.dimensions.used;
 	}
 
-	private doLayout(dimensions: ITitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
+	private doLayout(dimensions: IEditorTabsControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
@@ -1630,13 +1630,13 @@ export class MultiEditorTabsControl extends TitleControl {
 		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
-	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
+	private doLayoutBreadcrumbs(dimensions: IEditorTabsControlDimensions): void {
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			this.breadcrumbsControl.layout(new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT));
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: IEditorTabsControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1649,7 +1649,7 @@ export class MultiEditorTabsControl extends TitleControl {
 		}
 	}
 
-	private doLayoutTabsWrapping(dimensions: ITitleControlDimensions): boolean {
+	private doLayoutTabsWrapping(dimensions: IEditorTabsControlDimensions): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:

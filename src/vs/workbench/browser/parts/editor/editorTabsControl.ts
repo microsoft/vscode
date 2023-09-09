@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/titlecontrol';
+import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
@@ -47,7 +47,7 @@ export interface IToolbarActions {
 	secondary: IAction[];
 }
 
-export interface ITitleControlDimensions {
+export interface IEditorTabsControlDimensions {
 
 	/**
 	 * The size of the parent container the title control is layed out in.
@@ -87,7 +87,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 	}
 }
 
-export abstract class TitleControl extends Themable {
+export abstract class EditorTabsControl extends Themable {
 
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
@@ -430,7 +430,7 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected get titleHeight() {
-		return this.accessor.partOptions.tabHeight !== 'compact' ? TitleControl.EDITOR_TITLE_HEIGHT.normal : TitleControl.EDITOR_TITLE_HEIGHT.compact;
+		return this.accessor.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TITLE_HEIGHT.normal : EditorTabsControl.EDITOR_TITLE_HEIGHT.compact;
 	}
 
 	protected updateTitleHeight(): void {
@@ -469,7 +469,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateEditorDirty(editor: EditorInput): void;
 
-	abstract layout(dimensions: ITitleControlDimensions): Dimension;
+	abstract layout(dimensions: IEditorTabsControlDimensions): Dimension;
 
 	abstract getHeight(): IEditorGroupTitleHeight;
 

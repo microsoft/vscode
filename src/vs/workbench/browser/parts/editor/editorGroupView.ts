@@ -29,7 +29,7 @@ import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -118,7 +118,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly scopedInstantiationService: IInstantiationService;
 
 	private readonly titleContainer: HTMLElement;
-	private titleAreaControl: TitleControl;
+	private titleAreaControl: EditorTabsControl;
 
 	private readonly progressBar: ProgressBar;
 
@@ -458,7 +458,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleContainer.classList.toggle('show-file-icons', this.accessor.partOptions.showIcons);
 	}
 
-	private createTitleAreaControl(): TitleControl {
+	private createTitleAreaControl(): EditorTabsControl {
 
 		// Clear old if existing
 		if (this.titleAreaControl) {

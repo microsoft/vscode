@@ -6,7 +6,7 @@
 import 'vs/css!./media/singleeditortabscontrol';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorTabsControl, IToolbarActions, IEditorTabsControlDimensions } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -24,7 +24,7 @@ interface IRenderedEditorLabel {
 	pinned: boolean;
 }
 
-export class SingleEditorTabsControl extends TitleControl {
+export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
@@ -355,7 +355,7 @@ export class SingleEditorTabsControl extends TitleControl {
 		};
 	}
 
-	layout(dimensions: ITitleControlDimensions): Dimension {
+	layout(dimensions: IEditorTabsControlDimensions): Dimension {
 		this.breadcrumbsControl?.layout(undefined);
 
 		return new Dimension(dimensions.container.width, this.getHeight().total);
