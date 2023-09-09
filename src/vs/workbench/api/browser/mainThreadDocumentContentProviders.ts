@@ -75,7 +75,6 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		const currentLines = model.getLinesContent();
 		const newLines = splitLines(value);
 		if (equals(currentLines, newLines)) {
-			this._pendingUpdate.delete(model.id);
 			return;
 		}
 
