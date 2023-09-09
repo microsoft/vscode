@@ -160,14 +160,10 @@ suite('SearchModel', () => {
 
 	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
 		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+			textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 				token?.onCancellationRequested(() => tokenSource.cancel());
 
-				return new Promise(resolve => {
-					queueMicrotask(() => {
-						resolve(<any>{});
-					});
-				});
+				return this.textSearchSplitSyncAsync(query, token, onProgress).asyncResults;
 			},
 			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 				token?.onCancellationRequested(() => tokenSource.cancel());
@@ -186,7 +182,10 @@ suite('SearchModel', () => {
 					},
 					asyncResults: new Promise(resolve => {
 						queueMicrotask(() => {
-							resolve(<any>{});
+							resolve(<any>{
+								results: [],
+								messages: []
+							});
 						});
 					})
 				};
@@ -460,7 +459,7 @@ suite('SearchModel', () => {
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
-		instantiationService.stub(ISearchService, searchServiceWithError(new Error('error')));
+		instantiationService.stub(ISearchService, searchServiceWithError(new Error('This error should be thrown by this test.')));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
