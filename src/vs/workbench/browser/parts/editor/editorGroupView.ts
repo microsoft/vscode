@@ -19,7 +19,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
 import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
+import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
@@ -468,7 +468,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Create new based on options
 		if (this.accessor.partOptions.showTabs) {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(TabsTitleControl, this.titleContainer, this.accessor, this);
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(MultiEditorTabsControl, this.titleContainer, this.accessor, this);
 		} else {
 			this.titleAreaControl = this.scopedInstantiationService.createInstance(SingleEditorTabsControl, this.titleContainer, this.accessor, this);
 		}

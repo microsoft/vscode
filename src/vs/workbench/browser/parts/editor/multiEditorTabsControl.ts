@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tabstitlecontrol';
+import 'vs/css!./media/multitabseditorcontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
@@ -66,7 +66,7 @@ interface IEditorInputLabel {
 	ariaLabel?: string;
 }
 
-interface ITabsTitleControlLayoutOptions {
+interface IMultiEditorTabsControlLayoutOptions {
 
 	/**
 	 * Whether to force revealing the active tab, even when
@@ -76,15 +76,15 @@ interface ITabsTitleControlLayoutOptions {
 	forceRevealActiveTab?: true;
 }
 
-interface IScheduledTabsTitleControlLayout extends IDisposable {
+interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 
 	/**
 	 * Associated options with the layout call.
 	 */
-	options?: ITabsTitleControlLayoutOptions;
+	options?: IMultiEditorTabsControlLayoutOptions;
 }
 
-export class TabsTitleControl extends TitleControl {
+export class MultiEditorTabsControl extends TitleControl {
 
 	private static readonly SCROLLBAR_SIZES = {
 		default: 3,
@@ -124,7 +124,7 @@ export class TabsTitleControl extends TitleControl {
 		available: Dimension.None
 	};
 
-	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledTabsTitleControlLayout>());
+	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledMultiEditorTabsControlLayout>());
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
@@ -271,10 +271,10 @@ export class TabsTitleControl extends TitleControl {
 
 	private getTabsScrollbarSizing(): number {
 		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
-			return TabsTitleControl.SCROLLBAR_SIZES.default;
+			return MultiEditorTabsControl.SCROLLBAR_SIZES.default;
 		}
 
-		return TabsTitleControl.SCROLLBAR_SIZES.large;
+		return MultiEditorTabsControl.SCROLLBAR_SIZES.large;
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
@@ -421,7 +421,7 @@ export class TabsTitleControl extends TitleControl {
 			// The restriction is relaxed according to the absolute value of `deltaX` and `deltaY`
 			// to support discrete (mouse wheel) and contiguous scrolling (touchpad) equally well
 			const now = Date.now();
-			if (now - this.lastMouseWheelEventTime < TabsTitleControl.MOUSE_WHEEL_EVENT_THRESHOLD - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
+			if (now - this.lastMouseWheelEventTime < MultiEditorTabsControl.MOUSE_WHEEL_EVENT_THRESHOLD - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
 				return;
 			}
 
@@ -429,9 +429,9 @@ export class TabsTitleControl extends TitleControl {
 
 			// Figure out scrolling direction but ignore it if too subtle
 			let tabSwitchDirection: number;
-			if (e.deltaX + e.deltaY < - TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+			if (e.deltaX + e.deltaY < - MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = -1;
-			} else if (e.deltaX + e.deltaY > TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+			} else if (e.deltaX + e.deltaY > MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = 1;
 			} else {
 				return;
@@ -1052,7 +1052,7 @@ export class TabsTitleControl extends TitleControl {
 			},
 
 			onDragOver: (_, dragDuration) => {
-				if (dragDuration >= TabsTitleControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
+				if (dragDuration >= MultiEditorTabsControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
 					const draggedOverTab = this.group.getEditorByIndex(index);
 					if (draggedOverTab && this.group.activeEditor !== draggedOverTab) {
 						this.group.openEditor(draggedOverTab, { preserveFocus: true });
@@ -1251,7 +1251,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redraw(options?: ITabsTitleControlLayoutOptions): void {
+	private redraw(options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Border below tabs if any with explicit high contrast support
 		if (this.tabsAndActionsContainer) {
@@ -1322,10 +1322,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1563,7 +1563,7 @@ export class TabsTitleControl extends TitleControl {
 		return { total, offset };
 	}
 
-	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): Dimension {
+	layout(dimensions: ITitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1597,7 +1597,7 @@ export class TabsTitleControl extends TitleControl {
 		return this.dimensions.used;
 	}
 
-	private doLayout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
+	private doLayout(dimensions: ITitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
@@ -1636,7 +1636,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1778,7 +1778,7 @@ export class TabsTitleControl extends TitleControl {
 		return tabsWrapMultiLine;
 	}
 
-	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: ITabsTitleControlLayoutOptions): void {
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: IMultiEditorTabsControlLayoutOptions): void {
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
@@ -1809,10 +1809,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (this.accessor.partOptions.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1827,7 +1827,7 @@ export class TabsTitleControl extends TitleControl {
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
 		let availableTabsContainerWidth = visibleTabsWidth - stickyTabsWidth;
-		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
+		if (this.group.stickyCount > 0 && availableTabsContainerWidth < MultiEditorTabsControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
 			availableTabsContainerWidth = visibleTabsWidth;
@@ -2153,7 +2153,7 @@ registerThemingParticipant((theme, collector) => {
 	// Hover Border
 	//
 	// Unfortunately we need to copy a lot of CSS over from the
-	// tabsTitleControl.css because we want to reuse the same
+	// multiEditorTabsControl.css because we want to reuse the same
 	// styles we already have for the normal bottom-border.
 	const tabHoverBorder = theme.getColor(TAB_HOVER_BORDER);
 	if (tabHoverBorder) {
