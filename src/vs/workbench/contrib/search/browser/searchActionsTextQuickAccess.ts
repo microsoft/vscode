@@ -10,12 +10,6 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { category } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { getSelectionTextFromEditor } from 'vs/workbench/contrib/search/browser/searchView';
-
 registerAction2(class TextSearchQuickAccessAction extends Action2 {
 
 	constructor(
@@ -34,28 +28,8 @@ registerAction2(class TextSearchQuickAccessAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, match: RenderableMatch | undefined): Promise<any> {
 		const quickInputService = accessor.get(IQuickInputService);
-		const searchText = getSearchText(accessor) ?? '';
-		quickInputService.quickAccess.show(TEXT_SEARCH_QUICK_ACCESS_PREFIX + searchText);
+		quickInputService.quickAccess.show(TEXT_SEARCH_QUICK_ACCESS_PREFIX);
 	}
 });
 
-function getSearchText(accessor: ServicesAccessor): string | null {
-	const editorService = accessor.get(IEditorService);
-	const configurationService = accessor.get(IConfigurationService);
 
-	const activeEditor: IEditor = editorService.activeTextEditorControl as IEditor;
-	if (!activeEditor) {
-		return null;
-	}
-	if (!activeEditor.hasTextFocus()) {
-		return null;
-	}
-
-	// only happen if it would also happen for the search view
-	const seedSearchStringFromSelection = configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
-	if (!seedSearchStringFromSelection) {
-		return null;
-	}
-
-	return getSelectionTextFromEditor(false, activeEditor, configurationService);
-}

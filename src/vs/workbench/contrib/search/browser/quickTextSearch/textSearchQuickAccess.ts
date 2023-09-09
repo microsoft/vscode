@@ -22,11 +22,12 @@ import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { searchDetailsIcon, searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { FileMatch, Match, MatchInNotebook, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
+import { SearchView, getEditorSelectionFromMatch, getSelectionTextFromEditor } from 'vs/workbench/contrib/search/browser/searchView';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPatternInfo, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '% ';
 
@@ -100,12 +101,36 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		};
 	}
 
-	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
+	get defaultFilterValue(): DefaultQuickAccessFilterValue | string | undefined {
 		if (this.configuration.preserveInput) {
 			return DefaultQuickAccessFilterValue.LAST;
 		}
 
-		return undefined;
+		const searchText = this.getSearchText();
+		if (!searchText) {
+			return undefined;
+		}
+
+		return searchText;
+	}
+
+	getSearchText(): string | null {
+
+		const activeEditor = this._editorService.activeTextEditorControl;
+		if (!activeEditor) {
+			return null;
+		}
+		if (!activeEditor.hasTextFocus()) {
+			return null;
+		}
+
+		// only happen if it would also happen for the search view
+		const seedSearchStringFromSelection = this._configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
+		if (!seedSearchStringFromSelection) {
+			return null;
+		}
+
+		return getSelectionTextFromEditor(false, activeEditor, this._configurationService);
 	}
 
 	private doSearch(contentPattern: string, token: CancellationToken): {
