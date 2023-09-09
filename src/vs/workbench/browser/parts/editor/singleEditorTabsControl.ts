@@ -20,8 +20,8 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface IRenderedEditorLabel {
-	editor?: EditorInput;
-	pinned: boolean;
+	readonly editor?: EditorInput;
+	readonly pinned: boolean;
 }
 
 export class SingleEditorTabsControl extends EditorTabsControl {

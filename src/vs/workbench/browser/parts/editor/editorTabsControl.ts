@@ -43,8 +43,8 @@ import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsD
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export interface IToolbarActions {
-	primary: IAction[];
-	secondary: IAction[];
+	readonly primary: IAction[];
+	readonly secondary: IAction[];
 }
 
 export interface IEditorTabsControlDimensions {
@@ -52,13 +52,13 @@ export interface IEditorTabsControlDimensions {
 	/**
 	 * The size of the parent container the title control is layed out in.
 	 */
-	container: Dimension;
+	readonly container: Dimension;
 
 	/**
 	 * The maximum size the title control is allowed to consume based on
 	 * other controls that are positioned inside the container.
 	 */
-	available: Dimension;
+	readonly available: Dimension;
 }
 
 export class EditorCommandsContextActionRunner extends ActionRunner {

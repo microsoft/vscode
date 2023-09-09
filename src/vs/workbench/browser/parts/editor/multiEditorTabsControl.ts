@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/multitabseditorcontrol';
+import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
@@ -57,13 +57,13 @@ import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsD
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 interface IEditorInputLabel {
-	editor: EditorInput;
+	readonly editor: EditorInput;
 
-	name?: string;
+	readonly name?: string;
 	description?: string;
-	forceDescription?: boolean;
-	title?: string;
-	ariaLabel?: string;
+	readonly forceDescription?: boolean;
+	readonly title?: string;
+	readonly ariaLabel?: string;
 }
 
 interface IMultiEditorTabsControlLayoutOptions {
@@ -73,7 +73,7 @@ interface IMultiEditorTabsControlLayoutOptions {
 	 * the dimensions have not changed. This can be the case
 	 * when a tab was made active and needs to be revealed.
 	 */
-	forceRevealActiveTab?: true;
+	readonly forceRevealActiveTab?: true;
 }
 
 interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
@@ -87,14 +87,14 @@ interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private static readonly SCROLLBAR_SIZES = {
-		default: 3,
-		large: 10
+		default: 3 as const,
+		large: 10 as const
 	};
 
 	private static readonly TAB_WIDTH = {
-		compact: 38,
-		shrink: 80,
-		fit: 120
+		compact: 38 as const,
+		shrink: 80 as const,
+		fit: 120 as const
 	};
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
