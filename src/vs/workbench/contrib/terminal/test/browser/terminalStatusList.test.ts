@@ -11,23 +11,27 @@ import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {
 	deepStrictEqual(list.statuses.map(e => [e.id, e.severity]), expected);
 }
 
 suite('Workbench - TerminalStatusList', () => {
+	let store: DisposableStore;
 	let list: TerminalStatusList;
 	let configService: TestConfigurationService;
 
 	setup(() => {
+		store = new DisposableStore();
 		configService = new TestConfigurationService();
-		list = new TerminalStatusList(configService);
+		list = store.add(new TerminalStatusList(configService));
 	});
 
-	teardown(() => {
-		list.dispose();
-	});
+	teardown(() => store.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('primary', () => {
 		strictEqual(list.primary?.id, undefined);
@@ -72,7 +76,7 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('onDidAddStatus', async () => {
 		const result = await new Promise<ITerminalStatus>(r => {
-			list.onDidAddStatus(r);
+			store.add(list.onDidAddStatus(r));
 			list.add({ id: 'test', severity: Severity.Info });
 		});
 		deepStrictEqual(result, { id: 'test', severity: Severity.Info });
@@ -80,7 +84,7 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('onDidRemoveStatus', async () => {
 		const result = await new Promise<ITerminalStatus>(r => {
-			list.onDidRemoveStatus(r);
+			store.add(list.onDidRemoveStatus(r));
 			list.add({ id: 'test', severity: Severity.Info });
 			list.remove('test');
 		});
@@ -89,7 +93,7 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('onDidChangePrimaryStatus', async () => {
 		const result = await new Promise<ITerminalStatus>(r => {
-			list.onDidRemoveStatus(r);
+			store.add(list.onDidRemoveStatus(r));
 			list.add({ id: 'test', severity: Severity.Info });
 			list.remove('test');
 		});
@@ -132,8 +136,8 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('add should fire onDidRemoveStatus if same status id with a different object reference was added', () => {
 		const eventCalls: string[] = [];
-		list.onDidAddStatus(() => eventCalls.push('add'));
-		list.onDidRemoveStatus(() => eventCalls.push('remove'));
+		store.add(list.onDidAddStatus(() => eventCalls.push('add')));
+		store.add(list.onDidRemoveStatus(() => eventCalls.push('remove')));
 		list.add({ id: 'test', severity: Severity.Info });
 		list.add({ id: 'test', severity: Severity.Info });
 		deepStrictEqual(eventCalls, [

@@ -111,7 +111,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
 
 		let isDisposed = false;
-		const commandDisposables = new DisposableStore();
 
 		const onDidChangeSelection = new Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>();
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
@@ -236,7 +235,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					this._logService.trace(`NotebookController[${handle}], DISPOSED`);
 					isDisposed = true;
 					this._kernelData.delete(handle);
-					commandDisposables.dispose();
 					onDidChangeSelection.dispose();
 					onDidReceiveMessage.dispose();
 					this._proxy.$removeKernel(handle);

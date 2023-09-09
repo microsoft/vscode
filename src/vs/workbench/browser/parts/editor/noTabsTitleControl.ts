@@ -26,13 +26,13 @@ interface IRenderedEditorLabel {
 
 export class NoTabsTitleControl extends TitleControl {
 
-	private static readonly HEIGHT = 35;
-
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
-	protected create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): void {
+		super.create(parent);
+
 		const titleContainer = this.titleContainer = parent;
 		titleContainer.draggable = true;
 
@@ -197,7 +197,9 @@ export class NoTabsTitleControl extends TitleControl {
 		});
 	}
 
-	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
+		super.updateOptions(oldOptions, newOptions);
+
 		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.decorations, newOptions.decorations)) {
 			this.redraw();
 		}
@@ -348,7 +350,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 	getHeight(): IEditorGroupTitleHeight {
 		return {
-			total: NoTabsTitleControl.HEIGHT,
+			total: this.titleHeight,
 			offset: 0
 		};
 	}
