@@ -6,6 +6,8 @@
 
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -13,13 +15,22 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 
 suite('Workbench - TestProfileService', () => {
 	let t: TestProfileService;
+	let ds: DisposableStore;
 	let idCounter = 0;
+
+	teardown(() => {
+		ds.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		idCounter = 0;
-		t = new TestProfileService(
+		ds = new DisposableStore();
+		t = ds.add(new TestProfileService(
 			new MockContextKeyService(),
-			new TestStorageService(),
-		);
+			ds.add(new TestStorageService()),
+		));
 	});
 
 	const addProfile = (profile: Partial<ITestRunProfile>) => {

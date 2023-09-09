@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction } from 'vs/base/common/actions';
-import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
+import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -588,7 +589,7 @@ export class CommentController implements IEditorContribution {
 			return 0;
 		});
 
-		const idx = findFirstInSorted(sortedWidgets, widget => {
+		const idx = findFirstIdxMonotonousOrArrLen(sortedWidgets, widget => {
 			const lineValueOne = reverse ? after.lineNumber : (widget.commentThread.range?.startLineNumber ?? 0);
 			const lineValueTwo = reverse ? (widget.commentThread.range?.startLineNumber ?? 0) : after.lineNumber;
 			const columnValueOne = reverse ? after.column : (widget.commentThread.range?.startColumn ?? 0);
@@ -726,9 +727,10 @@ export class CommentController implements IEditorContribution {
 
 	private async openCommentsView(thread: languages.CommentThread) {
 		if (thread.comments && (thread.comments.length > 0)) {
-			if (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'file') {
+			const openViewState = this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView;
+			if (openViewState === 'file') {
 				return this.viewsService.openView(COMMENTS_VIEW_ID);
-			} else if (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'firstFile') {
+			} else if (openViewState === 'firstFile' || (openViewState === 'firstFileUnresolved' && thread.state === languages.CommentThreadState.Unresolved)) {
 				const hasShownView = this.viewsService.getViewWithId<CommentsPanel>(COMMENTS_VIEW_ID)?.hasRendered;
 				if (!hasShownView) {
 					return this.viewsService.openView(COMMENTS_VIEW_ID);
@@ -739,7 +741,7 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | undefined, pendingEdits: { [key: number]: string } | undefined): void {
-		if (!this.editor) {
+		if (!this.editor?.getModel()) {
 			return;
 		}
 		if (this.isEditorInlineOriginal(this.editor)) {

@@ -66,6 +66,7 @@
 
 .test-output-peek-tree {
 	color: var(--vscode-editor-foreground);
+	border-left: 1px solid var(--vscode-panelSection-border);
 }
 
 .test-output-peek-tree .monaco-list-row .monaco-action-bar,
@@ -210,20 +211,20 @@
 	height: 100%;
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text {
+.test-output-peek-message-container .preview-text {
 	padding: 8px 12px 8px 20px;
 	height: calc(100% - 16px);
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text p:first-child {
+.test-output-peek-message-container .preview-text p:first-child {
 	margin-top: 0;
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text p:last-child {
+.test-output-peek-message-container .preview-text p:last-child {
 	margin-bottom: 0;
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text a {
+.test-output-peek-message-container .preview-text a {
 	cursor: pointer;
 }
 

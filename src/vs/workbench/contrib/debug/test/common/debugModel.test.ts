@@ -41,6 +41,8 @@ suite('DebugModel', () => {
 			const wholeStackDeferred = new DeferredPromise<void>();
 			const fakeThread = mockObject<Thread>()({
 				session: { capabilities: { supportsDelayedStackTraceLoading: true } } as any,
+				getCallStack: () => [],
+				getStaleCallStack: () => [],
 			});
 			fakeThread.fetchCallStack.callsFake((levels: number) => {
 				return levels === 1 ? topFrameDeferred.p : wholeStackDeferred.p;

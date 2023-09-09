@@ -99,14 +99,14 @@
 /* status */
 
 .monaco-editor .inline-chat .status {
-	margin-top: 2px;
+	margin-top: 4px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 }
 
 .monaco-editor .inline-chat .status.actions {
-	margin-top: 2px;
+	margin-top: 4px;
 }
 
 .monaco-editor .inline-chat .status .actions.hidden {
