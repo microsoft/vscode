@@ -1089,7 +1089,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (Array.isArray(data)) {
 				const group = data[0];
 				if (group.identifier === this.group.id) {
-					return false; // groups cannot be dropped on title area it originates from
+					return false; // groups cannot be dropped on group it originates from
 				}
 			}
 
