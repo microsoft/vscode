@@ -56,12 +56,13 @@ export interface IListViewAccessibilityProvider<T> {
 }
 
 export interface IListViewOptionsUpdate {
-	readonly additionalScrollHeight?: number;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly scrollByPage?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
+	readonly paddingTop?: number;
+	readonly paddingBottom?: number;
 }
 
 export interface IListViewOptions<T> extends IListViewOptionsUpdate {
@@ -219,7 +220,9 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	readonly scrollableElementDomNode: HTMLElement;
 	readonly length: number;
 	readonly contentHeight: number;
+	readonly contentWidth: number;
 	readonly onDidChangeContentHeight: Event<number>;
+	readonly onDidChangeContentWidth: Event<number>;
 	readonly renderHeight: number;
 	readonly scrollHeight: number;
 	readonly firstVisibleIndex: number;
@@ -296,7 +299,7 @@ export class ListView<T> implements IListView<T> {
 	private setRowLineHeight: boolean;
 	private setRowHeight: boolean;
 	private supportDynamicHeights: boolean;
-	private additionalScrollHeight: number;
+	private paddingBottom: number;
 	private accessibilityProvider: ListViewAccessibilityProvider<T>;
 	private scrollWidth: number | undefined;
 
@@ -310,8 +313,11 @@ export class ListView<T> implements IListView<T> {
 	private readonly disposables: DisposableStore = new DisposableStore();
 
 	private readonly _onDidChangeContentHeight = new Emitter<number>();
+	private readonly _onDidChangeContentWidth = new Emitter<number>();
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event, undefined, this.disposables);
+	readonly onDidChangeContentWidth: Event<number> = Event.latch(this._onDidChangeContentWidth.event, undefined, this.disposables);
 	get contentHeight(): number { return this.rangeMap.size; }
+	get contentWidth(): number { return this.scrollWidth ?? 0; }
 
 	get onDidScroll(): Event<ScrollEvent> { return this.scrollableElement.onScroll; }
 	get onWillScroll(): Event<ScrollEvent> { return this.scrollableElement.onWillScroll; }
@@ -359,7 +365,7 @@ export class ListView<T> implements IListView<T> {
 
 		this.items = [];
 		this.itemId = 0;
-		this.rangeMap = new RangeMap();
+		this.rangeMap = new RangeMap(options.paddingTop ?? 0);
 
 		for (const renderer of renderers) {
 			this.renderers.set(renderer.templateId, renderer);
@@ -381,7 +387,7 @@ export class ListView<T> implements IListView<T> {
 		this._horizontalScrolling = options.horizontalScrolling ?? DefaultOptions.horizontalScrolling;
 		this.domNode.classList.toggle('horizontal-scrolling', this._horizontalScrolling);
 
-		this.additionalScrollHeight = typeof options.additionalScrollHeight === 'undefined' ? 0 : options.additionalScrollHeight;
+		this.paddingBottom = typeof options.paddingBottom === 'undefined' ? 0 : options.paddingBottom;
 
 		this.accessibilityProvider = new ListViewAccessibilityProvider(options.accessibilityProvider);
 
@@ -436,8 +442,8 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	updateOptions(options: IListViewOptionsUpdate) {
-		if (options.additionalScrollHeight !== undefined) {
-			this.additionalScrollHeight = options.additionalScrollHeight;
+		if (options.paddingBottom !== undefined) {
+			this.paddingBottom = options.paddingBottom;
 			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
 
@@ -465,6 +471,22 @@ export class ListView<T> implements IListView<T> {
 
 		if (scrollableOptions) {
 			this.scrollableElement.updateOptions(scrollableOptions);
+		}
+
+		if (options.paddingTop !== undefined && options.paddingTop !== this.rangeMap.paddingTop) {
+			// trigger a rerender
+			const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+			const offset = options.paddingTop - this.rangeMap.paddingTop;
+			this.rangeMap.paddingTop = options.paddingTop;
+
+			this.render(lastRenderRange, Math.max(0, this.lastRenderTop + offset), this.lastRenderHeight, undefined, undefined, true);
+			this.setScrollTop(this.lastRenderTop);
+
+			this.eventuallyUpdateScrollDimensions();
+
+			if (this.supportDynamicHeights) {
+				this._rerender(this.lastRenderTop, this.lastRenderHeight);
+			}
 		}
 	}
 
@@ -597,7 +619,7 @@ export class ListView<T> implements IListView<T> {
 
 		// TODO@joao: improve this optimization to catch even more cases
 		if (start === 0 && deleteCount >= this.items.length) {
-			this.rangeMap = new RangeMap();
+			this.rangeMap = new RangeMap(this.rangeMap.paddingTop);
 			this.rangeMap.splice(0, 0, inserted);
 			deleted = this.items;
 			this.items = inserted;
@@ -689,6 +711,7 @@ export class ListView<T> implements IListView<T> {
 
 		this.scrollWidth = scrollWidth;
 		this.scrollableElement.setScrollDimensions({ scrollWidth: scrollWidth === 0 ? 0 : (scrollWidth + 10) });
+		this._onDidChangeContentWidth.fire(this.scrollWidth);
 	}
 
 	updateWidth(index: number): void {
@@ -702,6 +725,7 @@ export class ListView<T> implements IListView<T> {
 		if (typeof item.width !== 'undefined' && item.width > this.scrollWidth) {
 			this.scrollWidth = item.width;
 			this.scrollableElement.setScrollDimensions({ scrollWidth: this.scrollWidth + 10 });
+			this._onDidChangeContentWidth.fire(this.scrollWidth);
 		}
 	}
 
@@ -1010,7 +1034,7 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	get scrollHeight(): number {
-		return this._scrollHeight + (this.horizontalScrolling ? 10 : 0) + this.additionalScrollHeight;
+		return this._scrollHeight + (this.horizontalScrolling ? 10 : 0) + this.paddingBottom;
 	}
 
 	// Events

@@ -169,7 +169,7 @@
     "@vscode/extension-telemetry": "0.7.5"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

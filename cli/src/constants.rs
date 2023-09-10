@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::collections::HashMap;
+use std::{collections::HashMap, io::IsTerminal};
 
 use const_format::concatcp;
 use lazy_static::lazy_static;
@@ -18,7 +18,8 @@ pub const CONTROL_PORT: u16 = 31545;
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
 ///      are compressed bidirectionally.
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
-pub const PROTOCOL_VERSION: u32 = 3;
+///  4 - The server's msgpack messages are no longer length-prefixed
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Prefix for the tunnel tag that includes the version.
 pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";
@@ -118,7 +119,7 @@ lazy_static! {
 		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
 
 	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref IS_A_TTY: bool = atty::is(atty::Stream::Stdin);
+	pub static ref IS_A_TTY: bool = std::io::stdin().is_terminal();
 
 	/// Whether i/o interactions are allowed in the current CLI.
 	pub static ref COLORS_ENABLED: bool = *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err();

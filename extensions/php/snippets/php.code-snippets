@@ -1,8 +1,66 @@
 {
+	"$… = ( … ) ? … : …": {
+		"prefix": "if?",
+		"body": "$${1:retVal} = (${2:condition}) ? ${3:a} : ${4:b} ;",
+		"description": "Ternary conditional assignment"
+	},
+	"$… = array (…)": {
+		"prefix": "array",
+		"body": "$${1:arrayName} = array($0);",
+		"description": "Array initializer"
+	},
+	"$… = […]": {
+		"prefix": "shorray",
+		"body": "$${1:arrayName} = [$0];",
+		"description": "Array initializer"
+	},
+	"… => …": {
+		"prefix": "keyval,kvp",
+		"body": "'$1' => $2$0",
+		"description": "Key-Value pair"
+	},
+	"$a <=> $b": {
+		"prefix": "spaceship",
+		"body": "(${1:$$a} <=> ${2:$$b} === ${3|0,1,-1|})",
+		"description": "Spaceship equality check"
+	},
+	"attribute": {
+		"prefix": "attr",
+		"body": [
+			"#[\\\\Attribute]",
+			"class ${1:My}Attribute${2: extends ${3:MyOther}Attribute} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Attribute"
+	},
+	"attribute target": {
+		"prefix": "attr_target",
+		"body": "\\Attribute::${1|TARGET_ALL,TARGET_CLASS,TARGET_FUNCTION,TARGET_METHOD,TARGET_PROPERTY,TARGET_CLASS_CONSTANT,TARGET_PARAMETER,IS_REPEATABLE|}$0"
+	},
+	"attribute with target": {
+		"prefix": "attr_with_target",
+		"body": [
+			"#[\\\\Attribute(\\Attribute::${1|TARGET_ALL,TARGET_CLASS,TARGET_FUNCTION,TARGET_METHOD,TARGET_PROPERTY,TARGET_CLASS_CONSTANT,TARGET_PARAMETER,IS_REPEATABLE|}$2)]",
+			"class ${3:My}Attribute${4: extends ${5:MyOther}Attribute} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Attribute - Chain targets with attr_target snippet"
+	},
+	"case …": {
+		"prefix": "case",
+		"body": [
+			"case '${1:value}':",
+			"\t${0:# code...}",
+			"\tbreak;"
+		],
+		"description": "Case Block"
+	},
 	"class …": {
 		"prefix": "class",
 		"body": [
-			"class ${1:ClassName} ${2:extends ${3:AnotherClass}} ${4:implements ${5:Interface}}",
+			"${1:${2|final ,readonly |}}class ${3:${TM_FILENAME_BASE}}${4: extends ${5:AnotherClass}} ${6:implements ${7:Interface}}",
 			"{",
 			"\t$0",
 			"}",
@@ -10,87 +68,36 @@
 		],
 		"description": "Class definition"
 	},
-	"PHPDoc class …": {
-		"prefix": "doc_class",
-		"isFileTemplate": true,
+	"class __construct": {
+		"prefix": "construct",
 		"body": [
-			"/**",
-			" * ${6:undocumented class}",
-			" */",
-			"class ${1:ClassName} ${2:extends ${3:AnotherClass}} ${4:implements ${5:Interface}}",
-			"{",
-			"\t$0",
-			"}",
-			""
-		],
-		"description": "Documented Class Declaration"
-	},
-	"function __construct": {
-		"prefix": "con",
-		"body": [
-			"${1:public} function __construct(${2:${3:Type} $${4:var}${5: = ${6:null}}}) {",
-            "\t\\$this->${4:var} = $${4:var};$0",
-            "}"
+			"${1|public,private,protected|} function __construct(${2:${3:Type} $${4:var}${5: = ${6:null}}}$7) {",
+			"\t\\$this->${4:var} = $${4:var};$0",
+			"}"
 		]
 	},
-	"PHPDoc property": {
-		"prefix": "doc_v",
+	"class function …": {
+		"prefix": "class_fun",
 		"body": [
-			"/** @var ${1:Type} $${2:var} ${3:description} */",
-			"${4:protected} $${2:var}${5: = ${6:null}};$0"
-		],
-		"description": "Documented Class Variable"
-	},
-	"PHPDoc function …": {
-		"prefix": "doc_f",
-		"isFileTemplate": true,
-		"body": [
-			"/**",
-			" * ${1:undocumented function summary}",
-			" *",
-			" * ${2:Undocumented function long description}",
-			" *",
-			"${3: * @param ${4:Type} $${5:var} ${6:Description}}",
-			"${7: * @return ${8:type}}",
-			"${9: * @throws ${10:conditon}}",
-			" **/",
-			"${11:public }function ${12:FunctionName}(${13:${14:${4:Type} }$${5:var}${15: = ${16:null}}})",
+			"${1|public ,private ,protected |}${2: static }function ${3:FunctionName}(${4:${5:${6:Type} }$${7:var}${8: = ${9:null}}}$10) : ${11:Returntype}",
 			"{",
 			"\t${0:# code...}",
 			"}"
 		],
-		"description": "Documented function"
+		"description": "Function for classes, traits and enums"
 	},
-	"PHPDoc param …": {
-		"prefix": "param",
-		"body": [
-			"* @param ${1:Type} ${2:var} ${3:Description}$0"
-		],
-		"description": "Parameter documentation"
+	"const": {
+		"prefix": "const",
+		"body": "${1|public ,private ,protected |}const ${2:NAME} = $3;",
+		"description": "Constant for classes, traits, enums"
 	},
-	"function …": {
-		"prefix": "fun",
+	"enum": {
+		"prefix": "enum",
 		"body": [
-			"${1:public }function ${2:FunctionName}(${3:${4:${5:Type} }$${6:var}${7: = ${8:null}}})",
-			"{",
-			"\t${0:# code...}",
+			"enum $1 {",
+			"\tcase $2;$0",
 			"}"
-		],
-		"description": "Function"
-	},
-	"trait …": {
-		"prefix": "trait",
-		"body": [
-			"/**",
-			" * $1",
-			" */",
-			"trait ${2:TraitName}",
-			"{",
-			"\t$0",
-			"}",
-			""
-		],
-		"description": "Trait"
+		]
 	},
 	"define(…, …)": {
 		"prefix": "def",
@@ -108,41 +115,6 @@
 			"} while (${1:$${2:a} <= ${3:10}});"
 		],
 		"description": "Do-While loop"
-	},
-		"while …": {
-		"prefix": "while",
-		"body": [
-			"while (${1:$${2:a} <= ${3:10}}) {",
-			"\t${0:# code...}",
-			"}"
-		],
-		"description": "While-loop"
-	},
-	"if …": {
-		"prefix": "if",
-		"body": [
-			"if (${1:condition}) {",
-			"\t${0:# code...}",
-			"}"
-		],
-		"description": "If block"
-	},
-	"if … else …": {
-		"prefix": "ifelse",
-		"body": [
-			"if (${1:condition}) {",
-			"\t${2:# code...}",
-			"} else {",
-			"\t${3:# code...}",
-			"}",
-			"$0"
-		],
-		"description": "If Else block"
-	},
-	"$… = ( … ) ? … : …": {
-		"prefix": "if?",
-		"body": "$${1:retVal} = (${2:condition}) ? ${3:a} : ${4:b} ;",
-		"description": "Ternary conditional assignment"
 	},
 	"else …": {
 		"prefix": "else",
@@ -174,26 +146,146 @@
 	"foreach …": {
 		"prefix": "foreach",
 		"body": [
-			"foreach ($${1:variable} as $${2:key} ${3:=> $${4:value}}) {",
+			"foreach ($${1:variable} as $${2:key}${3: => $${4:value}}) {",
 			"\t${0:# code...}",
 			"}"
 		],
 		"description": "Foreach loop"
 	},
-	"$… = array (…)": {
-		"prefix": "array",
-		"body": "$${1:arrayName} = array('$2' => $3${4:,} $0);",
-		"description": "Array initializer"
+	"function": {
+		"prefix": "fun",
+		"body": [
+			"function ${1:FunctionName}($2)${3: : ${4:Returntype}} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Function - use param snippet for parameters"
 	},
-	"$… = […]": {
-		"prefix": "shorray",
-		"body": "$${1:arrayName} = ['$2' => $3${4:,} $0];",
-		"description": "Array initializer"
+	"anonymous function": {
+		"prefix": "fun_anonymous",
+		"body": [
+			"function ($1)${2: use ($${3:var})} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Anonymous Function"
 	},
-	"… => …": {
-		"prefix": "keyval",
-		"body": "'$1' => $2${3:,} $0",
-		"description": "Key-Value initializer"
+	"if …": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "If block"
+	},
+	"if … else …": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${2:# code...}",
+			"} else {",
+			"\t${3:# code...}",
+			"}",
+			"$0"
+		],
+		"description": "If Else block"
+	},
+	"match": {
+		"prefix": "match",
+		"body": [
+			"match (${1:expression}) {",
+			"\t$2 => $3,",
+			"\t$4 => $5,$0",
+			"}"
+		],
+		"description": "Match expression; like switch with identity checks. Use keyval snippet to chain expressions"
+	},
+	"param": {
+		"prefix": "param",
+		"body": "${1:Type} $${2:var}${3: = ${4:null}}$5",
+		"description": "Parameter definition"
+	},
+	"property": {
+		"prefix": "property",
+		"body": "${1|public ,private ,protected |}${2|static ,readonly |}${3:Type} $${4:var}${5: = ${6:null}};$0",
+		"description": "Property"
+	},
+	"PHPDoc class …": {
+		"prefix": "doc_class",
+		"body": [
+			"/**",
+			" * ${8:undocumented class}",
+			" */",
+			"${1:${2|final ,readonly |}}class ${3:${TM_FILENAME_BASE}}${4: extends ${5:AnotherClass}} ${6:implements ${7:Interface}}",
+			"{",
+			"\t$0",
+			"}",
+			""
+		],
+		"description": "Documented Class Declaration"
+	},
+	"PHPDoc function …": {
+		"prefix": "doc_fun",
+		"body": [
+			"/**",
+			" * ${1:undocumented function summary}",
+			" *",
+			" * ${2:Undocumented function long description}",
+			" *",
+			"${3: * @param ${4:Type} $${5:var} ${6:Description}}",
+			"${7: * @return ${8:type}}",
+			"${9: * @throws ${10:conditon}}",
+			" **/",
+			"${11:public }function ${12:FunctionName}(${13:${14:${4:Type} }$${5:var}${15: = ${16:null}}}17)",
+			"{",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "Documented function"
+	},
+	"PHPDoc param …": {
+		"prefix": "doc_param",
+		"body": [
+			"* @param ${1:Type} ${2:var} ${3:Description}$0"
+		],
+		"description": "Paramater documentation"
+	},
+	"PHPDoc trait": {
+		"prefix": "doc_trait",
+		"body": [
+			"/**",
+			" * $1",
+			" */",
+			"trait ${2:TraitName}",
+			"{",
+			"\t$0",
+			"}",
+			""
+		],
+		"description": "Trait"
+	},
+	"PHPDoc var": {
+		"prefix": "doc_var",
+		"body": [
+			"/** @var ${1:Type} $${2:var} ${3:description} */",
+			"${4:protected} $${2:var}${5: = ${6:null}};$0"
+		],
+		"description": "Documented Class Variable"
+	},
+	"Region End": {
+		"prefix": "#endregion",
+		"body": [
+			"#endregion"
+		],
+		"description": "Folding Region End"
+	},
+	"Region Start": {
+		"prefix": "#region",
+		"body": [
+			"#region"
+		],
+		"description": "Folding Region Start"
 	},
 	"switch …": {
 		"prefix": "switch",
@@ -210,24 +302,10 @@
 		],
 		"description": "Switch block"
 	},
-	"case …": {
-		"prefix": "case",
-		"body": [
-			"case '${1:value}':",
-			"\t${0:# code...}",
-			"\tbreak;"
-		],
-		"description": "Case Block"
-	},
 	"$this->…": {
 		"prefix": "this",
 		"body": "\\$this->$0;",
 		"description": "$this->..."
-	},
-	"echo $this->…": {
-		"prefix": "ethis",
-		"body": "echo \\$this->$0;",
-		"description": "Echo this"
 	},
 	"Throw Exception": {
 		"prefix": "throw",
@@ -237,19 +315,16 @@
 		],
 		"description": "Throw exception"
 	},
-	"Region Start": {
-		"prefix": "#region",
+	"trait …": {
+		"prefix": "trait",
 		"body": [
-			"#region"
+			"trait ${1:TraitName}",
+			"{",
+			"\t$0",
+			"}",
+			""
 		],
-		"description": "Folding Region Start"
-	},
-	"Region End": {
-		"prefix": "#endregion",
-		"body": [
-			"#endregion"
-		],
-		"description": "Folding Region End"
+		"description": "Trait"
 	},
 	"Try Catch Block": {
 		"prefix": "try",
@@ -261,5 +336,36 @@
 			"}"
 		],
 		"description": "Try catch block"
+	},
+	"use function": {
+		"prefix": "use_fun",
+		"body": "use function $1;"
+	},
+	"use const": {
+		"prefix": "use_const",
+		"body": "use const $1;"
+	},
+	"use grouping": {
+		"prefix": "use_group",
+		"body": [
+			"use${1| const , function |}$2\\{",
+			"\t$0,",
+			"}"
+		],
+		"description": "Use grouping imports"
+	},
+	"use as ": {
+		"prefix": "use_as",
+		"body": "use${1| const , function |}$2 as $3;",
+		"description": "Use as alias"
+	},
+	"while …": {
+		"prefix": "while",
+		"body": [
+			"while (${1:$${2:a} <= ${3:10}}) {",
+			"\t${0:# code...}",
+			"}"
+		],
+		"description": "While-loop"
 	}
 }

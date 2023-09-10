@@ -430,5 +430,6 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(decorations[0].options.overviewRuler, null);
 
 		textModel.dispose();
+		instantiationService.dispose();
 	});
 });

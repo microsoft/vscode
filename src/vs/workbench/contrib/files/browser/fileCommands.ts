@@ -663,8 +663,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		args: [
 			{
 				isOptional: true,
-				name: 'New Untitled Text File args',
-				description: 'The editor view type, language ID, or resource path if known',
+				name: 'New Untitled Text File arguments',
+				description: 'The editor view type or language ID if known',
 				schema: {
 					'type': 'object',
 					'properties': {
@@ -673,7 +673,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						},
 						'languageId': {
 							'type': 'string'
-						},
+						}
 					}
 				}
 			}

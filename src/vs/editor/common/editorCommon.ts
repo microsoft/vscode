@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { ThemeColor } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration, IModelDecoration } from 'vs/editor/common/model';
-import { ThemeColor } from 'vs/base/common/themables';
-import { IDimension } from 'vs/editor/common/core/dimension';
+import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 /**
@@ -104,6 +104,12 @@ export interface IDiffEditorModel {
 	modified: ITextModel;
 }
 
+export interface IDiffEditorViewModel {
+	readonly model: IDiffEditorModel;
+
+	waitForDiff(): Promise<void>;
+}
+
 /**
  * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
  */
@@ -153,7 +159,7 @@ export interface IEditorAction {
 	run(args?: unknown): Promise<void>;
 }
 
-export type IEditorModel = ITextModel | IDiffEditorModel;
+export type IEditorModel = ITextModel | IDiffEditorModel | IDiffEditorViewModel;
 
 /**
  * A (serializable) state of the cursors.
@@ -189,6 +195,7 @@ export interface ICodeEditorViewState {
 export interface IDiffEditorViewState {
 	original: ICodeEditorViewState | null;
 	modified: ICodeEditorViewState | null;
+	modelState?: unknown;
 }
 /**
  * An editor view state.
