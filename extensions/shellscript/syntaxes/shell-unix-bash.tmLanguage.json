@@ -268,7 +268,7 @@
 			"patterns": [
 				{
 					"begin": "(?=\\S)",
-					"end": ";;",
+					"end": ";;?&?",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.terminator.case-clause.shell"
@@ -311,7 +311,7 @@
 						},
 						{
 							"begin": "(?<=\\))",
-							"end": "(?=;;)",
+							"end": "(?=;;?&?)",
 							"name": "meta.scope.case-clause-body.shell",
 							"patterns": [
 								{
