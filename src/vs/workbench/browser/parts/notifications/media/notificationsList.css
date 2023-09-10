@@ -87,6 +87,7 @@
 	height: 22px;
 }
 
+.monaco-workbench .notifications-list-container .monaco-list:focus-within .notification-list-item .notification-list-item-toolbar-container,
 .monaco-workbench .notifications-list-container .notification-list-item:hover .notification-list-item-toolbar-container,
 .monaco-workbench .notifications-list-container .monaco-list-row.focused .notification-list-item .notification-list-item-toolbar-container,
 .monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-toolbar-container {

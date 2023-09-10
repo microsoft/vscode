@@ -13,7 +13,7 @@ import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar
 import { ActivePanelContext, PanelFocusContext, getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -82,7 +82,11 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	readonly minimumHeight: number = 77;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
-	readonly snap = true;
+	get snap(): boolean {
+		// Always allow snapping closed
+		// Only allow dragging open if the panel contains view containers
+		return this.layoutService.isVisible(this.partId) || this.compositeBar.getVisibleComposites().length > 0;
+	}
 
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility
@@ -132,7 +136,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -155,7 +158,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,
@@ -419,7 +421,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			disposables.clear();
 			this.onDidRegisterExtensions();
 			this.compositeBar.onDidChange(() => this.saveCachedPanels(), this, disposables);
-			this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e), this, disposables);
+			this.storageService.onDidChangeValue(StorageScope.PROFILE, this.pinnedPanelsKey, disposables)(() => this.onDidStorageValueChange(), this, disposables);
 		}));
 
 	}
@@ -783,9 +785,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return this.toolBar.getItemsWidth() + (this.globalToolBar?.getItemsWidth() ?? 0);
 	}
 
-	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.PROFILE
-			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
+	private onDidStorageValueChange(): void {
+		if (this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
 			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
 			const compositeItems = this.compositeBar.getCompositeBarItems();
@@ -932,7 +933,6 @@ export class PanelPart extends BasePanelPart {
 		super(
 			notificationService,
 			storageService,
-			telemetryService,
 			contextMenuService,
 			layoutService,
 			keybindingService,

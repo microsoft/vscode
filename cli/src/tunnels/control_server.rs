@@ -48,11 +48,11 @@ use super::dev_tunnels::ActiveTunnel;
 use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
-	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ChallengeIssueResponse,
-	ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams, ForwardResult,
-	FsStatRequest, FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams,
-	HttpHeadersParams, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
-	ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
+	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ChallengeIssueParams,
+	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams,
+	ForwardResult, FsStatRequest, FsStatResponse, GetEnvResponse, GetHostnameResponse,
+	HttpBodyParams, HttpHeadersParams, ServeParams, ServerLog, ServerMessageParams, SpawnParams,
+	SpawnResult, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
 	METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
@@ -94,8 +94,8 @@ struct HandlerContext {
 
 /// Handler auth state.
 enum AuthState {
-	/// Auth is required, we're waiting for the client to send its challenge.
-	WaitingForChallenge,
+	/// Auth is required, we're waiting for the client to send its challenge optionally bearing a token.
+	WaitingForChallenge(Option<String>),
 	/// A challenge has been issued. Waiting for a verification.
 	ChallengeIssued(String),
 	/// Auth is no longer required.
@@ -215,7 +215,7 @@ pub async fn serve(
 						code_server_args: own_code_server_args,
 						platform,
 						exit_barrier: own_exit,
-						requires_auth: false,
+						requires_auth: AuthRequired::None,
 					}).with_context(cx.clone()).await;
 
 					cx.span().add_event(
@@ -233,12 +233,20 @@ pub async fn serve(
 	}
 }
 
+#[derive(Clone)]
+pub enum AuthRequired {
+	None,
+	VSDA,
+	VSDAWithToken(String),
+}
+
+#[derive(Clone)]
 pub struct ServeStreamParams {
 	pub log: log::Logger,
 	pub launcher_paths: LauncherPaths,
 	pub code_server_args: CodeServerArgs,
 	pub platform: Platform,
-	pub requires_auth: bool,
+	pub requires_auth: AuthRequired,
 	pub exit_barrier: Barrier<ShutdownSignal>,
 }
 
@@ -268,7 +276,7 @@ fn make_socket_rpc(
 	launcher_paths: LauncherPaths,
 	code_server_args: CodeServerArgs,
 	port_forwarding: Option<PortForwarding>,
-	requires_auth: bool,
+	requires_auth: AuthRequired,
 	platform: Platform,
 ) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
 	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
@@ -276,8 +284,9 @@ fn make_socket_rpc(
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
 		did_update: Arc::new(AtomicBool::new(false)),
 		auth_state: Arc::new(std::sync::Mutex::new(match requires_auth {
-			true => AuthState::WaitingForChallenge,
-			false => AuthState::Authenticated,
+			AuthRequired::VSDAWithToken(t) => AuthState::WaitingForChallenge(Some(t)),
+			AuthRequired::VSDA => AuthState::WaitingForChallenge(None),
+			AuthRequired::None => AuthState::Authenticated,
 		})),
 		socket_tx,
 		log: log.clone(),
@@ -304,8 +313,8 @@ fn make_socket_rpc(
 		ensure_auth(&c.auth_state)?;
 		handle_get_env()
 	});
-	rpc.register_sync(METHOD_CHALLENGE_ISSUE, |_: EmptyObject, c| {
-		handle_challenge_issue(&c.auth_state)
+	rpc.register_sync(METHOD_CHALLENGE_ISSUE, |p: ChallengeIssueParams, c| {
+		handle_challenge_issue(p, &c.auth_state)
 	});
 	rpc.register_sync(METHOD_CHALLENGE_VERIFY, |p: ChallengeVerifyParams, c| {
 		handle_challenge_verify(p.response, &c.auth_state)
@@ -422,6 +431,7 @@ async fn process_socket(
 	let rx_counter = Arc::new(AtomicUsize::new(0));
 	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 
+	let already_authed = matches!(requires_auth, AuthRequired::None);
 	let rpc = make_socket_rpc(
 		log.clone(),
 		socket_tx.clone(),
@@ -439,7 +449,7 @@ async fn process_socket(
 		let socket_tx = socket_tx.clone();
 		let exit_barrier = exit_barrier.clone();
 		tokio::spawn(async move {
-			if !requires_auth {
+			if already_authed {
 				send_version(&socket_tx).await;
 			}
 
@@ -611,6 +621,7 @@ async fn handle_serve(
 ) -> Result<EmptyObject, AnyError> {
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
+	csa.connection_token = params.connection_token.or(csa.connection_token);
 	csa.install_extensions.extend(params.extensions.into_iter());
 
 	let params_raw = ServerParamsRaw {
@@ -824,13 +835,22 @@ fn handle_get_env() -> Result<GetEnvResponse, AnyError> {
 }
 
 fn handle_challenge_issue(
+	params: ChallengeIssueParams,
 	auth_state: &Arc<std::sync::Mutex<AuthState>>,
 ) -> Result<ChallengeIssueResponse, AnyError> {
 	let challenge = create_challenge();
 
 	let mut auth_state = auth_state.lock().unwrap();
-	*auth_state = AuthState::ChallengeIssued(challenge.clone());
+	if let AuthState::WaitingForChallenge(Some(s)) = &*auth_state {
+		println!("looking for token {}, got {:?}", s, params.token);
+		match &params.token {
+			Some(t) if s != t => return Err(CodeError::AuthChallengeBadToken.into()),
+			None => return Err(CodeError::AuthChallengeBadToken.into()),
+			_ => {}
+		}
+	}
 
+	*auth_state = AuthState::ChallengeIssued(challenge.clone());
 	Ok(ChallengeIssueResponse { challenge })
 }
 
@@ -842,7 +862,7 @@ fn handle_challenge_verify(
 
 	match &*auth_state {
 		AuthState::Authenticated => Ok(EmptyObject {}),
-		AuthState::WaitingForChallenge => Err(CodeError::AuthChallengeNotIssued.into()),
+		AuthState::WaitingForChallenge(_) => Err(CodeError::AuthChallengeNotIssued.into()),
 		AuthState::ChallengeIssued(c) => match verify_challenge(c, &response) {
 			false => Err(CodeError::AuthChallengeNotIssued.into()),
 			true => {
@@ -1034,8 +1054,7 @@ async fn handle_spawn_cli(
 
 	// CLI args to spawn a server; contracted with clients that they should _not_ provide these.
 	p.arg("--verbose");
-	p.arg("tunnel");
-	p.arg("stdio");
+	p.arg("command-shell");
 
 	p.envs(&params.env);
 	p.stdin(Stdio::piped());

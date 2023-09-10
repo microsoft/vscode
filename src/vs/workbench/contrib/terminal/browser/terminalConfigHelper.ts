@@ -19,6 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { isLinux, isWindows } from 'vs/base/common/platform';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const enum FontConstants {
 	MinimumFontSize = 6,
@@ -29,7 +30,7 @@ const enum FontConstants {
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
  */
-export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
+export class TerminalConfigHelper extends Disposable implements IBrowserTerminalConfigHelper {
 	panelContainer: HTMLElement | undefined;
 
 	private _charMeasureElement: HTMLElement | undefined;
@@ -37,7 +38,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	protected _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
 	config!: ITerminalConfiguration;
 
-	private readonly _onConfigChanged = new Emitter<void>();
+	private readonly _onConfigChanged = this._register(new Emitter<void>());
 	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
 	constructor(
@@ -47,6 +48,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IProductService private readonly _productService: IProductService,
 	) {
+		super();
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {

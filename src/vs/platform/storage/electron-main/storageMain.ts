@@ -158,7 +158,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					this._storage = storage;
 
 					// Re-emit storage changes via event
-					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
+					this._register(storage.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
 
 					// Await storage init
 					await this.doInit(storage);
