@@ -42,8 +42,6 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			return;
 		}
 
-		const scrollPadding = this._notebookEditor.notebookOptions.computeTopInsertToolbarHeight(this._notebookEditor.textModel.viewType);
-
 		const cellExecutions = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
 		const notebookExecution = this._notebookExecutionStateService.getExecution(this._notebookEditor.textModel?.uri);
@@ -52,7 +50,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
 						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
-						if (this._notebookEditor.scrollTop < top + scrollPadding + 5) {
+						if (this._notebookEditor.scrollTop < top + 5) {
 							return true;
 						}
 					}

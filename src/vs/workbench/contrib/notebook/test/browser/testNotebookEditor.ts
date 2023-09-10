@@ -87,6 +87,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 	readonly onDidChangeOrphaned = Event.None;
 	readonly onDidChangeReadonly = Event.None;
+	readonly onDidRevertUntitled = Event.None;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
@@ -134,6 +135,14 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return this._dirty;
 	}
 
+	get hasErrorState() {
+		return false;
+	}
+
+	isModified(): boolean {
+		return this._dirty;
+	}
+
 	getNotebook(): NotebookTextModel {
 		return this._notebook;
 	}
@@ -164,7 +173,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 }
 
 export function setupInstantiationService(disposables = new DisposableStore()) {
-	const instantiationService = new TestInstantiationService();
+	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -216,7 +225,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
 		override onDidChangeCellState: Event<NotebookCellStateChangedEvent> = new Emitter<NotebookCellStateChangedEvent>().event;
-		override _getViewModel(): NotebookViewModel {
+		override getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
 		override textModel = viewModel.notebookDocument;
@@ -281,6 +290,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override deltaCellDecorations() { return []; }
 		override onDidChangeVisibleRanges = Event.None;
 		override visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
+		override getId(): string { return ''; }
 	};
 
 	return { editor: notebookEditor, viewModel };

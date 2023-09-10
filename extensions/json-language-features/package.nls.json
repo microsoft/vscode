@@ -8,6 +8,7 @@
 	"json.schemas.schema.desc": "The schema definition for the given URL. The schema only needs to be provided to avoid accesses to the schema URL.",
 	"json.format.enable.desc": "Enable/disable default JSON formatter",
 	"json.format.keepLines.desc" : "Keep all existing new lines when formatting.",
+	"json.sortOnSave.enable.desc": "Enable/disable default sorting on save",
 	"json.validate.enable.desc": "Enable/disable JSON validation.",
 	"json.tracing.desc": "Traces the communication between VS Code and the JSON language server.",
 	"json.colorDecorators.enable.desc": "Enables or disables color decorators",

@@ -6,42 +6,38 @@ parameters:
   - name: VSCODE_CLI_ENV
     type: object
     default: {}
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
 
 steps:
-  - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
-    displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
-    workingDirectory: $(Build.SourcesDirectory)/cli
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: true
-      ${{ each pair in parameters.VSCODE_CLI_ENV }}:
-        ${{ pair.key }}: ${{ pair.value }}
-
-  - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
-    - powershell: |
-        . build/azure-pipelines/win32/exec.ps1
-        $ErrorActionPreference = "Stop"
-        Move-Item -Path $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code.exe -Destination "$(Build.ArtifactStagingDirectory)/${env:VSCODE_CLI_APPLICATION_NAME}.exe"
-
-    - task: ArchiveFiles@2
-      inputs:
-        rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME).exe
-        includeRootFolder: false
-        archiveType: zip
-        archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
-
-    - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
-      artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
-      displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
+  - ${{ if parameters.VSCODE_CHECK_ONLY }}:
+    - script: rustup component add clippy && cargo clippy --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+      displayName: Lint ${{ parameters.VSCODE_CLI_TARGET }}
+      workingDirectory: $(Build.SourcesDirectory)/cli
+      env:
+        CARGO_NET_GIT_FETCH_WITH_CLI: true
+        ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+          ${{ pair.key }}: ${{ pair.value }}
 
   - ${{ else }}:
-    - script: |
-        set -e
-        mv $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
+    - script: cargo build --release --target ${{ parameters.VSCODE_CLI_TARGET }} --bin=code
+      displayName: Compile ${{ parameters.VSCODE_CLI_TARGET }}
+      workingDirectory: $(Build.SourcesDirectory)/cli
+      env:
+        CARGO_NET_GIT_FETCH_WITH_CLI: true
+        ${{ each pair in parameters.VSCODE_CLI_ENV }}:
+          ${{ pair.key }}: ${{ pair.value }}
 
-    - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
+    - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          Move-Item -Path $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code.exe -Destination "$(Build.ArtifactStagingDirectory)/${env:VSCODE_CLI_APPLICATION_NAME}.exe"
+
       - task: ArchiveFiles@2
         inputs:
-          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
+          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME).exe
           includeRootFolder: false
           archiveType: zip
           archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
@@ -51,14 +47,31 @@ steps:
         displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
 
     - ${{ else }}:
-      - task: ArchiveFiles@2
-        inputs:
-          rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
-          includeRootFolder: false
-          archiveType: tar
-          tarCompression: gz
-          archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
+      - script: |
+          set -e
+          mv $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
 
-      - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
-        artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
-        displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
+      - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
+        - task: ArchiveFiles@2
+          inputs:
+            rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
+            includeRootFolder: false
+            archiveType: zip
+            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
+
+        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
+          artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+          displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact
+
+      - ${{ else }}:
+        - task: ArchiveFiles@2
+          inputs:
+            rootFolderOrFile: $(Build.ArtifactStagingDirectory)/$(VSCODE_CLI_APPLICATION_NAME)
+            includeRootFolder: false
+            archiveType: tar
+            tarCompression: gz
+            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
+
+        - publish: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
+          artifact: ${{ parameters.VSCODE_CLI_ARTIFACT }}
+          displayName: Publish ${{ parameters.VSCODE_CLI_ARTIFACT }} artifact

@@ -15,7 +15,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -25,7 +25,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService implements IProfileAwareExtensionManagementService {
+export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
@@ -129,11 +129,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform);
 		}
 
-		if (compatibleExtension) {
-			if (includePreRelease && !compatibleExtension.properties.isPreReleaseVersion && extension.hasPreReleaseVersion) {
-				throw new ExtensionManagementError(localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
-			}
-		} else {
+		if (!compatibleExtension) {
 			/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 			if (!includePreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
 				throw new ExtensionManagementError(localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);

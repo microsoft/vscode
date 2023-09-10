@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/713cd4a34e7729e444cf85ae287dd94c19e34337",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/8740e610a367c5e3f15be716acc7207655ced4cf",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -241,7 +241,7 @@
 					"match": "\\b(private|to|public|internal|function|yield!|yield|class|exception|match|delegate|of|new|in|as|if|then|else|elif|for|begin|end|inherit|do|let\\!|return\\!|return|interface|with|abstract|enum|member|try|finally|and|when|or|use|use\\!|struct|while|mutable|assert|base|done|downcast|downto|extern|fixed|global|lazy|upcast|not)(?!')\\b"
 				},
 				{
-					"name": "keyword.fsharp",
+					"name": "keyword.symbol.fsharp",
 					"match": ":"
 				},
 				{
@@ -314,7 +314,7 @@
 				},
 				{
 					"match": "(?!when|and|or\\b)\\b([\\w0-9'`^._]+)",
-					"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
+					"comments": "Here we need the \\w modifier in order to check that the words are allowed",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.fsharp"
@@ -488,7 +488,7 @@
 							"end": "\\s*(?=(->))",
 							"beginCaptures": {
 								"1": {
-									"name": "keyword.symbol.arrow.fsharp"
+									"name": "keyword.symbol.fsharp"
 								}
 							},
 							"endCaptures": {
@@ -607,7 +607,7 @@
 		"constants": {
 			"patterns": [
 				{
-					"name": "constant.language.unit.fsharp",
+					"name": "keyword.symbol.fsharp",
 					"match": "\\(\\)"
 				},
 				{
@@ -624,7 +624,7 @@
 				},
 				{
 					"name": "constant.other.fsharp",
-					"match": "\\b(null|unit|void)\\b"
+					"match": "\\b(null|void)\\b"
 				}
 			]
 		},
@@ -643,7 +643,7 @@
 					"name": "support.function.attribute.fsharp"
 				},
 				"5": {
-					"name": "keyword.fsharp"
+					"name": "keyword.symbol.fsharp"
 				}
 			},
 			"endCaptures": {
@@ -813,7 +813,7 @@
 					"match": "(->)\\s*(\\()?\\s*([?[:alpha:]0-9'`^._ ]+)*",
 					"captures": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keyword.symbol.arrow.fsharp"
 						},
 						"2": {
 							"name": "keyword.symbol.fsharp"
@@ -929,7 +929,7 @@
 				{
 					"name": "binding.fsharp",
 					"begin": "\\b(let mutable|static let mutable|static let|let inline|let|and|member val|static member inline|static member|default|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
-					"end": "\\s*(with\\b|=|\\n+=|(?<=\\=))",
+					"end": "\\s*((with\\b)|(=|\\n+=|(?<=\\=)))",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.fsharp"
@@ -948,8 +948,11 @@
 						}
 					},
 					"endCaptures": {
-						"1": {
+						"2": {
 							"name": "keyword.fsharp"
+						},
+						"3": {
+							"name": "keyword.symbol.fsharp"
 						}
 					},
 					"patterns": [
@@ -969,7 +972,7 @@
 					},
 					"endCaptures": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keyword.symbol.fsharp"
 						}
 					},
 					"patterns": [
@@ -989,7 +992,7 @@
 					},
 					"endCaptures": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keyword.symbol.fsharp"
 						}
 					},
 					"patterns": [
@@ -1034,12 +1037,12 @@
 							"name": "keyword.fsharp"
 						},
 						"2": {
-							"name": "keyword.fsharp"
+							"name": "keyword.symbol.fsharp"
 						}
 					},
 					"endCaptures": {
 						"1": {
-							"name": "keyword.fsharp"
+							"name": "keyword.symbol.fsharp"
 						}
 					},
 					"patterns": [
@@ -1110,19 +1113,19 @@
 				},
 				{
 					"name": "keyword.fsharp",
-					"match": "\\b(private|to|public|internal|function|class|exception|delegate|of|as|begin|end|inherit|let!|interface|abstract|enum|member|and|when|or|use|use\\!|struct|mutable|assert|base|done|downcast|downto|extern|fixed|global|lazy|upcast|not)(?!')\\b"
+					"match": "\\b(private|to|public|internal|function|class|exception|delegate|of|new|as|begin|end|inherit|let!|interface|abstract|enum|member|and|when|or|use|use\\!|struct|mutable|assert|base|done|downcast|downto|extern|fixed|global|lazy|upcast|not)(?!')\\b"
 				},
 				{
 					"name": "keyword.control",
 					"match": "\\b(match|yield|yield!|with|if|then|else|elif|for|in|return!|return|try|finally|while|do)(?!')\\b"
 				},
 				{
-					"name": "keyword.symbol.new",
-					"match": "\\b(new)\\b"
+					"name": "keyword.symbol.arrow.fsharp",
+					"match": "(\\->|\\<\\-)"
 				},
 				{
 					"name": "keyword.symbol.fsharp",
-					"match": "(&&&|\\|\\|\\||\\^\\^\\^|~~~|<<<|>>>|\\|>|\\->|\\<\\-|:>|:\\?>|:|\\[|\\]|\\;|<>|=|@|\\|\\||&&|{|}|\\||_|\\.\\.|\\,|\\+|\\-|\\*|\\/|\\^|\\!|\\>|\\>\\=|\\>\\>|\\<|\\<\\=|\\(|\\)|\\<\\<)"
+					"match": "(&&&|\\|\\|\\||\\^\\^\\^|~~~|<<<|>>>|\\|>|:>|:\\?>|:|\\[|\\]|\\;|<>|=|@|\\|\\||&&|{|}|\\||_|\\.\\.|\\,|\\+|\\-|\\*|\\/|\\^|\\!|\\>|\\>\\=|\\>\\>|\\<|\\<\\=|\\(|\\)|\\<\\<)"
 				}
 			]
 		},
@@ -1208,7 +1211,7 @@
 							"name": "entity.name.type.namespace.fsharp"
 						},
 						"3": {
-							"name": "punctuation.separator.namespace-definition.fsharp"
+							"name": "keyword.symbol.fsharp"
 						},
 						"4": {
 							"name": "entity.name.section.fsharp"
@@ -1324,7 +1327,7 @@
 		"variables": {
 			"patterns": [
 				{
-					"name": "constant.language.unit.fsharp",
+					"name": "keyword.symbol.fsharp",
 					"match": "\\(\\)"
 				},
 				{
@@ -1347,7 +1350,7 @@
 					"end": "(>)",
 					"beginCaptures": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keyword.symbol.arrow.fsharp"
 						},
 						"2": {
 							"name": "entity.name.type.fsharp"
@@ -1379,7 +1382,7 @@
 					"match": "\\s*(->)\\s*(?!with|get|set\\b)\\b([\\w0-9'`^._]+)",
 					"captures": {
 						"1": {
-							"name": "keyword.symbol.fsharp"
+							"name": "keyword.symbol.arrow.fsharp"
 						},
 						"2": {
 							"name": "entity.name.type.fsharp"
@@ -1582,7 +1585,7 @@
 							"name": "keyword.symbol.fsharp"
 						},
 						"7": {
-							"name": "constant.language.unit.fsharp"
+							"name": "keyword.symbol.fsharp"
 						}
 					},
 					"patterns": [
@@ -1605,12 +1608,12 @@
 							"end": "((?<!:)>)",
 							"beginCaptures": {
 								"1": {
-									"name": "keyword.fsharp"
+									"name": "keyword.symbol.fsharp"
 								}
 							},
 							"endCaptures": {
 								"1": {
-									"name": "keyword.fsharp"
+									"name": "keyword.symbol.fsharp"
 								}
 							},
 							"patterns": [
@@ -1671,9 +1674,6 @@
 							"match": "\\s*(private|internal|public)",
 							"captures": {
 								"1": {
-									"name": "keyword.symbol.fsharp"
-								},
-								"2": {
 									"name": "storage.modifier.fsharp"
 								}
 							}
@@ -1792,7 +1792,7 @@
 			"patterns": [
 				{
 					"name": "cexpr.fsharp",
-					"match": "\\b(async|seq|promise|task|maybe|asyncMaybe|controller|scope|application|pipeline)\\s*\\{",
+					"match": "\\b(async|seq|promise|task|maybe|asyncMaybe|controller|scope|application|pipeline)(?=\\s*\\{)",
 					"captures": {
 						"0": {
 							"name": "keyword.fsharp"

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.editor-instance .interactive-session {
-	max-width: 600px;
+.interactive-session {
+	max-width: 850px;
 	margin: auto;
 }
 
-.interactive-list .monaco-list-row .monaco-tl-twistie {
-	/* Hide twisties from tree rows */
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
+	/* Hide twisties from chat tree rows, but not from nested trees within a chat response */
 	display: none !important;
 }
 
@@ -65,17 +65,18 @@
 	color: var(--vscode-badge-foreground) !important;
 }
 
-.interactive-item-container .header .monaco-toolbar,
-.interactive-item-container .header .monaco-toolbar .action-label {
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
+.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar,
+.monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label,
+.monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label {
 	/* Also apply this rule to the .action-label directly to work around a strange issue- when the
 	toolbar is hidden without that second rule, tabbing from the list container into a list item doesn't work
 	and the tab key doesn't do anything. */
 	display: none;
 }
 
-.interactive-item-container.interactive-response:hover .header .monaco-toolbar,
-.interactive-item-container.interactive-response:hover .header .monaco-toolbar .action-label {
-	display: initial;
+.interactive-item-container .header .monaco-toolbar .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
 .interactive-item-container .header .monaco-toolbar .action-label {
@@ -83,8 +84,8 @@
 	padding: 2px;
 }
 
-.interactive-item-container .header .monaco-toolbar .checked .action-label,
-.interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+.interactive-item-container .header .monaco-toolbar .checked.action-label,
+.interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
 	border-color: var(--vscode-inputOption-activeBorder);
 	background-color: var(--vscode-inputOption-activeBackground);
@@ -108,7 +109,8 @@
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value a {
+.interactive-item-container .value a,
+.interactive-item-container .value a code {
 	color: var(--vscode-textLink-foreground);
 }
 
@@ -167,6 +169,10 @@
 	line-height: 1.6em;
 }
 
+.interactive-item-container .value li {
+	line-height: 1.5rem;
+}
+
 .interactive-item-container .monaco-tokenized-source,
 .interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
@@ -184,6 +190,7 @@
 	border-radius: 4px;
 	position: relative;
 	padding-left: 8px;
+	margin-bottom: 4px;
 }
 
 .interactive-session .interactive-input-and-toolbar.focused {
@@ -202,8 +209,7 @@
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
 	height: 22px;
-
-	right: 3px;
+	right: 6px;
 	bottom: 6px;
 }
 
@@ -236,12 +242,15 @@
 	margin: 1px;
 }
 
-.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar {
+.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar:focus-within,
+.interactive-item-container .interactive-result-editor-wrapper.focused .monaco-toolbar {
 	display: initial;
+	border-radius: 2px;
 }
 
-.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor {
-	border: 1px solid var(--vscode-input-border, transparent);
+.interactive-item-container .interactive-result-editor-wrapper {
+	margin: 16px 0;
 }
 
 .interactive-response .monaco-editor .margin,
@@ -249,8 +258,18 @@
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
-.interactive-item-container .interactive-result-editor-wrapper {
-	margin: 16px 0;
+.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor {
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor.focused {
+	border-color: var(--vscode-focusBorder, transparent);
+}
+
+.interactive-item-container .interactive-result-editor-wrapper,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor,
+.interactive-item-container .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
+	border-radius: 4px;
 }
 
 .interactive-response .interactive-response-error-details {
@@ -280,12 +299,13 @@
 	display: flex;
 	flex-direction: column;
 	border-top: solid 1px var(--vscode-chat-requestBorder);
+	border-bottom: solid 1px var(--vscode-chat-requestBorder);
 }
 
 .interactive-session-followups {
 	display: flex;
 	flex-direction: column;
-	gap: 5px;
+	gap: 8px;
 	align-items: start;
 }
 
@@ -326,13 +346,13 @@
 
 .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
-	font-size: 11px;
+	font-size: 12px;
 	font-weight: 600;
 	border: none;
 }
 
 .interactive-welcome .value .interactive-session-followups {
-	margin-bottom: 10px;
+	margin-bottom: 16px;
 }
 
 .interactive-item-container .monaco-toolbar .codicon {

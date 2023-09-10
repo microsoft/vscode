@@ -105,12 +105,14 @@ suite('Workbench editor utils', () => {
 		testInput1.capabilities = EditorInputCapabilities.None;
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.None), true);
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(testInput1.isReadonly(), false);
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Untitled), false);
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.RequiresTrust), false);
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Singleton), false);
 
 		testInput1.capabilities |= EditorInputCapabilities.Readonly;
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(!!testInput1.isReadonly(), true);
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.None), false);
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Untitled), false);
 		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.RequiresTrust), false);
@@ -122,15 +124,18 @@ suite('Workbench editor utils', () => {
 		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, testInput1, testInput2);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.MultipleEditors), true);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(sideBySideInput.isReadonly(), false);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), false);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Singleton), false);
 
 		testInput1.capabilities |= EditorInputCapabilities.Readonly;
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(sideBySideInput.isReadonly(), false);
 
 		testInput2.capabilities |= EditorInputCapabilities.Readonly;
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(!!sideBySideInput.isReadonly(), true);
 
 		testInput1.capabilities |= EditorInputCapabilities.Untitled;
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
