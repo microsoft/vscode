@@ -120,7 +120,7 @@ export class TestProfileService implements ITestProfileService {
 		this.preferredDefaults = new StoredValue({
 			key: 'testingPreferredProfiles',
 			scope: StorageScope.WORKSPACE,
-			target: StorageTarget.USER,
+			target: StorageTarget.MACHINE,
 		}, storageService);
 
 		this.capabilitiesContexts = {

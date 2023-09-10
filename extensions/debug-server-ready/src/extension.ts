@@ -308,8 +308,8 @@ class ServerReadyDetector extends vscode.Disposable {
 
 export function activate(context: vscode.ExtensionContext) {
 
-	context.subscriptions.push(vscode.debug.onDidChangeActiveDebugSession(session => {
-		if (session && session.configuration.serverReadyAction) {
+	context.subscriptions.push(vscode.debug.onDidStartDebugSession(session => {
+		if (session.configuration.serverReadyAction) {
 			const detector = ServerReadyDetector.start(session);
 			if (detector) {
 				ServerReadyDetector.startListeningTerminalData();

@@ -106,7 +106,8 @@ export class MergeEditorViewModel extends Disposable {
 		return view ? { view, counter: this.counter++ } : lastValue || { view: undefined, counter: this.counter++ };
 	});
 
-	public readonly baseShowDiffAgainst = derived<1 | 2 | undefined>('baseShowDiffAgainst', reader => {
+	public readonly baseShowDiffAgainst = derived<1 | 2 | undefined>(reader => {
+		/** @description baseShowDiffAgainst */
 		const lastFocusedEditor = this.lastFocusedEditor.read(reader);
 		if (lastFocusedEditor.view === this.inputCodeEditorView1) {
 			return 1;
@@ -116,7 +117,8 @@ export class MergeEditorViewModel extends Disposable {
 		return undefined;
 	});
 
-	public readonly selectionInBase = derived('selectionInBase', (reader) => {
+	public readonly selectionInBase = derived(reader => {
+		/** @description selectionInBase */
 		const sourceEditor = this.lastFocusedEditor.read(reader).view;
 		if (!sourceEditor) {
 			return undefined;
@@ -155,8 +157,8 @@ export class MergeEditorViewModel extends Disposable {
 	}
 
 	public readonly activeModifiedBaseRange = derived(
-		'activeModifiedBaseRange',
 		(reader) => {
+			/** @description activeModifiedBaseRange */
 			const focusedEditor = this.lastFocusedEditor.read(reader);
 			const manualRange = this.manuallySetActiveModifiedBaseRange.read(reader);
 			if (manualRange.counter > focusedEditor.counter) {

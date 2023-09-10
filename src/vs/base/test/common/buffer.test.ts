@@ -413,6 +413,22 @@ suite('Buffer', () => {
 		}
 	});
 
+	test('indexOf', () => {
+		const haystack = VSBuffer.fromString('abcaabbccaaabbbccc');
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('')), 0);
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('a'.repeat(100))), -1);
+
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('a')), 0);
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('c')), 2);
+
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('abcaa')), 0);
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('caaab')), 8);
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('ccc')), 15);
+
+		assert.strictEqual(haystack.indexOf(VSBuffer.fromString('cccb')), -1);
+
+	});
+
 	suite('base64', () => {
 		/*
 		Generated with:

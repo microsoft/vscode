@@ -341,7 +341,12 @@ export interface IExtension {
  */
 export class ExtensionIdentifier {
 	public readonly value: string;
-	private readonly _lower: string;
+
+	/**
+	 * Do not use directly. This is public to avoid mangling and thus
+	 * allow compatibility between running from source and a built version.
+	 */
+	readonly _lower: string;
 
 	constructor(value: string) {
 		this.value = value;

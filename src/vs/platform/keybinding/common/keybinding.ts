@@ -63,7 +63,7 @@ export interface IKeybindingService {
 	/**
 	 * Resolve and dispatch `keyboardEvent`, but do not invoke the command or change inner state.
 	 */
-	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult | null;
+	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult;
 
 	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 

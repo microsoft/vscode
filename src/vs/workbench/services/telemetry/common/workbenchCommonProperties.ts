@@ -18,7 +18,6 @@ export function resolveWorkbenchCommonProperties(
 	machineId: string,
 	isInternalTelemetry: boolean,
 	process: INodeProcess,
-	sandboxed: boolean,
 	remoteAuthority?: string
 ): ICommonProperties {
 	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, isInternalTelemetry);
@@ -37,8 +36,6 @@ export function resolveWorkbenchCommonProperties(
 	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority);
-	// __GDPR__COMMON__ "common.sandboxed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	result['common.sandboxed'] = sandboxed ? '1' : '0'; // TODO@bpasero remove this property when sandbox is on
 	// __GDPR__COMMON__ "common.cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.cli'] = !!process.env['VSCODE_CLI'];
 

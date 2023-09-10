@@ -921,7 +921,7 @@ suite('SplitLinesCollection', () => {
 				})),
 				[
 					{ inlineDecorations: [{ startOffset: 8, endOffset: 23 }] },
-					{ inlineDecorations: [{ startOffset: 4, endOffset: 42 }] },
+					{ inlineDecorations: [{ startOffset: 4, endOffset: 30 }] },
 					{ inlineDecorations: [{ startOffset: 4, endOffset: 16 }] },
 					{ inlineDecorations: undefined },
 					{ inlineDecorations: undefined },

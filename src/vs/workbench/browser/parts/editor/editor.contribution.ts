@@ -68,6 +68,7 @@ import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorH
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
 import { AccessibilityStatus } from 'vs/workbench/browser/parts/editor/accessibilityStatus';
 import { ToggleTabsVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
+import 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2.contribution';
 
 //#region Editor Registrations
 

@@ -150,6 +150,7 @@ export interface IPatternInfo {
 
 export interface INotebookPatternInfo {
 	isInNotebookMarkdownInput?: boolean;
+	isInNotebookMarkdownPreview?: boolean;
 	isInNotebookCellInput?: boolean;
 	isInNotebookCellOutput?: boolean;
 }
@@ -410,7 +411,7 @@ export interface ISearchConfigurationProperties {
 	};
 	defaultViewMode: ViewMode;
 	experimental: {
-		notebookSearch: boolean;
+		closedNotebookRichContentResults: boolean;
 	};
 }
 

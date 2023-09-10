@@ -30,6 +30,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ResolutionResult, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -87,6 +90,13 @@ class InspectContextKeysAction extends Action2 {
 			dispose(disposables);
 		}, null, disposables);
 	}
+}
+
+interface IScreencastKeyboardOptions {
+	readonly showKeys?: boolean;
+	readonly showCommands?: boolean;
+	readonly showCommandGroups?: boolean;
+	readonly showSingleEditorCursorMoves?: boolean;
 }
 
 class ToggleScreencastModeAction extends Action2 {
@@ -256,11 +266,12 @@ class ToggleScreencastModeAction extends Action2 {
 				return;
 			}
 
+			const options = configurationService.getValue<IScreencastKeyboardOptions>('screencastMode.keyboardOptions');
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
 			// Hide the single arrow key pressed
-			if (shortcut && shortcut.kind === ResultKind.KbFound && shortcut.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
+			if (shortcut.kind === ResultKind.KbFound && shortcut.commandId && !(options.showSingleEditorCursorMoves ?? true) && (
 				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
 			) {
 				return;
@@ -277,18 +288,17 @@ class ToggleScreencastModeAction extends Action2 {
 				length = 0;
 			}
 
-			const format = configurationService.getValue<'keys' | 'command' | 'commandWithGroup' | 'commandAndKeys' | 'commandWithGroupAndKeys'>('screencastMode.keyboardShortcutsFormat');
 			const keybinding = keybindingService.resolveKeyboardEvent(event);
 			const command = (this._isKbFound(shortcut) && shortcut.commandId) ? MenuRegistry.getCommand(shortcut.commandId) : null;
 
-			let titleLabel = '';
+			let commandAndGroupLabel = '';
 			let keyLabel: string | undefined | null = keybinding.getLabel();
 
 			if (command) {
-				titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
+				commandAndGroupLabel = typeof command.title === 'string' ? command.title : command.title.value;
 
-				if ((format === 'commandWithGroup' || format === 'commandWithGroupAndKeys') && command.category) {
-					titleLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${titleLabel} `;
+				if ((options.showCommandGroups ?? false) && command.category) {
+					commandAndGroupLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${commandAndGroupLabel} `;
 				}
 
 				if (this._isKbFound(shortcut) && shortcut.commandId) {
@@ -301,13 +311,11 @@ class ToggleScreencastModeAction extends Action2 {
 				}
 			}
 
-			const onlyKeyboardShortcuts = configurationService.getValue('screencastMode.onlyKeyboardShortcuts');
-
-			if (format !== 'keys' && titleLabel && !onlyKeyboardShortcuts) {
-				append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
+			if ((options.showCommands ?? true) && commandAndGroupLabel) {
+				append(keyboardMarker, $('span.title', {}, `${commandAndGroupLabel} `));
 			}
 
-			if (onlyKeyboardShortcuts || !titleLabel || (this._isKbFound(shortcut) && shortcut.commandId) && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
+			if (options.showKeys ?? true) {
 				// Fix label for arrow keys
 				keyLabel = keyLabel?.replace('UpArrow', '↑')
 					?.replace('DownArrow', '↓')
@@ -324,8 +332,8 @@ class ToggleScreencastModeAction extends Action2 {
 		ToggleScreencastModeAction.disposable = disposables;
 	}
 
-	private _isKbFound(resolutionResult: ResolutionResult | null): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
-		return resolutionResult !== null && resolutionResult.kind === ResultKind.KbFound;
+	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
+		return resolutionResult.kind === ResultKind.KbFound;
 	}
 }
 
@@ -341,7 +349,12 @@ class LogStorageAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor): void {
-		accessor.get(IStorageService).log();
+		const storageService = accessor.get(IStorageService);
+		const dialogService = accessor.get(IDialogService);
+
+		storageService.log();
+
+		dialogService.info(localize('storageLogDialogMessage', "The storage database contents have been logged to the developer tools."), localize('storageLogDialogDetails', "Open developer tools from the menu and select the Console tab."));
 	}
 }
 
@@ -360,6 +373,7 @@ class LogWorkingCopiesAction extends Action2 {
 		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyBackupService = accessor.get(IWorkingCopyBackupService);
 		const logService = accessor.get(ILogService);
+		const outputService = accessor.get(IOutputService);
 
 		const backups = await workingCopyBackupService.getBackups();
 
@@ -377,6 +391,8 @@ class LogWorkingCopiesAction extends Action2 {
 		];
 
 		logService.info(msg.join('\n'));
+
+		outputService.showChannel(windowLogId, true);
 	}
 }
 
@@ -410,27 +426,38 @@ configurationRegistry.registerConfiguration({
 			maximum: 100,
 			description: localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
 		},
-		'screencastMode.keyboardShortcutsFormat': {
-			enum: ['keys', 'command', 'commandWithGroup', 'commandAndKeys', 'commandWithGroupAndKeys'],
-			enumDescriptions: [
-				localize('keyboardShortcutsFormat.keys', "Keys."),
-				localize('keyboardShortcutsFormat.command', "Command title."),
-				localize('keyboardShortcutsFormat.commandWithGroup', "Command title prefixed by its group."),
-				localize('keyboardShortcutsFormat.commandAndKeys', "Command title and keys."),
-				localize('keyboardShortcutsFormat.commandWithGroupAndKeys', "Command title and keys, with the command prefixed by its group.")
-			],
-			description: localize('screencastMode.keyboardShortcutsFormat', "Controls what is displayed in the keyboard overlay when showing shortcuts."),
-			default: 'commandAndKeys'
-		},
-		'screencastMode.onlyKeyboardShortcuts': {
-			type: 'boolean',
-			description: localize('screencastMode.onlyKeyboardShortcuts', "Show only keyboard shortcuts in screencast mode (do not include action names)."),
-			default: false
-		},
-		'screencastMode.hideSingleEditorCursorMoves': {
-			type: 'boolean',
-			description: localize('screencastMode.hideSingleEditorCursorMoves', "Hide the single editor cursor move commands in screencast mode."),
-			default: false
+		'screencastMode.keyboardOptions': {
+			type: 'object',
+			description: localize('screencastMode.keyboardOptions.description', "Options for customizing the keyboard overlay in screencast mode."),
+			properties: {
+				'showKeys': {
+					type: 'boolean',
+					default: true,
+					description: localize('screencastMode.keyboardOptions.showKeys', "Show raw keys.")
+				},
+				'showCommands': {
+					type: 'boolean',
+					default: true,
+					description: localize('screencastMode.keyboardOptions.showCommands', "Show command names.")
+				},
+				'showCommandGroups': {
+					type: 'boolean',
+					default: false,
+					description: localize('screencastMode.keyboardOptions.showCommandGroups', "Show command group names, when commands are also shown.")
+				},
+				'showSingleEditorCursorMoves': {
+					type: 'boolean',
+					default: true,
+					description: localize('screencastMode.keyboardOptions.showSingleEditorCursorMoves', "Show single editor cursor move commands.")
+				}
+			},
+			default: {
+				'showKeys': true,
+				'showCommands': true,
+				'showCommandGroups': false,
+				'showSingleEditorCursorMoves': true
+			},
+			additionalProperties: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {
 			type: 'number',

@@ -104,6 +104,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('bar'));
 		assert.ok(getLastModifiedTime(model) <= Date.now());
 		assert.ok(model.hasState(TextFileEditorModelState.DIRTY));
+		assert.ok(model.isModified());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
@@ -123,6 +124,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.ok(model.hasState(TextFileEditorModelState.SAVED));
 		assert.ok(!model.isDirty());
+		assert.ok(!model.isModified());
 		assert.ok(savedEvent);
 		assert.ok((savedEvent as ITextFileEditorModelSaveEvent).stat);
 		assert.strictEqual((savedEvent as ITextFileEditorModelSaveEvent).reason, SaveReason.AUTO);
@@ -182,6 +184,7 @@ suite('Files - TextFileEditorModel', () => {
 
 			assert.ok(model.hasState(TextFileEditorModelState.ERROR));
 			assert.ok(model.isDirty());
+			assert.ok(model.isModified());
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
@@ -238,6 +241,7 @@ suite('Files - TextFileEditorModel', () => {
 
 			assert.ok(model.hasState(TextFileEditorModelState.ERROR));
 			assert.ok(model.isDirty());
+			assert.ok(model.isModified());
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
@@ -268,6 +272,7 @@ suite('Files - TextFileEditorModel', () => {
 
 			assert.ok(model.hasState(TextFileEditorModelState.CONFLICT));
 			assert.ok(model.isDirty());
+			assert.ok(model.isModified());
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
@@ -457,6 +462,7 @@ suite('Files - TextFileEditorModel', () => {
 		await model.resolve();
 		model.updateTextEditorModel(createTextBufferFactory('foo'));
 		assert.ok(model.isDirty());
+		assert.ok(model.isModified());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
@@ -471,6 +477,7 @@ suite('Files - TextFileEditorModel', () => {
 		model = accessor.workingCopyService.get(model) as TextFileEditorModel;
 
 		assert.strictEqual(model.isDirty(), false);
+		assert.strictEqual(model.isModified(), false);
 		assert.strictEqual(eventCounter, 1);
 
 		assert.ok(workingCopyEvent);
@@ -497,12 +504,14 @@ suite('Files - TextFileEditorModel', () => {
 		await model.resolve();
 		model.updateTextEditorModel(createTextBufferFactory('foo'));
 		assert.ok(model.isDirty());
+		assert.ok(model.isModified());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 		await model.revert({ soft: true });
 		assert.strictEqual(model.isDirty(), false);
+		assert.strictEqual(model.isModified(), false);
 		assert.strictEqual(model.textEditorModel!.getValue(), 'foo');
 		assert.strictEqual(eventCounter, 1);
 

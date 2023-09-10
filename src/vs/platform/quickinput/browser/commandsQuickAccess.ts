@@ -10,7 +10,6 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,6 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandId: string;
 	readonly commandAlias?: string;
+	readonly args?: any[];
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
@@ -68,8 +68,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
-			const labelHighlights = withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label));
-			const aliasHighlights = commandPick.commandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias)) : undefined;
+			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label) ?? undefined;
+			const aliasHighlights = commandPick.commandAlias ? AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined : undefined;
 
 			// Add if matching in label or alias
 			if (labelHighlights || aliasHighlights) {
@@ -211,7 +211,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 				// Run
 				try {
-					await this.commandService.executeCommand(commandPick.commandId);
+					commandPick.args?.length
+						? await this.commandService.executeCommand(commandPick.commandId, ...commandPick.args)
+						: await this.commandService.executeCommand(commandPick.commandId);
 				} catch (error) {
 					if (!isCancellationError(error)) {
 						this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));

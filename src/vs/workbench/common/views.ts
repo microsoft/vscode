@@ -651,7 +651,9 @@ export interface ITreeView extends IDisposable {
 
 	canSelectMany: boolean;
 
-	message?: string;
+	manuallyManageCheckboxes: boolean;
+
+	message?: string | IMarkdownString;
 
 	title: string;
 
@@ -665,9 +667,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
 
-	readonly onDidChangeSelection: Event<readonly ITreeItem[]>;
-
-	readonly onDidChangeFocus: Event<ITreeItem>;
+	readonly onDidChangeSelectionAndFocus: Event<{ selection: readonly ITreeItem[]; focus: ITreeItem }>;
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
@@ -754,6 +754,7 @@ export type TreeCommand = Command & { originalId?: string };
 export interface ITreeItemCheckboxState {
 	isChecked: boolean;
 	tooltip?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 export interface ITreeItem {
@@ -783,6 +784,8 @@ export interface ITreeItem {
 	command?: TreeCommand;
 
 	children?: ITreeItem[];
+
+	parent?: ITreeItem;
 
 	accessibilityInformation?: IAccessibilityInformation;
 
