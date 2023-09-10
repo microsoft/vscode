@@ -17,7 +17,8 @@ export const enum TestingConfigKeys {
 	GutterEnabled = 'testing.gutterEnabled',
 	SaveBeforeTest = 'testing.saveBeforeTest',
 	AlwaysRevealTestOnStateChange = 'testing.alwaysRevealTestOnStateChange',
-	CountBadge = 'testing.countBadge'
+	CountBadge = 'testing.countBadge',
+	ShowAllMessages = 'testing.showAllMessages',
 }
 
 export const enum AutoOpenTesting {
@@ -70,6 +71,11 @@ export const testingConfiguration: IConfigurationNode = {
 				localize('testing.automaticallyOpenPeekView.failureInVisibleDocument', "Open automatically when a test fails in a visible document."),
 				localize('testing.automaticallyOpenPeekView.never', "Never automatically open."),
 			],
+		},
+		[TestingConfigKeys.ShowAllMessages]: {
+			description: localize('testing.showAllMessages', "Controls whether to show messages from all test runs."),
+			type: 'boolean',
+			default: false,
 		},
 		[TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun]: {
 			description: localize('testing.automaticallyOpenPeekViewDuringContinuousRun', "Controls whether to automatically open the Peek view during continuous run mode."),
@@ -154,6 +160,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.SaveBeforeTest]: boolean;
 	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
 	[TestingConfigKeys.AlwaysRevealTestOnStateChange]: boolean;
+	[TestingConfigKeys.ShowAllMessages]: boolean;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

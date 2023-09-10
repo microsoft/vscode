@@ -13,30 +13,22 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Registry } from 'vs/platform/registry/common/platform';
+import type * as performance from 'vs/base/common/performance';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
+export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
-	Shell = 'terminal.integrated.shell.',
-	ShellArgs = 'terminal.integrated.shellArgs.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	Profiles = 'terminal.integrated.profiles.'
 }
 
 export const enum TerminalSettingId {
-	ShellLinux = 'terminal.integrated.shell.linux',
-	ShellMacOs = 'terminal.integrated.shell.osx',
-	ShellWindows = 'terminal.integrated.shell.windows',
 	SendKeybindingsToShell = 'terminal.integrated.sendKeybindingsToShell',
-	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
-	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
-	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
 	AutomationProfileLinux = 'terminal.integrated.automationProfile.linux',
 	AutomationProfileMacOs = 'terminal.integrated.automationProfile.osx',
 	AutomationProfileWindows = 'terminal.integrated.automationProfile.windows',
-	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
-	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
-	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
@@ -106,6 +98,7 @@ export const enum TerminalSettingId {
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
+	HideOnStartup = 'terminal.integrated.hideOnStartup',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
@@ -117,8 +110,16 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
-	ExperimentalImageSupport = 'terminal.integrated.experimentalImageSupport',
-	SmoothScrolling = 'terminal.integrated.smoothScrolling'
+	EnableImages = 'terminal.integrated.enableImages',
+	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
+
+	// Debug settings that are hidden from user
+
+	/** Simulated latency applied to all calls made to the pty host */
+	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
+	/** Simulated startup delay of the pty host process */
+	DeveloperPtyHostStartupDelay = 'terminal.integrated.developer.ptyHost.startupDelay',
 }
 
 export const enum PosixShellType {
@@ -222,8 +223,6 @@ export enum TerminalIpcChannels {
 	Heartbeat = 'heartbeat'
 }
 
-export const IPtyService = createDecorator<IPtyService>('ptyService');
-
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
 	InitialCwd = 'initialCwd',
@@ -267,18 +266,10 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
-export interface IPtyHostController {
-	readonly onPtyHostExit?: Event<number>;
-	readonly onPtyHostStart?: Event<void>;
-	readonly onPtyHostUnresponsive?: Event<void>;
-	readonly onPtyHostResponsive?: Event<void>;
-	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
-
-	restartPtyHost?(): void;
-	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
-}
-
-export interface IPtyService extends IPtyHostController {
+/**
+ * A service that communicates with a pty host.
+*/
+export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
 	readonly onProcessData: Event<{ id: number; event: IProcessDataEvent | string }>;
@@ -288,10 +279,6 @@ export interface IPtyService extends IPtyHostController {
 	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
 	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
 	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
-
-	restartPtyHost?(): Promise<void>;
-	shutdownAll?(): Promise<void>;
-	acceptPtyHostResolvedVariables?(requestId: number, resolved: string[]): Promise<void>;
 
 	createProcess(
 		shellLaunchConfig: IShellLaunchConfig,
@@ -308,19 +295,25 @@ export interface IPtyService extends IPtyHostController {
 	): Promise<number>;
 	attachToProcess(id: number): Promise<void>;
 	detachFromProcess(id: number, forcePersist?: boolean): Promise<void>;
+	shutdownAll(): Promise<void>;
 
 	/**
 	 * Lists all orphaned processes, ie. those without a connected frontend.
 	 */
 	listProcesses(): Promise<IProcessDetails[]>;
+	getPerformanceMarks(): Promise<performance.PerformanceMark[]>;
+	/**
+	 * Measures and returns the latency of the current and all other processes to the pty host.
+	 */
+	getLatency(): Promise<IPtyHostLatencyMeasurement[]>;
 
 	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
+	clearBuffer(id: number): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
-	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
@@ -328,20 +321,20 @@ export interface IPtyService extends IPtyHostController {
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
+
 	installAutoReply(match: string, reply: string): Promise<void>;
 	uninstallAllAutoReplies(): Promise<void>;
 	uninstallAutoReply(match: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
-	getRevivedPtyNewId(id: number): Promise<number | undefined>;
+	getRevivedPtyNewId(workspaceId: string, id: number): Promise<number | undefined>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
-	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }>;
 	/**
 	 * Serializes and returns terminal state.
 	 * @param ids The persistent terminal IDs to serialize.
@@ -351,11 +344,37 @@ export interface IPtyService extends IPtyHostController {
 	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
 	 * flow for restoring terminals after reloading.
 	 */
-	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void>;
+	reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void>;
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(id: number, property: T, value: IProcessPropertyMap[T]): Promise<void>;
 
+	// TODO: Make mandatory and remove impl from pty host service
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
+}
+export const IPtyService = createDecorator<IPtyService>('ptyService');
+
+export interface IPtyHostController {
+	readonly onPtyHostExit: Event<number>;
+	readonly onPtyHostStart: Event<void>;
+	readonly onPtyHostUnresponsive: Event<void>;
+	readonly onPtyHostResponsive: Event<void>;
+	readonly onPtyHostRequestResolveVariables: Event<IRequestResolveVariablesEvent>;
+
+	restartPtyHost(): Promise<void>;
+	acceptPtyHostResolvedVariables(requestId: number, resolved: string[]): Promise<void>;
+	getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+}
+
+/**
+ * A service that communicates with a pty host controller (eg. main or server
+ * process) and is able to launch and forward requests to the pty host.
+*/
+export interface IPtyHostService extends IPtyService, IPtyHostController {
+}
+
+export interface IPtyHostLatencyMeasurement {
+	label: string;
+	latency: number;
 }
 
 /**
@@ -394,6 +413,12 @@ export enum HeartbeatConstants {
 	 * The duration between heartbeats
 	 */
 	BeatInterval = 5000,
+	/**
+	 * The duration of the first heartbeat while the pty host is starting up. This is much larger
+	 * than the regular BeatInterval to accomodate slow machines, we still want to warn about the
+	 * pty host's unresponsiveness eventually though.
+	 */
+	ConnectingBeatInterval = 20000,
 	/**
 	 * Defines a multiplier for BeatInterval for how long to wait before starting the second wait
 	 * timer.
@@ -639,7 +664,18 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number;
 	cwd: string;
-	requiresWindowsMode?: boolean;
+	windowsPty: IProcessReadyWindowsPty | undefined;
+}
+
+export interface IProcessReadyWindowsPty {
+	/**
+	 * What pty emulation backend is being used.
+	 */
+	backend: 'conpty' | 'winpty';
+	/**
+	 * The Windows build version (eg. 19045)
+	 */
+	buildNumber: number;
 }
 
 /**
@@ -661,6 +697,7 @@ export interface ITerminalChildProcess {
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessReady: Event<IProcessReadyEvent>;
+	onProcessReplayComplete?: Event<void>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
 	onProcessExit: Event<number | undefined>;
 	onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
@@ -694,6 +731,7 @@ export interface ITerminalChildProcess {
 	input(data: string): void;
 	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
+	clearBuffer(): void | Promise<void>;
 
 	/**
 	 * Acknowledge a data event has been parsed by the terminal, this is used to implement flow
@@ -711,7 +749,6 @@ export interface ITerminalChildProcess {
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
 	refreshProperty<T extends ProcessPropertyType>(property: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): Promise<void>;
 }
@@ -928,6 +965,117 @@ export interface ITerminalCommandSelector {
 	commandExitResult: 'success' | 'error';
 }
 
+export interface ITerminalBackend {
+	readonly remoteAuthority: string | undefined;
+
+	readonly isResponsive: boolean;
+
+	/**
+	 * A promise that resolves when the backend is ready to be used, ie. after terminal persistence
+	 * has been actioned.
+	 */
+	readonly whenReady: Promise<void>;
+	/**
+	 * Signal to the backend that persistence has been actioned and is ready for use.
+	 */
+	setReady(): void;
+
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
+	 * previously disconnected terminals to reconnect.
+	 */
+	onPtyHostResponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
+	 * that its pty has been lost and will remain disconnected.
+	 */
+	onPtyHostRestart: Event<void>;
+
+	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
+
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	listProcesses(): Promise<IProcessDetails[]>;
+	getLatency(): Promise<IPtyHostLatencyMeasurement[]>;
+	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
+	getEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	getPerformanceMarks(): Promise<performance.PerformanceMark[]>;
+	reduceConnectionGraceTime(): Promise<void>;
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
+	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	persistTerminalState(): Promise<void>;
+
+	createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cwd: string,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11',
+		env: IProcessEnvironment,
+		options: ITerminalProcessOptions,
+		shouldPersist: boolean
+	): Promise<ITerminalChildProcess>;
+
+	restartPtyHost(): void;
+}
+
+export const TerminalExtensions = {
+	Backend: 'workbench.contributions.terminal.processBackend'
+};
+
+export interface ITerminalBackendRegistry {
+	/**
+	 * Gets all backends in the registry.
+	 */
+	backends: ReadonlyMap<string, ITerminalBackend>;
+
+	/**
+	 * Registers a terminal backend for a remote authority.
+	 */
+	registerTerminalBackend(backend: ITerminalBackend): void;
+
+	/**
+	 * Returns the registered terminal backend for a remote authority.
+	 */
+	getTerminalBackend(remoteAuthority?: string): ITerminalBackend | undefined;
+}
+
+class TerminalBackendRegistry implements ITerminalBackendRegistry {
+	private readonly _backends = new Map<string, ITerminalBackend>();
+
+	get backends(): ReadonlyMap<string, ITerminalBackend> { return this._backends; }
+
+	registerTerminalBackend(backend: ITerminalBackend): void {
+		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
+		if (this._backends.has(key)) {
+			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
+		}
+		this._backends.set(key, backend);
+	}
+
+	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
+		return this._backends.get(this._sanitizeRemoteAuthority(remoteAuthority));
+	}
+
+	private _sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
+		// Normalize the key to lowercase as the authority is case-insensitive
+		return remoteAuthority?.toLowerCase() ?? '';
+	}
+}
+Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
+
 export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyService');
 
 /**
@@ -935,4 +1083,14 @@ export const ILocalPtyService = createDecorator<ILocalPtyService>('localPtyServi
  *
  * **This service should only be used within the terminal component.**
  */
-export interface ILocalPtyService extends IPtyService { }
+export interface ILocalPtyService extends IPtyHostService { }
+
+export const ITerminalLogService = createDecorator<ITerminalLogService>('terminalLogService');
+export interface ITerminalLogService extends ILogService {
+	/**
+	 * Similar to _serviceBrand but used to differentiate this service at compile time from
+	 * ILogService; ITerminalLogService is an ILogService, but ILogService is not an
+	 * ITerminalLogService.
+	 */
+	readonly _logBrand: undefined;
+}

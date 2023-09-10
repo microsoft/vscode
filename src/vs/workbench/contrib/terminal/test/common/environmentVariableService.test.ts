@@ -47,6 +47,10 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 		environmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('should persist collections to the storage service and be able to restore from them', () => {
 		const collection = new Map<string, IEnvironmentVariableMutator>();
 		collection.set('A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, variable: 'A' });

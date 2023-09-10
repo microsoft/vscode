@@ -79,8 +79,6 @@ export class NativeWindow extends Disposable {
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
-	private previousConfiguredZoomLevel: number | undefined;
-
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
@@ -228,6 +226,22 @@ export class NativeWindow extends Disposable {
 			);
 		});
 
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
+				[{
+					label: localize('downloadArmBuild', "Download"),
+					run: () => {
+						const quality = this.productService.quality;
+						const stableURL = 'https://code.visualstudio.com/docs/?dv=osx';
+						const insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
+						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
+					}
+				}]
+			);
+		});
+
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true); });
 		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false); });
@@ -304,7 +318,6 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Zoom level changes
-		this.updateWindowZoomLevel();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
@@ -589,21 +602,10 @@ export class NativeWindow extends Disposable {
 
 	private updateWindowZoomLevel(): void {
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
+		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 
-		let configuredZoomLevel = 0;
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			configuredZoomLevel = windowConfig.window.zoomLevel;
-
-			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
-				return;
-			}
-
-			this.previousConfiguredZoomLevel = configuredZoomLevel;
-		}
-
-		if (getZoomLevel() !== configuredZoomLevel) {
-			applyZoom(configuredZoomLevel);
+		if (getZoomLevel() !== windowZoomLevel) {
+			applyZoom(windowZoomLevel);
 		}
 	}
 
@@ -759,6 +761,36 @@ export class NativeWindow extends Disposable {
 					}],
 					{
 						neverShowAgain: { id: 'windowseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
+			}
+
+			else if (this.environmentService.os.arch === 'ia32') {
+				const message = localize('windows32eolmessage', "{0} on Windows 32-bit will soon stop receiving updates. Consider upgrading to the 64-bit build.", this.productService.nameLong);
+				const actions = [{
+					label: localize('windowseolBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-faq-old-windows'
+				}];
+
+				this.bannerService.show({
+					id: 'windows32eol.banner',
+					message,
+					ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+					actions,
+					icon: Codicon.warning
+				});
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
+					}],
+					{
+						neverShowAgain: { id: 'windows32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
 						priority: NotificationPriority.URGENT,
 						sticky: true
 					}

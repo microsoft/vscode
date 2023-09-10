@@ -58,6 +58,7 @@ suite('ResourceEditorInput', () => {
 		assert.ok(input.getTitle(Verbosity.LONG).length > 0);
 
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Untitled), true);
 	});
 });
