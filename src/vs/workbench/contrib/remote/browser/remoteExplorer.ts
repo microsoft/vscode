@@ -31,6 +31,7 @@ import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpene
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -75,7 +76,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 
-		if (this.environmentService.remoteAuthority && viewEnabled) {
+		if (viewEnabled) {
 			const viewContainer = await this.getViewContainer();
 			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.tunnelService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
@@ -83,7 +84,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				this.remoteExplorerService.enablePortsFeatures();
 				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
 			}
-		} else if (this.environmentService.remoteAuthority) {
+		} else {
 			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
 					this.enableForwardedPortsView();
@@ -181,7 +182,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IDebugService debugService: IDebugService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ITunnelService tunnelService: ITunnelService,
@@ -193,7 +194,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 			return;
 		}
 
-		remoteAgentService.getEnvironment().then(environment => {
+		configurationService.whenRemoteConfigurationLoaded().then(() => remoteAgentService.getEnvironment()).then(environment => {
 			if (environment?.os !== OperatingSystem.Linux) {
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
@@ -367,11 +368,15 @@ class OnAutoForwardedAction extends Disposable {
 		return {
 			label: nls.localize('remote.tunnelsView.makePublic', "Make Public"),
 			run: async () => {
+				const oldTunnelDetails = mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, TunnelCloseReason.Other);
 				return this.remoteExplorerService.forward({
 					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
 					local: tunnel.tunnelLocalPort,
+					name: oldTunnelDetails?.name,
+					elevateIfNeeded: true,
 					privacy: TunnelPrivacyId.Public,
+					source: oldTunnelDetails?.source
 				});
 			}
 		};

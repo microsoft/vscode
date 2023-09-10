@@ -26,6 +26,7 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class BrowserWindow extends Disposable {
 
@@ -37,7 +38,8 @@ export class BrowserWindow extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -231,13 +233,15 @@ export class BrowserWindow extends Disposable {
 							);
 						}
 
-						await this.dialogService.prompt({
+						// While this dialog shows, closing the tab will not display a confirmation dialog
+						// to avoid showing the user two dialogs at once
+						await this.hostService.withExpectedShutdown(() => this.dialogService.prompt({
 							type: Severity.Info,
 							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
 							detail,
 							buttons,
 							cancelButton: true
-						});
+						}));
 					};
 
 					// We cannot know whether the protocol handler succeeded.

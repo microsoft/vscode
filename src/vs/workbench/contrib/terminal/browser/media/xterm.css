@@ -153,6 +153,7 @@
 	right: 0;
 	z-index: 10;
 	color: transparent;
+	pointer-events: none;
 }
 
 .xterm .live-region {
@@ -164,7 +165,9 @@
 }
 
 .xterm-dim {
-	opacity: 0.5;
+	/* Dim should not apply to background, so the opacity of the foreground color is applied
+	 * explicitly in the generated class and reset to 1 here */
+	opacity: 1 !important;
 }
 
 .xterm-underline-1 {
@@ -187,6 +190,30 @@
 	text-decoration: dashed underline;
 }
 
+.xterm-overline {
+	text-decoration: overline;
+}
+
+.xterm-overline.xterm-underline-1 {
+	text-decoration: overline underline;
+}
+
+.xterm-overline.xterm-underline-2 {
+	text-decoration: overline double underline;
+}
+
+.xterm-overline.xterm-underline-3 {
+	text-decoration: overline wavy underline;
+}
+
+.xterm-overline.xterm-underline-4 {
+	text-decoration: overline dotted underline;
+}
+
+.xterm-overline.xterm-underline-5 {
+	text-decoration: overline dashed underline;
+}
+
 .xterm-strikethrough {
 	text-decoration: line-through;
 }
@@ -196,8 +223,12 @@
 	position: absolute;
 }
 
-.xterm-decoration-overview-ruler {
+.xterm-screen .xterm-decoration-container .xterm-decoration.xterm-decoration-top-layer {
 	z-index: 7;
+}
+
+.xterm-decoration-overview-ruler {
+	z-index: 8;
 	position: absolute;
 	top: 0;
 	right: 0;
@@ -207,8 +238,4 @@
 .xterm-decoration-top {
 	z-index: 2;
 	position: relative;
-}
-
-.xterm.terminal.hide {
-	visibility: hidden;
 }

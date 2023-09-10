@@ -29,6 +29,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
 	private readonly lineHeight: number;
@@ -168,6 +169,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IThemeService protected readonly themeService: IThemeService,
+		@IAccessibilityService protected readonly accessibilityService: IAccessibilityService
 	) { }
 
 	get templateId() {
@@ -188,7 +190,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, cellToolbarContainer, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService);
+					const item = new CodiconActionViewItem(action, undefined, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.contextMenuService, this.accessibilityService);
 					return item;
 				}
 
@@ -322,7 +324,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		return new NotebookMouseController(this);
 	}
 
-	getAbsoluteTopOfElement(element: DiffElementViewModelBase): number {
+	getCellViewScrollTop(element: DiffElementViewModelBase): number {
 		const index = this.indexOf(element);
 		// if (index === undefined || index < 0 || index >= this.length) {
 		// 	this._getViewIndexUpperBound(element);

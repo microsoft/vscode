@@ -120,6 +120,7 @@ export interface IExtensionsWorkbenchService {
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
 	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
+	toggleApplyExtensionToAllProfiles(extension: IExtension): Promise<void>;
 }
 
 export const enum ExtensionEditorTab {

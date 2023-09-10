@@ -14,7 +14,7 @@ import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { isEmptyObject, isNumber, isString, isUndefinedOrNull, withNullAsUndefined } from 'vs/base/common/types';
+import { isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -34,7 +34,7 @@ import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
-import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IChatFollowup, IChatReplyFollowup, IChatResponseCommandFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -44,6 +44,7 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
 
 export namespace Command {
 
@@ -1717,12 +1718,12 @@ export namespace NotebookExclusiveDocumentPattern {
 	export function from(pattern: { include: vscode.GlobPattern | undefined | null; exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto | undefined; exclude: string | extHostProtocol.IRelativePatternDto | undefined } | undefined {
 		if (isExclusivePattern(pattern)) {
 			return {
-				include: withNullAsUndefined(GlobPattern.from(pattern.include)),
-				exclude: withNullAsUndefined(GlobPattern.from(pattern.exclude))
+				include: GlobPattern.from(pattern.include) ?? undefined,
+				exclude: GlobPattern.from(pattern.exclude) ?? undefined,
 			};
 		}
 
-		return withNullAsUndefined(GlobPattern.from(pattern));
+		return GlobPattern.from(pattern) ?? undefined;
 	}
 
 	export function to(pattern: string | extHostProtocol.IRelativePatternDto | { include: string | extHostProtocol.IRelativePatternDto; exclude: string | extHostProtocol.IRelativePatternDto }): { include: vscode.GlobPattern; exclude: vscode.GlobPattern } | vscode.GlobPattern {
@@ -2118,8 +2119,8 @@ export namespace DataTransfer {
 	}
 }
 
-export namespace InteractiveSessionReplyFollowup {
-	export function to(followup: IInteractiveSessionReplyFollowup): vscode.InteractiveSessionReplyFollowup {
+export namespace ChatReplyFollowup {
+	export function to(followup: IChatReplyFollowup): vscode.InteractiveSessionReplyFollowup {
 		return {
 			message: followup.message,
 			metadata: followup.metadata,
@@ -2128,7 +2129,7 @@ export namespace InteractiveSessionReplyFollowup {
 		};
 	}
 
-	export function from(followup: vscode.InteractiveSessionReplyFollowup): IInteractiveSessionReplyFollowup {
+	export function from(followup: vscode.InteractiveSessionReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
@@ -2139,19 +2140,60 @@ export namespace InteractiveSessionReplyFollowup {
 	}
 }
 
-export namespace InteractiveSessionFollowup {
-	export function from(followup: string | vscode.InteractiveSessionFollowup): IInteractiveSessionFollowup {
+export namespace ChatFollowup {
+	export function from(followup: string | vscode.InteractiveSessionFollowup): IChatFollowup {
 		if (typeof followup === 'string') {
-			return <IInteractiveSessionReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
+			return <IChatReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
 		} else if ('commandId' in followup) {
-			return <IInteractiveSessionResponseCommandFollowup>{
+			return <IChatResponseCommandFollowup>{
 				kind: 'command',
 				title: followup.title ?? '',
 				commandId: followup.commandId ?? '',
 				args: followup.args
 			};
 		} else {
-			return InteractiveSessionReplyFollowup.from(followup);
+			return ChatReplyFollowup.from(followup);
+		}
+	}
+}
+
+export namespace ChatMessage {
+	export function to(message: chatProvider.IChatMessage): vscode.ChatMessage {
+		const res = new types.ChatMessage(ChatMessageRole.to(message.role), message.content);
+		res.name = message.name;
+		return res;
+	}
+
+
+	export function from(message: vscode.ChatMessage): chatProvider.IChatMessage {
+		return {
+			role: ChatMessageRole.from(message.role),
+			content: message.content,
+			name: message.name
+		};
+	}
+}
+
+
+export namespace ChatMessageRole {
+
+	export function to(role: chatProvider.ChatMessageRole): vscode.ChatMessageRole {
+		switch (role) {
+			case chatProvider.ChatMessageRole.System: return types.ChatMessageRole.System;
+			case chatProvider.ChatMessageRole.User: return types.ChatMessageRole.User;
+			case chatProvider.ChatMessageRole.Assistant: return types.ChatMessageRole.Assistant;
+			case chatProvider.ChatMessageRole.Function: return types.ChatMessageRole.Function;
+		}
+	}
+
+	export function from(role: vscode.ChatMessageRole): chatProvider.ChatMessageRole {
+		switch (role) {
+			case types.ChatMessageRole.System: return chatProvider.ChatMessageRole.System;
+			case types.ChatMessageRole.Assistant: return chatProvider.ChatMessageRole.Assistant;
+			case types.ChatMessageRole.Function: return chatProvider.ChatMessageRole.Function;
+			case types.ChatMessageRole.User:
+			default:
+				return chatProvider.ChatMessageRole.User;
 		}
 	}
 }

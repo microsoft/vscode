@@ -135,6 +135,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.closeWindow();
 	}
 
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		return await expectedShutdownTask();
+	}
+
 	//#endregion
 }
 

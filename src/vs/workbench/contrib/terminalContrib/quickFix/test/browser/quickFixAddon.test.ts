@@ -19,7 +19,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { Emitter } from 'vs/base/common/event';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -29,6 +29,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { importAMDNodeModule } from 'vs/amdX';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;
@@ -37,9 +38,11 @@ suite('QuickFixAddon', () => {
 	let openerService: OpenerService;
 	let labelService: LabelService;
 	let terminal: Terminal;
-	setup(() => {
-		const instantiationService = new TestInstantiationService();
-		terminal = new Terminal({
+	let instantiationService: TestInstantiationService;
+	setup(async () => {
+		instantiationService = new TestInstantiationService();
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		terminal = new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
 			rows: 30
@@ -66,8 +69,11 @@ suite('QuickFixAddon', () => {
 		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, [], capabilities);
 		terminal.loadAddon(quickFixAddon);
 	});
+	teardown(() => {
+		instantiationService.dispose();
+	});
 	suite('registerCommandFinishedListener & getMatchActions', () => {
-		suite('gitSimilarCommand', async () => {
+		suite('gitSimilarCommand', () => {
 			const expectedMap = new Map();
 			const command = `git sttatus`;
 			let output = `git: 'sttatus' is not a git command. See 'git --help'.
@@ -143,7 +149,7 @@ suite('QuickFixAddon', () => {
 				});
 			});
 		});
-		suite('gitTwoDashes', async () => {
+		suite('gitTwoDashes', () => {
 			const expectedMap = new Map();
 			const command = `git add . -all`;
 			const output = 'error: did you mean `--all` (with two dashes)?';

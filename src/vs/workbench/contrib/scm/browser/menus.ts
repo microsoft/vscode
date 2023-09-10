@@ -7,7 +7,7 @@ import 'vs/css!./media/scm';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository, ISCMService, ISCMMenus, ISCMRepositoryMenus } from 'vs/workbench/contrib/scm/common/scm';
@@ -15,6 +15,7 @@ import { equals } from 'vs/base/common/arrays';
 import { ISplice } from 'vs/base/common/sequence';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { localize } from 'vs/nls';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
@@ -266,3 +267,10 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 		this.disposables.dispose();
 	}
 }
+
+MenuRegistry.appendMenuItem(MenuId.SCMResourceContext, {
+	title: localize('miShare', "Share"),
+	submenu: MenuId.SCMResourceContextShare,
+	group: '45_share',
+	order: 3,
+});

@@ -13,17 +13,7 @@ steps:
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
-
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        sudo apt-get update
-        sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
-        sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-        sudo chmod +x /etc/init.d/xvfb
-        sudo update-rc.d xvfb defaults
-        sudo service xvfb start
-      displayName: Setup build environment
+    retryCountOnTaskFailure: 3
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
@@ -82,6 +72,7 @@ steps:
           compile-extension:github-authentication \
           compile-extension:html-language-features-server \
           compile-extension:ipynb \
+          compile-extension:notebook-renderers \
           compile-extension:json-language-features-server \
           compile-extension:markdown-language-features-server \
           compile-extension:markdown-language-features \
@@ -121,13 +112,13 @@ steps:
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
           ./scripts/test-integration.sh --build --tfs "Integration Tests"
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
       - script: ./scripts/test-web-integration.sh --browser chromium
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
@@ -139,7 +130,7 @@ steps:
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
           ./scripts/test-remote-integration.sh
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -179,7 +170,7 @@ steps:
 
       - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         env:
-          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
@@ -187,7 +178,7 @@ steps:
           set -e
           yarn gulp compile-extension:vscode-test-resolver
           APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
+          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
           yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
