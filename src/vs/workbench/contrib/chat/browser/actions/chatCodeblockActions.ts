@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -10,8 +11,10 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
+import { RelatedContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -21,7 +24,7 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -86,6 +89,11 @@ export function registerChatCodeBlockActions() {
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const context = args[0];
 			if (!isCodeBlockActionContext(context)) {
+				return;
+			}
+
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
 				return;
 			}
 
@@ -165,6 +173,7 @@ export function registerChatCodeBlockActions() {
 					value: localize('interactive.insertCodeBlock.label', "Insert at Cursor"),
 					original: 'Insert at Cursor'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -178,6 +187,11 @@ export function registerChatCodeBlockActions() {
 		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
 			const editorService = accessor.get(IEditorService);
 			const textFileService = accessor.get(ITextFileService);
+
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
+				return;
+			}
 
 			if (editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
 				return this.handleNotebookEditor(accessor, editorService.activeEditorPane.getControl() as INotebookEditor, context);
@@ -231,17 +245,44 @@ export function registerChatCodeBlockActions() {
 			this.notifyUserAction(accessor, context);
 		}
 
-		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, context: IChatCodeBlockActionContext) {
-			this.notifyUserAction(accessor, context);
+		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, chatCodeBlockActionContext: IChatCodeBlockActionContext) {
+			this.notifyUserAction(accessor, chatCodeBlockActionContext);
+
 			const bulkEditService = accessor.get(IBulkEditService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 
-			const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
-				range: activeSelection,
-				text: context.code,
-			})]);
+			const mappedEditsProviders = accessor.get(ILanguageFeaturesService).mappedEditsProvider.ordered(activeModel);
 
+			// try applying workspace edit that was returned by a MappedEditsProvider, else simply insert at selection
+
+			let workspaceEdit: WorkspaceEdit | null = null;
+
+			if (mappedEditsProviders.length > 0) {
+				const mostRelevantProvider = mappedEditsProviders[0];
+
+				const selections = codeEditor.getSelections() ?? [];
+				const mappedEditsContext = {
+					selections,
+					related: [] as RelatedContextItem[], // TODO@ulugbekna: we do have not yet decided what to populate this with
+				};
+				const cancellationTokenSource = new CancellationTokenSource();
+
+				workspaceEdit = await mostRelevantProvider.provideMappedEdits(
+					activeModel,
+					[chatCodeBlockActionContext.code],
+					mappedEditsContext,
+					cancellationTokenSource.token);
+			}
+
+			if (workspaceEdit) {
+				await bulkEditService.apply(workspaceEdit);
+			} else {
+				const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
+					range: activeSelection,
+					text: chatCodeBlockActionContext.code,
+				})]);
+			}
 			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
 
@@ -268,6 +309,7 @@ export function registerChatCodeBlockActions() {
 					value: localize('interactive.insertIntoNewFile.label', "Insert Into New File"),
 					original: 'Insert Into New File'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
@@ -280,6 +322,11 @@ export function registerChatCodeBlockActions() {
 		}
 
 		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
+				return;
+			}
+
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
@@ -305,6 +352,7 @@ export function registerChatCodeBlockActions() {
 					value: localize('interactive.runInTerminal.label', "Run in Terminal"),
 					original: 'Run in Terminal'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
@@ -314,16 +362,22 @@ export function registerChatCodeBlockActions() {
 					isHiddenByDefault: true,
 				},
 				keybinding: {
-					primary: KeyMod.WinCtrl | KeyCode.Enter,
-					win: {
-						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.EditorContrib,
+					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});
 		}
 
 		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
+			if (context.element.errorDetails?.responseIsFiltered) {
+				// When run from command palette
+				return;
+			}
+
 			const chatService = accessor.get(IChatService);
 			const terminalService = accessor.get(ITerminalService);
 			const editorService = accessor.get(IEditorService);
@@ -332,9 +386,8 @@ export function registerChatCodeBlockActions() {
 
 			let terminal = await terminalService.getActiveOrCreateInstance();
 
-			// Why does getActiveOrCreateInstance return a disposed terminal? #180018
-			// isFeatureTerminal = debug terminal
-			const unusableTerminal = terminal.isDisposed || terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
+			// isFeatureTerminal = debug terminal or task terminal
+			const unusableTerminal = terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
 			terminal = unusableTerminal ? await terminalService.createTerminal() : terminal;
 
 			terminalService.setActiveInstance(terminal);
@@ -371,15 +424,18 @@ export function registerChatCodeBlockActions() {
 		const editor = codeEditorService.getFocusedCodeEditor();
 		const editorUri = editor?.getModel()?.uri;
 		const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+		const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
+		const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
-		const focusResponse = curCodeBlockInfo ?
+		const currentResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
-			widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
-		if (!focusResponse) {
+			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
+		if (!currentResponse) {
 			return;
 		}
 
-		const responseCodeblocks = widget.getCodeBlockInfosForResponse(focusResponse);
+		widget.reveal(currentResponse);
+		const responseCodeblocks = widget.getCodeBlockInfosForResponse(currentResponse);
 		const focusIdx = curCodeBlockInfo ?
 			(curCodeBlockInfo.codeBlockIndex + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
 			reverse ? responseCodeblocks.length - 1 : 0;
@@ -400,6 +456,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -423,6 +480,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});

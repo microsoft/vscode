@@ -170,6 +170,10 @@ const PyMetaModulesToLookFor = [
 
 const PyModulesToLookFor = [
 	'azure',
+	'azure-ai-language-conversations',
+	'azure-ai-language-questionanswering',
+	'azure-ai-ml',
+	'azure-ai-translation-document',
 	'azure-appconfiguration',
 	'azure-loganalytics',
 	'azure-synapse-nspkg',
@@ -243,6 +247,28 @@ const PyModulesToLookFor = [
 	'botframework-connector',
 	'playwright'
 ];
+
+const GoModulesToLookFor = [
+	'github.com/Azure/azure-sdk-for-go/sdk/storage/azblob',
+	'github.com/Azure/azure-sdk-for-go/sdk/storage/azfile',
+	'github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue',
+	'github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel',
+	'github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azadmin',
+	'github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates',
+	'github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys',
+	'github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets',
+	'github.com/Azure/azure-sdk-for-go/sdk/monitor/azquery',
+	'github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs',
+	'github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus',
+	'github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig',
+	'github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos',
+	'github.com/Azure/azure-sdk-for-go/sdk/data/aztables',
+	'github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry',
+	'github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai',
+	'github.com/Azure/azure-sdk-for-go/sdk/azidentity',
+	'github.com/Azure/azure-sdk-for-go/sdk/azcore'
+];
+
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
 	declare readonly _serviceBrand: undefined;
@@ -475,10 +501,19 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.requirements.star" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.Pipfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.conda" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.setup": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.pyproject": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.manage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.setupcfg": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.app": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.any-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.pulumi-azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-language-conversations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-language-questionanswering" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-translation-document" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-cosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -560,7 +595,25 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.azure-communication-administration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-security-attestation" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-data-nspkg" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.azure-data-tables" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.azure-data-tables" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/storage/azblob" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/storage/azfile" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/storage/azqueue" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/tracing/azotel" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azadmin" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/monitor/azquery" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/messaging/azeventhubs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/data/azappconfig" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/data/aztables" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/containers/azcontainerregistry" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/cognitiveservices/azopenai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/azidentity" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.go.mod.github.com/Azure/azure-sdk-for-go/sdk/azcore" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
 	private async resolveWorkspaceTags(): Promise<Tags> {
@@ -584,6 +637,21 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		if (!folders || !folders.length) {
 			return Promise.resolve(tags);
 		}
+
+		const aiGeneratedWorkspaces = URI.joinPath(this.environmentService.workspaceStorageHome, 'aiGeneratedWorkspaces.json');
+		await this.fileService.exists(aiGeneratedWorkspaces).then(async result => {
+			if (result) {
+				try {
+					const content = await this.fileService.readFile(aiGeneratedWorkspaces);
+					const workspaces = JSON.parse(content.value.toString()) as string[];
+					if (workspaces.indexOf(workspace.folders[0].uri.toString()) > -1) {
+						tags['aiGenerated'] = true;
+					}
+				} catch (e) {
+					// Ignore errors when resolving file contents
+				}
+			}
+		});
 
 		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IFileStatResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
@@ -613,6 +681,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.py.requirements.star'] = this.searchArray(names, /^(.*)requirements(.*)\.txt$/i);
 			tags['workspace.py.Pipfile'] = nameSet.has('pipfile');
 			tags['workspace.py.conda'] = this.searchArray(names, /^environment(\.yml$|\.yaml$)/i);
+			tags['workspace.py.setup'] = nameSet.has('setup.py');
+			tags['workspace.py.manage'] = nameSet.has('manage.py');
+			tags['workspace.py.setupcfg'] = nameSet.has('setup.cfg');
+			tags['workspace.py.app'] = nameSet.has('app.py');
+			tags['workspace.py.pyproject'] = nameSet.has('pyproject.toml');
+
+			tags['workspace.go.mod'] = nameSet.has('go.mod');
 
 			const mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
 			const appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
@@ -742,6 +817,36 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				}
 			});
 
+			const goModPromises = getFilePromises('go.mod', this.fileService, this.textFileService, content => {
+				try {
+					const lines: string[] = splitLines(content.value);
+					let firstRequireBlockFound: boolean = false;
+					for (let i = 0; i < lines.length; i++) {
+						const line: string = lines[i].trim();
+						if (line.startsWith('require (')) {
+							if (!firstRequireBlockFound) {
+								firstRequireBlockFound = true;
+								continue;
+							} else {
+								break;
+							}
+						}
+						if (line.startsWith(')')) {
+							break;
+						}
+						if (firstRequireBlockFound && line !== '') {
+							const packageName: string = line.split(' ')[0].trim();
+							if (GoModulesToLookFor.indexOf(packageName) > -1) {
+								tags['workspace.go.mod.' + packageName] = true;
+							}
+						}
+					}
+				}
+				catch (e) {
+					// Ignore errors when resolving file or parsing file contents
+				}
+			});
+
 			const pomPromises = getFilePromises('pom.xml', this.fileService, this.textFileService, content => {
 				try {
 					let dependenciesContent;
@@ -782,7 +887,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 				});
 			});
 
-			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises]).then(() => tags);
+			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises, ...goModPromises]).then(() => tags);
 		});
 	}
 

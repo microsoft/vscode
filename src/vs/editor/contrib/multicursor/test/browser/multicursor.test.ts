@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
@@ -12,10 +11,9 @@ import { CommonFindController } from 'vs/editor/contrib/find/browser/findControl
 import { AddSelectionToNextFindMatchAction, InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction } from 'vs/editor/contrib/multicursor/browser/multicursor';
 import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Multicursor', () => {
-
 
 	test('issue #26393: Multiple cursors + Word wrap', () => {
 		withTestCodeEditor([
@@ -82,26 +80,8 @@ function fromRange(rng: Range): number[] {
 }
 
 suite('Multicursor selection', () => {
-	const queryState: { [key: string]: any } = {};
 	const serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
-		onDidChangeValue: Event.None,
-		onDidChangeTarget: Event.None,
-		onWillSaveState: Event.None,
-		get: (key: string) => queryState[key],
-		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined!,
-		getObject: (key: string) => undefined!,
-		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => undefined,
-		log: () => undefined,
-		switch: () => Promise.resolve(undefined),
-		flush: () => Promise.resolve(undefined),
-		isNew: () => true,
-		keys: () => [],
-		hasScope() { return false; }
-	} as IStorageService);
+	serviceCollection.set(IStorageService, new InMemoryStorageService());
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {
 		withTestCodeEditor([

@@ -11,7 +11,6 @@ import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescripto
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { shorten } from 'vs/base/common/labels';
@@ -201,7 +200,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		}
 
 		// Otherwise return normal diff model
-		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
+		return new DiffEditorModel(originalEditorModel ?? undefined, modifiedEditorModel ?? undefined);
 	}
 
 	override toUntyped(options?: { preserveViewState: GroupIdentifier }): (IResourceDiffEditorInput & IResourceSideBySideEditorInput) | undefined {

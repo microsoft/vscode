@@ -16,7 +16,8 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { IObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { ITextModel } from 'vs/editor/common/model';
-import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
+import { compareBy, numberComparator } from 'vs/base/common/arrays';
+import { findFirstMaxBy } from 'vs/base/common/arraysFind';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
@@ -24,7 +25,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 	private _isActive = false;
 	private _currentSuggestItemInfo: SuggestItemInfo | undefined = undefined;
 
-	private readonly _selectedItem = observableValue('suggestWidgetInlineCompletionProvider.selectedItem', undefined as SuggestItemInfo | undefined);
+	private readonly _selectedItem = observableValue(this, undefined as SuggestItemInfo | undefined);
 
 	public get selectedItem(): IObservable<SuggestItemInfo | undefined> {
 		return this._selectedItem;
@@ -34,6 +35,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 		private readonly editor: ICodeEditor,
 		private readonly suggestControllerPreselector: () => SingleTextEdit | undefined,
 		private readonly checkModelVersion: (tx: ITransaction) => void,
+		private readonly onWillAccept: (item: SuggestItemInfo) => void,
 	) {
 		super();
 
@@ -79,7 +81,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 						})
 						.filter(item => item && item.valid && item.prefixLength > 0);
 
-					const result = findMaxBy(
+					const result = findFirstMaxBy(
 						candidates,
 						compareBy(s => s!.prefixLength, numberComparator)
 					);
@@ -111,6 +113,22 @@ export class SuggestWidgetAdaptor extends Disposable {
 			this._register(Event.once(suggestController.model.onDidTrigger)(e => {
 				bindToSuggestWidget();
 			}));
+
+			this._register(suggestController.onWillInsertSuggestItem(e => {
+				const position = this.editor.getPosition();
+				const model = this.editor.getModel();
+				if (!position || !model) { return undefined; }
+
+				const suggestItemInfo = SuggestItemInfo.fromSuggestion(
+					suggestController,
+					model,
+					position,
+					e.item,
+					this.isShiftKeyPressed
+				);
+
+				this.onWillAccept(suggestItemInfo);
+			}));
 		}
 		this.update(this._isActive);
 	}
@@ -123,6 +141,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 			this._currentSuggestItemInfo = newInlineCompletion;
 
 			transaction(tx => {
+				/** @description Update state from suggest widget */
 				this.checkModelVersion(tx);
 				this._selectedItem.set(this._isActive ? this._currentSuggestItemInfo : undefined, tx);
 			});

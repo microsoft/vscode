@@ -69,6 +69,7 @@
 			}
 		],
 		"local/code-translation-remind": "warn",
+		"local/code-no-native-private": "warn",
 		"local/code-no-nls-in-standalone-editor": "warn",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
@@ -119,6 +120,7 @@
 			],
 			"rules": {
 				"local/code-no-test-only": "error",
+				"local/code-no-test-async-suite": "warn",
 				"local/code-no-unexternalized-strings": "off"
 			}
 		},
@@ -170,6 +172,7 @@
 							"drop",
 							"edit",
 							"end",
+							"execute",
 							"expand",
 							"grant",
 							"hide",
@@ -191,6 +194,55 @@
 						]
 					}
 				]
+			}
+		},
+		{
+			"files": [
+				"**/vscode.d.ts"
+			],
+			"rules": {
+				"jsdoc/tag-lines": "off",
+				"jsdoc/valid-types": "off",
+				"jsdoc/no-multi-asterisks": [
+					"warn",
+					{
+						"allowWhitespace": true
+					}
+				],
+				"jsdoc/require-jsdoc": [
+					"warn",
+					{
+						"enableFixer": false,
+						"contexts": [
+							"TSInterfaceDeclaration",
+							"TSPropertySignature",
+							"TSMethodSignature",
+							"TSDeclareFunction",
+							"ClassDeclaration",
+							"MethodDefinition",
+							"PropertyDeclaration",
+							"TSEnumDeclaration",
+							"TSEnumMember",
+							"ExportNamedDeclaration"
+						]
+					}
+				],
+				"jsdoc/check-param-names": [
+					"warn",
+					{
+						"enableFixer": false,
+						"checkDestructured": false
+					}
+				],
+				"jsdoc/require-returns": "warn"
+			}
+		},
+		{
+			"files": [
+				"src/**/{common,browser}/**/*.ts"
+			],
+			"rules": {
+				"local/code-amd-node-module": "warn"
 			}
 		},
 		{
@@ -230,9 +282,11 @@
 							"console",
 							"cookie",
 							"crypto",
+							"dns",
 							"electron",
 							"events",
 							"fs",
+							"fs/promises",
 							"graceful-fs",
 							"http",
 							"https",
@@ -244,6 +298,7 @@
 							"os",
 							"path",
 							"perf_hooks",
+							"readline",
 							"stream",
 							"string_decoder",
 							"tas-client-umd",
@@ -591,6 +646,12 @@
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
 							"vs/workbench/workbench.common.main"
+						]
+					},
+					{
+						"target": "src/vs/amdX.ts",
+						"restrictions": [
+							"vs/base/common/*"
 						]
 					},
 					{

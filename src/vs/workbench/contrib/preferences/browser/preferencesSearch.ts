@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch } from 'vs/workbench/services/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -19,8 +19,8 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -32,11 +32,11 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 
 	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
+	private _remoteSearchProvider: RemoteSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
@@ -52,39 +52,36 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		});
 	}
 
-	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private get remoteSearchAllowed(): boolean {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		if (!workbenchSettings.enableNaturalLanguageSearch) {
-			return false;
-		}
-
-		return !!this._endpoint.urlBase;
+		return workbenchSettings.enableNaturalLanguageSearch;
 	}
 
-	private get _endpoint(): IEndpointDetails {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		if (workbenchSettings.naturalLanguageSearchEndpoint) {
-			return {
-				urlBase: workbenchSettings.naturalLanguageSearchEndpoint,
-				key: workbenchSettings.naturalLanguageSearchKey
-			};
-		} else {
-			return {
-				urlBase: this.productService.settingsSearchUrl
-			};
+	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): RemoteSearchProvider | undefined {
+		if (!this.remoteSearchAllowed) {
+			return undefined;
 		}
-	}
 
-	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider | undefined {
-		// Disable for now because Bing search isn't supported anymore.
-		// Ref https://github.com/microsoft/vscode/issues/172411
-		return undefined;
+		if (!this._remoteSearchProvider) {
+			this._remoteSearchProvider = this.instantiationService.createInstance(RemoteSearchProvider);
+		}
+
+		this._remoteSearchProvider.setFilter(filter);
+		return this._remoteSearchProvider;
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
 		return this.instantiationService.createInstance(LocalSearchProvider, filter);
 	}
+}
+
+function cleanFilter(filter: string): string {
+	// Remove " and : which are likely to be copypasted as part of a setting name.
+	// Leave other special characters which the user might want to search for.
+	return filter
+		.replace(/[":]/g, ' ')
+		.replace(/  /g, ' ')
+		.trim();
 }
 
 export class LocalSearchProvider implements ISearchProvider {
@@ -95,12 +92,7 @@ export class LocalSearchProvider implements ISearchProvider {
 		private _filter: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		// Remove " and : which are likely to be copypasted as part of a setting name.
-		// Leave other special characters which the user might want to search for.
-		this._filter = this._filter
-			.replace(/[":]/g, ' ')
-			.replace(/  /g, ' ')
-			.trim();
+		this._filter = cleanFilter(this._filter);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
@@ -302,6 +294,113 @@ export class SettingMatches {
 			endLineNumber: setting.valueRange.startLineNumber,
 			endColumn: setting.valueRange.startColumn + match.end + 1
 		};
+	}
+}
+
+class RemoteSearchKeysProvider {
+	private settingKeys: string[] = [];
+	private settingsRecord: Record<string, ISetting> = {};
+	private currentPreferencesModel: ISettingsEditorModel | undefined;
+
+	constructor(
+		private readonly aiRelatedInformationService: IAiRelatedInformationService
+	) { }
+
+	updateModel(preferencesModel: ISettingsEditorModel) {
+		if (preferencesModel === this.currentPreferencesModel) {
+			return;
+		}
+
+		this.currentPreferencesModel = preferencesModel;
+		this.refresh();
+	}
+
+	private refresh() {
+		this.settingKeys = [];
+		this.settingsRecord = {};
+
+		if (
+			!this.currentPreferencesModel ||
+			!this.aiRelatedInformationService.isEnabled()
+		) {
+			return;
+		}
+
+		for (const group of this.currentPreferencesModel.settingsGroups) {
+			if (group.id === 'mostCommonlyUsed') {
+				continue;
+			}
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					this.settingKeys.push(setting.key);
+					this.settingsRecord[setting.key] = setting;
+				}
+			}
+		}
+	}
+
+	getSettingKeys(): string[] {
+		return this.settingKeys;
+	}
+
+	getSettingsRecord(): Record<string, ISetting> {
+		return this.settingsRecord;
+	}
+}
+
+export class RemoteSearchProvider implements ISearchProvider {
+	private static readonly AI_RELATED_INFORMATION_THRESHOLD = 0.73;
+	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 15;
+
+	private readonly _keysProvider: RemoteSearchKeysProvider;
+	private _filter: string = '';
+
+	constructor(
+		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService
+	) {
+		this._keysProvider = new RemoteSearchKeysProvider(aiRelatedInformationService);
+	}
+
+	setFilter(filter: string) {
+		this._filter = cleanFilter(filter);
+	}
+
+	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
+		if (
+			!this._filter ||
+			!this.aiRelatedInformationService.isEnabled()
+		) {
+			return null;
+		}
+
+		this._keysProvider.updateModel(preferencesModel);
+
+		return {
+			filterMatches: await this.getAiRelatedInformationItems(token)
+		};
+	}
+
+	private async getAiRelatedInformationItems(token?: CancellationToken | undefined) {
+		const settingsRecord = this._keysProvider.getSettingsRecord();
+
+		const filterMatches: ISettingMatch[] = [];
+		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(this._filter, [RelatedInformationType.SettingInformation], token ?? CancellationToken.None) as SettingInformationResult[];
+		relatedInformation.sort((a, b) => b.weight - a.weight);
+
+		for (const info of relatedInformation) {
+			if (info.weight < RemoteSearchProvider.AI_RELATED_INFORMATION_THRESHOLD || filterMatches.length === RemoteSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+				break;
+			}
+			const pick = info.setting;
+			filterMatches.push({
+				setting: settingsRecord[pick],
+				matches: [settingsRecord[pick].range],
+				matchType: SettingMatchType.RemoteMatch,
+				score: info.weight
+			});
+		}
+
+		return filterMatches;
 	}
 }
 

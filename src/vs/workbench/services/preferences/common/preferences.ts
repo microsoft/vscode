@@ -38,7 +38,8 @@ export enum SettingValueType {
 	NullableNumber = 'nullable-number',
 	Object = 'object',
 	BooleanObject = 'boolean-object',
-	LanguageTag = 'language-tag'
+	LanguageTag = 'language-tag',
+	ExtensionToggle = 'extension-toggle'
 }
 
 export interface ISettingsGroup {
@@ -94,6 +95,13 @@ export interface ISetting {
 	isLanguageTagSetting?: boolean;
 	categoryOrder?: number;
 	categoryLabel?: string;
+
+	// For ExtensionToggle settings
+	displayExtensionId?: string;
+	stableExtensionId?: string;
+	prereleaseExtensionId?: string;
+	title?: string;
+	extensionGroupTitle?: string;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -130,8 +138,9 @@ export interface IFilterResult {
  */
 export enum SettingMatchType {
 	None = 0,
-	WholeWordMatch = 1 << 0,
-	KeyMatch = 1 << 1
+	RemoteMatch = 1 << 0,
+	WholeWordMatch = 1 << 1,
+	KeyMatch = 1 << 2
 }
 
 export interface ISettingMatch {

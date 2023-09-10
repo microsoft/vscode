@@ -52,11 +52,11 @@ export class UserDataSyncClient extends Disposable {
 
 	constructor(readonly testServer: UserDataSyncTestServer = new UserDataSyncTestServer()) {
 		super();
-		this.instantiationService = new TestInstantiationService();
+		this.instantiationService = this._register(new TestInstantiationService());
 	}
 
 	async setUp(empty: boolean = false): Promise<void> {
-		registerConfiguration();
+		this._register(registerConfiguration());
 
 		const logService = this.instantiationService.stub(ILogService, new NullLogService());
 
@@ -83,17 +83,17 @@ export class UserDataSyncClient extends Disposable {
 		});
 
 		const fileService = this._register(new FileService(logService));
-		fileService.registerProvider(Schemas.inMemory, new InMemoryFileSystemProvider());
-		fileService.registerProvider(USER_DATA_SYNC_SCHEME, new InMemoryFileSystemProvider());
+		this._register(fileService.registerProvider(Schemas.inMemory, this._register(new InMemoryFileSystemProvider())));
+		this._register(fileService.registerProvider(USER_DATA_SYNC_SCHEME, this._register(new InMemoryFileSystemProvider())));
 		this.instantiationService.stub(IFileService, fileService);
 
-		const uriIdentityService = this.instantiationService.createInstance(UriIdentityService);
+		const uriIdentityService = this._register(this.instantiationService.createInstance(UriIdentityService));
 		this.instantiationService.stub(IUriIdentityService, uriIdentityService);
 
-		const userDataProfilesService = new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		const userDataProfilesService = this._register(new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		this.instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
 
-		const storageService = new TestStorageService(userDataProfilesService.defaultProfile);
+		const storageService = this._register(new TestStorageService(userDataProfilesService.defaultProfile));
 		this.instantiationService.stub(IStorageService, this._register(storageService));
 		this.instantiationService.stub(IUserDataProfileStorageService, this._register(new TestUserDataProfileStorageService(storageService)));
 

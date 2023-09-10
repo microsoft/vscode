@@ -7,8 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from 'vs/platform/contextkey/common/contextkeys';
-import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext } from 'vs/workbench/common/contextkeys';
-import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
+import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,7 +22,6 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { isNative } from 'vs/base/common/platform';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { Schemas } from 'vs/base/common/network';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
@@ -296,18 +295,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorContext.set(activeEditorPane.getId());
 			this.activeEditorCanRevert.set(!activeEditorPane.input.hasCapability(EditorInputCapabilities.Untitled));
 			this.activeEditorCanSplitInGroup.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.CanSplitInGroup));
-
-			const activeEditorResource = activeEditorPane.input.resource;
-			const editors = activeEditorResource ? this.editorResolverService.getEditors(activeEditorResource).map(editor => editor.id) : [];
-			if (activeEditorResource?.scheme === Schemas.untitled && activeEditorPane.input.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
-				// Non text editor untitled files cannot be easily serialized between extensions
-				// so instead we disable this context key to prevent common commands that act on the active editor
-				this.activeEditorAvailableEditorIds.set('');
-			} else {
-				this.activeEditorAvailableEditorIds.set(editors.join(','));
-			}
-
-			this.activeEditorIsReadonly.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.Readonly));
+			applyAvailableEditorIds(this.activeEditorAvailableEditorIds, activeEditorPane.input, this.editorResolverService);
+			this.activeEditorIsReadonly.set(!!activeEditorPane.input.isReadonly());
 			const primaryEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 			this.activeEditorCanToggleReadonly.set(!!primaryEditorResource && this.fileService.hasProvider(primaryEditorResource) && !this.fileService.hasCapability(primaryEditorResource, FileSystemProviderCapabilities.Readonly));
 		} else {

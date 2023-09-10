@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -63,7 +64,7 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		return this._resource;
 	}
 
-	public isReadonly(): boolean {
+	public isReadonly(): boolean | IMarkdownString {
 		return this._model.object.isReadonly();
 	}
 

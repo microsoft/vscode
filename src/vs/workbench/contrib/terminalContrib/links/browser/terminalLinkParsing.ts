@@ -21,6 +21,8 @@ export interface IParsedLink {
 export interface ILinkSuffix {
 	row: number | undefined;
 	col: number | undefined;
+	rowEnd: number | undefined;
+	colEnd: number | undefined;
 	suffix: ILinkPartialRange;
 }
 
@@ -42,32 +44,47 @@ const linkSuffixRegex = new Lazy<RegExp>(() => generateLinkSuffixRegex(false));
 function generateLinkSuffixRegex(eolOnly: boolean) {
 	let ri = 0;
 	let ci = 0;
-	function l(): string {
+	let rei = 0;
+	let cei = 0;
+	function r(): string {
 		return `(?<row${ri++}>\\d+)`;
 	}
 	function c(): string {
 		return `(?<col${ci++}>\\d+)`;
+	}
+	function re(): string {
+		return `(?<rowEnd${rei++}>\\d+)`;
+	}
+	function ce(): string {
+		return `(?<colEnd${cei++}>\\d+)`;
 	}
 
 	const eolSuffix = eolOnly ? '$' : '';
 
 	// The comments in the regex below use real strings/numbers for better readability, here's
 	// the legend:
-	// - Path = foo
-	// - Row  = 339
-	// - Col  = 12
+	// - Path    = foo
+	// - Row     = 339
+	// - Col     = 12
+	// - RowEnd  = 341
+	// - ColEnd  = 14
 	//
 	// These all support single quote ' in the place of " and [] in the place of ()
 	const lineAndColumnRegexClauses = [
 		// foo:339
 		// foo:339:12
+		// foo:339.12
 		// foo 339
-		// foo 339:12                        [#140780]
+		// foo 339:12                             [#140780]
+		// foo 339.12
 		// "foo",339
 		// "foo",339:12
-		`(?::| |['"],)${l()}(:${c()})?` + eolSuffix,
-		// The quotes below are optional     [#171652]
-		// "foo", line 339                   [#40468]
+		// "foo",339.12
+		// "foo",339.12-14
+		// "foo",339.12-341.14
+		`(?::| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\.)?${ce()})?)?` + eolSuffix,
+		// The quotes below are optional          [#171652]
+		// "foo", line 339                        [#40468]
 		// "foo", line 339, col 12
 		// "foo", line 339, column 12
 		// "foo":line 339
@@ -80,10 +97,11 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
 		// "foo" line 339 column 12
-		// "foo", line 339, character 12     [#171880]
-		// "foo", line 339, characters 12-13 [#171880]
-		// "foo", lines 339-340              [#171880]
-		`['"]?(?:,? |: ?| on )lines? ${l()}(?:-\\d+)?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-\\d+)?)?` + eolSuffix,
+		// "foo", line 339, character 12          [#171880]
+		// "foo", line 339, characters 12-14      [#171880]
+		// "foo", lines 339-341                   [#171880]
+		// "foo", lines 339-341, characters 12-14 [#178287]
+		`['"]?(?:,? |: ?| on )lines? ${r()}(?:-${re()})?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-${ce()})?)?` + eolSuffix,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
@@ -91,7 +109,7 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		//   ...
 		// foo: (339)
 		//   ...
-		`:? ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]` + eolSuffix,
+		`:? ?[\\[\\(]${r()}(?:, ?${c()})?[\\]\\)]` + eolSuffix,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses
@@ -129,25 +147,6 @@ export function removeLinkQueryString(link: string): string {
 	return link.substring(0, index);
 }
 
-/**
- * Returns the optional link suffix which contains line and column information.
- * @param link The link to parse.
- */
-export function getLinkSuffix(link: string): ILinkSuffix | null {
-	const matches = linkSuffixRegexEol.value.exec(link);
-	const groups = matches?.groups;
-	if (!groups || matches.length < 1) {
-		return null;
-	}
-	const rowString = groups.row0 || groups.row1 || groups.row2;
-	const colString = groups.col0 || groups.col1 || groups.col2;
-	return {
-		row: rowString !== undefined ? parseInt(rowString) : undefined,
-		col: colString !== undefined ? parseInt(colString) : undefined,
-		suffix: { index: matches.index, text: matches[0] }
-	};
-}
-
 export function detectLinkSuffixes(line: string): ILinkSuffix[] {
 	// Find all suffixes on the line. Since the regex global flag is used, lastIndex will be updated
 	// in place such that there are no overlapping matches.
@@ -164,18 +163,33 @@ export function detectLinkSuffixes(line: string): ILinkSuffix[] {
 	return results;
 }
 
+/**
+ * Returns the optional link suffix which contains line and column information.
+ * @param link The link to parse.
+ */
+export function getLinkSuffix(link: string): ILinkSuffix | null {
+	return toLinkSuffix(linkSuffixRegexEol.value.exec(link));
+}
+
 export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null {
 	const groups = match?.groups;
 	if (!groups || match.length < 1) {
 		return null;
 	}
-	const rowString = groups.row0 || groups.row1 || groups.row2;
-	const colString = groups.col0 || groups.col1 || groups.col2;
 	return {
-		row: rowString !== undefined ? parseInt(rowString) : undefined,
-		col: colString !== undefined ? parseInt(colString) : undefined,
+		row: parseIntOptional(groups.row0 || groups.row1 || groups.row2),
+		col: parseIntOptional(groups.col0 || groups.col1 || groups.col2),
+		rowEnd: parseIntOptional(groups.rowEnd0 || groups.rowEnd1 || groups.rowEnd2),
+		colEnd: parseIntOptional(groups.colEnd0 || groups.colEnd1 || groups.colEnd2),
 		suffix: { index: match.index, text: match[0] }
 	};
+}
+
+function parseIntOptional(value: string | undefined): number | undefined {
+	if (value === undefined) {
+		return value;
+	}
+	return parseInt(value);
 }
 
 // This defines valid path characters for a link with a suffix, the first `[]` of the regex includes
@@ -293,7 +307,7 @@ enum RegexPathConstants {
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
-	ExcludedPathCharactersClause = '[^\\0<>\\s!`&*()\'":;\\\\]',
+	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
 	ExcludedStartPathCharactersClause = '[^\\0<>\\s!`&*()\\[\\]\'":;\\\\]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',

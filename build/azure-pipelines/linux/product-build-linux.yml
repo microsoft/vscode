@@ -20,7 +20,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -41,15 +41,27 @@ steps:
     - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
       displayName: Extract compilation output
 
-    - script: |
-        set -e
-        # Start X server
-        /etc/init.d/xvfb start
-        # Start dbus session
-        DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
-        echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
-      displayName: Setup system services
-      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+  - script: |
+      set -e
+      # Start X server
+      sudo apt-get update
+      sudo apt-get install -y pkg-config \
+        libxss1 \
+        dbus \
+        xvfb \
+        libgtk-3-0 \
+        libgbm1 \
+        libxkbfile-dev \
+        libkrb5-dev
+      sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+      sudo chmod +x /etc/init.d/xvfb
+      sudo update-rc.d xvfb defaults
+      sudo service xvfb start
+      # Start dbus session
+      sudo mkdir -p /var/run/dbus
+      DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
+      echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
+    displayName: Setup system services
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -72,7 +84,10 @@ steps:
   - script: |
       set -e
       npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      echo "always-auth=true" >> .npmrc
       yarn config set registry "$NPM_REGISTRY"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
@@ -83,23 +98,6 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  # TODO@joaomoreno TODO@deepak1556 this should be part of the base image
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        if [ "$VSCODE_ARCH" = "x64" ]; then
-          OS=ubuntu
-        else
-          OS=debian
-        fi
-
-        sudo apt-get update && sudo apt-get install -y ca-certificates curl gnupg
-        sudo mkdir -m 0755 -p /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/$OS/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-        echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-        sudo apt update && sudo apt install -y docker-ce-cli
-      displayName: Install Docker client
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   - ${{ if and(ne(parameters.VSCODE_QUALITY, 'oss'), or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64'))) }}:
     - task: Docker@1
       displayName: "Pull Docker image"
@@ -107,72 +105,75 @@ steps:
         azureSubscriptionEndpoint: "vscode-builds-subscription"
         azureContainerRegistry: vscodehub.azurecr.io
         command: "Run an image"
-        imageName: vscode-linux-build-agent:centos7-devtoolset8-${{ parameters.VSCODE_ARCH }}
+        imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - ${{ if and(ne(parameters.VSCODE_QUALITY, 'oss'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
-    - script: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-      displayName: Register Docker QEMU
-      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['VSCODE_ARCH'], 'arm64'))
-
-  - script: |
-      set -e
-
-      for i in {1..5}; do # try 5 times
-        yarn --cwd build --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
-          exit 1
-        fi
-        echo "Yarn failed $i, trying again..."
-      done
-
-      if [ -z "$CC" ] || [ -z "$CXX" ]; then
-        # Download clang based on chromium revision used by vscode
-        curl -s https://raw.githubusercontent.com/chromium/chromium/108.0.5359.215/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
-        # Download libcxx headers and objects from upstream electron releases
-        DEBUG=libcxx-fetcher \
-        VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
-        VSCODE_LIBCXX_HEADERS_DIR=$PWD/.build/libcxx_headers  \
-        VSCODE_LIBCXXABI_HEADERS_DIR=$PWD/.build/libcxxabi_headers \
-        VSCODE_ARCH="$(NPM_ARCH)" \
-        node build/linux/libcxx-fetcher.js
-        # Set compiler toolchain
-        # Flags for the client build are based on
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.215:build/config/arm.gni
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.215:build/config/compiler/BUILD.gn
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.215:build/config/c++/BUILD.gn
-        export CC=$PWD/.build/CR_Clang/bin/clang
-        export CXX=$PWD/.build/CR_Clang/bin/clang++
-        export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr"
-        export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -Wl,--lto-O0"
-        export VSCODE_REMOTE_CC=$(which gcc)
-        export VSCODE_REMOTE_CXX=$(which g++)
-      fi
-
-      for i in {1..5}; do # try 5 times
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
-          exit 1
-        fi
-        echo "Yarn failed $i, trying again..."
-      done
-    env:
-      npm_config_arch: $(NPM_ARCH)
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      ${{ if and(ne(parameters.VSCODE_QUALITY, 'oss'), or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64'))) }}:
-        VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-${{ parameters.VSCODE_ARCH }}
-    displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        set -e
+
+        for i in {1..5}; do # try 5 times
+          yarn --cwd build --frozen-lockfile --check-files && break
+          if [ $i -eq 3 ]; then
+            echo "Yarn failed too many times" >&2
+            exit 1
+          fi
+          echo "Yarn failed $i, trying again..."
+        done
+
+        docker run -e GITHUB_TOKEN -e npm_config_arch -e NPM_REGISTRY \
+        -e VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME -e VSCODE_HOST_MOUNT \
+        -e ELECTRON_SKIP_BINARY_DOWNLOAD -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD \
+        -e VSCODE_SKIP_NODE_VERSION_CHECK \
+        -v /mnt/vss/_work/1/s:/home/builduser/vscode -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -u 1000:1000 \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
+        /bin/bash -c "./build/azure-pipelines/linux/install.sh"
+
+        sudo chown -R $USER:$USER /mnt/vss/_work/1/s
+      env:
+        npm_config_arch: $(NPM_ARCH)
+        NPM_REGISTRY: "$(NPM_REGISTRY)"
+        ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        VSCODE_SKIP_NODE_VERSION_CHECK: 1
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
+        ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+          VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
+      displayName: Install dependencies
+      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
     - script: node build/azure-pipelines/distro/mixin-npm
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
       displayName: Mixin distro node modules
+
+  - ${{ else }}:
+    # Ref https://github.com/microsoft/vscode/issues/189019
+    # for the node-gyp rebuild step
+    - script: |
+        set -e
+
+        for i in {1..5}; do # try 5 times
+          yarn --frozen-lockfile --check-files && break
+          if [ $i -eq 3 ]; then
+            echo "Yarn failed too many times" >&2
+            exit 1
+          fi
+          echo "Yarn failed $i, trying again..."
+        done
+
+        cd node_modules/native-keymap && npx node-gyp@9.4.0 -y rebuild --debug
+        cd ../.. && ./.github/workflows/check-clean-git-state.sh
+      env:
+        npm_config_arch: $(NPM_ARCH)
+        ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Install dependencies
+      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
@@ -189,17 +190,59 @@ steps:
   - template: ../common/install-builtin-extensions.yml
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+    - script: |
+        set -e
+        yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+        ARCHIVE_PATH=".build/linux/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
 
-    - script: yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
+    - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+          patterns: "**"
+          path: $(Build.ArtifactStagingDirectory)/cli
+        displayName: Download VS Code CLI
+
+      - script: |
+          set -e
+          tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
+          CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+          APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
+          mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
+        displayName: Mix in CLI
+
+    - script: |
+        set -e
+        tar -czf $CLIENT_PATH -C .. VSCode-linux-$(VSCODE_ARCH)
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Archive client
+
+    - script: |
+        set -e
+        yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
+        mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
+        ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
+        echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server
 
-    - script: yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+    - script: |
+        set -e
+        yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+        mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
+        ARCHIVE_PATH=".build/linux/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)-web
+        echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build server (web)
@@ -219,28 +262,45 @@ steps:
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
-        patterns: "**"
-        path: $(Build.ArtifactStagingDirectory)/cli
-      displayName: Download VS Code CLI
+    - script:  |
+        set -e
+        docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
+        -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
+        -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
+        -u 1000:1000 \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+      displayName: Prepare deb package
+
+    - script:  |
+        set -e
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+        echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/deb/*/deb/*.deb)"
+      displayName: Build deb package
+
+    - script:  |
+        set -e
+        docker run -v /mnt/vss/_work/1/s:/home/builduser/vscode \
+        -v /mnt/vss/_work/1/s/.build/.netrc:/home/builduser/.netrc \
+        -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
+        -u 1000:1000 \
+        -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+      displayName: Prepare rpm package
+
+    - script:  |
+        set -e
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+        echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/rpm/*/*.rpm)"
+      displayName: Build rpm package
 
     - script: |
         set -e
-        tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
-        CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
-        APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
-        mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
-      displayName: Make CLI executable
-
-    - script: yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
-      displayName: Build deb package
-
-    - script: yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
-      displayName: Build rpm package
-
-    - script: yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+        ARCHIVE_PATH=".build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        tar -czf $ARCHIVE_PATH -C .build/linux snap
+        echo "##vso[task.setvariable variable=SNAP_PATH]$ARCHIVE_PATH"
       displayName: Prepare snap package
 
     - task: UseDotNet@2
@@ -251,11 +311,15 @@ steps:
       continueOnError: true
       displayName: Download ESRPClient
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/deb '*.deb'
+      displayName: Codesign deb
+
+    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
       displayName: Codesign rpm
 
-    - script: ./build/azure-pipelines/linux/prepare-publish.sh
-      displayName: Prepare for Publish
+    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+      displayName: Generate artifact prefix
 
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (client)
@@ -263,42 +327,47 @@ steps:
         BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
         PackageName: Visual Studio Code
 
-    - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (client)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
-
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
         BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
 
+    - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
+      displayName: Publish SBOM (client)
+      artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_linux_$(VSCODE_ARCH)
+
     - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)
-      artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_linux_$(VSCODE_ARCH)
+
+    - publish: $(CLIENT_PATH)
+      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+      displayName: Publish client archive
+
+    - publish: $(SERVER_PATH)
+      artifact: $(ARTIFACT_PREFIX)vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+      displayName: Publish server archive
+
+    - publish: $(WEB_PATH)
+      artifact: $(ARTIFACT_PREFIX)vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+      displayName: Publish web server archive
 
     - publish: $(DEB_PATH)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
+      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_deb-package
+      condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
       displayName: Publish deb package
 
     - publish: $(RPM_PATH)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+      artifact: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_rpm-package
+      condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
       displayName: Publish rpm package
 
-    - publish: $(TARBALL_PATH)
-      artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
-      displayName: Publish client archive
+    - publish: $(SNAP_PATH)
+      artifact: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
+      condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
+      displayName: Publish snap pre-package
 
-    - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-      artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-      displayName: Publish server archive
-
-    - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-      artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-      displayName: Publish web server archive
-
-    - task: PublishPipelineArtifact@0
-      displayName: "Publish Pipeline Artifact"
-      inputs:
-        artifactName: "snap-$(VSCODE_ARCH)"
-        targetPath: .build/linux/snap-tarball

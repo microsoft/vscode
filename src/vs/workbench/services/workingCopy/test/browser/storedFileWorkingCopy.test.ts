@@ -13,11 +13,12 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/resources';
-import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, IFileStatWithMetadata, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { Promises, timeout } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -82,6 +83,35 @@ export class TestStoredFileWorkingCopyModel extends Disposable implements IStore
 	}
 }
 
+export class TestStoredFileWorkingCopyModelWithCustomSave extends TestStoredFileWorkingCopyModel {
+
+	saveCounter = 0;
+	throwOnSave = false;
+
+	async save(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata> {
+		if (this.throwOnSave) {
+			throw new Error('Fail');
+		}
+
+		this.saveCounter++;
+
+		return {
+			resource: this.resource,
+			ctime: 0,
+			etag: '',
+			isDirectory: false,
+			isFile: true,
+			mtime: 0,
+			name: 'resource2',
+			size: 0,
+			isSymbolicLink: false,
+			readonly: false,
+			locked: false,
+			children: undefined
+		};
+	}
+}
+
 export class TestStoredFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<TestStoredFileWorkingCopyModel> {
 
 	async createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<TestStoredFileWorkingCopyModel> {
@@ -89,11 +119,84 @@ export class TestStoredFileWorkingCopyModelFactory implements IStoredFileWorking
 	}
 }
 
+export class TestStoredFileWorkingCopyModelWithCustomSaveFactory implements IStoredFileWorkingCopyModelFactory<TestStoredFileWorkingCopyModelWithCustomSave> {
+
+	async createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<TestStoredFileWorkingCopyModelWithCustomSave> {
+		return new TestStoredFileWorkingCopyModelWithCustomSave(resource, (await streamToBuffer(contents)).toString());
+	}
+}
+
+suite('StoredFileWorkingCopy (with custom save)', function () {
+
+	const factory = new TestStoredFileWorkingCopyModelWithCustomSaveFactory();
+
+	const disposables = new DisposableStore();
+
+	let instantiationService: IInstantiationService;
+	let accessor: TestServiceAccessor;
+	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>;
+
+	setup(() => {
+		instantiationService = workbenchInstantiationService(undefined, disposables);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
+
+		const resource = URI.file('test/resource');
+		workingCopy = disposables.add(new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', resource, basename(resource), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService));
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	test('save (custom implemented)', async () => {
+		let savedCounter = 0;
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
+		disposables.add(workingCopy.onDidSave(e => {
+			savedCounter++;
+			lastSaveEvent = e;
+		}));
+
+		let saveErrorCounter = 0;
+		disposables.add(workingCopy.onDidSaveError(() => {
+			saveErrorCounter++;
+		}));
+
+		// unresolved
+		await workingCopy.save();
+		assert.strictEqual(savedCounter, 0);
+		assert.strictEqual(saveErrorCounter, 0);
+
+		// simple
+		await workingCopy.resolve();
+		workingCopy.model?.updateContents('hello save');
+		await workingCopy.save();
+
+		assert.strictEqual(savedCounter, 1);
+		assert.strictEqual(saveErrorCounter, 0);
+		assert.strictEqual(workingCopy.isDirty(), false);
+		assert.strictEqual(lastSaveEvent!.reason, SaveReason.EXPLICIT);
+		assert.ok(lastSaveEvent!.stat);
+		assert.ok(isStoredFileWorkingCopySaveEvent(lastSaveEvent!));
+		assert.strictEqual(workingCopy.model?.pushedStackElement, true);
+		assert.strictEqual((workingCopy.model as TestStoredFileWorkingCopyModelWithCustomSave).saveCounter, 1);
+
+		// error
+		workingCopy.model?.updateContents('hello save error');
+		(workingCopy.model as TestStoredFileWorkingCopyModelWithCustomSave).throwOnSave = true;
+		await workingCopy.save();
+
+		assert.strictEqual(saveErrorCounter, 1);
+		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), true);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
 suite('StoredFileWorkingCopy', function () {
 
 	const factory = new TestStoredFileWorkingCopyModelFactory();
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	const resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -106,16 +209,14 @@ suite('StoredFileWorkingCopy', function () {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		workingCopy = disposables.add(createWorkingCopy());
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('registers with working copy service', async () => {
@@ -146,7 +247,8 @@ suite('StoredFileWorkingCopy', function () {
 		});
 	});
 
-	test('dirty', async () => {
+	test('dirty / modified', async () => {
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 
@@ -172,12 +274,14 @@ suite('StoredFileWorkingCopy', function () {
 		workingCopy.model?.updateContents('hello dirty');
 		assert.strictEqual(contentChangeCounter, 1);
 
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 1);
 
 		await workingCopy.save();
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 2);
@@ -187,25 +291,29 @@ suite('StoredFileWorkingCopy', function () {
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello dirty stream')) });
 
 		assert.strictEqual(contentChangeCounter, 2); // content of model did not change
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 3);
 
 		await workingCopy.revert({ soft: true });
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 4);
 
-		// Dirty from: API
-		workingCopy.markDirty();
+		// Modified from: API
+		workingCopy.markModified();
 
+		assert.strictEqual(workingCopy.isModified(), true);
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 5);
 
 		await workingCopy.revert();
 
+		assert.strictEqual(workingCopy.isModified(), false);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.DIRTY), false);
 		assert.strictEqual(changeDirtyCounter, 6);
@@ -383,7 +491,7 @@ suite('StoredFileWorkingCopy', function () {
 			accessor.fileService.readShouldThrowError = undefined;
 		}
 
-		assert.strictEqual(workingCopy.isReadonly(), true);
+		assert.strictEqual(!!workingCopy.isReadonly(), true);
 		assert.strictEqual(readonlyChangeCounter, 1);
 
 		try {
@@ -907,7 +1015,7 @@ suite('StoredFileWorkingCopy', function () {
 
 		await workingCopy.resolve();
 
-		assert.strictEqual(workingCopy.isReadonly(), true);
+		assert.strictEqual(!!workingCopy.isReadonly(), true);
 
 		accessor.fileService.readonly = false;
 
