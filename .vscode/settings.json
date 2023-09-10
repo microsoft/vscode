@@ -35,6 +35,13 @@
 	},
 	"files.readonlyInclude": {
 		"**/node_modules/**": true,
+		"**/yarn.lock": true,
+		"**/Cargo.lock": true,
+		"src/vs/workbench/workbench.web.main.css": true,
+		"src/vs/workbench/workbench.desktop.main.css": true,
+		"src/vs/workbench/workbench.desktop.main.nls.js": true,
+		"src/vs/workbench/workbench.web.main.nls.js": true,
+		"build/**/*.js": true,
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
@@ -44,6 +51,12 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
+	},
+	"files.readonlyExclude": {
+		"build/builtin/*.js": true,
+		"build/monaco/*.js": true,
+		"build/npm/*.js": true,
+		"build/*.js": true
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -123,6 +136,7 @@
 		"git",
 		"sash"
 	],
+	"githubPullRequests.experimental.createView": true,
 	"debug.javascript.terminalOptions": {
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",
@@ -136,5 +150,6 @@
 	],
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
-	"editor.experimental.asyncTokenizationVerification": true
+	"editor.experimental.asyncTokenizationVerification": true,
+	"diffEditor.experimental.useVersion2": true,
 }

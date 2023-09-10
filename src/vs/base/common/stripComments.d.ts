@@ -10,5 +10,5 @@
  * supported in JSON.
  * @param content the content to strip comments from
  * @returns the content without comments
- */
+*/
 export function stripComments(content: string): string;

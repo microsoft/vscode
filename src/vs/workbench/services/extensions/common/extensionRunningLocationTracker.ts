@@ -38,6 +38,10 @@ export class ExtensionRunningLocationTracker {
 		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) { }
 
+	public set(extensionId: ExtensionIdentifier, runningLocation: ExtensionRunningLocation) {
+		this._runningLocation.set(extensionId, runningLocation);
+	}
+
 	public readExtensionKinds(extensionDescription: IExtensionDescription): ExtensionKind[] {
 		if (extensionDescription.isUnderDevelopment && this._environmentService.extensionDevelopmentKind) {
 			return this._environmentService.extensionDevelopmentKind;
@@ -196,10 +200,14 @@ export class ExtensionRunningLocationTracker {
 	}
 
 	public computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): ExtensionIdentifierMap<ExtensionRunningLocation | null> {
-		return this._doComputeRunningLocation(localExtensions, remoteExtensions, isInitialAllocation).runningLocation;
+		return this._doComputeRunningLocation(this._runningLocation, localExtensions, remoteExtensions, isInitialAllocation).runningLocation;
 	}
 
-	private _doComputeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number } {
+	private _doComputeRunningLocation(existingRunningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>, localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>; maxLocalProcessAffinity: number; maxLocalWebWorkerAffinity: number } {
+		// Skip extensions that have an existing running location
+		localExtensions = localExtensions.filter(extension => !existingRunningLocation.has(extension.identifier));
+		remoteExtensions = remoteExtensions.filter(extension => !existingRunningLocation.has(extension.identifier));
+
 		const extensionHostKinds = determineExtensionHostKinds(
 			localExtensions,
 			remoteExtensions,
@@ -247,11 +255,18 @@ export class ExtensionRunningLocationTracker {
 			result.set(extension.identifier, new LocalWebWorkerRunningLocation(affinity));
 		}
 
+		// Add extensions that already have an existing running location
+		for (const [extensionIdKey, runningLocation] of existingRunningLocation) {
+			if (runningLocation) {
+				result.set(extensionIdKey, runningLocation);
+			}
+		}
+
 		return { runningLocation: result, maxLocalProcessAffinity: maxAffinity, maxLocalWebWorkerAffinity: maxLocalWebWorkerAffinity };
 	}
 
 	public initializeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): void {
-		const { runningLocation, maxLocalProcessAffinity, maxLocalWebWorkerAffinity } = this._doComputeRunningLocation(localExtensions, remoteExtensions, true);
+		const { runningLocation, maxLocalProcessAffinity, maxLocalWebWorkerAffinity } = this._doComputeRunningLocation(this._runningLocation, localExtensions, remoteExtensions, true);
 		this._runningLocation = runningLocation;
 		this._maxLocalProcessAffinity = maxLocalProcessAffinity;
 		this._maxLocalWebWorkerAffinity = maxLocalWebWorkerAffinity;

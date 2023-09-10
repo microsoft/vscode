@@ -6,7 +6,7 @@
 import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { Promises } from 'vs/base/node/pfs';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
-import { hostname, release } from 'os';
+import { hostname, release, arch } from 'os';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CharCode } from 'vs/base/common/charCode';
@@ -21,7 +21,7 @@ import { getMarks, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -799,7 +799,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				detail: uri.scheme === Schemas.file ?
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
 					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true))
-			}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			}, BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return undefined;
 		}));
@@ -868,6 +868,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				this.logService.error(`Invalid URI input string, scheme missing: ${arg}`);
 
 				return undefined;
+			}
+			if (!uri.path) {
+				return uri.with({ path: '/' });
 			}
 
 			return uri;
@@ -1421,7 +1424,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			product,
 			isInitialStartup: options.initialStartup,
 			perfMarks: getMarks(),
-			os: { release: release(), hostname: hostname() },
+			os: { release: release(), hostname: hostname(), arch: arch() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,

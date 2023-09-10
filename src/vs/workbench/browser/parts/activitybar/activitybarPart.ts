@@ -19,7 +19,7 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, 
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType, isAncestor } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, IProfileStorageValueChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, IActivityHoverOptions, ToggleCompositeBadgeAction } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -247,7 +247,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			disposables.clear();
 			this.onDidRegisterExtensions();
 			this.compositeBar.onDidChange(() => this.saveCachedViewContainers(), this, disposables);
-			this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e), this, disposables);
+			this.storageService.onDidChangeValue(StorageScope.PROFILE, ActivitybarPart.PINNED_VIEW_CONTAINERS, disposables)(e => this.onDidStorageValueChange(e), this, disposables);
 		}));
 
 		// Register for configuration changes
@@ -807,9 +807,8 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		return this.viewDescriptorService.getViewContainersByLocation(this.location);
 	}
 
-	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.PROFILE
-			&& this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
+	private onDidStorageValueChange(e: IProfileStorageValueChangeEvent): void {
+		if (this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
 			this._pinnedViewContainersValue = undefined;
 			this._cachedViewContainers = undefined;
 
