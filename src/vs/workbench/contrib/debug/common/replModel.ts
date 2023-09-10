@@ -76,19 +76,19 @@ export class ReplVariableElement implements INestingReplElement {
 	private readonly id = generateUuid();
 
 	constructor(
-		public readonly expr: IExpression,
+		public readonly expression: IExpression,
 		public readonly severity: severity,
 		public readonly sourceData?: IReplElementSource,
 	) {
-		this.hasChildren = expr.hasChildren;
+		this.hasChildren = expression.hasChildren;
 	}
 
 	getChildren(): IReplElement[] | Promise<IReplElement[]> {
-		return this.expr.getChildren();
+		return this.expression.getChildren();
 	}
 
 	toString(): string {
-		return this.expr.toString();
+		return this.expression.toString();
 	}
 
 	getId(): string {
@@ -169,7 +169,7 @@ export class ReplEvaluationResult extends ExpressionContainer implements IReplEl
 		return this._available;
 	}
 
-	constructor() {
+	constructor(public readonly originalExpression: string) {
 		super(undefined, undefined, 0, generateUuid());
 	}
 
@@ -271,7 +271,7 @@ export class ReplModel {
 
 	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		this.addReplElement(new ReplEvaluationInput(name));
-		const result = new ReplEvaluationResult();
+		const result = new ReplEvaluationResult(name);
 		await result.evaluateExpression(name, session, stackFrame, 'repl');
 		this.addReplElement(result);
 	}

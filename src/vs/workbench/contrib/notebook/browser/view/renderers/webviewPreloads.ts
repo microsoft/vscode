@@ -58,6 +58,7 @@ interface EmitterLike<T> {
 interface PreloadStyles {
 	readonly outputNodePadding: number;
 	readonly outputNodeLeftPadding: number;
+	readonly tokenizationCss: string;
 }
 
 export interface PreloadOptions {
@@ -98,7 +99,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
 
-	const tokenizationStyleElement = document.querySelector('style#vscode-tokenization-styles');
+	const tokenizationStyle = new CSSStyleSheet();
+	tokenizationStyle.replaceSync(ctx.style.tokenizationCss);
+
 	const runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable = (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function')
 		? (runner) => {
 			setTimeout(() => {
@@ -801,6 +804,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	interface ExtendedOutputItem extends rendererApi.OutputItem {
 		readonly _allOutputItems: ReadonlyArray<AdditionalOutputItemInfo>;
+		appendedText?(): string | undefined;
 	}
 
 	let hasWarnedAboutAllOutputItemsProposal = false;
@@ -810,7 +814,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		mime: string,
 		metadata: unknown,
 		valueBytes: Uint8Array,
-		allOutputItemData: ReadonlyArray<{ readonly mime: string }>
+		allOutputItemData: ReadonlyArray<{ readonly mime: string }>,
+		appended?: { valueBytes: Uint8Array; previousVersion: number }
 	): ExtendedOutputItem {
 
 		function create(
@@ -818,11 +823,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			mime: string,
 			metadata: unknown,
 			valueBytes: Uint8Array,
+			appended?: { valueBytes: Uint8Array; previousVersion: number }
 		): ExtendedOutputItem {
 			return Object.freeze<ExtendedOutputItem>({
 				id,
 				mime,
 				metadata,
+
+				appendedText(): string | undefined {
+					if (appended) {
+						return textDecoder.decode(appended.valueBytes);
+					}
+					return undefined;
+				},
 
 				data(): Uint8Array {
 					return valueBytes;
@@ -871,7 +884,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}));
 
-		const item = create(id, mime, metadata, valueBytes);
+		const item = create(id, mime, metadata, valueBytes, appended);
 		allOutputItemCache.set(mime, Promise.resolve(item));
 		return item;
 	}
@@ -879,8 +892,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-		createHTML: value => value,
-		createScript: value => value,
+		createHTML: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
+		createScript: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
 	});
 
 	window.addEventListener('wheel', handleWheel);
@@ -905,21 +918,30 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface IHighlighter {
-		highlightCurrentMatch(index: number): void;
-		unHighlightCurrentMatch(index: number): void;
+		addHighlights(matches: IFindMatch[], ownerID: string): void;
+		removeHighlights(ownerID: string): void;
+		highlightCurrentMatch(index: number, ownerID: string): void;
+		unHighlightCurrentMatch(index: number, ownerID: string): void;
 		dispose(): void;
 	}
 
-	let _highlighter: IHighlighter | null = null;
+	interface IHighlightInfo {
+		matches: IFindMatch[];
+		currentMatchIndex: number;
+	}
+
 	const matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
 	const currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	class JSHighlighter implements IHighlighter {
-		private _findMatchIndex = -1;
+		private _activeHighlightInfo: Map<string, IHighlightInfo>;
 
 		constructor(
-			readonly matches: IFindMatch[],
 		) {
+			this._activeHighlightInfo = new Map();
+		}
+
+		addHighlights(matches: IFindMatch[], ownerID: string): void {
 			for (let i = matches.length - 1; i >= 0; i--) {
 				const match = matches[i];
 				const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
@@ -929,14 +951,32 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 				match.highlightResult = ret;
 			}
+
+			const highlightInfo: IHighlightInfo = {
+				matches,
+				currentMatchIndex: -1
+			};
+			this._activeHighlightInfo.set(ownerID, highlightInfo);
 		}
 
-		highlightCurrentMatch(index: number) {
-			const oldMatch = this.matches[this._findMatchIndex];
+		removeHighlights(ownerID: string): void {
+			this._activeHighlightInfo.get(ownerID)?.matches.forEach(match => {
+				match.highlightResult?.dispose();
+			});
+			this._activeHighlightInfo.delete(ownerID);
+		}
+
+		highlightCurrentMatch(index: number, ownerID: string) {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				console.error('Modified current highlight match before adding highlight list.');
+				return;
+			}
+			const oldMatch = highlightInfo.matches[highlightInfo.currentMatchIndex];
 			oldMatch?.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 
-			const match = this.matches[index];
-			this._findMatchIndex = index;
+			const match = highlightInfo.matches[index];
+			highlightInfo.currentMatchIndex = index;
 			const sel = window.getSelection();
 			if (!!match && !!sel && match.highlightResult) {
 				let offset = 0;
@@ -958,14 +998,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
 
 				document.getSelection()?.removeAllRanges();
-				postNotebookMessage('didFindHighlight', {
+				postNotebookMessage('didFindHighlightCurrent', {
 					offset
 				});
 			}
 		}
 
-		unHighlightCurrentMatch(index: number) {
-			const oldMatch = this.matches[index];
+		unHighlightCurrentMatch(index: number, ownerID: string) {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				return;
+			}
+			const oldMatch = highlightInfo.matches[index];
 			if (oldMatch && oldMatch.highlightResult) {
 				oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 			}
@@ -973,37 +1017,76 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		dispose() {
 			document.getSelection()?.removeAllRanges();
-
-			this.matches.forEach(match => {
-				match.highlightResult?.dispose();
+			this._activeHighlightInfo.forEach(highlightInfo => {
+				highlightInfo.matches.forEach(match => {
+					match.highlightResult?.dispose();
+				});
 			});
 		}
 	}
 
 	class CSSHighlighter implements IHighlighter {
+		private _activeHighlightInfo: Map<string, IHighlightInfo>;
 		private _matchesHighlight: Highlight;
 		private _currentMatchesHighlight: Highlight;
-		private _findMatchIndex = -1;
 
-		constructor(
-			readonly matches: IFindMatch[],
-		) {
+		constructor() {
+			this._activeHighlightInfo = new Map();
 			this._matchesHighlight = new Highlight();
 			this._matchesHighlight.priority = 1;
 			this._currentMatchesHighlight = new Highlight();
 			this._currentMatchesHighlight.priority = 2;
+			CSS.highlights?.set(`find-highlight`, this._matchesHighlight);
+			CSS.highlights?.set(`current-find-highlight`, this._currentMatchesHighlight);
+		}
+
+		_refreshRegistry(updateMatchesHighlight = true) {
+			// for performance reasons, only update the full list of highlights when we need to
+			if (updateMatchesHighlight) {
+				this._matchesHighlight.clear();
+			}
+
+			this._currentMatchesHighlight.clear();
+
+			this._activeHighlightInfo.forEach((highlightInfo) => {
+
+				if (updateMatchesHighlight) {
+					for (let i = 0; i < highlightInfo.matches.length; i++) {
+						this._matchesHighlight.add(highlightInfo.matches[i].originalRange);
+					}
+				}
+				if (highlightInfo.currentMatchIndex < highlightInfo.matches.length && highlightInfo.currentMatchIndex >= 0) {
+					this._currentMatchesHighlight.add(highlightInfo.matches[highlightInfo.currentMatchIndex].originalRange);
+				}
+			});
+		}
+
+		addHighlights(
+			matches: IFindMatch[],
+			ownerID: string
+		) {
 
 			for (let i = 0; i < matches.length; i++) {
 				this._matchesHighlight.add(matches[i].originalRange);
 			}
-			CSS.highlights?.set('find-highlight', this._matchesHighlight);
-			CSS.highlights?.set('current-find-highlight', this._currentMatchesHighlight);
+
+			const newEntry: IHighlightInfo = {
+				matches,
+				currentMatchIndex: -1,
+			};
+
+			this._activeHighlightInfo.set(ownerID, newEntry);
 		}
 
-		highlightCurrentMatch(index: number): void {
-			this._findMatchIndex = index;
-			const match = this.matches[this._findMatchIndex];
-			const range = match.originalRange;
+		highlightCurrentMatch(index: number, ownerID: string): void {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				console.error('Modified current highlight match before adding highlight list.');
+				return;
+			}
+
+			highlightInfo.currentMatchIndex = index;
+			const match = highlightInfo.matches[index];
 
 			if (match) {
 				let offset = 0;
@@ -1012,20 +1095,28 @@ async function webviewPreloads(ctx: PreloadContext) {
 					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
-					postNotebookMessage('didFindHighlight', {
+					postNotebookMessage('didFindHighlightCurrent', {
 						offset
 					});
 				} catch (e) {
 					console.error(e);
 				}
 			}
-
-			this._currentMatchesHighlight.clear();
-			this._currentMatchesHighlight.add(range);
+			this._refreshRegistry(false);
 		}
 
-		unHighlightCurrentMatch(index: number): void {
-			this._currentMatchesHighlight.clear();
+		unHighlightCurrentMatch(index: number, ownerID: string): void {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				return;
+			}
+
+			highlightInfo.currentMatchIndex = -1;
+		}
+
+		removeHighlights(ownerID: string) {
+			this._activeHighlightInfo.delete(ownerID);
+			this._refreshRegistry();
 		}
 
 		dispose(): void {
@@ -1034,6 +1125,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._matchesHighlight.clear();
 		}
 	}
+
+	const _highlighter = (CSS.highlights) ? new CSSHighlighter() : new JSHighlighter();
 
 	function extractSelectionLine(selection: Selection): ISearchPreviewInfo {
 		const range = selection.getRangeAt(0);
@@ -1123,7 +1216,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
 
@@ -1251,12 +1344,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
-		if (matches.length && CSS.highlights) {
-			_highlighter = new CSSHighlighter(matches);
-		} else {
-			_highlighter = new JSHighlighter(matches);
-		}
-
+		_highlighter.addHighlights(matches, options.ownerID);
 		document.getSelection()?.removeAllRanges();
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
@@ -1441,26 +1529,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'tokenizedStylesChanged': {
-				if (tokenizationStyleElement) {
-					tokenizationStyleElement.textContent = event.data.css;
-				}
+				tokenizationStyle.replaceSync(event.data.css);
 				break;
 			}
 			case 'find': {
-				_highlighter?.dispose();
+				_highlighter.removeHighlights(event.data.options.ownerID);
 				find(event.data.query, event.data.options);
 				break;
 			}
-			case 'findHighlight': {
-				_highlighter?.highlightCurrentMatch(event.data.index);
+			case 'findHighlightCurrent': {
+				_highlighter?.highlightCurrentMatch(event.data.index, event.data.ownerID);
 				break;
 			}
-			case 'findUnHighlight': {
-				_highlighter?.unHighlightCurrentMatch(event.data.index);
+			case 'findUnHighlightCurrent': {
+				_highlighter?.unHighlightCurrentMatch(event.data.index, event.data.ownerID);
 				break;
 			}
 			case 'findStop': {
-				_highlighter?.dispose();
+				_highlighter.removeHighlights(event.data.ownerID);
 				break;
 			}
 			case 'returnOutputItem': {
@@ -2059,8 +2145,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
 			el.innerHTML = trustedHtml as string;
-			if (tokenizationStyleElement) {
-				el.insertAdjacentElement('beforebegin', tokenizationStyleElement.cloneNode(true) as HTMLElement);
+			const root = el.getRootNode();
+			if (root instanceof ShadowRoot) {
+				if (!root.adoptedStyleSheets.includes(tokenizationStyle)) {
+					root.adoptedStyleSheets.push(tokenizationStyle);
+				}
 			}
 		}
 
@@ -2532,13 +2621,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this._content = { preferredRendererId, preloadErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
-				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent; // CodeQL [SM03712] The content comes from renderer extensions, not from direct user input.
 				this.element.innerHTML = trustedHtml as string;
 			} else if (preloadErrors.some(e => e instanceof Error)) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs);
+				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();
 				this.renderTaskAbort = controller;

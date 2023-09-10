@@ -237,24 +237,6 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 		super(inputRange, outputRange);
 
 		this.rangeMappings = rangeMappings || [new RangeMapping(this.inputRange.toRange(), this.outputRange.toRange())];
-
-		assertFn(() => {
-			for (const map of this.rangeMappings) {
-				const inputRangesValid =
-					inputRange.startLineNumber <= map.inputRange.startLineNumber
-					&& map.inputRange.endLineNumber <= inputRange.endLineNumberExclusive
-					&& (map.inputRange.endLineNumber !== inputRange.endLineNumberExclusive || map.inputRange.endColumn === 1);
-
-				const outputRangesValid = outputRange.startLineNumber <= map.outputRange.startLineNumber
-					&& map.outputRange.endLineNumber <= outputRange.endLineNumberExclusive
-					&& (map.outputRange.endLineNumber !== outputRange.endLineNumberExclusive || map.outputRange.endColumn === 1);
-
-				if (!inputRangesValid || !outputRangesValid) {
-					return false;
-				}
-			}
-			return true;
-		});
 	}
 
 	public override addOutputLineDelta(delta: number): DetailedLineRangeMapping {

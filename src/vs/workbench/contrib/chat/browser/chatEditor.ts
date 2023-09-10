@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/chatEditor';
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -88,7 +89,7 @@ export class ChatEditor extends EditorPane {
 
 		const editorModel = await input.resolve();
 		if (!editorModel) {
-			throw new Error(`Failed to get model for interactive session editor. id: ${input.sessionId}`);
+			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
 		}
 
 		if (!this.widget) {
@@ -116,8 +117,7 @@ export class ChatEditor extends EditorPane {
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {
 		if (this.widget) {
-			const width = Math.min(dimension.width, 600);
-			this.widget.layout(dimension.height, width);
+			this.widget.layout(dimension.height, dimension.width);
 		}
 	}
 }

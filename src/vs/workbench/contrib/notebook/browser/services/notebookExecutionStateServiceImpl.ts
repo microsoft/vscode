@@ -7,7 +7,6 @@ import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -85,7 +84,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined {
 		const exeMap = this._executions.get(notebook);
-		return withNullAsUndefined(exeMap);
+		return exeMap ?? undefined;
 	}
 
 	private _onCellExecutionDidChange(notebookUri: URI, cellHandle: number, exe: CellExecution): void {

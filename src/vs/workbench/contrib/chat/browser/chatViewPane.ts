@@ -34,9 +34,9 @@ interface IViewPaneState extends IViewState {
 	sessionId?: string;
 }
 
-export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionSidebar';
+export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
 export class ChatViewPane extends ViewPane implements IChatViewPane {
-	static ID = 'workbench.panel.interactiveSession.view';
+	static ID = 'workbench.panel.chat.view';
 
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -46,7 +46,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	private viewState: IViewPaneState;
 
 	constructor(
-		private readonly interactiveSessionViewOptions: IChatViewOptions,
+		private readonly chatViewOptions: IChatViewOptions,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -64,16 +64,18 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + this.interactiveSessionViewOptions.providerId, this.storageService);
+		this.memento = new Memento('interactive-session-view-' + this.chatViewOptions.providerId, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 	}
 
 	private updateModel(model?: IChatModel | undefined): void {
 		this.modelDisposables.clear();
 
-		model = model ?? this.chatService.startSession(this.interactiveSessionViewOptions.providerId, CancellationToken.None);
+		model = model ?? (this.chatService.transferredSessionData?.sessionId
+			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
+			: this.chatService.startSession(this.chatViewOptions.providerId, CancellationToken.None));
 		if (!model) {
-			throw new Error('Could not start interactive session');
+			throw new Error('Could not start chat session');
 		}
 
 		this._widget.setModel(model, { ...this.viewState });
@@ -100,7 +102,15 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			}));
 			this._widget.render(parent);
 
-			const initialModel = this.viewState.sessionId ? this.chatService.getOrRestoreSession(this.viewState.sessionId) : undefined;
+			let sessionId: string | undefined;
+			if (this.chatService.transferredSessionData) {
+				sessionId = this.chatService.transferredSessionData.sessionId;
+				this.viewState.inputValue = this.chatService.transferredSessionData.inputValue;
+			} else {
+				sessionId = this.viewState.sessionId;
+			}
+
+			const initialModel = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
 			this.updateModel(initialModel);
 		} catch (e) {
 			this.logService.error(e);
@@ -115,8 +125,18 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	async clear(): Promise<void> {
 		if (this.widget.viewModel) {
 			this.chatService.clearSession(this.widget.viewModel.sessionId);
-			this.updateModel();
 		}
+		this.viewState.inputValue = '';
+		this.updateModel();
+	}
+
+	loadSession(sessionId: string): void {
+		if (this.widget.viewModel) {
+			this.chatService.clearSession(this.widget.viewModel.sessionId);
+		}
+
+		const newModel = this.chatService.getOrRestoreSession(sessionId);
+		this.updateModel(newModel);
 	}
 
 	focusInput(): void {

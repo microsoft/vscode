@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -17,7 +17,8 @@ import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
 import { grep, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
-import { pickRemoteSource } from './remoteSource';
+import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
+import { RemoteSourceAction } from './api/git-base';
 
 class CheckoutItem implements QuickPickItem {
 
@@ -25,8 +26,11 @@ class CheckoutItem implements QuickPickItem {
 	get label(): string { return `${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
 	get refName(): string | undefined { return this.ref.name; }
+	get refRemote(): string | undefined { return this.ref.remote; }
+	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
+	set buttons(newButtons: QuickInputButton[] | undefined) { this._buttons = newButtons; }
 
-	constructor(protected repository: Repository, protected ref: Ref) { }
+	constructor(protected repository: Repository, protected ref: Ref, protected _buttons?: QuickInputButton[]) { }
 
 	async run(opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
@@ -192,9 +196,9 @@ class FetchAllRemotesItem implements QuickPickItem {
 }
 
 class RepositoryItem implements QuickPickItem {
-	get label(): string {
-		return `$(repo) ${this.path}`;
-	}
+	get label(): string { return `$(repo) ${getRepositoryLabel(this.path)}`; }
+
+	get description(): string { return this.path; }
 
 	constructor(public readonly path: string) { }
 }
@@ -278,7 +282,54 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		}
 	}
 
-	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items), []);
+	const buttons = await getRemoteRefItemButtons(repository);
+	let fallbackRemoteButtons: RemoteSourceActionButton[] | undefined = [];
+	const remote = repository.remotes.find(r => r.pushUrl === repository.HEAD?.remote || r.fetchUrl === repository.HEAD?.remote) ?? repository.remotes[0];
+	const remoteUrl = remote?.pushUrl ?? remote?.fetchUrl;
+	if (remoteUrl) {
+		fallbackRemoteButtons = buttons.get(remoteUrl);
+	}
+
+	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items.map((item) => {
+		if (item.refRemote) {
+			const matchingRemote = repository.remotes.find((remote) => remote.name === item.refRemote);
+			const remoteUrl = matchingRemote?.pushUrl ?? matchingRemote?.fetchUrl;
+			if (remoteUrl) {
+				item.buttons = buttons.get(item.refRemote);
+			}
+		}
+
+		item.buttons = fallbackRemoteButtons;
+		return item;
+	})), []);
+}
+
+type RemoteSourceActionButton = {
+	iconPath: ThemeIcon;
+	tooltip: string;
+	actual: RemoteSourceAction;
+};
+
+async function getRemoteRefItemButtons(repository: Repository) {
+	// Compute actions for all known remotes
+	const remoteUrlsToActions = new Map<string, RemoteSourceActionButton[]>();
+
+	const getButtons = async (remoteUrl: string) => (await getRemoteSourceActions(remoteUrl)).map((action) => ({ iconPath: new ThemeIcon(action.icon), tooltip: action.label, actual: action }));
+
+	for (const remote of repository.remotes) {
+		if (remote.fetchUrl) {
+			const actions = remoteUrlsToActions.get(remote.fetchUrl) ?? [];
+			actions.push(...await getButtons(remote.fetchUrl));
+			remoteUrlsToActions.set(remote.fetchUrl, actions);
+		}
+		if (remote.pushUrl && remote.pushUrl !== remote.fetchUrl) {
+			const actions = remoteUrlsToActions.get(remote.pushUrl) ?? [];
+			actions.push(...await getButtons(remote.pushUrl));
+			remoteUrlsToActions.set(remote.pushUrl, actions);
+		}
+	}
+
+	return remoteUrlsToActions;
 }
 
 class CheckoutProcessor {
@@ -305,6 +356,15 @@ function getCheckoutProcessor(repository: Repository, type: string): CheckoutPro
 	}
 
 	return undefined;
+}
+
+function getRepositoryLabel(repositoryRoot: string): string {
+	const workspaceFolder = workspace.getWorkspaceFolder(Uri.file(repositoryRoot));
+	return workspaceFolder?.uri.toString() === repositoryRoot ? workspaceFolder.name : path.basename(repositoryRoot);
+}
+
+function compareRepositoryLabel(repositoryRoot1: string, repositoryRoot2: string): number {
+	return getRepositoryLabel(repositoryRoot1).localeCompare(getRepositoryLabel(repositoryRoot2));
 }
 
 function sanitizeBranchName(name: string, whitespaceChar: string): string {
@@ -689,16 +749,29 @@ export class CommandCenter {
 		const ref = selection.repository.HEAD?.upstream?.name;
 
 		if (uri !== undefined) {
-			// Launch desktop client if currently in web
-			if (env.uiKind === UIKind.Web) {
-				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+			let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+			const isWeb = env.uiKind === UIKind.Web;
+			const isRemote = env.remoteName !== undefined;
+
+			if (isWeb || isRemote) {
 				if (ref !== undefined) {
 					target += `&ref=${encodeURIComponent(ref)}`;
 				}
-				return Uri.parse(target);
+
+				if (isWeb) {
+					// Launch desktop client if currently in web
+					return Uri.parse(target);
+				}
+
+				if (isRemote) {
+					// If already in desktop client but in a remote window, we need to force a new window
+					// so that the git extension can access the local filesystem for cloning
+					target += `&windowId=_blank`;
+					return Uri.parse(target);
+				}
 			}
 
-			// If already in desktop client, directly clone
+			// Otherwise, directly clone
 			void this.clone(uri, undefined, { ref: ref });
 		}
 	}
@@ -829,7 +902,44 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path);
+		await this.model.openRepository(path, true);
+	}
+
+	@command('git.reopenClosedRepositories', { repository: false })
+	async reopenClosedRepositories(): Promise<void> {
+		if (this.model.closedRepositories.length === 0) {
+			return;
+		}
+
+		const closedRepositories: string[] = [];
+
+		const title = l10n.t('Reopen Closed Repositories');
+		const placeHolder = l10n.t('Pick a repository to reopen');
+
+		const allRepositoriesLabel = l10n.t('All Repositories');
+		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.closedRepositories
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
+
+		const items = this.model.closedRepositories.length === 1 ? [...repositoriesQuickPickItems] :
+			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
+
+		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
+		if (!repositoryItem) {
+			return;
+		}
+
+		if (repositoryItem === allRepositoriesQuickPickItem) {
+			// All Repositories
+			closedRepositories.push(...this.model.closedRepositories.values());
+		} else {
+			// One Repository
+			closedRepositories.push((repositoryItem as RepositoryItem).path);
+		}
+
+		for (const repository of closedRepositories) {
+			await this.model.openRepository(repository, true);
+		}
 	}
 
 	@command('git.close', { repository: true })
@@ -1869,6 +1979,16 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
+	@command('git.commitAmend', { repository: true })
+	async commitAmend(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true });
+	}
+
+	@command('git.commitSigned', { repository: true })
+	async commitSigned(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true });
+	}
+
 	@command('git.commitStaged', { repository: true })
 	async commitStaged(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false });
@@ -1987,6 +2107,16 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
 	}
 
+	@command('git.commitAmendNoVerify', { repository: true })
+	async commitAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true, noVerify: true });
+	}
+
+	@command('git.commitSignedNoVerify', { repository: true })
+	async commitSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true, noVerify: true });
+	}
+
 	@command('git.commitStagedAmendNoVerify', { repository: true })
 	async commitStagedAmendNoVerify(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false, amend: true, noVerify: true });
@@ -2084,7 +2214,17 @@ export class CommandCenter {
 		quickpick.items = picks;
 		quickpick.busy = false;
 
-		const choice = await new Promise<QuickPickItem | undefined>(c => quickpick.onDidAccept(() => c(quickpick.activeItems[0])));
+		const choice = await new Promise<QuickPickItem | undefined>(c => {
+			quickpick.onDidAccept(() => c(quickpick.activeItems[0]));
+			quickpick.onDidTriggerItemButton((e) => {
+				quickpick.hide();
+				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
+				const item = e.item as CheckoutItem;
+				if (button.actual && item.refName) {
+					button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
+				}
+			});
+		});
 		quickpick.hide();
 
 		if (!choice) {
@@ -3362,9 +3502,10 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.parentRepositories.keys()).sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.parentRepositories
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
-		const items = this.model.parentRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+		const items = this.model.parentRepositories.length === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		const repositoryItem = await window.showQuickPick(items, { title, placeHolder });
@@ -3374,7 +3515,7 @@ export class CommandCenter {
 
 		if (repositoryItem === allRepositoriesQuickPickItem) {
 			// All Repositories
-			parentRepositories.push(...this.model.parentRepositories.keys());
+			parentRepositories.push(...this.model.parentRepositories);
 		} else {
 			// One Repository
 			parentRepositories.push((repositoryItem as RepositoryItem).path);
@@ -3395,9 +3536,10 @@ export class CommandCenter {
 
 		const allRepositoriesLabel = l10n.t('All Repositories');
 		const allRepositoriesQuickPickItem: QuickPickItem = { label: allRepositoriesLabel };
-		const repositoriesQuickPickItems: QuickPickItem[] = Array.from(this.model.unsafeRepositories.keys()).sort().map(r => new RepositoryItem(r));
+		const repositoriesQuickPickItems: QuickPickItem[] = this.model.unsafeRepositories
+			.sort(compareRepositoryLabel).map(r => new RepositoryItem(r));
 
-		quickpick.items = this.model.unsafeRepositories.size === 1 ? [...repositoriesQuickPickItems] :
+		quickpick.items = this.model.unsafeRepositories.length === 1 ? [...repositoriesQuickPickItems] :
 			[...repositoriesQuickPickItems, { label: '', kind: QuickPickItemKind.Separator }, allRepositoriesQuickPickItem];
 
 		quickpick.show();
@@ -3414,7 +3556,7 @@ export class CommandCenter {
 
 		if (repositoryItem.label === allRepositoriesLabel) {
 			// All Repositories
-			unsafeRepositories.push(...this.model.unsafeRepositories.keys());
+			unsafeRepositories.push(...this.model.unsafeRepositories);
 		} else {
 			// One Repository
 			unsafeRepositories.push((repositoryItem as RepositoryItem).path);
@@ -3422,11 +3564,11 @@ export class CommandCenter {
 
 		for (const unsafeRepository of unsafeRepositories) {
 			// Mark as Safe
-			await this.git.addSafeDirectory(this.model.unsafeRepositories.get(unsafeRepository)!);
+			await this.git.addSafeDirectory(this.model.getUnsafeRepositoryPath(unsafeRepository)!);
 
 			// Open Repository
 			await this.model.openRepository(unsafeRepository);
-			this.model.unsafeRepositories.delete(unsafeRepository);
+			this.model.deleteUnsafeRepository(unsafeRepository);
 		}
 	}
 

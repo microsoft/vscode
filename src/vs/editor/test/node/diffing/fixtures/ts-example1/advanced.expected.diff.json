@@ -13,12 +13,8 @@
 			"modifiedRange": "[9,14)",
 			"innerChanges": [
 				{
-					"originalRange": "[9,10 -> 9,10]",
-					"modifiedRange": "[9,10 -> 9,68]"
-				},
-				{
-					"originalRange": "[9,15 -> 9,15]",
-					"modifiedRange": "[9,73 -> 13,16]"
+					"originalRange": "[9,10 -> 9,15]",
+					"modifiedRange": "[9,10 -> 13,16]"
 				},
 				{
 					"originalRange": "[9,35 -> 9,44]",
@@ -31,16 +27,8 @@
 			"modifiedRange": "[17,80)",
 			"innerChanges": [
 				{
-					"originalRange": "[13,10 -> 13,41]",
-					"modifiedRange": "[17,10 -> 35,18]"
-				},
-				{
-					"originalRange": "[14,2 -> 14,8]",
-					"modifiedRange": "[36,2 -> 39,8]"
-				},
-				{
-					"originalRange": "[14,13 -> 14,43]",
-					"modifiedRange": "[39,13 -> 79,2]"
+					"originalRange": "[13,10 -> 14,43]",
+					"modifiedRange": "[17,10 -> 79,2]"
 				}
 			]
 		}

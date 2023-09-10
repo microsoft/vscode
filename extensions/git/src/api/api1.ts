@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -294,9 +294,9 @@ export class ApiImpl implements API {
 		return result ? new ApiRepository(result) : null;
 	}
 
-	async init(root: Uri): Promise<Repository | null> {
+	async init(root: Uri, options?: InitOptions): Promise<Repository | null> {
 		const path = root.fsPath;
-		await this._model.git.init(path);
+		await this._model.git.init(path, options);
 		await this._model.openRepository(path);
 		return this.getRepository(root) || null;
 	}
@@ -362,6 +362,8 @@ function getStatus(status: Status): string {
 		case Status.UNTRACKED: return 'UNTRACKED';
 		case Status.IGNORED: return 'IGNORED';
 		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
+		case Status.INTENT_TO_RENAME: return 'INTENT_TO_RENAME';
+		case Status.TYPE_CHANGED: return 'TYPE_CHANGED';
 		case Status.ADDED_BY_US: return 'ADDED_BY_US';
 		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
 		case Status.DELETED_BY_US: return 'DELETED_BY_US';
