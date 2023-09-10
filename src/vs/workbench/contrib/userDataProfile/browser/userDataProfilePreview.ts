@@ -20,7 +20,7 @@ export class UserDataProfilePreviewContribution extends Disposable implements IW
 	) {
 		super();
 		if (environmentService.options?.profileToPreview) {
-			userDataProfileImportExportService.importProfile(URI.revive(environmentService.options.profileToPreview), { preview: true })
+			userDataProfileImportExportService.importProfile(URI.revive(environmentService.options.profileToPreview), { mode: 'both' })
 				.then(null, error => logService.error('Error while previewing the profile', getErrorMessage(error)));
 		}
 	}

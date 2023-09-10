@@ -254,8 +254,8 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISyncExtension>, ignoredExtensions: Set<string>, checkVersionProperty: boolean): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = from ? [...from.keys()].filter(key => !ignoredExtensions.has(key)) : [];
 	const toKeys = [...to.keys()].filter(key => !ignoredExtensions.has(key));
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	for (const key of fromKeys) {
@@ -275,6 +275,11 @@ function compare(from: Map<string, ISyncExtension> | null, to: Map<string, ISync
 function areSame(fromExtension: ISyncExtension, toExtension: ISyncExtension, checkVersionProperty: boolean, checkInstalledProperty: boolean): boolean {
 	if (fromExtension.disabled !== toExtension.disabled) {
 		/* extension enablement changed */
+		return false;
+	}
+
+	if (!!fromExtension.isApplicationScoped !== !!toExtension.isApplicationScoped) {
+		/* extension application scope has changed */
 		return false;
 	}
 
@@ -365,8 +370,8 @@ function mergeExtensionState(localExtension: ISyncExtension, remoteExtension: IS
 function compareExtensionState(from: IStringDictionary<any>, to: IStringDictionary<any>): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = Object.keys(from);
 	const toKeys = Object.keys(to);
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	for (const key of fromKeys) {
@@ -396,23 +401,26 @@ function massageIncomingExtension(extension: ISyncExtension): ISyncExtension {
 // massage outgoing extension - remove optional properties
 function massageOutgoingExtension(extension: ISyncExtension, key: string): ISyncExtension {
 	const massagedExtension: ISyncExtension = {
+		...extension,
 		identifier: {
 			id: extension.identifier.id,
 			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
 		},
-		version: extension.version,
 		/* set following always so that to differentiate with older clients */
 		preRelease: !!extension.preRelease,
-		pinned: !!extension.pinned
+		pinned: !!extension.pinned,
 	};
-	if (extension.disabled) {
-		massagedExtension.disabled = true;
+	if (!extension.disabled) {
+		delete massagedExtension.disabled;
 	}
-	if (extension.installed) {
-		massagedExtension.installed = true;
+	if (!extension.installed) {
+		delete massagedExtension.installed;
 	}
-	if (extension.state) {
-		massagedExtension.state = extension.state;
+	if (!extension.state) {
+		delete massagedExtension.state;
+	}
+	if (!extension.isApplicationScoped) {
+		delete massagedExtension.isApplicationScoped;
 	}
 	return massagedExtension;
 }

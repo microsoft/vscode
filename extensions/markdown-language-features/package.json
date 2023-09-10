@@ -122,6 +122,11 @@
     ],
     "commands": [
       {
+        "command": "_markdown.copyImage",
+        "title": "%markdown.copyImage.title%",
+        "category": "Markdown"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -182,6 +187,12 @@
       }
     ],
     "menus": {
+      "webview/context": [
+        {
+          "command": "_markdown.copyImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+        }
+      ],
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
@@ -234,6 +245,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "_markdown.copyImage",
+          "when": "false"
+        },
         {
           "command": "markdown.showPreview",
           "when": "editorLangId == markdown && !notebookEditorFocused",
@@ -488,6 +503,22 @@
             "%configuration.copyIntoWorkspace.never%"
           ]
         },
+        "markdown.editor.pasteUrlAsFormattedLink.enabled": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
+          "default":"never",
+          "enum": [
+            "always",
+            "smart",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.pasteUrlAsFormattedLink.always%",
+            "%configuration.pasteUrlAsFormattedLink.smart%",
+            "%configuration.pasteUrlAsFormattedLink.never%"
+          ]
+        },
         "markdown.validate.enabled": {
           "type": "boolean",
           "scope": "resource",
@@ -695,9 +726,9 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5",
-    "dompurify": "^2.4.1",
-    "highlight.js": "^11.4.0",
+    "@vscode/extension-telemetry": "^0.8.4",
+    "dompurify": "^3.0.5",
+    "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
@@ -706,7 +737,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/dompurify": "^2.3.1",
+    "@types/dompurify": "^3.0.2",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "12.2.3",
     "@types/picomatch": "^2.3.0",

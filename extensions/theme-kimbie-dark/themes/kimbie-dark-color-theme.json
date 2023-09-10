@@ -64,7 +64,8 @@
 			"scope": [
 				"meta.embedded",
 				"source.groovy.embedded",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#d3af86"
@@ -81,8 +82,7 @@
 			"name": "Comments",
 			"scope": [
 				"comment",
-				"punctuation.definition.comment",
-				"string.quoted.docstring"
+				"punctuation.definition.comment"
 			],
 			"settings": {
 				"foreground": "#a57a4c"

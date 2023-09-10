@@ -82,12 +82,12 @@ export interface IUntitledFileWorkingCopyInitialContents {
 
 	/**
 	 * If not provided, the untitled file working copy will be marked
-	 * dirty by default given initial contents are provided.
+	 * modified by default given initial contents are provided.
 	 *
 	 * Note: if the untitled file working copy has an associated path
-	 * the dirty state will always be set.
+	 * the modified state will always be set.
 	 */
-	readonly markDirty?: boolean;
+	readonly markModified?: boolean;
 }
 
 export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
@@ -135,9 +135,9 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		this._register(workingCopyService.registerWorkingCopy(this));
 	}
 
-	//#region Dirty
+	//#region Dirty/Modified
 
-	private modified = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markDirty !== false);
+	private modified = this.hasAssociatedFilePath || Boolean(this.initialContents && this.initialContents.markModified !== false);
 
 	isDirty(): boolean {
 		return this.modified && !this.isScratchpad; // Scratchpad working copies are never dirty
@@ -197,7 +197,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		await this.doCreateModel(untitledContents);
 
 		// Untitled associated to file path are modified right away as well as untitled with content
-		this.setModified(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markDirty !== false));
+		this.setModified(this.hasAssociatedFilePath || !!backup || Boolean(this.initialContents && this.initialContents.markModified !== false));
 
 		// If we have initial contents, make sure to emit this
 		// as the appropriate events to the outside.
@@ -251,6 +251,10 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 
 	//#region Backup
+
+	get backupDelay(): number | undefined {
+		return this.model?.configuration?.backupDelay;
+	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		let content: VSBufferReadableStream | undefined = undefined;

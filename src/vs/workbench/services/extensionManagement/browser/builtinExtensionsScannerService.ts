@@ -89,17 +89,17 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 
 	private async localizeManifest(extensionId: string, manifest: IExtensionManifest, fallbackTranslations: ITranslations): Promise<IExtensionManifest> {
 		if (!this.nlsUrl) {
-			return localizeManifest(manifest, fallbackTranslations);
+			return localizeManifest(this.logService, manifest, fallbackTranslations);
 		}
 		// the `package` endpoint returns the translations in a key-value format similar to the package.nls.json file.
 		const uri = URI.joinPath(this.nlsUrl, extensionId, 'package');
 		try {
 			const res = await this.extensionResourceLoaderService.readExtensionResource(uri);
 			const json = JSON.parse(res.toString());
-			return localizeManifest(manifest, json, fallbackTranslations);
+			return localizeManifest(this.logService, manifest, json, fallbackTranslations);
 		} catch (e) {
 			this.logService.error(e);
-			return localizeManifest(manifest, fallbackTranslations);
+			return localizeManifest(this.logService, manifest, fallbackTranslations);
 		}
 	}
 }

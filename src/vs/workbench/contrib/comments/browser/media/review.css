@@ -136,6 +136,9 @@
 
 .review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
+}
+
+.review-widget .body .review-comment .review-comment-contents .comment-body-max-height {
 	max-height: 20em;
 }
 
@@ -347,6 +350,12 @@
 }
 
 .review-widget .body .comment-form .monaco-editor,
+.review-widget .body .comment-form .monaco-editor .monaco-editor-background,
+.review-widget .body .edit-container .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-peekViewTitle-background);
+}
+
+.review-widget .body .comment-form .monaco-editor,
 .review-widget .body .edit-container .monaco-editor {
 	width: 100%;
 	min-height: 90px;
@@ -478,21 +487,12 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-thread-range,
-.monaco-editor .comment-thread-range-current {
-	border-width: 1px;
-	border-style: solid;
-	box-sizing: border-box;
-}
-
 .monaco-editor .comment-thread-range {
 	background-color: var(--vscode-editorCommentsWidget-rangeBackground);
-	border-color: var(--vscode-editorCommentsWidget-rangeBorder);
 }
 
 .monaco-editor .comment-thread-range-current {
 	background-color: var(--vscode-editorCommentsWidget-rangeActiveBackground);
-	border-color: var(--vscode-editorCommentsWidget-rangeActiveBorder);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,

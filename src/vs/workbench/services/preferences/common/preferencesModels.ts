@@ -16,12 +16,11 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IExtensionInfo, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IExtensionInfo, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
@@ -96,6 +95,10 @@ abstract class AbstractSettingsModel extends EditorModel {
 				// Sort by match type if the match types are not the same.
 				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.RemoteMatch) {
+				// The match types are the same and are RemoteMatch.
+				// Sort by score.
+				return b.score - a.score;
 			} else {
 				// The match types are the same.
 				if (a.setting.extensionInfo && b.setting.extensionInfo
@@ -256,6 +259,7 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
+	private additionalGroups: ISettingsGroup[] | undefined;
 	private dirty = false;
 
 	constructor(
@@ -276,15 +280,23 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 		}));
 	}
 
+	/** Doesn't include the "Commonly Used" group */
 	protected override get filterGroups(): ISettingsGroup[] {
-		// Don't filter "commonly used"
 		return this.settingsGroups.slice(1);
 	}
 
 	get settingsGroups(): ISettingsGroup[] {
 		const groups = this._defaultSettings.getSettingsGroups(this.dirty);
+		if (this.additionalGroups?.length) {
+			groups.push(...this.additionalGroups);
+		}
 		this.dirty = false;
 		return groups;
+	}
+
+	/** For programmatically added groups outside of registered configurations */
+	setAdditionalGroups(groups: ISettingsGroup[]) {
+		this.additionalGroups = groups;
 	}
 
 	findValueMatches(filter: string, setting: ISetting): IRange[] {
@@ -378,7 +390,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 					valueRange: nullRange,
 					descriptionRanges: [],
 					overrides: [],
-					overrideOf: withNullAsUndefined(overrideSetting)
+					overrideOf: overrideSetting ?? undefined,
 				};
 				if (previousParents.length === settingsPropertyIndex + 1) {
 					settings.push(setting);
@@ -667,7 +679,7 @@ export class DefaultSettings extends Disposable {
 		const categoryOrder = config.order;
 
 		for (const key in settingsObject) {
-			const prop = settingsObject[key];
+			const prop: IConfigurationPropertySchema = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
 				let description = (prop.markdownDescription || prop.description || '');

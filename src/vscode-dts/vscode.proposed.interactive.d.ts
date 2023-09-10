@@ -9,6 +9,11 @@ declare module 'vscode' {
 		command: string;
 		detail?: string;
 		refer?: boolean;
+		/**
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
+		 */
+		executeImmediately?: boolean;
 		// kind: CompletionItemKind;
 	}
 
@@ -17,6 +22,7 @@ declare module 'vscode' {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
+		message?: string;
 	}
 
 	// todo@API make classes
@@ -26,6 +32,8 @@ declare module 'vscode' {
 
 		selection: Selection;
 		wholeRange: Range;
+		attempt: number;
+		live: boolean;
 	}
 
 	// todo@API make classes
@@ -45,7 +53,8 @@ declare module 'vscode' {
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
-		Undone = 2
+		Undone = 2,
+		Accepted = 3
 	}
 
 	export interface TextDocumentContext {
@@ -55,10 +64,13 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
+		label: string;
+
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
 		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse2?(request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: S): any;
@@ -109,25 +121,45 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveProgressContent {
-		content: string;
+		content: string | MarkdownString;
 	}
 
 	export interface InteractiveProgressId {
 		responseId: string;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
+	export interface InteractiveProgressTask {
+		placeholder: string;
+		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
+	}
+
+	export interface FileTreeData {
+		label: string;
+		uri: Uri;
+		children?: FileTreeData[];
+	}
+
+	export interface InteractiveProgressFileTree {
+		treeData: FileTreeData;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
 		args?: any[];
 		title: string; // supports codicon strings
+		when?: string;
 	}
 
 	export interface InteractiveSessionSlashCommand {
 		command: string;
 		kind: CompletionItemKind;
 		detail?: string;
+		shouldRepopulate?: boolean;
+		followupPlaceholder?: string;
+		executeImmediately?: boolean;
+		yieldTo?: ReadonlyArray<{ readonly command: string }>;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
@@ -151,65 +183,9 @@ declare module 'vscode' {
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
 		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
-	}
 
-	export enum InteractiveSessionVoteDirection {
-		Up = 1,
-		Down = 2
-	}
-
-	export interface InteractiveSessionVoteAction {
-		// eslint-disable-next-line local/vscode-dts-string-type-literals
-		kind: 'vote';
-		responseId: string;
-		direction: InteractiveSessionVoteDirection;
-	}
-
-	export enum InteractiveSessionCopyKind {
-		// Keyboard shortcut or context menu
-		Action = 1,
-		Toolbar = 2
-	}
-
-	export interface InteractiveSessionCopyAction {
-		// eslint-disable-next-line local/vscode-dts-string-type-literals
-		kind: 'copy';
-		responseId: string;
-		codeBlockIndex: number;
-		copyType: InteractiveSessionCopyKind;
-		copiedCharacters: number;
-		totalCharacters: number;
-		copiedText: string;
-	}
-
-	export interface InteractiveSessionInsertAction {
-		// eslint-disable-next-line local/vscode-dts-string-type-literals
-		kind: 'insert';
-		responseId: string;
-		codeBlockIndex: number;
-		totalCharacters: number;
-		newFile?: boolean;
-	}
-
-	export interface InteractiveSessionTerminalAction {
-		// eslint-disable-next-line local/vscode-dts-string-type-literals
-		kind: 'runInTerminal';
-		responseId: string;
-		codeBlockIndex: number;
-		languageId?: string;
-	}
-
-	export interface InteractiveSessionCommandAction {
-		// eslint-disable-next-line local/vscode-dts-string-type-literals
-		kind: 'command';
-		command: InteractiveResponseCommand;
-	}
-
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
-
-	export interface InteractiveSessionUserActionEvent {
-		action: InteractiveSessionUserAction;
-		providerId: string;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		removeRequest(session: S, requestId: string): void;
 	}
 
 	export interface InteractiveSessionDynamicRequest {
@@ -236,6 +212,6 @@ declare module 'vscode' {
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
 
-		export const onDidPerformUserAction: Event<InteractiveSessionUserActionEvent>;
+		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
 	}
 }

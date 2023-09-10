@@ -91,10 +91,6 @@ export interface EditorGroupLayout {
 	groups: GroupLayoutArgument[];
 }
 
-export interface IAddGroupOptions {
-	activate?: boolean;
-}
-
 export const enum MergeGroupMode {
 	COPY_EDITORS,
 	MOVE_EDITORS
@@ -364,9 +360,8 @@ export interface IEditorGroupsService {
 	 *
 	 * @param location the group from which to split to add a new group
 	 * @param direction the direction of where to split to
-	 * @param options configure the newly group with options
 	 */
-	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroup;
+	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.

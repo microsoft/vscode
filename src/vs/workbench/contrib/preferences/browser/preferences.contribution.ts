@@ -6,7 +6,7 @@
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { isObject } from 'vs/base/common/types';
+import { isBoolean, isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/preferences';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -34,7 +34,7 @@ import { ConfigureLanguageBasedSettingsAction } from 'vs/workbench/contrib/prefe
 import { SettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { preferencesOpenSettingsIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { SettingsEditor2, SettingsFocusContext } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
-import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_EDITOR_IN_USER_TAB, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, CONTEXT_WHEN_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ACCEPT_WHEN, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_HISTORY, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REJECT_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesContribution } from 'vs/workbench/contrib/preferences/common/preferencesContribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -57,8 +57,6 @@ const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingContr
 const SETTINGS_EDITOR_COMMAND_FOCUS_UP = 'settings.action.focusLevelUp';
 
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
-const SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON = 'settings.switchToApplicationJSON';
-const SETTINGS_EDITOR_COMMAND_SWITCH_TO_CURRENT_PROFILE_JSON = 'settings.switchToCurrentProfileJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
@@ -122,12 +120,25 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 const OPEN_USER_SETTINGS_UI_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
 const OPEN_USER_SETTINGS_JSON_TITLE = { value: nls.localize('openUserSettingsJson', "Open User Settings (JSON)"), original: 'Open User Settings (JSON)' };
-const OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE = { value: nls.localize('openCurrentProfileSettingsJson', "Open Current Profile Settings (JSON)"), original: 'Open Current Profile Settings (JSON)' };
+const OPEN_APPLICATION_SETTINGS_JSON_TITLE = { value: nls.localize('openApplicationSettingsJson', "Open Application Settings (JSON)"), original: 'Open Application Settings (JSON)' };
 const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
 
 interface IOpenSettingsActionOptions {
 	openToSide?: boolean;
 	query?: string;
+	revealSetting?: {
+		key: string;
+		edit?: boolean;
+	};
+	focusSearch?: boolean;
+}
+
+function sanitizeBoolean(arg: any): boolean | undefined {
+	return isBoolean(arg) ? arg : undefined;
+}
+
+function sanitizeString(arg: any): string | undefined {
+	return isString(arg) ? arg : undefined;
 }
 
 function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
@@ -135,10 +146,23 @@ function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
 		args = {};
 	}
 
-	return {
-		openToSide: args.openToSide,
-		query: args.query
+	let sanitizedObject: IOpenSettingsActionOptions = {
+		focusSearch: sanitizeBoolean(args?.focusSearch),
+		openToSide: sanitizeBoolean(args?.openToSide),
+		query: sanitizeString(args?.query)
 	};
+
+	if (isString(args?.revealSetting?.key)) {
+		sanitizedObject = {
+			...sanitizedObject,
+			revealSetting: {
+				key: args.revealSetting.key,
+				edit: sanitizeBoolean(args.revealSetting?.edit)
+			}
+		};
+	}
+
+	return sanitizedObject;
 }
 
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -163,21 +187,29 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private registerSettingsActions() {
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_COMMAND_OPEN_SETTINGS,
-					title: nls.localize('settings', "Settings"),
+					title: {
+						value: nls.localize('settings', "Settings"),
+						mnemonicTitle: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"),
+						original: 'Settings'
+					},
 					keybinding: {
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: null,
 						primary: KeyMod.CtrlCmd | KeyCode.Comma,
 					},
-					menu: {
+					menu: [{
 						id: MenuId.GlobalActivity,
 						group: '2_configuration',
 						order: 1
-					}
+					}, {
+						id: MenuId.MenubarPreferencesMenu,
+						group: '2_configuration',
+						order: 1
+					}],
 				});
 			}
 			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
@@ -185,15 +217,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openSettings(opts);
 			}
-		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			command: {
-				id: SETTINGS_COMMAND_OPEN_SETTINGS,
-				title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
-			},
-			group: '2_configuration',
-			order: 1
-		});
+		}));
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -209,30 +233,27 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 		});
 
-		const that = this;
-		const registerOpenSettingsJsonCommandDisposable = this._register(new MutableDisposable());
-		const registerOpenSettingsJsonCommand = () => {
-			registerOpenSettingsJsonCommandDisposable.value = registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: 'workbench.action.openSettingsJson',
-						title: that.userDataProfileService.currentProfile.isDefault ? OPEN_USER_SETTINGS_JSON_TITLE : OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE,
-						category,
-						f1: true,
-					});
-				}
-				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-					args = sanitizeOpenSettingsArgs(args);
-					return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
-				}
-			});
-		};
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.openSettingsJson',
+					title: OPEN_USER_SETTINGS_JSON_TITLE,
+					category,
+					f1: true,
+				});
+			}
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
+			}
+		});
 
+		const that = this;
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.openApplicationSettingsJson',
-					title: OPEN_USER_SETTINGS_JSON_TITLE,
+					title: OPEN_APPLICATION_SETTINGS_JSON_TITLE,
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -274,124 +295,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				return accessor.get(IPreferencesService).openRawDefaultSettings();
 			}
 		});
-
-		const registerOpenUserSettingsEditorFromJsonActionDisposable = this._register(new MutableDisposable());
-		const registerOpenUserSettingsEditorFromJsonAction = () => {
-			let when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor'));
-			if (!this.userDataProfileService.currentProfile.isDefault) {
-				// If the default profile is not active, also show the action when we're in the
-				// default profile JSON file, which contains the application-scoped settings.
-				when = ContextKeyExpr.or(when, ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')));
-			}
-			registerOpenUserSettingsEditorFromJsonActionDisposable.value = registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: '_workbench.openUserSettingsEditor',
-						title: OPEN_USER_SETTINGS_UI_TITLE,
-						icon: preferencesOpenSettingsIcon,
-						menu: [{
-							id: MenuId.EditorTitle,
-							when,
-							group: 'navigation',
-							order: 1
-						}]
-					});
-				}
-				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
-					args = sanitizeOpenSettingsArgs(args);
-					return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
-				}
-			});
-		};
-
-		const openJsonFromSettingsEditorDisposableStore = this._register(new DisposableStore());
-		const registerOpenJsonFromSettingsEditorAction = () => {
-			openJsonFromSettingsEditorDisposableStore.clear();
-			if (!this.userDataProfileService.currentProfile.isDefault) {
-				// When the default profile is not active, the action for the User tab needs a dropdown
-				// because User tab settings in that case are actually saved in two separate files.
-				const submenuId = MenuId.for('PreferencesSubMenu');
-				openJsonFromSettingsEditorDisposableStore.add(registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_CURRENT_PROFILE_JSON,
-							title: OPEN_CURRENT_PROFILE_SETTINGS_JSON_TITLE,
-							menu: [{ id: submenuId, order: 1 }]
-						});
-					}
-					run(accessor: ServicesAccessor) {
-						const editorPane = accessor.get(IEditorService).activeEditorPane;
-						if (editorPane instanceof SettingsEditor2) {
-							return editorPane.switchToSettingsFile();
-						}
-						return null;
-					}
-				}));
-				openJsonFromSettingsEditorDisposableStore.add(registerAction2(class extends Action2 {
-					constructor() {
-						super({
-							id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_APPLICATION_JSON,
-							title: OPEN_USER_SETTINGS_JSON_TITLE,
-							menu: [{ id: submenuId, order: 2 }]
-						});
-					}
-					run(accessor: ServicesAccessor) {
-						const editorPane = accessor.get(IEditorService).activeEditorPane;
-						if (editorPane instanceof SettingsEditor2) {
-							return editorPane.switchToApplicationSettingsFile();
-						}
-						return null;
-					}
-				}));
-				openJsonFromSettingsEditorDisposableStore.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-					submenu: submenuId,
-					icon: preferencesOpenSettingsIcon,
-					when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_EDITOR_IN_USER_TAB, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
-					group: 'navigation',
-					order: 1
-				}));
-			}
-
-			let openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
-			if (!this.userDataProfileService.currentProfile.isDefault) {
-				// If we're not in the default profile, we already created the action for the User tab above,
-				// so we want to make sure the user is not in the User tab for this more general action.
-				openSettingsJsonWhen = ContextKeyExpr.and(openSettingsJsonWhen, CONTEXT_SETTINGS_EDITOR_IN_USER_TAB.toNegated());
-			}
-			openJsonFromSettingsEditorDisposableStore.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
-						title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-						icon: preferencesOpenSettingsIcon,
-						menu: [{
-							id: MenuId.EditorTitle,
-							when: openSettingsJsonWhen,
-							group: 'navigation',
-							order: 1
-						}]
-					});
-				}
-				run(accessor: ServicesAccessor) {
-					const editorPane = accessor.get(IEditorService).activeEditorPane;
-					if (editorPane instanceof SettingsEditor2) {
-						return editorPane.switchToSettingsFile();
-					}
-					return null;
-				}
-			}));
-		};
-
-		registerOpenUserSettingsEditorFromJsonAction();
-		registerOpenJsonFromSettingsEditorAction();
-		registerOpenSettingsJsonCommand();
-
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
-			registerOpenUserSettingsEditorFromJsonAction();
-			registerOpenJsonFromSettingsEditorAction();
-			registerOpenSettingsJsonCommand();
-		}));
 
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -845,55 +748,49 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	private registerKeybindingsActions() {
 		const that = this;
 		const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
-		const registerOpenGlobalKeybindingsActionDisposable = this._register(new MutableDisposable());
-		const registerOpenGlobalKeybindingsAction = () => {
-			registerOpenGlobalKeybindingsActionDisposable.value = registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: 'workbench.action.openGlobalKeybindings',
-						title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
-						category,
-						icon: preferencesOpenSettingsIcon,
-						keybinding: {
-							when: null,
-							weight: KeybindingWeight.WorkbenchContrib,
-							primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS)
+		const id = 'workbench.action.openGlobalKeybindings';
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id,
+					title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
+					shortTitle: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
+					category,
+					icon: preferencesOpenSettingsIcon,
+					keybinding: {
+						when: null,
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS)
+					},
+					menu: [
+						{ id: MenuId.CommandPalette },
+						{
+							id: MenuId.EditorTitle,
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
+							group: 'navigation',
+							order: 1,
 						},
-						menu: [
-							{ id: MenuId.CommandPalette },
-							{
-								id: MenuId.EditorTitle,
-								when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
-								group: 'navigation',
-								order: 1,
-							}
-						]
-					});
-				}
-				run(accessor: ServicesAccessor, args: string | undefined) {
-					const query = typeof args === 'string' ? args : undefined;
-					return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
-				}
-			});
-		};
-		registerOpenGlobalKeybindingsAction();
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerOpenGlobalKeybindingsAction()));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+						{
+							id: MenuId.GlobalActivity,
+							group: '2_configuration',
+							order: 3
+						}
+					]
+				});
+			}
+			run(accessor: ServicesAccessor, args: string | undefined) {
+				const query = typeof args === 'string' ? args : undefined;
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
+			}
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 			command: {
-				id: 'workbench.action.openGlobalKeybindings',
-				title: { value: nls.localize('Keyboard Shortcuts', "Keyboard Shortcuts"), original: 'Keyboard Shortcuts' }
+				id,
+				title: nls.localize('keyboardShortcuts', "Keyboard Shortcuts"),
 			},
 			group: '2_configuration',
 			order: 3
-		});
-		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
-			command: {
-				id: 'workbench.action.openGlobalKeybindings',
-				title: { value: nls.localize('Keyboard Shortcuts', "Keyboard Shortcuts"), original: 'Keyboard Shortcuts' }
-			},
-			group: '2_configuration',
-			order: 3
-		});
+		}));
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -1319,9 +1216,80 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
+class SettingsEditorTitleContribution extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+	) {
+		super();
+		this.registerSettingsEditorTitleActions();
+	}
+
+	private registerSettingsEditorTitleActions() {
+		const registerOpenUserSettingsEditorFromJsonActionDisposables = this._register(new MutableDisposable());
+		const openUserSettingsEditorWhen = ContextKeyExpr.and(
+			ContextKeyExpr.or(
+				ResourceContextKey.Resource.isEqualTo(this.userDataProfileService.currentProfile.settingsResource.toString()),
+				ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString())),
+			ContextKeyExpr.not('isInDiffEditor'));
+		const registerOpenUserSettingsEditorFromJsonAction = () => {
+			registerOpenUserSettingsEditorFromJsonActionDisposables.value = registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: '_workbench.openUserSettingsEditor',
+						title: OPEN_USER_SETTINGS_UI_TITLE,
+						icon: preferencesOpenSettingsIcon,
+						menu: [{
+							id: MenuId.EditorTitle,
+							when: openUserSettingsEditorWhen,
+							group: 'navigation',
+							order: 1
+						}]
+					});
+				}
+				run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+					args = sanitizeOpenSettingsArgs(args);
+					return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
+				}
+			});
+		};
+
+		registerOpenUserSettingsEditorFromJsonAction();
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => {
+			// Force the action to check the context again.
+			registerOpenUserSettingsEditorFromJsonAction();
+		}));
+
+		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated());
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
+					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
+					icon: preferencesOpenSettingsIcon,
+					menu: [{
+						id: MenuId.EditorTitle,
+						when: openSettingsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}]
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof SettingsEditor2) {
+					return editorPane.switchToSettingsFile();
+				}
+				return null;
+			}
+		});
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(SettingsEditorTitleContribution, LifecyclePhase.Restored);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);
 

@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, InlineCompletionTriggerKind, ProviderResult } from 'vs/editor/common/languages';
@@ -44,6 +45,7 @@ suite('Suggest Inline Completions', function () {
 
 		insta.invokeFunction(accessor => {
 			accessor.get(ILanguageFeaturesService).completionProvider.register({ pattern: '*.bar', scheme: 'foo' }, new class implements CompletionItemProvider {
+				_debugDisplayName = 'test';
 
 				triggerCharacters?: string[] | undefined;
 
@@ -70,6 +72,8 @@ suite('Suggest Inline Completions', function () {
 	});
 
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Aggressive inline completions when typing within line #146948', async function () {
 
 		const completions: SuggestInlineCompletions = insta.createInstance(SuggestInlineCompletions, (id) => editor.getOption(id));
@@ -78,6 +82,7 @@ suite('Suggest Inline Completions', function () {
 			// (1,3), end of word -> suggestions
 			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
 			assert.strictEqual(result?.items.length, 3);
+			completions.freeInlineCompletions(result);
 		}
 		{
 			// (1,2), middle of word -> NO suggestions

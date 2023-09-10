@@ -6,9 +6,10 @@
 import * as assert from 'assert';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
@@ -16,8 +17,14 @@ import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('File Service', () => {
 
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
 	test('provider registration', async () => {
-		const service = new FileService(new NullLogService());
+		const service = disposables.add(new FileService(new NullLogService()));
 		const resource = URI.parse('test://foo/bar');
 		const provider = new NullFileSystemProvider();
 
@@ -26,18 +33,18 @@ suite('File Service', () => {
 		assert.strictEqual(service.getProvider(resource.scheme), undefined);
 
 		const registrations: IFileSystemProviderRegistrationEvent[] = [];
-		service.onDidChangeFileSystemProviderRegistrations(e => {
+		disposables.add(service.onDidChangeFileSystemProviderRegistrations(e => {
 			registrations.push(e);
-		});
+		}));
 
 		const capabilityChanges: IFileSystemProviderCapabilitiesChangeEvent[] = [];
-		service.onDidChangeFileSystemProviderCapabilities(e => {
+		disposables.add(service.onDidChangeFileSystemProviderCapabilities(e => {
 			capabilityChanges.push(e);
-		});
+		}));
 
 		let registrationDisposable: IDisposable | undefined;
 		let callCount = 0;
-		service.onWillActivateFileSystemProvider(e => {
+		disposables.add(service.onWillActivateFileSystemProvider(e => {
 			callCount++;
 
 			if (e.scheme === 'test' && callCount === 1) {
@@ -47,7 +54,7 @@ suite('File Service', () => {
 					resolve();
 				}));
 			}
-		});
+		}));
 
 		assert.strictEqual(await service.canHandleResource(resource), true);
 		assert.strictEqual(service.hasProvider(resource), true);
@@ -79,19 +86,17 @@ suite('File Service', () => {
 		assert.strictEqual(registrations.length, 2);
 		assert.strictEqual(registrations[1].scheme, 'test');
 		assert.strictEqual(registrations[1].added, false);
-
-		service.dispose();
 	});
 
 	test('watch', async () => {
-		const service = new FileService(new NullLogService());
+		const service = disposables.add(new FileService(new NullLogService()));
 
 		let disposeCounter = 0;
-		service.registerProvider('test', new NullFileSystemProvider(() => {
+		disposables.add(service.registerProvider('test', new NullFileSystemProvider(() => {
 			return toDisposable(() => {
 				disposeCounter++;
 			});
-		}));
+		})));
 		await service.activateProvider('test');
 
 		const resource1 = URI.parse('test://foo/bar1');
@@ -144,7 +149,7 @@ suite('File Service', () => {
 	});
 
 	async function testReadErrorBubbles(async: boolean) {
-		const service = new FileService(new NullLogService());
+		const service = disposables.add(new FileService(new NullLogService()));
 
 		const provider = new class extends NullFileSystemProvider {
 			override async stat(resource: URI): Promise<IStat> {
@@ -158,7 +163,7 @@ suite('File Service', () => {
 
 			override readFile(resource: URI): Promise<Uint8Array> {
 				if (async) {
-					return timeout(5).then(() => { throw new Error('failed'); });
+					return timeout(5, CancellationToken.None).then(() => { throw new Error('failed'); });
 				}
 
 				throw new Error('failed');
@@ -166,7 +171,7 @@ suite('File Service', () => {
 
 			override open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 				if (async) {
-					return timeout(5).then(() => { throw new Error('failed'); });
+					return timeout(5, CancellationToken.None).then(() => { throw new Error('failed'); });
 				}
 
 				throw new Error('failed');
@@ -175,7 +180,7 @@ suite('File Service', () => {
 			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				if (async) {
 					const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
-					timeout(5).then(() => stream.error(new Error('failed')));
+					timeout(5, CancellationToken.None).then(() => stream.error(new Error('failed')));
 
 					return stream;
 
@@ -185,7 +190,7 @@ suite('File Service', () => {
 			}
 		};
 
-		const disposable = service.registerProvider('test', provider);
+		disposables.add(service.registerProvider('test', provider));
 
 		for (const capabilities of [FileSystemProviderCapabilities.FileReadWrite, FileSystemProviderCapabilities.FileReadStream, FileSystemProviderCapabilities.FileOpenReadWriteClose]) {
 			provider.setCapabilities(capabilities);
@@ -209,12 +214,10 @@ suite('File Service', () => {
 
 			assert.ok(e2);
 		}
-
-		disposable.dispose();
 	}
 
 	test('readFile/readFileStream supports cancellation (https://github.com/microsoft/vscode/issues/138805)', async () => {
-		const service = new FileService(new NullLogService());
+		const service = disposables.add(new FileService(new NullLogService()));
 
 		let readFileStreamReady: DeferredPromise<void> | undefined = undefined;
 
@@ -231,10 +234,10 @@ suite('File Service', () => {
 
 			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
-				token.onCancellationRequested(() => {
+				disposables.add(token.onCancellationRequested(() => {
 					stream.error(new Error('Expected cancellation'));
 					stream.end();
-				});
+				}));
 
 				readFileStreamReady!.complete();
 
@@ -272,4 +275,6 @@ suite('File Service', () => {
 
 		disposable.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

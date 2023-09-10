@@ -11,18 +11,30 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "18.x"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../distro/download-distro.yml
-    - script: node build/azure-pipelines/distro/apply-cli-patches
-      displayName: Apply distro patches
+    # Install yarn as the ARM64 build agent is using vanilla Ubuntu
+    - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+      - task: Npm@1
+        displayName: Install yarn
+        inputs:
+          command: custom
+          customCommand: install --global yarn
+
+    - script: |
+        set -e
+        yarn --frozen-lockfile --ignore-optional
+      workingDirectory: build
+      displayName: Install pipeline build
+
+    - template: ../cli/cli-apply-patches.yml
 
   - task: Npm@1
     displayName: Download openssl prebuilt
     inputs:
       command: custom
-      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.5
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.8
       customRegistry: useFeed
       customFeed: "Monaco/openssl-prebuilt"
       workingDir: $(Build.ArtifactStagingDirectory)
@@ -30,7 +42,7 @@ steps:
   - script: |
       set -e
       mkdir $(Build.ArtifactStagingDirectory)/openssl
-      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.5.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.8.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
   # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
@@ -40,13 +52,6 @@ steps:
       sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
       sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
     displayName: Install musl build dependencies
-
-  - script: node build/azure-pipelines/cli/prepare.js
-    displayName: Prepare CLI build
-    env:
-      VSCODE_CLI_PREPARE_ROOT: $(Build.SourcesDirectory)/.build/distro
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
 
   - template: ../cli/install-rust-posix.yml
     parameters:
@@ -61,6 +66,7 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: aarch64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
@@ -73,6 +79,7 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: x86_64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc

@@ -12,11 +12,12 @@ import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updat
 import type { Event } from 'vs/base/common/event';
 import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IProductConfiguration } from 'vs/base/common/product';
-import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import type { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -90,6 +91,17 @@ export interface IWorkbench {
 			options: IProgressOptions | IProgressDialogOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 			task: (progress: IProgress<IProgressStep>) => Promise<R>
 		): Promise<R>;
+
+		/**
+		 * Creates a terminal with limited capabilities that is intended for
+		 * writing output from the embedder before the workbench has finished
+		 * loading. When an embedder terminal is created it will automatically
+		 * show to the user.
+		 *
+		 * @param options The definition of the terminal, this is similar to
+		 * `ExtensionTerminalOptions` in the extension API.
+		 */
+		createTerminal(options: IEmbedderTerminalOptions): void;
 	};
 
 	workspace: {
@@ -198,9 +210,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
-	 * The credentials provider to store and retrieve secrets.
+	 * The secret storage provider to store and retrieve secrets.
 	 */
-	readonly credentialsProvider?: ICredentialsProvider;
+	readonly secretStorageProvider?: ISecretStorageProvider;
 
 	/**
 	 * Additional builtin extensions those cannot be uninstalled but only be disabled.
@@ -329,7 +341,7 @@ export interface IWorkbenchConstructionOptions {
 	readonly initialColorTheme?: IInitialColorTheme;
 
 	/**
-	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 *  Welcome dialog. Can be dismissed by the user.
 	 */
 	readonly welcomeDialog?: IWelcomeDialog;
 
@@ -616,14 +628,19 @@ export interface IWelcomeDialog {
 	buttonText: string;
 
 	/**
-	 * Message text and icon for the welcome dialog.
+	 * Button command to execute from the welcome dialog.
 	 */
-	messages: { message: string; icon: string }[];
+	buttonCommand: string;
 
 	/**
-	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 * Message text for the welcome dialog.
 	 */
-	action?: IWelcomeLinkAction;
+	message: string;
+
+	/**
+	 * Media to include in the welcome dialog.
+	 */
+	media: { altText: string; path: string };
 }
 
 export interface IDefaultView {
@@ -802,5 +819,5 @@ export interface IRemoteResourceRequest {
 	/**
 	 * A method called by the editor to issue a response to the request.
 	 */
-	respondWith(statusCode: number, body: Uint8Array): void;
+	respondWith(statusCode: number, body: Uint8Array, headers: Record<string, string>): void;
 }
