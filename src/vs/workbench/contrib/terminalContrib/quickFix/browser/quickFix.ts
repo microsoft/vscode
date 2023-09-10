@@ -56,7 +56,7 @@ export interface ITerminalQuickFixOptions {
 	commandLineMatcher: string | RegExp;
 	outputMatcher?: ITerminalOutputMatcher;
 	commandExitResult: 'success' | 'error';
-	kind?: 'fix' | 'explain';
+	kind?: 'fix' | 'chat';
 }
 
 export interface ITerminalQuickFix {

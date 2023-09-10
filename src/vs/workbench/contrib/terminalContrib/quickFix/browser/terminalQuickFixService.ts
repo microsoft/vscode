@@ -142,7 +142,7 @@ const quickFixExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITermin
 				},
 				kind: {
 					description: localize('vscode.extension.contributes.terminalQuickFixes.kind', "The kind of the resulting quick fix. This changes how the quick fix is presented. Defaults to {0}.", '`"fix"`'),
-					enum: ['default', 'explain'],
+					enum: ['default', 'chat'],
 					enumDescriptions: [
 						'A high confidence quick fix.',
 						'An explanation of the problem.'

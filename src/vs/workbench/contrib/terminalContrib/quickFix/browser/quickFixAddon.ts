@@ -274,11 +274,11 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}
 
 			e.classList.add(...quickFixClasses);
-			const isExplainOnly = fixes.every(e => e.kind === 'explain');
-			if (isExplainOnly) {
-				e.classList.add('explainOnly');
+			const isChatOnly = fixes.every(e => e.kind === 'chat');
+			if (isChatOnly) {
+				e.classList.add('chatOnly');
 			}
-			e.classList.add(...ThemeIcon.asClassNameArray(isExplainOnly ? Codicon.sparkle : Codicon.lightBulb));
+			e.classList.add(...ThemeIcon.asClassNameArray(isChatOnly ? Codicon.sparkle : Codicon.lightBulb));
 
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
@@ -298,7 +298,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 export interface ITerminalAction extends IAction {
 	type: TerminalQuickFixType;
-	kind?: 'fix' | 'explain';
+	kind?: 'fix' | 'chat';
 	source: string;
 	uri?: URI;
 	command?: string;
@@ -471,7 +471,7 @@ class TerminalQuickFixItem {
 		readonly type: TerminalQuickFixType,
 		readonly source: string,
 		readonly title: string | undefined,
-		readonly kind: 'fix' | 'explain' = 'fix'
+		readonly kind: 'fix' | 'chat' = 'fix'
 	) {
 	}
 }
@@ -504,7 +504,7 @@ function toActionWidgetItems(inputQuickFixes: readonly TerminalQuickFixItem[], s
 }
 
 function getQuickFixIcon(quickFix: TerminalQuickFixItem): ThemeIcon {
-	if (quickFix.kind === 'explain') {
+	if (quickFix.kind === 'chat') {
 		return Codicon.sparkle;
 	}
 	switch (quickFix.type) {

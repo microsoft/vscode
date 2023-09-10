@@ -967,7 +967,7 @@ export interface ITerminalCommandSelector {
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
 	commandExitResult: 'success' | 'error';
-	kind?: 'fix' | 'explain';
+	kind?: 'fix' | 'chat';
 }
 
 export interface ITerminalBackend {
