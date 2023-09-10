@@ -3,38 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/diffReview';
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Action } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { IComputedEditorOptions, EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import 'vs/css!./media/diffReview';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
+import * as nls from 'vs/nls';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -87,7 +83,7 @@ const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls
 
 export class DiffReview extends Disposable {
 
-	private static _ttPolicy = window.trustedTypes?.createPolicy('diffReview', { createHTML: value => value });
+	public static _ttPolicy = createTrustedTypesPolicy('diffReview', { createHTML: value => value });
 
 	private readonly _diffEditor: DiffEditorWidget;
 	private _isVisible: boolean;
@@ -183,8 +179,8 @@ export class DiffReview extends Disposable {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('accessibility.verbosity.diff-editor')) {
-				this._diffEditor.updateOptions({ accessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.diff-editor') });
+			if (e.affectsConfiguration('accessibility.verbosity.diffEditor')) {
+				this._diffEditor.updateOptions({ accessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.diffEditor') });
 			}
 		}));
 		this._diffs = [];
@@ -329,9 +325,9 @@ export class DiffReview extends Disposable {
 		}
 		const element = !type ? current : type === 'next' ? current?.nextElementSibling : current?.previousElementSibling;
 		if (element?.classList.contains(DiffEditorLineClasses.Insert)) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { allowManyInParallel: true });
 		} else if (element?.classList.contains(DiffEditorLineClasses.Delete)) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { allowManyInParallel: true });
 		}
 		this.scrollbar.scanDomNode();
 	}
@@ -828,65 +824,3 @@ export class DiffReview extends Disposable {
 }
 
 // theming
-
-class DiffReviewNext extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.diffReview.next',
-			label: nls.localize('editor.action.diffReview.next', "Go to Next Difference"),
-			alias: 'Go to Next Difference',
-			precondition: ContextKeyExpr.has('isInDiffEditor'),
-			kbOpts: {
-				kbExpr: null,
-				primary: KeyCode.F7,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const diffEditor = findFocusedDiffEditor(accessor);
-		diffEditor?.diffReviewNext();
-	}
-}
-
-class DiffReviewPrev extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.diffReview.prev',
-			label: nls.localize('editor.action.diffReview.prev', "Go to Previous Difference"),
-			alias: 'Go to Previous Difference',
-			precondition: ContextKeyExpr.has('isInDiffEditor'),
-			kbOpts: {
-				kbExpr: null,
-				primary: KeyMod.Shift | KeyCode.F7,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const diffEditor = findFocusedDiffEditor(accessor);
-		diffEditor?.diffReviewPrev();
-	}
-}
-
-function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget | null {
-	const codeEditorService = accessor.get(ICodeEditorService);
-	const diffEditors = codeEditorService.listDiffEditors();
-	const activeCodeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
-	if (!activeCodeEditor) {
-		return null;
-	}
-
-	for (let i = 0, len = diffEditors.length; i < len; i++) {
-		const diffEditor = <DiffEditorWidget>diffEditors[i];
-		if (diffEditor.getModifiedEditor().getId() === activeCodeEditor.getId() || diffEditor.getOriginalEditor().getId() === activeCodeEditor.getId()) {
-			return diffEditor;
-		}
-	}
-	return null;
-}
-
-registerEditorAction(DiffReviewNext);
-registerEditorAction(DiffReviewPrev);

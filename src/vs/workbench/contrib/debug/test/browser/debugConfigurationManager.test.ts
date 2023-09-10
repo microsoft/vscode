@@ -20,6 +20,7 @@ import { TestContextService, TestExtensionService, TestStorageService } from 'vs
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('debugConfigurationManager', () => {
 	const configurationProviderType = 'custom-type';
@@ -47,12 +48,13 @@ suite('debugConfigurationManager', () => {
 	const configurationService = new TestConfigurationService();
 	setup(() => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService], [IConfigurationService, configurationService])));
 		_debugConfigurationManager = new ConfigurationManager(
 			adapterManager,
 			new TestContextService(),
 			configurationService,
 			new TestQuickInputService(),
-			new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService])),
+			instantiationService,
 			new TestStorageService(),
 			new TestExtensionService(),
 			new TestHistoryService(),

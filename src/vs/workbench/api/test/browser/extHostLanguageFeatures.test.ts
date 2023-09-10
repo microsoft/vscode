@@ -45,7 +45,6 @@ import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/sm
 import { mock } from 'vs/base/test/common/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { dispose } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
@@ -67,6 +66,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let rpcProtocol: TestRPCProtocol;
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
+	let instantiationService: TestInstantiationService;
 
 	suiteSetup(() => {
 
@@ -87,7 +87,7 @@ suite('ExtHostLanguageFeatures', function () {
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
-			const instantiationService = new TestInstantiationService();
+			instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
 			instantiationService.set(ILanguageFeaturesService, languageFeaturesService);
 			instantiationService.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
@@ -140,6 +140,7 @@ suite('ExtHostLanguageFeatures', function () {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
 		mainThread.dispose();
+		instantiationService.dispose();
 	});
 
 	teardown(() => {
@@ -1049,7 +1050,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
 		override computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
-			return Promise.resolve(withNullAsUndefined(edits));
+			return Promise.resolve(edits ?? undefined);
 		}
 	};
 
@@ -1252,7 +1253,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 
-		provideSelectionRanges(languageFeaturesService.selectionRangeProvider, model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None).then(ranges => {
+		provideSelectionRanges(languageFeaturesService.selectionRangeProvider, model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None).then(ranges => {
 			assert.strictEqual(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
 		});

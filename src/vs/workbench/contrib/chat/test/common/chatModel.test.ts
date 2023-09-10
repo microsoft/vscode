@@ -19,7 +19,7 @@ suite('ChatModel', () => {
 	let instantiationService: TestInstantiationService;
 
 	suiteSetup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());

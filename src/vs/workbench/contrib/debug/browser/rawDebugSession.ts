@@ -76,6 +76,7 @@ export class RawDebugSession implements IDisposable {
 	// DA events
 	private readonly _onDidExitAdapter = new Emitter<AdapterEndEvent>();
 	private debugAdapter: IDebugAdapter | null;
+	private stoppedSinceLastStep = false;
 
 	private toDispose: IDisposable[] = [];
 
@@ -122,6 +123,7 @@ export class RawDebugSession implements IDisposable {
 					break;
 				case 'stopped':
 					this.didReceiveStoppedEvent = true;		// telemetry: remember that debugger stopped successfully
+					this.stoppedSinceLastStep = true;
 					this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
 					break;
 				case 'continued':
@@ -326,29 +328,41 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	async next(args: DebugProtocol.NextArguments): Promise<DebugProtocol.NextResponse | undefined> {
+		this.stoppedSinceLastStep = false;
 		const response = await this.send('next', args);
-		this.fireSimulatedContinuedEvent(args.threadId);
+		if (!this.stoppedSinceLastStep) {
+			this.fireSimulatedContinuedEvent(args.threadId);
+		}
 		return response;
 	}
 
 	async stepIn(args: DebugProtocol.StepInArguments): Promise<DebugProtocol.StepInResponse | undefined> {
+		this.stoppedSinceLastStep = false;
 		const response = await this.send('stepIn', args);
-		this.fireSimulatedContinuedEvent(args.threadId);
+		if (!this.stoppedSinceLastStep) {
+			this.fireSimulatedContinuedEvent(args.threadId);
+		}
 		return response;
 	}
 
 	async stepOut(args: DebugProtocol.StepOutArguments): Promise<DebugProtocol.StepOutResponse | undefined> {
+		this.stoppedSinceLastStep = false;
 		const response = await this.send('stepOut', args);
-		this.fireSimulatedContinuedEvent(args.threadId);
+		if (!this.stoppedSinceLastStep) {
+			this.fireSimulatedContinuedEvent(args.threadId);
+		}
 		return response;
 	}
 
 	async continue(args: DebugProtocol.ContinueArguments): Promise<DebugProtocol.ContinueResponse | undefined> {
+		this.stoppedSinceLastStep = false;
 		const response = await this.send<DebugProtocol.ContinueResponse>('continue', args);
 		if (response && response.body && response.body.allThreadsContinued !== undefined) {
 			this.allThreadsContinued = response.body.allThreadsContinued;
 		}
-		this.fireSimulatedContinuedEvent(args.threadId, this.allThreadsContinued);
+		if (!this.stoppedSinceLastStep) {
+			this.fireSimulatedContinuedEvent(args.threadId, this.allThreadsContinued);
+		}
 
 		return response;
 	}
@@ -380,8 +394,11 @@ export class RawDebugSession implements IDisposable {
 
 	async restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): Promise<DebugProtocol.RestartFrameResponse | undefined> {
 		if (this.capabilities.supportsRestartFrame) {
+			this.stoppedSinceLastStep = false;
 			const response = await this.send('restartFrame', args);
-			this.fireSimulatedContinuedEvent(threadId);
+			if (!this.stoppedSinceLastStep) {
+				this.fireSimulatedContinuedEvent(threadId);
+			}
 			return response;
 		}
 		return Promise.reject(new Error('restartFrame not supported'));
@@ -484,8 +501,11 @@ export class RawDebugSession implements IDisposable {
 
 	async stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
+			this.stoppedSinceLastStep = false;
 			const response = await this.send('stepBack', args);
-			this.fireSimulatedContinuedEvent(args.threadId);
+			if (!this.stoppedSinceLastStep) {
+				this.fireSimulatedContinuedEvent(args.threadId);
+			}
 			return response;
 		}
 		return Promise.reject(new Error('stepBack not supported'));
@@ -493,8 +513,11 @@ export class RawDebugSession implements IDisposable {
 
 	async reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
+			this.stoppedSinceLastStep = false;
 			const response = await this.send('reverseContinue', args);
-			this.fireSimulatedContinuedEvent(args.threadId);
+			if (!this.stoppedSinceLastStep) {
+				this.fireSimulatedContinuedEvent(args.threadId);
+			}
 			return response;
 		}
 		return Promise.reject(new Error('reverseContinue not supported'));
@@ -509,8 +532,11 @@ export class RawDebugSession implements IDisposable {
 
 	async goto(args: DebugProtocol.GotoArguments): Promise<DebugProtocol.GotoResponse | undefined> {
 		if (this.capabilities.supportsGotoTargetsRequest) {
+			this.stoppedSinceLastStep = false;
 			const response = await this.send('goto', args);
-			this.fireSimulatedContinuedEvent(args.threadId);
+			if (!this.stoppedSinceLastStep) {
+				this.fireSimulatedContinuedEvent(args.threadId);
+			}
 			return response;
 		}
 
@@ -573,7 +599,8 @@ export class RawDebugSession implements IDisposable {
 						args.suspendDebuggee = suspendDebuggee;
 					}
 
-					await this.send('disconnect', args, undefined, 2000);
+					// if there's an error, the DA is probably already gone, so give it a much shorter timeout.
+					await this.send('disconnect', args, undefined, error ? 200 : 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {

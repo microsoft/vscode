@@ -40,29 +40,27 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 	}
 
 	private showScreenReaderNotification(): void {
-		if (!this.screenReaderNotification) {
-			this.screenReaderNotification = this.notificationService.prompt(
-				Severity.Info,
-				localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
-				[{
-					label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
-					}
-				}, {
-					label: localize('screenReaderDetectedExplanation.answerNo', "No"),
-					run: () => {
-						this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
-					}
-				}],
-				{
-					sticky: true,
-					priority: NotificationPriority.URGENT
+		this.screenReaderNotification = this.notificationService.prompt(
+			Severity.Info,
+			localize('screenReaderDetectedExplanation.question', "Are you using a screen reader to operate VS Code?"),
+			[{
+				label: localize('screenReaderDetectedExplanation.answerYes', "Yes"),
+				run: () => {
+					this.configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
 				}
-			);
+			}, {
+				label: localize('screenReaderDetectedExplanation.answerNo', "No"),
+				run: () => {
+					this.configurationService.updateValue('editor.accessibilitySupport', 'off', ConfigurationTarget.USER);
+				}
+			}],
+			{
+				sticky: true,
+				priority: NotificationPriority.URGENT
+			}
+		);
 
-			Event.once(this.screenReaderNotification.onDidClose)(() => this.screenReaderNotification = null);
-		}
+		Event.once(this.screenReaderNotification.onDidClose)(() => this.screenReaderNotification = null);
 	}
 	private updateScreenReaderModeElement(visible: boolean): void {
 		if (visible) {

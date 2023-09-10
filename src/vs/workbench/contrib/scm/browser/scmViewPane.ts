@@ -224,6 +224,7 @@ class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 
 interface InputTemplate {
 	readonly inputWidget: SCMInputWidget;
+	inputWidgetHeight: number;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
@@ -258,7 +259,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		templateDisposable.add(inputWidget);
 
-		return { inputWidget, elementDisposables: new DisposableStore(), templateDisposable };
+		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
@@ -268,10 +269,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
 		templateData.elementDisposables.add({
-			dispose: () => {
-				this.inputWidgets.delete(input);
-				this.contentHeights.delete(input);
-			}
+			dispose: () => this.inputWidgets.delete(input)
 		});
 
 		// Widget cursor selections
@@ -292,11 +290,11 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {
 			const contentHeight = templateData.inputWidget.getContentHeight();
-			const lastContentHeight = this.contentHeights.get(input)!;
 			this.contentHeights.set(input, contentHeight);
 
-			if (lastContentHeight !== contentHeight) {
+			if (templateData.inputWidgetHeight !== contentHeight) {
 				this.updateHeight(input, contentHeight + 10);
+				templateData.inputWidgetHeight = contentHeight;
 				templateData.inputWidget.layout();
 			}
 		};
@@ -1148,7 +1146,7 @@ class ViewModel {
 		this._onDidChangeMode.fire(mode);
 		this.modeContextKey.set(mode);
 
-		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	get sortKey(): ViewModelSortKey { return this._sortKey; }
@@ -1164,7 +1162,7 @@ class ViewModel {
 		this.sortKeyContextKey.set(sortKey);
 
 		if (this._mode === ViewModelMode.List) {
-			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 	}
 
@@ -1239,11 +1237,25 @@ class ViewModel {
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
 
-		this.storageService.onWillSaveState(e => {
+		this.disposables.add(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
-		});
+
+			this.mode = this.getViewModelMode();
+			this.sortKey = this.getViewModelSortKey();
+		}));
+
+		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
+			switch (e.key) {
+				case 'scm.viewMode':
+					this.mode = this.getViewModelMode();
+					break;
+				case 'scm.viewSortKey':
+					this.sortKey = this.getViewModelSortKey();
+					break;
+			}
+		}));
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
@@ -1993,9 +2005,6 @@ class SCMInputWidget {
 		const fontFamily = this.getInputEditorFontFamily();
 		const fontSize = this.getInputEditorFontSize();
 		const lineHeight = this.computeLineHeight(fontSize);
-		// We must respect some accessibility related settings
-		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 
@@ -2003,7 +2012,7 @@ class SCMInputWidget {
 		this.repositoryIdContextKey = contextKeyService2.createKey('scmRepository', undefined);
 
 		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions(),
+			...getSimpleEditorOptions(configurationService),
 			lineDecorationsWidth: 6,
 			dragAndDrop: true,
 			cursorWidth: 1,
@@ -2017,9 +2026,7 @@ class SCMInputWidget {
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
 			renderWhitespace: 'none',
-			dropIntoEditor: { enabled: true },
-			accessibilitySupport,
-			cursorBlinking
+			dropIntoEditor: { enabled: true }
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {

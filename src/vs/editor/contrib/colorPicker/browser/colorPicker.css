@@ -48,13 +48,19 @@
 	cursor: pointer;
 	color: white;
 	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.colorpicker-header .picked-color .picked-color-presentation {
+	white-space: nowrap;
+	margin-left: 5px;
+	margin-right: 5px;
 }
 
 .colorpicker-header .picked-color .codicon {
 	color: inherit;
 	font-size: 14px;
-	position: absolute;
-	left: 8px;
 }
 
 .colorpicker-header .picked-color.light {
@@ -187,9 +193,10 @@
 }
 
 .colorpicker-body .insert-button {
+	position: absolute;
 	height: 20px;
 	width: 58px;
-	position: absolute;
+	padding: 0px;
 	right: 8px;
 	bottom: 8px;
 	background: var(--vscode-button-background);

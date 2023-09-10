@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { isObject, isUndefinedOrNull } from 'vs/base/common/types';
@@ -52,9 +52,29 @@ export interface IStorageDatabase {
 	close(recovery?: () => Map<string, string>): Promise<void>;
 }
 
+export interface IStorageChangeEvent {
+
+	/**
+	 * The `key` of the storage entry that was changed
+	 * or was removed.
+	 */
+	readonly key: string;
+
+	/**
+	 * A hint how the storage change event was triggered. If
+	 * `true`, the storage change was triggered by an external
+	 * source, such as:
+	 * - another process (for example another window)
+	 * - operations such as settings sync or profiles change
+	 */
+	readonly external?: boolean;
+}
+
+export type StorageValue = string | boolean | number | undefined | null | object;
+
 export interface IStorage extends IDisposable {
 
-	readonly onDidChangeStorage: Event<string>;
+	readonly onDidChangeStorage: Event<IStorageChangeEvent>;
 
 	readonly items: Map<string, string>;
 	readonly size: number;
@@ -73,8 +93,8 @@ export interface IStorage extends IDisposable {
 	getObject<T extends object>(key: string, fallbackValue: T): T;
 	getObject<T extends object>(key: string, fallbackValue?: T): T | undefined;
 
-	set(key: string, value: string | boolean | number | undefined | null | object): Promise<void>;
-	delete(key: string): Promise<void>;
+	set(key: string, value: StorageValue, external?: boolean): Promise<void>;
+	delete(key: string, external?: boolean): Promise<void>;
 
 	flush(delay?: number): Promise<void>;
 	whenFlushed(): Promise<void>;
@@ -92,7 +112,7 @@ export class Storage extends Disposable implements IStorage {
 
 	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
-	private readonly _onDidChangeStorage = this._register(new Emitter<string>());
+	private readonly _onDidChangeStorage = this._register(new PauseableEmitter<IStorageChangeEvent>());
 	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	private state = StorageState.None;
@@ -122,14 +142,22 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	private onDidChangeItemsExternal(e: IStorageItemsChangeEvent): void {
-		// items that change external require us to update our
-		// caches with the values. we just accept the value and
-		// emit an event if there is a change.
-		e.changed?.forEach((value, key) => this.accept(key, value));
-		e.deleted?.forEach(key => this.accept(key, undefined));
+		this._onDidChangeStorage.pause();
+
+		try {
+			// items that change external require us to update our
+			// caches with the values. we just accept the value and
+			// emit an event if there is a change.
+
+			e.changed?.forEach((value, key) => this.acceptExternal(key, value));
+			e.deleted?.forEach(key => this.acceptExternal(key, undefined));
+
+		} finally {
+			this._onDidChangeStorage.resume();
+		}
 	}
 
-	private accept(key: string, value: string | undefined): void {
+	private acceptExternal(key: string, value: string | undefined): void {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -152,7 +180,7 @@ export class Storage extends Disposable implements IStorage {
 
 		// Signal to outside listeners
 		if (changed) {
-			this._onDidChangeStorage.fire(key);
+			this._onDidChangeStorage.fire({ key, external: true });
 		}
 	}
 
@@ -229,14 +257,14 @@ export class Storage extends Disposable implements IStorage {
 		return parse(value);
 	}
 
-	async set(key: string, value: string | boolean | number | null | undefined | object): Promise<void> {
+	async set(key: string, value: string | boolean | number | null | undefined | object, external = false): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
 
 		// We remove the key for undefined/null values
 		if (isUndefinedOrNull(value)) {
-			return this.delete(key);
+			return this.delete(key, external);
 		}
 
 		// Otherwise, convert to String and store
@@ -254,13 +282,13 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingDeletes.delete(key);
 
 		// Event
-		this._onDidChangeStorage.fire(key);
+		this._onDidChangeStorage.fire({ key, external });
 
 		// Accumulate work by scheduling after timeout
 		return this.doFlush();
 	}
 
-	async delete(key: string): Promise<void> {
+	async delete(key: string, external = false): Promise<void> {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -278,7 +306,7 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingInserts.delete(key);
 
 		// Event
-		this._onDidChangeStorage.fire(key);
+		this._onDidChangeStorage.fire({ key, external });
 
 		// Accumulate work by scheduling after timeout
 		return this.doFlush();

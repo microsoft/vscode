@@ -12,14 +12,16 @@ import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/li
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { strictEqual } from 'assert';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import { IFileService } from 'vs/platform/files/common/files';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { importAMDNodeModule } from 'vs/amdX';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -170,7 +172,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		await assertLinks(TerminalBuiltinLinkType.LocalFile, `[${link}]`, [{ uri, range: [[2, 1], [link.length + 1, 1]] }]);
 	}
 
-	setup(() => {
+	setup(async () => {
 		instantiationService = new TestInstantiationService();
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -182,11 +184,16 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				return createFileStat(resource);
 			}
 		});
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		resolver = instantiationService.createInstance(TerminalLinkResolver);
 		validResources = [];
 
-		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	suite('platform independent', () => {

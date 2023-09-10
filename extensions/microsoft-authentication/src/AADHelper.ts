@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as querystring from 'querystring';
 import * as path from 'path';
 import { isSupportedEnvironment } from './utils';
 import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';
@@ -14,9 +13,10 @@ import { base64Decode } from './node/buffer';
 import { fetching } from './node/fetch';
 import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
+import { Environment } from '@azure/ms-rest-azure-env';
 
 const redirectUrl = 'https://vscode.dev/redirect';
-const defaultLoginEndpointUrl = 'https://login.microsoftonline.com/';
+const defaultActiveDirectoryEndpointUrl = Environment.AzureCloud.activeDirectoryEndpointUrl;
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -102,7 +102,7 @@ export class AzureActiveDirectoryService {
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _tokenStorage: BetterTokenStorage<IStoredSession>,
 		private readonly _telemetryReporter: TelemetryReporter,
-		private readonly _loginEndpointUrl: string = defaultLoginEndpointUrl
+		private readonly _env: Environment
 	) {
 		_context.subscriptions.push(this._tokenStorage.onDidChangeInOtherWindow((e) => this.checkForUpdates(e)));
 	}
@@ -301,7 +301,7 @@ export class AzureActiveDirectoryService {
 		const runsRemote = vscode.env.remoteName !== undefined;
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
 
-		if (runsServerless && this._loginEndpointUrl !== defaultLoginEndpointUrl) {
+		if (runsServerless && this._env.activeDirectoryEndpointUrl !== defaultActiveDirectoryEndpointUrl) {
 			throw new Error('Sign in to non-public clouds is not supported on the web.');
 		}
 
@@ -310,9 +310,7 @@ export class AzureActiveDirectoryService {
 		}
 
 		try {
-			const session = await this.createSessionWithLocalServer(scopeData);
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
-			return session;
+			return await this.createSessionWithLocalServer(scopeData);
 		} catch (e) {
 			this._logger.error(`Error creating session for scopes: ${scopeData.scopeStr} Error: ${e}`);
 
@@ -338,7 +336,7 @@ export class AzureActiveDirectoryService {
 			code_challenge_method: 'S256',
 			code_challenge: codeChallenge,
 		}).toString();
-		const loginUrl = `${this._loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize?${qs}`;
+		const loginUrl = new URL(`${scopeData.tenant}/oauth2/v2.0/authorize?${qs}`, this._env.activeDirectoryEndpointUrl).toString();
 		const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl);
 		await server.start();
 
@@ -354,6 +352,7 @@ export class AzureActiveDirectoryService {
 		}
 
 		const session = await this.exchangeCodeForSession(codeToExchange, codeVerifier, scopeData);
+		this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 		return session;
 	}
 
@@ -368,8 +367,8 @@ export class AzureActiveDirectoryService {
 		const state = encodeURIComponent(callbackUri.toString(true));
 		const codeVerifier = generateCodeVerifier();
 		const codeChallenge = await generateCodeChallenge(codeVerifier);
-		const signInUrl = `${this._loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
-		const oauthStartQuery = new URLSearchParams({
+		const signInUrl = new URL(`${scopeData.tenant}/oauth2/v2.0/authorize`, this._env.activeDirectoryEndpointUrl);
+		signInUrl.search = new URLSearchParams({
 			response_type: 'code',
 			client_id: encodeURIComponent(scopeData.clientId),
 			response_mode: 'query',
@@ -379,8 +378,8 @@ export class AzureActiveDirectoryService {
 			prompt: 'select_account',
 			code_challenge_method: 'S256',
 			code_challenge: codeChallenge,
-		});
-		const uri = vscode.Uri.parse(`${signInUrl}?${oauthStartQuery.toString()}`);
+		}).toString();
+		const uri = vscode.Uri.parse(signInUrl.toString());
 		vscode.env.openExternal(uri);
 
 		let inputBox: vscode.InputBox | undefined;
@@ -601,19 +600,15 @@ export class AzureActiveDirectoryService {
 
 	private async doRefreshToken(refreshToken: string, scopeData: IScopeData, sessionId?: string): Promise<IToken> {
 		this._logger.info(`Refreshing token for scopes: ${scopeData.scopeStr}`);
-		const postData = querystring.stringify({
+		const postData = new URLSearchParams({
 			refresh_token: refreshToken,
 			client_id: scopeData.clientId,
 			grant_type: 'refresh_token',
 			scope: scopeData.scopesToSend
-		});
-
-		const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-		const endpointUrl = proxyEndpoints?.microsoft || this._loginEndpointUrl;
-		const endpoint = `${endpointUrl}${scopeData.tenant}/oauth2/v2.0/token`;
+		}).toString();
 
 		try {
-			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
+			const json = await this.fetchTokenResponse(postData, scopeData);
 			const token = this.convertToTokenSync(json, scopeData, sessionId);
 			if (token.expiresIn) {
 				this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
@@ -666,8 +661,9 @@ export class AzureActiveDirectoryService {
 		return new Promise((resolve: (value: vscode.AuthenticationSession) => void, reject) => {
 			uriEventListener = this._uriHandler.event(async (uri: vscode.Uri) => {
 				try {
-					const query = querystring.parse(uri.query);
-					let { code, nonce } = query;
+					const query = new URLSearchParams(uri.query);
+					let code = query.get('code');
+					let nonce = query.get('nonce');
 					if (Array.isArray(code)) {
 						code = code[0];
 					}
@@ -693,6 +689,7 @@ export class AzureActiveDirectoryService {
 					}
 
 					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
+					this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 					resolve(session);
 				} catch (err) {
 					reject(err);
@@ -719,6 +716,7 @@ export class AzureActiveDirectoryService {
 				if (code) {
 					inputBox.dispose();
 					const session = await this.exchangeCodeForSession(code, verifier, scopeData);
+					this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
 					resolve(session);
 				}
 			});
@@ -735,28 +733,16 @@ export class AzureActiveDirectoryService {
 		this._logger.info(`Exchanging login code for token for scopes: ${scopeData.scopeStr}`);
 		let token: IToken | undefined;
 		try {
-			const postData = querystring.stringify({
+			const postData = new URLSearchParams({
 				grant_type: 'authorization_code',
 				code: code,
 				client_id: scopeData.clientId,
 				scope: scopeData.scopesToSend,
 				code_verifier: codeVerifier,
 				redirect_uri: redirectUrl
-			});
+			}).toString();
 
-			let endpointUrl: string;
-
-			if (this._loginEndpointUrl !== defaultLoginEndpointUrl) {
-				// If this is for sovereign clouds, don't try using the proxy endpoint, which supports only public cloud
-				endpointUrl = this._loginEndpointUrl;
-			} else {
-				const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-				endpointUrl = proxyEndpoints?.microsoft || this._loginEndpointUrl;
-			}
-
-			const endpoint = `${endpointUrl}${scopeData.tenant}/oauth2/v2.0/token`;
-
-			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
+			const json = await this.fetchTokenResponse(postData, scopeData);
 			this._logger.info(`Exchanging login code for token (for scopes: ${scopeData.scopeStr}) succeeded!`);
 			token = this.convertToTokenSync(json, scopeData);
 		} catch (e) {
@@ -772,7 +758,17 @@ export class AzureActiveDirectoryService {
 		return await this.convertToSession(token, scopeData);
 	}
 
-	private async fetchTokenResponse(endpoint: string, postData: string, scopeData: IScopeData): Promise<ITokenResponse> {
+	private async fetchTokenResponse(postData: string, scopeData: IScopeData): Promise<ITokenResponse> {
+		let endpointUrl: string;
+		if (this._env.activeDirectoryEndpointUrl !== defaultActiveDirectoryEndpointUrl) {
+			// If this is for sovereign clouds, don't try using the proxy endpoint, which supports only public cloud
+			endpointUrl = this._env.activeDirectoryEndpointUrl;
+		} else {
+			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
+			endpointUrl = proxyEndpoints?.microsoft || this._env.activeDirectoryEndpointUrl;
+		}
+		const endpoint = new URL(`${scopeData.tenant}/oauth2/v2.0/token`, endpointUrl);
+
 		let attempts = 0;
 		while (attempts <= 3) {
 			attempts++;
@@ -869,7 +865,7 @@ export class AzureActiveDirectoryService {
 			refreshToken: token.refreshToken,
 			scope: token.scope,
 			account: token.account,
-			endpoint: this._loginEndpointUrl,
+			endpoint: this._env.activeDirectoryEndpointUrl,
 		});
 		this._logger.info(`Stored token for scopes: ${scopeData.scopeStr}`);
 	}
@@ -933,9 +929,9 @@ export class AzureActiveDirectoryService {
 
 	private sessionMatchesEndpoint(session: IStoredSession): boolean {
 		// For older sessions with no endpoint set, it can be assumed to be the default endpoint
-		session.endpoint ||= defaultLoginEndpointUrl;
+		session.endpoint ||= defaultActiveDirectoryEndpointUrl;
 
-		return session.endpoint === this._loginEndpointUrl;
+		return session.endpoint === this._env.activeDirectoryEndpointUrl;
 	}
 
 	//#endregion

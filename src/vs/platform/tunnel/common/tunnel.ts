@@ -64,6 +64,10 @@ export interface ITunnelProvider {
 	forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<RemoteTunnel | undefined> | undefined;
 }
 
+export function isTunnelProvider(addressOrTunnelProvider: IAddressProvider | ITunnelProvider): addressOrTunnelProvider is ITunnelProvider {
+	return !!(addressOrTunnelProvider as ITunnelProvider).forwardPort;
+}
+
 export enum ProvidedOnAutoForward {
 	Notify = 1,
 	OpenBrowser = 2,
@@ -315,7 +319,8 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost?: string, localPort?: number, elevateIfNeeded: boolean = false, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		this.logService.trace(`ForwardedPorts: (TunnelService) openTunnel request for ${remoteHost}:${remotePort} on local port ${localPort}.`);
-		if (!addressProvider) {
+		const addressOrTunnelProvider = this._tunnelProvider ?? addressProvider;
+		if (!addressOrTunnelProvider) {
 			return undefined;
 		}
 
@@ -332,7 +337,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			return;
 		}
 
-		const resolvedTunnel = this.retainOrCreateTunnel(addressProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded, privacy, protocol);
+		const resolvedTunnel = this.retainOrCreateTunnel(addressOrTunnelProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded, privacy, protocol);
 		if (!resolvedTunnel) {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Tunnel was not created.`);
 			return resolvedTunnel;
@@ -416,7 +421,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		const hostMap = this._tunnels.get(remoteHost);
 		if (hostMap) {
 			const tunnel = hostMap.get(remotePort);
-			const tunnelResult = await tunnel;
+			const tunnelResult = tunnel ? await tunnel.value : undefined;
 			if (!tunnelResult) {
 				hostMap.delete(remotePort);
 			}
@@ -454,7 +459,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 
 	public abstract isPortPrivileged(port: number): boolean;
 
-	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localHost: string, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
+	protected abstract retainOrCreateTunnel(addressProvider: IAddressProvider | ITunnelProvider, remoteHost: string, remotePort: number, localHost: string, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined;
 
 	protected createWithProvider(tunnelProvider: ITunnelProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel with provider ${remoteHost}:${remotePort} on local port ${localPort}.`);

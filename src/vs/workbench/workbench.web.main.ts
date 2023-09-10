@@ -56,6 +56,7 @@ import 'vs/workbench/services/localization/browser/localeService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
+import 'vs/workbench/services/secrets/browser/secretStorageService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
@@ -157,8 +158,8 @@ import 'vs/workbench/contrib/issue/browser/issue.contribution';
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
 
-// Offline
-import 'vs/workbench/contrib/offline/browser/offline.contribution';
+// Remote Start Entry for the Web
+import 'vs/workbench/contrib/remote/browser/remoteStartEntry.contribution';
 
 //#endregion
 

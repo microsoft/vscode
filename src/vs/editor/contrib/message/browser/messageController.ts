@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./messageController';
@@ -14,9 +16,12 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { PositionAffinity } from 'vs/editor/common/model';
+import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import * as dom from 'vs/base/browser/dom';
 
 export class MessageController implements IEditorContribution {
 
@@ -32,10 +37,13 @@ export class MessageController implements IEditorContribution {
 	private readonly _visible: IContextKey<boolean>;
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
+	private _message: { element: HTMLElement; dispose: () => void } | undefined;
+	private _mouseOverMessage: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 
 		this._editor = editor;
@@ -43,6 +51,7 @@ export class MessageController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._message?.dispose();
 		this._messageListeners.dispose();
 		this._messageWidget.dispose();
 		this._visible.reset();
@@ -52,23 +61,39 @@ export class MessageController implements IEditorContribution {
 		return this._visible.get();
 	}
 
-	showMessage(message: string, position: IPosition): void {
+	showMessage(message: IMarkdownString | string, position: IPosition): void {
 
-		alert(message);
+		alert(isMarkdownString(message) ? message.value : message);
 
 		this._visible.set(true);
 		this._messageWidget.clear();
 		this._messageListeners.clear();
-		this._messageWidget.value = new MessageWidget(this._editor, position, message);
+		this._message = isMarkdownString(message) ? renderMarkdown(message, {
+			actionHandler: {
+				callback: (url) => openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined),
+				disposables: this._messageListeners
+			},
+		}) : undefined;
+		this._messageWidget.value = new MessageWidget(this._editor, position, typeof message === 'string' ? message : this._message!.element);
 
-		// close on blur, cursor, model change, dispose
-		this._messageListeners.add(this._editor.onDidBlurEditorText(() => this.closeMessage()));
+		// close on blur (debounced to allow to tab into the message), cursor, model change, dispose
+		this._messageListeners.add(Event.debounce(this._editor.onDidBlurEditorText, (last, event) => event, 0)(() => {
+			if (this._mouseOverMessage) {
+				return; // override when mouse over message
+			}
+
+			if (this._messageWidget.value && dom.isAncestor(document.activeElement, this._messageWidget.value.getDomNode())) {
+				return; // override when focus is inside the message
+			}
+
+			this.closeMessage();
+		}
+		));
 		this._messageListeners.add(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
-
-		// 3sec
-		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), 3000));
+		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_ENTER, () => this._mouseOverMessage = true, true));
+		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_LEAVE, () => this._mouseOverMessage = false, true));
 
 		// close on mouse move
 		let bounds: Range;
@@ -132,7 +157,7 @@ class MessageWidget implements IContentWidget {
 		return { dispose };
 	}
 
-	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
+	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: HTMLElement | string) {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
@@ -147,8 +172,13 @@ class MessageWidget implements IContentWidget {
 		this._domNode.appendChild(anchorTop);
 
 		const message = document.createElement('div');
-		message.classList.add('message');
-		message.textContent = text;
+		if (typeof text === 'string') {
+			message.classList.add('message');
+			message.textContent = text;
+		} else {
+			text.classList.add('message');
+			message.appendChild(text);
+		}
 		this._domNode.appendChild(message);
 
 		const anchorBottom = document.createElement('div');
