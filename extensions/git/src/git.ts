@@ -12,10 +12,10 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals } from './util';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -66,14 +66,14 @@ function parseVersion(raw: string): string {
 function findSpecificGit(path: string, onValidate: (path: string) => boolean): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		if (!onValidate(path)) {
-			return e('git not found');
+			return e(new Error(`Path "${path}" is invalid.`));
 		}
 
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
 		child.on('error', cpErrorHandler(e));
-		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
+		child.on('close', code => code ? e(new Error(`Not found. Code: ${code}`)) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
 }
 
@@ -81,21 +81,21 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		cp.exec('which git', (err, gitPathBuffer) => {
 			if (err) {
-				return e('git not found');
+				return e(new Error(`Executing "which git" failed: ${err.message}`));
 			}
 
 			const path = gitPathBuffer.toString().trim();
 
 			function getVersion(path: string) {
 				if (!onValidate(path)) {
-					return e('git not found');
+					return e(new Error(`Path "${path}" is invalid.`));
 				}
 
 				// make sure git executes
 				cp.exec('git --version', (err, stdout) => {
 
 					if (err) {
-						return e('git not found');
+						return e(new Error(`Executing "git --version" failed: ${err.message}`));
 					}
 
 					return c({ path, version: parseVersion(stdout.trim()) });
@@ -112,7 +112,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 					// git is not installed, and launching /usr/bin/git
 					// will prompt the user to install it
 
-					return e('git not found');
+					return e(new Error('Executing "xcode-select -p" failed with error code 2.'));
 				}
 
 				getVersion(path);
@@ -129,9 +129,9 @@ function findSystemGitWin32(base: string, onValidate: (path: string) => boolean)
 	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onValidate);
 }
 
-function findGitWin32InPath(onValidate: (path: string) => boolean): Promise<IGit> {
-	const whichPromise = new Promise<string>((c, e) => which('git.exe', (err, path) => err ? e(err) : c(path)));
-	return whichPromise.then(path => findSpecificGit(path, onValidate));
+async function findGitWin32InPath(onValidate: (path: string) => boolean): Promise<IGit> {
+	const path = await which('git.exe');
+	return findSpecificGit(path, onValidate);
 }
 
 function findGitWin32(onValidate: (path: string) => boolean): Promise<IGit> {
@@ -142,12 +142,13 @@ function findGitWin32(onValidate: (path: string) => boolean): Promise<IGit> {
 		.then(undefined, () => findGitWin32InPath(onValidate));
 }
 
-export async function findGit(hints: string[], onValidate: (path: string) => boolean): Promise<IGit> {
+export async function findGit(hints: string[], onValidate: (path: string) => boolean, logger: LogOutputChannel): Promise<IGit> {
 	for (const hint of hints) {
 		try {
 			return await findSpecificGit(hint, onValidate);
-		} catch {
+		} catch (err) {
 			// noop
+			logger.info(`Unable to find git on the PATH: "${hint}". Error: ${err.message}`);
 		}
 	}
 
@@ -157,8 +158,9 @@ export async function findGit(hints: string[], onValidate: (path: string) => boo
 			case 'win32': return await findGitWin32(onValidate);
 			default: return await findSpecificGit('git', onValidate);
 		}
-	} catch {
+	} catch (err) {
 		// noop
+		logger.warn(`Unable to find git. Error: ${err.message}`);
 	}
 
 	throw new Error('Git installation not found.');
@@ -397,14 +399,14 @@ export class Git {
 		return Versions.compare(Versions.fromString(this.version), Versions.fromString(version));
 	}
 
-	open(repository: string, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
-		return new Repository(this, repository, dotGit, logger);
+	open(repositoryRoot: string, repositoryRootRealPath: string | undefined, dotGit: { path: string; commonPath?: string }, logger: LogOutputChannel): Repository {
+		return new Repository(this, repositoryRoot, repositoryRootRealPath, dotGit, logger);
 	}
 
-	async init(repository: string, options: { defaultBranch?: string } = {}): Promise<void> {
+	async init(repository: string, options: InitOptions = {}): Promise<void> {
 		const args = ['init'];
 
-		if (options.defaultBranch && options.defaultBranch !== '') {
+		if (options.defaultBranch && options.defaultBranch !== '' && this.compareGitVersionTo('2.28.0') !== -1) {
 			args.push('-b', options.defaultBranch);
 		}
 
@@ -477,18 +479,18 @@ export class Git {
 		return folderPath;
 	}
 
-	async getRepositoryRoot(repositoryPath: string): Promise<string> {
-		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+	async getRepositoryRoot(pathInsidePossibleRepository: string): Promise<string> {
+		const result = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--show-toplevel']);
 
 		// Keep trailing spaces which are part of the directory name
-		const repoPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		const repositoryRootPath = path.normalize(result.stdout.trimStart().replace(/[\r\n]+$/, ''));
 
 		if (isWindows) {
 			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
 			// drive path back, you get the UNC path for the mapped drive. So we will try to normalize it back to the
 			// mapped drive path, if possible
-			const repoUri = Uri.file(repoPath);
-			const pathUri = Uri.file(repositoryPath);
+			const repoUri = Uri.file(repositoryRootPath);
+			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
 				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
@@ -520,7 +522,18 @@ export class Git {
 			}
 		}
 
-		return repoPath;
+		// Handle symbolic links
+		// Git 2.31 added the `--path-format` flag to rev-parse which
+		// allows us to get the relative path of the repository root
+		if (!pathEquals(pathInsidePossibleRepository, repositoryRootPath) &&
+			!isDescendant(repositoryRootPath, pathInsidePossibleRepository) &&
+			!isDescendant(pathInsidePossibleRepository, repositoryRootPath) &&
+			this.compareGitVersionTo('2.31.0') !== -1) {
+			const relativePathResult = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
+			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimStart().replace(/[\r\n]+$/, ''));
+		}
+
+		return repositoryRootPath;
 	}
 
 	async getRepositoryDotGit(repositoryPath: string): Promise<{ path: string; commonPath?: string }> {
@@ -793,7 +806,7 @@ export class GitStatusParser {
 		// space
 		i++;
 
-		if (entry.x === 'R' || entry.x === 'C') {
+		if (entry.x === 'R' || entry.y === 'R' || entry.x === 'C') {
 			lastIndex = raw.indexOf('\0', i);
 
 			if (lastIndex === -1) {
@@ -945,6 +958,7 @@ export class Repository {
 	constructor(
 		private _git: Git,
 		private repositoryRoot: string,
+		private repositoryRootRealPath: string | undefined,
 		readonly dotGit: { path: string; commonPath?: string },
 		private logger: LogOutputChannel
 	) { }
@@ -955,6 +969,10 @@ export class Repository {
 
 	get root(): string {
 		return this.repositoryRoot;
+	}
+
+	get rootRealPath(): string | undefined {
+		return this.repositoryRootRealPath;
 	}
 
 	async exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
@@ -1006,7 +1024,14 @@ export class Repository {
 
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.range) {
+			args.push(options.range);
+		}
+
+		args.push('--');
+
 		if (options?.path) {
 			args.push(options.path);
 		}
@@ -2021,7 +2046,7 @@ export class Repository {
 		}
 
 		// --find-renames option is only available starting with git 2.18.0
-		if (opts?.similarityThreshold && this._git.compareGitVersionTo('2.18.0') !== -1) {
+		if (opts?.similarityThreshold && opts.similarityThreshold !== 50 && this._git.compareGitVersionTo('2.18.0') !== -1) {
 			args.push(`--find-renames=${opts.similarityThreshold}%`);
 		}
 
@@ -2350,6 +2375,13 @@ export class Repository {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)');
 		} else {
 			args.push('--format=%(refname)%00%(upstream:short)%00%(objectname)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref)');
+		}
+
+		// On Windows and macOS ref names are case insensitive so we add --ignore-case
+		// to handle the scenario where the user switched to a branch with incorrect
+		// casing
+		if (isWindows || isMacintosh) {
+			args.push('--ignore-case');
 		}
 
 		if (/^refs\/(head|remotes)\//i.test(name)) {

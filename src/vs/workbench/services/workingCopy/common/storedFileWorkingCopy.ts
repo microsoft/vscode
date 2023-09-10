@@ -28,6 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IResourceWorkingCopy, ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * Stored file specific working copy model factory.
@@ -68,6 +69,15 @@ export interface IStoredFileWorkingCopyModel extends IFileWorkingCopyModel {
 	 * to the state before saving.
 	 */
 	pushStackElement(): void;
+
+	/**
+	 * Optionally allows a stored file working copy model to
+	 * implement the `save` method. This allows to implement
+	 * a more efficient save logic compared to the default
+	 * which is to ask the model for a `snapshot` and then
+	 * writing that to the model's resource.
+	 */
+	save?(options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
 }
 
 export interface IStoredFileWorkingCopyModelContentChangedEvent {
@@ -117,9 +127,9 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	resolve(options?: IStoredFileWorkingCopyResolveOptions): Promise<void>;
 
 	/**
-	 * Explicitly sets the working copy to be dirty.
+	 * Explicitly sets the working copy to be modified.
 	 */
-	markDirty(): void;
+	markModified(): void;
 
 	/**
 	 * Whether the stored file working copy is in the provided `state`
@@ -145,7 +155,7 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	/**
 	 * Whether the stored file working copy is readonly or not.
 	 */
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 }
 
 export interface IResolvedStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends IStoredFileWorkingCopy<M> {
@@ -349,8 +359,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		return this.dirty;
 	}
 
-	markDirty(): void {
-		this.setDirty(true);
+	markModified(): void {
+		this.setDirty(true); // stored file working copy tracks modified via dirty
 	}
 
 	private setDirty(dirty: boolean): void {
@@ -423,7 +433,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Unless there are explicit contents provided, it is important that we do not
 		// resolve a working copy that is dirty or is in the process of saving to prevent
 		// data loss.
-		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
+		if (!options?.contents && (this.dirty || this.saveSequentializer.isRunning())) {
 			this.trace('resolve() - exit - without resolving because file working copy is dirty or being saved');
 
 			return;
@@ -756,6 +766,10 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 	//#region Backup
 
+	get backupDelay(): number | undefined {
+		return this.model?.configuration?.backupDelay;
+	}
+
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		// Fill in metadata if we are resolved
@@ -837,15 +851,15 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			return;
 		}
 
-		// Lookup any running pending save for this versionId and return it if found
+		// Lookup any running save for this versionId and return it if found
 		//
 		// Scenario: user invoked the save action multiple times quickly for the same contents
 		//           while the save was not yet finished to disk
 		//
-		if (this.saveSequentializer.hasPending(versionId)) {
-			this.trace(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`);
+		if (this.saveSequentializer.isRunning(versionId)) {
+			this.trace(`doSave(${versionId}) - exit - found a running save for versionId ${versionId}`);
 
-			return this.saveSequentializer.pending;
+			return this.saveSequentializer.running;
 		}
 
 		// Return early if not dirty (unless forced)
@@ -865,20 +879,20 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Scenario B: save is very slow (e.g. network share) and the user manages to change the working copy and trigger another save
 		//             while the first save has not returned yet.
 		//
-		if (this.saveSequentializer.hasPending()) {
+		if (this.saveSequentializer.isRunning()) {
 			this.trace(`doSave(${versionId}) - exit - because busy saving`);
 
 			// Indicate to the save sequentializer that we want to
-			// cancel the pending operation so that ours can run
-			// before the pending one finishes.
-			// Currently this will try to cancel pending save
-			// participants and pending snapshots from the
+			// cancel the running operation so that ours can run
+			// before the running one finishes.
+			// Currently this will try to cancel running save
+			// participants and running snapshots from the
 			// save operation, but not the actual save which does
 			// not support cancellation yet.
-			this.saveSequentializer.cancelPending();
+			this.saveSequentializer.cancelRunning();
 
-			// Register this as the next upcoming save and return
-			return this.saveSequentializer.setNext(() => this.doSave(options));
+			// Queue this as the upcoming save and return
+			return this.saveSequentializer.queue(() => this.doSave(options));
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
@@ -889,7 +903,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		const saveCancellation = new CancellationTokenSource();
 
-		return this.saveSequentializer.setPending(versionId, (async () => {
+		return this.saveSequentializer.run(versionId, (async () => {
 
 			// A save participant can still change the working copy now
 			// and since we are so close to saving we do not want to trigger
@@ -961,42 +975,51 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			// Clear error flag since we are trying to save again
 			this.inErrorMode = false;
 
-			// Save to Disk. We mark the save operation as currently pending with
+			// Save to Disk. We mark the save operation as currently running with
 			// the latest versionId because it might have changed from a save
 			// participant triggering
 			this.trace(`doSave(${versionId}) - before write()`);
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
 			const resolvedFileWorkingCopy = this;
-			return this.saveSequentializer.setPending(versionId, (async () => {
+			return this.saveSequentializer.run(versionId, (async () => {
 				try {
-
-					// Snapshot working copy model contents
-					const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
-
-					// It is possible that a subsequent save is cancelling this
-					// running save. As such we return early when we detect that
-					// However, we do not pass the token into the file service
-					// because that is an atomic operation currently without
-					// cancellation support, so we dispose the cancellation if
-					// it was not cancelled yet.
-					if (saveCancellation.token.isCancellationRequested) {
-						return;
-					} else {
-						saveCancellation.dispose();
-					}
-
 					const writeFileOptions: IWriteFileOptions = {
 						mtime: lastResolvedFileStat.mtime,
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock
 					};
 
-					// Write them to disk
 					let stat: IFileStatWithMetadata;
-					if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
-						stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
-					} else {
-						stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+
+					// Delegate to working copy model save method if any
+					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
+						stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+					}
+
+					// Otherwise ask for a snapshot and save via file services
+					else {
+
+						// Snapshot working copy model contents
+						const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
+
+						// It is possible that a subsequent save is cancelling this
+						// running save. As such we return early when we detect that
+						// However, we do not pass the token into the file service
+						// because that is an atomic operation currently without
+						// cancellation support, so we dispose the cancellation if
+						// it was not cancelled yet.
+						if (saveCancellation.token.isCancellationRequested) {
+							return;
+						} else {
+							saveCancellation.dispose();
+						}
+
+						// Write them to disk
+						if (options?.writeElevated && this.elevatedFileService.isSupported(lastResolvedFileStat.resource)) {
+							stat = await this.elevatedFileService.writeFileElevated(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+						} else {
+							stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), writeFileOptions);
+						}
 					}
 
 					this.handleSaveSuccess(stat, versionId, options);
@@ -1074,7 +1097,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Any other save error
 		else {
 			const isWriteLocked = fileOperationError.fileOperationResult === FileOperationResult.FILE_WRITE_LOCKED;
-			const triedToUnlock = isWriteLocked && fileOperationError.options?.unlock;
+			const triedToUnlock = isWriteLocked && (fileOperationError.options as IWriteFileOptions | undefined)?.unlock;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
 
@@ -1110,10 +1133,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			primaryActions.push(toAction({
 				id: 'fileWorkingCopy.saveAs',
 				label: localize('saveAs', "Save As..."),
-				run: () => {
+				run: async () => {
 					const editor = this.workingCopyEditorService.findEditor(this);
 					if (editor) {
-						this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						const result = await this.editorService.save(editor, { saveAs: true, reason: SaveReason.EXPLICIT });
+						if (!result.success) {
+							this.doHandleSaveError(error); // show error again given the operation failed
+						}
 					}
 				}
 			}));
@@ -1143,8 +1169,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		const handle = this.notificationService.notify({ id: `${hash(this.resource.toString())}`, severity: Severity.Error, message, actions: { primary: primaryActions } });
 
 		// Remove automatically when we get saved/reverted
-		const listener = Event.once(Event.any(this.onDidSave, this.onDidRevert))(() => handle.close());
-		Event.once(handle.onDidClose)(() => listener.dispose());
+		const listener = this._register(Event.once(Event.any(this.onDidSave, this.onDidRevert))(() => handle.close()));
+		this._register(Event.once(handle.onDidClose)(() => listener.dispose()));
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
@@ -1230,21 +1256,21 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			case StoredFileWorkingCopyState.ORPHAN:
 				return this.isOrphaned();
 			case StoredFileWorkingCopyState.PENDING_SAVE:
-				return this.saveSequentializer.hasPending();
+				return this.saveSequentializer.isRunning();
 			case StoredFileWorkingCopyState.SAVED:
 				return !this.dirty;
 		}
 	}
 
 	async joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
-		return this.saveSequentializer.pending;
+		return this.saveSequentializer.running;
 	}
 
 	//#endregion
 
 	//#region Utilities
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		return this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
 	}
 

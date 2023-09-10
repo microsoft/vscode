@@ -5,11 +5,13 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
 	id: number; // TODO Maybe remove this and move to a subclass that only the provider knows about
@@ -25,6 +27,7 @@ export interface IChat {
 export interface IChatRequest {
 	session: IChat;
 	message: string | IChatReplyFollowup;
+	variables: Record<string, IChatRequestVariableValue[]>;
 }
 
 export interface IChatResponseErrorDetails {
@@ -42,8 +45,14 @@ export interface IChatResponse {
 	};
 }
 
+export interface IChatResponseProgressFileTreeData {
+	label: string;
+	uri: URI;
+	children?: IChatResponseProgressFileTreeData[];
+}
+
 export type IChatProgress =
-	{ content: string } | { responseId: string };
+	{ content: string | IMarkdownString } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> };
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -56,19 +65,36 @@ export interface IChatProvider {
 	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse>;
 	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
-}
-
-export interface ISlashCommandProvider {
-	chatProviderId: string;
-	provideSlashCommands(token: CancellationToken): ProviderResult<ISlashCommand[]>;
-	resolveSlashCommand(command: string, token: CancellationToken): ProviderResult<string>;
+	removeRequest?(session: IChat, requestId: string): void;
 }
 
 export interface ISlashCommand {
 	command: string;
-	provider?: ISlashCommandProvider;
 	sortText?: string;
 	detail?: string;
+
+	/**
+	 * Whether the command should execute as soon
+	 * as it is entered. Defaults to `false`.
+	 */
+	executeImmediately?: boolean;
+	/**
+	 * Whether executing the command puts the
+	 * chat into a persistent mode, where the
+	 * slash command is prepended to the chat input.
+	 */
+	shouldRepopulate?: boolean;
+	/**
+	 * Placeholder text to render in the chat input
+	 * when the slash command has been repopulated.
+	 * Has no effect if `shouldRepopulate` is `false`.
+	 */
+	followupPlaceholder?: string;
+	/**
+	 * The slash command(s) that this command wants to be
+	 * deprioritized in favor of.
+	 */
+	yieldsTo?: ReadonlyArray<{ readonly command: string }>;
 }
 
 export interface IChatReplyFollowup {
@@ -84,6 +110,7 @@ export interface IChatResponseCommandFollowup {
 	commandId: string;
 	args?: any[];
 	title: string; // supports codicon strings
+	when?: string;
 }
 
 export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
@@ -156,8 +183,9 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string;
+	message: string | (IMarkdownString | IChatResponseProgressFileTreeData)[];
 	errorDetails?: IChatResponseErrorDetails;
+	followups?: IChatFollowup[];
 }
 
 export interface IChatDetail {
@@ -170,22 +198,31 @@ export interface IChatProviderInfo {
 	displayName: string;
 }
 
+export interface IChatTransferredSessionData {
+	sessionId: string;
+	inputValue: string;
+}
+
 export const IChatService = createDecorator<IChatService>('IChatService');
 
 export interface IChatService {
 	_serviceBrand: undefined;
+	transferredSessionData: IChatTransferredSessionData | undefined;
+
+	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
-	registerSlashCommandProvider(provider: ISlashCommandProvider): IDisposable;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
+	getSessionId(sessionProviderId: number): string | undefined;
 	getOrRestoreSession(sessionId: string): IChatModel | undefined;
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string | IChatReplyFollowup): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: string, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
 	clearSession(sessionId: string): void;
@@ -193,7 +230,10 @@ export interface IChatService {
 	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
+	removeHistoryEntry(sessionId: string): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
+
+	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }

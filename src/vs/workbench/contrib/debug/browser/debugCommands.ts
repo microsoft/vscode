@@ -473,7 +473,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_OVER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: isWeb ? (KeyMod.Alt | KeyCode.F10) : KeyCode.F10, // Browsers do not allow F10 to be binded so we have to bind an alternative
+	primary: KeyCode.F10,
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);

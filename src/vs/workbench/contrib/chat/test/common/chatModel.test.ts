@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -14,23 +14,19 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('ChatModel', () => {
-	const testDisposables = new DisposableStore();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(async () => {
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IStorageService, new TestStorageService());
+	setup(async () => {
+		instantiationService = testDisposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 	});
 
-	teardown(() => {
-		testDisposables.clear();
-	});
-
 	test('Waits for initialization', async () => {
-		const model = new ChatModel('provider', undefined, new NullLogService());
+		const model = testDisposables.add(new ChatModel('provider', undefined, new NullLogService()));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -46,7 +42,7 @@ suite('ChatModel', () => {
 	});
 
 	test('Initialization fails when model is disposed', async () => {
-		const model = new ChatModel('provider', undefined, new NullLogService());
+		const model = testDisposables.add(new ChatModel('provider', undefined, new NullLogService()));
 		model.dispose();
 
 		await assert.rejects(() => model.waitForInitialization());

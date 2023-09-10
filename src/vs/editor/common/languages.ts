@@ -13,14 +13,15 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
+import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -82,22 +83,6 @@ export class EncodedTokenizationResult {
 /**
  * @internal
  */
-export interface IBackgroundTokenizer extends IDisposable {
-	/**
-	 * Instructs the background tokenizer to set the tokens for the given range again.
-	 *
-	 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
-	 * when the change does not even propagate to that viewport.
-	 */
-	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
-
-	reportMismatchingTokens?(lineNumber: number): void;
-}
-
-
-/**
- * @internal
- */
 export interface ITokenizationSupport {
 	/**
 	 * If true, the background tokenizer will only be used to verify tokens against the default background tokenizer.
@@ -115,6 +100,21 @@ export interface ITokenizationSupport {
 	 * Can be/return undefined if default background tokenization should be used.
 	 */
 	createBackgroundTokenizer?(textModel: model.ITextModel, store: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined;
+}
+
+/**
+ * @internal
+ */
+export interface IBackgroundTokenizer extends IDisposable {
+	/**
+	 * Instructs the background tokenizer to set the tokens for the given range again.
+	 *
+	 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
+	 * when the change does not even propagate to that viewport.
+	 */
+	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
+
+	reportMismatchingTokens?(lineNumber: number): void;
 }
 
 /**
@@ -584,9 +584,12 @@ export interface CompletionContext {
 export interface CompletionItemProvider {
 
 	/**
+	 * Used to identify completions in the (debug) UI and telemetry. This isn't the extension identifier because extensions
+	 * often contribute multiple completion item providers.
+	 *
 	 * @internal
 	 */
-	_debugDisplayName?: string;
+	_debugDisplayName: string;
 
 	triggerCharacters?: string[];
 	/**
@@ -700,6 +703,8 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	readonly enableForwardStability?: boolean | undefined;
 }
 
+export type InlineCompletionProviderGroupId = string;
+
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
@@ -718,6 +723,20 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
 	freeInlineCompletions(completions: T): void;
+
+	/**
+	 * Only used for {@link yieldsToGroupIds}.
+	 * Multiple providers can have the same group id.
+	 */
+	groupId?: InlineCompletionProviderGroupId;
+
+	/**
+	 * Returns a list of preferred provider {@link groupId}s.
+	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
+	 */
+	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+
+	toString?(): string;
 }
 
 export interface CodeAction {
@@ -783,10 +802,10 @@ export interface CodeActionProvider {
  * @internal
  */
 export interface DocumentPasteEdit {
-	readonly id: string;
 	readonly label: string;
 	readonly detail: string;
-	readonly priority: number;
+	readonly handledMimeType?: string;
+	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -796,7 +815,7 @@ export interface DocumentPasteEdit {
  */
 export interface DocumentPasteEditProvider {
 
-	readonly id?: string;
+	readonly id: string;
 
 	readonly copyMimeTypes?: readonly string[];
 	readonly pasteMimeTypes?: readonly string[];
@@ -1123,6 +1142,45 @@ export const enum SymbolKind {
 	TypeParameter = 25
 }
 
+/**
+ * @internal
+ */
+export const symbolKindNames: { [symbol: number]: string } = {
+	[SymbolKind.Array]: localize('Array', "array"),
+	[SymbolKind.Boolean]: localize('Boolean', "boolean"),
+	[SymbolKind.Class]: localize('Class', "class"),
+	[SymbolKind.Constant]: localize('Constant', "constant"),
+	[SymbolKind.Constructor]: localize('Constructor', "constructor"),
+	[SymbolKind.Enum]: localize('Enum', "enumeration"),
+	[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
+	[SymbolKind.Event]: localize('Event', "event"),
+	[SymbolKind.Field]: localize('Field', "field"),
+	[SymbolKind.File]: localize('File', "file"),
+	[SymbolKind.Function]: localize('Function', "function"),
+	[SymbolKind.Interface]: localize('Interface', "interface"),
+	[SymbolKind.Key]: localize('Key', "key"),
+	[SymbolKind.Method]: localize('Method', "method"),
+	[SymbolKind.Module]: localize('Module', "module"),
+	[SymbolKind.Namespace]: localize('Namespace', "namespace"),
+	[SymbolKind.Null]: localize('Null', "null"),
+	[SymbolKind.Number]: localize('Number', "number"),
+	[SymbolKind.Object]: localize('Object', "object"),
+	[SymbolKind.Operator]: localize('Operator', "operator"),
+	[SymbolKind.Package]: localize('Package', "package"),
+	[SymbolKind.Property]: localize('Property', "property"),
+	[SymbolKind.String]: localize('String', "string"),
+	[SymbolKind.Struct]: localize('Struct', "struct"),
+	[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
+	[SymbolKind.Variable]: localize('Variable', "variable"),
+};
+
+/**
+ * @internal
+ */
+export function getAriaLabelForSymbol(symbolName: string, kind: SymbolKind): string {
+	return localize('symbolAriaLabel', '{0} ({1})', symbolName, symbolKindNames[kind]);
+}
+
 export const enum SymbolTag {
 	Deprecated = 1,
 }
@@ -1203,6 +1261,13 @@ export interface TextEdit {
 	eol?: model.EndOfLineSequence;
 }
 
+/** @internal */
+export abstract class TextEdit {
+	static asEditOperation(edit: TextEdit): ISingleEditOperation {
+		return EditOperation.replace(Range.lift(edit.range), edit.text);
+	}
+}
+
 /**
  * Interface used to format a model
  */
@@ -1215,10 +1280,6 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
-	/**
-	 * The list of multiple ranges to format at once, if the provider supports it.
-	 */
-	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1946,10 +2007,15 @@ export enum ExternalUriOpenerPriority {
 /**
  * @internal
  */
+export type DropYieldTo = { readonly providerId: string } | { readonly mimeType: string };
+
+/**
+ * @internal
+ */
 export interface DocumentOnDropEdit {
-	readonly id: string;
 	readonly label: string;
-	readonly priority: number;
+	readonly handledMimeType?: string;
+	readonly yieldTo?: readonly DropYieldTo[];
 	insertText: string | { readonly snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -1958,7 +2024,38 @@ export interface DocumentOnDropEdit {
  * @internal
  */
 export interface DocumentOnDropEditProvider {
+	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
+}
+
+export interface RelatedContextItem {
+	readonly uri: URI;
+	readonly range: IRange;
+}
+
+export interface MappedEditsContext {
+	selections: ISelection[];
+	related: RelatedContextItem[];
+}
+
+export interface MappedEditsProvider {
+
+	/**
+	 * Provider maps code blocks from the chat into a workspace edit.
+	 *
+	 * @param document The document to provide mapped edits for.
+	 * @param codeBlocks Code blocks that come from an LLM's reply.
+	 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+	 * @param context The context for providing mapped edits.
+	 * @param token A cancellation token.
+	 * @returns A provider result of text edits.
+	 */
+	provideMappedEdits(
+		document: model.ITextModel,
+		codeBlocks: string[],
+		context: MappedEditsContext,
+		token: CancellationToken
+	): Promise<WorkspaceEdit | null>;
 }

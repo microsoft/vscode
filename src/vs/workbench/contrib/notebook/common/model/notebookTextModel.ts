@@ -294,6 +294,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			});
 
 			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
+			this._register(mainCells[i]);
 		}
 
 		this._cells.splice(0, 0, ...mainCells);
@@ -1066,7 +1067,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			rawEvents: [{
 				kind: NotebookCellsChangeType.Output,
 				index: this._cells.indexOf(cell),
-				outputs: cell.outputs ?? [],
+				outputs: cell.outputs.map(output => output.asDto()) ?? [],
 				append,
 				transient: this.transientOptions.transientOutputs,
 			}],

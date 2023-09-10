@@ -27,6 +27,22 @@
     }
   },
   "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Media Previewer",
+      "properties": {
+        "mediaPreview.video.autoPlay": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%videoPreviewerAutoPlay%"
+        },
+        "mediaPreview.video.loop": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%videoPreviewerLoop%"
+        }
+      }
+    },
     "customEditors": [
       {
         "viewType": "imagePreview.previewEditor",
@@ -110,7 +126,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5",
+    "@vscode/extension-telemetry": "^0.8.4",
     "vscode-uri": "^3.0.6"
   },
   "repository": {

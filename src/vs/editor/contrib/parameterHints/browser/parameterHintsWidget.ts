@@ -14,7 +14,7 @@ import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
@@ -130,9 +130,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		updateFont();
 
-		this._register(Event.chain<ConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
-			.filter(e => e.hasChanged(EditorOption.fontInfo))
-			.on(updateFont, null));
+		this._register(Event.chain(
+			this.editor.onDidChangeConfiguration.bind(this.editor),
+			$ => $.filter(e => e.hasChanged(EditorOption.fontInfo))
+		)(updateFont));
 
 		this._register(this.editor.onDidLayoutChange(e => this.updateMaxHeight()));
 		this.updateMaxHeight();

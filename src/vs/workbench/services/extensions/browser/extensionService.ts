@@ -228,7 +228,12 @@ class BrowserExtensionHostFactory implements IExtensionHostFactory {
 				return null;
 			}
 			case ExtensionHostKind.LocalWebWorker: {
-				return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, ExtensionHostStartup.EagerAutoStart, this._createLocalExtensionHostDataProvider(runningLocations, runningLocation, isInitialStart));
+				const startup = (
+					isInitialStart
+						? ExtensionHostStartup.EagerManualStart
+						: ExtensionHostStartup.EagerAutoStart
+				);
+				return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(runningLocations, runningLocation, isInitialStart));
 			}
 			case ExtensionHostKind.Remote: {
 				const remoteAgentConnection = this._remoteAgentService.getConnection();

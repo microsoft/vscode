@@ -13,12 +13,12 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IAuthenticationCreateSessionOptions, AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
@@ -76,9 +76,13 @@ export function addAccountUsage(storageService: IStorageService, providerId: str
 	storageService.store(accountKey, JSON.stringify(usages), StorageScope.APPLICATION, StorageTarget.MACHINE);
 }
 
+// TODO: pull this out into its own service
 export type AuthenticationSessionInfo = { readonly id: string; readonly accessToken: string; readonly providerId: string; readonly canSignOut?: boolean };
-export async function getCurrentAuthenticationSessionInfo(credentialsService: ICredentialsService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
-	const authenticationSessionValue = await credentialsService.getPassword(`${productService.urlProtocol}.login`, 'account');
+export async function getCurrentAuthenticationSessionInfo(
+	secretStorageService: ISecretStorageService,
+	productService: IProductService
+): Promise<AuthenticationSessionInfo | undefined> {
+	const authenticationSessionValue = await secretStorageService.get(`${productService.urlProtocol}.loginAccount`);
 	if (authenticationSessionValue) {
 		try {
 			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
@@ -90,7 +94,8 @@ export async function getCurrentAuthenticationSessionInfo(credentialsService: IC
 				return authenticationSessionInfo;
 			}
 		} catch (e) {
-			// ignore as this is a best effort operation.
+			// This is a best effort operation.
+			console.error(`Failed parsing current auth session value: ${e}`);
 		}
 	}
 	return undefined;

@@ -5,7 +5,7 @@
 
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -278,9 +278,9 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	readonly onDisposed = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onInstancesChanged = this._onInstancesChanged.event;
-	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
+	private readonly _onDidChangeActiveInstance = this._register(new Emitter<ITerminalInstance | undefined>());
 	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
-	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
+	private readonly _onPanelOrientationChanged = this._register(new Emitter<Orientation>());
 	readonly onPanelOrientationChanged = this._onPanelOrientationChanged.event;
 
 	constructor(
@@ -300,6 +300,12 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this.attachToElement(this._container);
 		}
 		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL);
+		this._register(toDisposable(() => {
+			if (this._container && this._groupElement) {
+				this._container.removeChild(this._groupElement);
+				this._groupElement = undefined;
+			}
+		}));
 	}
 
 	addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance, parentTerminalId?: number): void {
@@ -328,13 +334,9 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	override dispose(): void {
-		super.dispose();
-		if (this._container && this._groupElement) {
-			this._container.removeChild(this._groupElement);
-			this._groupElement = undefined;
-		}
 		this._terminalInstances = [];
 		this._onInstancesChanged.fire();
+		super.dispose();
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -369,8 +371,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._setActiveInstance(instance);
 				this._onDidFocusInstance.fire(instance);
 			}),
-			instance.capabilities.onDidAddCapability(() => this._onDidChangeInstanceCapability.fire(instance)),
-			instance.capabilities.onDidRemoveCapability(() => this._onDidChangeInstanceCapability.fire(instance)),
+			instance.capabilities.onDidAddCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
+			instance.capabilities.onDidRemoveCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
 		]);
 	}
 
@@ -380,13 +382,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	removeInstance(instance: ITerminalInstance) {
 		this._removeInstance(instance);
-
-		// Dispose instance event listeners
-		const disposables = this._instanceDisposables.get(instance.instanceId);
-		if (disposables) {
-			dispose(disposables);
-			this._instanceDisposables.delete(instance.instanceId);
-		}
 	}
 
 	private _removeInstance(instance: ITerminalInstance) {
@@ -417,6 +412,13 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this.dispose();
 		} else {
 			this._onInstancesChanged.fire();
+		}
+
+		// Dispose instance event listeners
+		const disposables = this._instanceDisposables.get(instance.instanceId);
+		if (disposables) {
+			dispose(disposables);
+			this._instanceDisposables.delete(instance.instanceId);
 		}
 	}
 

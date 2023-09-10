@@ -3,30 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
-import { IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-
-const enum WidgetState {
-	Hidden,
-	HintWhitespace
-}
+import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
-
 	public static readonly ID = 'editor.contrib.diffEditorHelper';
-
-	private _helperWidget: FloatingClickWidget | null;
-	private _helperWidgetListener: IDisposable | null;
-	private _state: WidgetState;
 
 	constructor(
 		private readonly _diffEditor: IDiffEditor,
@@ -35,21 +36,40 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
-		this._helperWidget = null;
-		this._helperWidgetListener = null;
-		this._state = WidgetState.Hidden;
 
-		if (!(this._diffEditor instanceof EmbeddedDiffEditorWidget)) {
+		this._register(createScreenReaderHelp());
+
+		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
+
+		if (!isEmbeddedDiffEditor) {
+			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());
+			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
+
+			this._register(autorunWithStore((reader, store) => {
+				/** @description update state */
+				if (onlyWhiteSpaceChange.read(reader)) {
+					const helperWidget = store.add(this._instantiationService.createInstance(
+						FloatingEditorClickWidget,
+						this._diffEditor.getModifiedEditor(),
+						localize('hintWhitespace', "Show Whitespace Differences"),
+						null
+					));
+					store.add(helperWidget.onClick(() => {
+						this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
+					}));
+					helperWidget.render();
+				}
+			}));
+
 			this._register(this._diffEditor.onDidUpdateDiff(() => {
 				const diffComputationResult = this._diffEditor.getDiffComputationResult();
-				this._setState(this._deduceState(diffComputationResult));
 
 				if (diffComputationResult && diffComputationResult.quitEarly) {
 					this._notificationService.prompt(
 						Severity.Warning,
-						nls.localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
+						localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
 						[{
-							label: nls.localize('removeTimeout', "Remove Limit"),
+							label: localize('removeTimeout', "Remove Limit"),
 							run: () => {
 								this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
 							}
@@ -60,49 +80,53 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 			}));
 		}
 	}
+}
 
-	private _deduceState(diffComputationResult: IDiffComputationResult | null): WidgetState {
-		if (!diffComputationResult) {
-			return WidgetState.Hidden;
-		}
-		if (this._diffEditor.ignoreTrimWhitespace && diffComputationResult.changes.length === 0 && !diffComputationResult.identical) {
-			return WidgetState.HintWhitespace;
-		}
-		return WidgetState.Hidden;
-	}
+function createScreenReaderHelp(): IDisposable {
+	return AccessibilityHelpAction.addImplementation(105, 'diff-editor', async (accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		const editorService = accessor.get(IEditorService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const keybindingService = accessor.get(IKeybindingService);
 
-	private _setState(newState: WidgetState) {
-		if (this._state === newState) {
+		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
+		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
+
+		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget)) {
 			return;
 		}
 
-		this._state = newState;
-
-		if (this._helperWidgetListener) {
-			this._helperWidgetListener.dispose();
-			this._helperWidgetListener = null;
-		}
-		if (this._helperWidget) {
-			this._helperWidget.dispose();
-			this._helperWidget = null;
+		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
+		if (!codeEditor) {
+			return;
 		}
 
-		if (this._state === WidgetState.HintWhitespace) {
-			this._helperWidget = this._instantiationService.createInstance(FloatingClickWidget, this._diffEditor.getModifiedEditor(), nls.localize('hintWhitespace', "Show Whitespace Differences"), null);
-			this._helperWidgetListener = this._helperWidget.onClick(() => this._onDidClickHelperWidget());
-			this._helperWidget.render();
-		}
-	}
+		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
 
-	private _onDidClickHelperWidget(): void {
-		if (this._state === WidgetState.HintWhitespace) {
-			this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
-		}
-	}
-
-	override dispose(): void {
-		super.dispose();
-	}
+		accessibleViewService.show({
+			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
+			provideContent: () => [
+				localize('msg1', "You are in a diff editor."),
+				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
+				localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
+			].join('\n\n'),
+			onClose: () => {
+				codeEditor.focus();
+			},
+			options: { type: AccessibleViewType.Help }
+		});
+	}, ContextKeyEqualsExpr.create('isInDiffEditor', true));
 }
 
 registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'diffEditor.experimental.collapseUnchangedRegions',
+		migrateFn: (value, accessor) => {
+			return [
+				['diffEditor.hideUnchangedRegions.enabled', { value }],
+				['diffEditor.experimental.collapseUnchangedRegions', { value: undefined }]
+			];
+		}
+	}]);

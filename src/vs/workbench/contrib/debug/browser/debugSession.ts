@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
@@ -29,7 +29,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugger, IDebugService, IDebugSession, IDebugSessionOptions, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
@@ -40,7 +40,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
-export class DebugSession implements IDebugSession {
+export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
 
 	private _subId: string | undefined;
@@ -52,7 +52,7 @@ export class DebugSession implements IDebugSession {
 	private threads = new Map<number, Thread>();
 	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
-	private rawListeners: IDisposable[] = [];
+	private rawListeners = new DisposableStore();
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
@@ -103,14 +103,11 @@ export class DebugSession implements IDebugSession {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose = new DisposableStore();
+		const toDispose = this.rawListeners.add(new DisposableStore());
 		const replListener = toDispose.add(new MutableDisposable());
 		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 		if (lifecycleService) {
-			toDispose.add(lifecycleService.onWillShutdown(() => {
-				this.shutdown();
-				dispose(toDispose);
-			}));
+			toDispose.add(lifecycleService.onWillShutdown(() => this.shutdown()));
 		}
 
 		const compoundRoot = this._options.compoundRoot;
@@ -539,7 +536,7 @@ export class DebugSession implements IDebugSession {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints });
+			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toJSON()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < instructionBreakpoints.length; i++) {
@@ -950,7 +947,7 @@ export class DebugSession implements IDebugSession {
 			return;
 		}
 
-		this.rawListeners.push(this.raw.onDidInitialize(async () => {
+		this.rawListeners.add(this.raw.onDidInitialize(async () => {
 			aria.status(localize('debuggingStarted', "Debugging started."));
 			const sendConfigurationDone = async () => {
 				if (this.raw && this.raw.capabilities.supportsConfigurationDoneRequest) {
@@ -976,7 +973,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		const statusQueue = new Queue<void>();
-		this.rawListeners.push(this.raw.onDidStop(async event => {
+		this.rawListeners.add(this.raw.onDidStop(async event => {
 			statusQueue.queue(async () => {
 				this.passFocusScheduler.cancel();
 				this.stoppedDetails.push(event.body);
@@ -1026,7 +1023,7 @@ export class DebugSession implements IDebugSession {
 			});
 		}));
 
-		this.rawListeners.push(this.raw.onDidThread(event => {
+		this.rawListeners.add(this.raw.onDidThread(event => {
 			statusQueue.queue(async () => {
 				if (event.body.reason === 'started') {
 					// debounce to reduce threadsRequest frequency and improve performance
@@ -1034,7 +1031,7 @@ export class DebugSession implements IDebugSession {
 						this.fetchThreadsScheduler = new RunOnceScheduler(() => {
 							this.fetchThreads();
 						}, 100);
-						this.rawListeners.push(this.fetchThreadsScheduler);
+						this.rawListeners.add(this.fetchThreadsScheduler);
 					}
 					if (!this.fetchThreadsScheduler.isScheduled()) {
 						this.fetchThreadsScheduler.schedule();
@@ -1052,7 +1049,7 @@ export class DebugSession implements IDebugSession {
 			});
 		}));
 
-		this.rawListeners.push(this.raw.onDidTerminateDebugee(async event => {
+		this.rawListeners.add(this.raw.onDidTerminateDebugee(async event => {
 			aria.status(localize('debuggingStopped', "Debugging stopped."));
 			if (event.body && event.body.restart) {
 				await this.debugService.restartSession(this, event.body.restart);
@@ -1061,14 +1058,14 @@ export class DebugSession implements IDebugSession {
 			}
 		}));
 
-		this.rawListeners.push(this.raw.onDidContinued(event => {
+		this.rawListeners.add(this.raw.onDidContinued(event => {
 			statusQueue.queue(async () => {
 				const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 				if (typeof threadId === 'number') {
 					this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
 					const tokens = this.cancellationMap.get(threadId);
 					this.cancellationMap.delete(threadId);
-					tokens?.forEach(t => t.cancel());
+					tokens?.forEach(t => t.dispose(true));
 				} else {
 					this.stoppedDetails = [];
 					this.cancelAllRequests();
@@ -1082,7 +1079,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		const outputQueue = new Queue<void>();
-		this.rawListeners.push(this.raw.onDidOutput(async event => {
+		this.rawListeners.add(this.raw.onDidOutput(async event => {
 			const outputSeverity = event.body.category === 'stderr' ? Severity.Error : event.body.category === 'console' ? Severity.Warning : Severity.Info;
 
 			// When a variables event is received, execute immediately to obtain the variables value #126967
@@ -1161,7 +1158,7 @@ export class DebugSession implements IDebugSession {
 			});
 		}));
 
-		this.rawListeners.push(this.raw.onDidBreakpoint(event => {
+		this.rawListeners.add(this.raw.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
 			const functionBreakpoint = this.model.getFunctionBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
@@ -1216,30 +1213,30 @@ export class DebugSession implements IDebugSession {
 			}
 		}));
 
-		this.rawListeners.push(this.raw.onDidLoadedSource(event => {
+		this.rawListeners.add(this.raw.onDidLoadedSource(event => {
 			this._onDidLoadedSource.fire({
 				reason: event.body.reason,
 				source: this.getSource(event.body.source)
 			});
 		}));
 
-		this.rawListeners.push(this.raw.onDidCustomEvent(event => {
+		this.rawListeners.add(this.raw.onDidCustomEvent(event => {
 			this._onDidCustomEvent.fire(event);
 		}));
 
-		this.rawListeners.push(this.raw.onDidProgressStart(event => {
+		this.rawListeners.add(this.raw.onDidProgressStart(event => {
 			this._onDidProgressStart.fire(event);
 		}));
-		this.rawListeners.push(this.raw.onDidProgressUpdate(event => {
+		this.rawListeners.add(this.raw.onDidProgressUpdate(event => {
 			this._onDidProgressUpdate.fire(event);
 		}));
-		this.rawListeners.push(this.raw.onDidProgressEnd(event => {
+		this.rawListeners.add(this.raw.onDidProgressEnd(event => {
 			this._onDidProgressEnd.fire(event);
 		}));
-		this.rawListeners.push(this.raw.onDidInvalidateMemory(event => {
+		this.rawListeners.add(this.raw.onDidInvalidateMemory(event => {
 			this._onDidInvalidMemory.fire(event);
 		}));
-		this.rawListeners.push(this.raw.onDidInvalidated(async event => {
+		this.rawListeners.add(this.raw.onDidInvalidated(async event => {
 			if (!(event.body.areas && event.body.areas.length === 1 && (event.body.areas[0] === 'variables' || event.body.areas[0] === 'watch'))) {
 				// If invalidated event only requires to update variables or watch, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
 				this.cancelAllRequests();
@@ -1253,7 +1250,7 @@ export class DebugSession implements IDebugSession {
 			}
 		}));
 
-		this.rawListeners.push(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
+		this.rawListeners.add(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
 	}
 
 	private onDidExitAdapter(event?: AdapterEndEvent): void {
@@ -1265,7 +1262,7 @@ export class DebugSession implements IDebugSession {
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.
 	private shutdown(): void {
-		dispose(this.rawListeners);
+		this.rawListeners.clear();
 		if (this.raw) {
 			// Send out disconnect and immediatly dispose (do not wait for response) #127418
 			this.raw.disconnect({});
@@ -1278,6 +1275,11 @@ export class DebugSession implements IDebugSession {
 		this.passFocusScheduler.dispose();
 		this.model.clearThreads(this.getId(), true);
 		this._onDidChangeState.fire();
+	}
+
+	public dispose() {
+		this.cancelAllRequests();
+		this.rawListeners.dispose();
 	}
 
 	//---- sources
@@ -1325,7 +1327,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	private cancelAllRequests(): void {
-		this.cancellationMap.forEach(tokens => tokens.forEach(t => t.cancel()));
+		this.cancellationMap.forEach(tokens => tokens.forEach(t => t.dispose(true)));
 		this.cancellationMap.clear();
 	}
 

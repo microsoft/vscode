@@ -15,13 +15,14 @@ import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/ed
 import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
-import { DiffAlgorithmName, IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
-import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { DiffComputer, IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from '../diff/rangeMapping';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
@@ -413,7 +414,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.advanced : linesDiffComputers.legacy;
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -422,10 +423,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		const identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));
 
-		return {
-			identical,
-			quitEarly: result.hitTimeout,
-			changes: result.changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
+		function getLineChanges(changes: readonly DetailedLineRangeMapping[]): ILineChange[] {
+			return changes.map(m => ([m.original.startLineNumber, m.original.endLineNumberExclusive, m.modified.startLineNumber, m.modified.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,
 				m.originalRange.endLineNumber,
@@ -434,7 +433,20 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				m.modifiedRange.startColumn,
 				m.modifiedRange.endLineNumber,
 				m.modifiedRange.endColumn,
-			])]))
+			])]));
+		}
+
+		return {
+			identical,
+			quitEarly: result.hitTimeout,
+			changes: getLineChanges(result.changes),
+			moves: result.moves.map(m => ([
+				m.lineRangeMapping.original.startLineNumber,
+				m.lineRangeMapping.original.endLineNumberExclusive,
+				m.lineRangeMapping.modified.startLineNumber,
+				m.lineRangeMapping.modified.endLineNumberExclusive,
+				getLineChanges(m.changes)
+			])),
 		};
 	}
 
@@ -498,6 +510,19 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const bRng = b.range ? 0 : 1;
 			return aRng - bRng;
 		});
+
+		// merge adjacent edits
+		let writeIndex = 0;
+		for (let readIndex = 1; readIndex < edits.length; readIndex++) {
+			if (Range.getEndPosition(edits[writeIndex].range).equals(Range.getStartPosition(edits[readIndex].range))) {
+				edits[writeIndex].range = Range.fromPositions(Range.getStartPosition(edits[writeIndex].range), Range.getEndPosition(edits[readIndex].range));
+				edits[writeIndex].text += edits[readIndex].text;
+			} else {
+				writeIndex++;
+				edits[writeIndex] = edits[readIndex];
+			}
+		}
+		edits.length = writeIndex + 1;
 
 		for (let { range, text, eol } of edits) {
 
@@ -598,7 +623,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const originalLines = original.split(/\r\n|\n|\r/);
 			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-			const diff = linesDiffComputers.advanced.computeDiff(originalLines, modifiedLines, options);
+			const diff = linesDiffComputers.getDefault().computeDiff(originalLines, modifiedLines, options);
 
 			const start = Range.lift(range).getStartPosition();
 
@@ -674,7 +699,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[]; duration: number } | null> {
 
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);
 		const seen = new Set<string>();
 

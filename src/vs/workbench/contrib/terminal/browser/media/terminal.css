@@ -20,19 +20,19 @@
 	visibility: hidden;
 }
 .monaco-workbench .part.panel .pane-body.integrated-terminal .terminal-outer-container {
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group,
 .monaco-workbench .pane-body.integrated-terminal .terminal-split-pane,
-.monaco-workbench .editor-instance .terminal-split-pane,
-.monaco-workbench .editor-instance .terminal-outer-container {
+.monaco-workbench .terminal-editor .terminal-split-pane,
+.monaco-workbench .terminal-editor .terminal-outer-container {
 	height: 100%;
 }
 .monaco-workbench .part.sidebar .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .part.auxiliarybar .pane-body.integrated-terminal .terminal-outer-container {
-	background-color: var(--vscode-terminal-background, --vscode-sideBar-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-sideBar-background));
 }
 
 .monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child),
@@ -41,16 +41,31 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay {
-	background-color: var(--vscode-terminal-dropBackground, --vscode-editorGroup-dropBackground);
+	background-color: var(--vscode-terminal-dropBackground, var(--vscode-editorGroup-dropBackground));
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
 	background-color: var(--vscode-terminal-tab-activeBorder);
 }
 /* Override monaco's styles for terminal editors */
-.monaco-workbench .editor-instance .xterm textarea:focus {
+.monaco-workbench .terminal-editor .xterm textarea:focus {
 	opacity: 0 !important;
 	outline: 0 !important;
+}
+
+.xterm.dev-mode .xterm-helper-textarea {
+	z-index: 36 !important;
+	opacity: 1 !important;
+	left: 0 !important;
+	width: fit-content !important;
+}
+.monaco-workbench .xterm.dev-mode .xterm-helper-textarea:focus {
+	opacity: 1 !important;
+}
+
+.monaco-workbench .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
 }
 
 .monaco-workbench .terminal-tab::before {
@@ -62,20 +77,23 @@
 	background-image: none !important;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper {
-	background-color: var(--vscode-terminal-background, --vscode-editorPane-background);
+.monaco-workbench .terminal-editor .terminal-wrapper {
+	background-color: var(--vscode-terminal-background, var(--vscode-editorPane-background));
 }
-.monaco-workbench .editor-instance .terminal-wrapper,
+.monaco-workbench .terminal-editor .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: block;
 	height: 100%;
 	box-sizing: border-box;
 }
 
-.monaco-workbench .editor-instance .xterm,
-.monaco-workbench .pane-body.integrated-terminal .xterm {
+.monaco-workbench .xterm {
 	/* All terminals have at least 10px left/right edge padding and 2 padding on the bottom (so underscores on last line are visible */
 	padding: 0 10px 2px;
+}
+
+.monaco-workbench .terminal-editor .xterm,
+.monaco-workbench .pane-body.integrated-terminal .xterm {
 	/* Bottom align the terminal within the split pane */
 	position: absolute;
 	bottom: 0;
@@ -88,23 +106,23 @@
 	top: 0;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper.fixed-dims .xterm,
+.monaco-workbench .terminal-editor .terminal-wrapper.fixed-dims .xterm,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.fixed-dims .xterm {
 	position: static;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport,
+.monaco-workbench .terminal-editor .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
 	z-index: 30;
 }
 
-.monaco-workbench .editor-instance .xterm-decoration-overview-ruler,
+.monaco-workbench .terminal-editor .xterm-decoration-overview-ruler,
 .monaco-workbench .pane-body.integrated-terminal .xterm-decoration-overview-ruler {
 	z-index: 31; /* Must be higher than .xterm-viewport */
 	pointer-events: none;
 }
 
-.monaco-workbench .editor-instance .xterm-screen,
+.monaco-workbench .terminal-editor .xterm-screen,
 .monaco-workbench .pane-body.integrated-terminal .xterm-screen {
 	z-index: 31;
 }
@@ -127,7 +145,7 @@
 .xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
 .xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
 
-.monaco-workbench .editor-instance .xterm {
+.monaco-workbench .terminal-editor .xterm {
 	padding-left: 20px !important;
 }
 
@@ -136,34 +154,34 @@
 	padding-left: 20px !important;
 }
 
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
+.monaco-workbench .terminal-editor .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm {
 	padding-right: 20px;
 }
 
-.monaco-workbench .editor-instance .xterm a:not(.xterm-invalid-link),
+.monaco-workbench .terminal-editor .xterm a:not(.xterm-invalid-link),
 .monaco-workbench .pane-body.integrated-terminal .xterm a:not(.xterm-invalid-link) {
 	/* To support message box sizing */
 	position: relative;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper > div,
+.monaco-workbench .terminal-editor .terminal-wrapper > div,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
 	height: 100%;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport,
+.monaco-workbench .terminal-editor .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
 	box-sizing: border-box;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper.fixed-dims,
+.monaco-workbench .terminal-editor .terminal-wrapper.fixed-dims,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.fixed-dims {
 	/* The viewport should be positioned against this so it does't conflict with a fixed dimensions terminal horizontal scroll bar*/
 	position: relative;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper:not(.fixed-dims) .xterm-viewport,
+.monaco-workbench .terminal-editor .terminal-wrapper:not(.fixed-dims) .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper:not(.fixed-dims) .xterm-viewport {
 	/* Override xterm.js' width as we want to size the viewport to fill the panel so the scrollbar is on the right edge */
 	width: auto !important;
@@ -243,11 +261,6 @@
 .monaco-workbench .pane-body.integrated-terminal .xterm .xterm-helpers {
 	position: absolute;
 	top: 0;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-helper-textarea:focus {
-	/* Override the general vscode style applies `opacity:1!important` to textareas */
-	opacity: 0 !important;
 }
 
 .monaco-workbench.vs-dark.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events),
@@ -456,6 +469,8 @@
 
 .monaco-workbench .terminal .terminal-command-decoration:not(.default):hover {
 	cursor: pointer;
+}
+.monaco-workbench .terminal .terminal-command-decoration:not(.default):hover::before {
 	border-radius: 5px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -471,7 +486,12 @@
 }
 .monaco-workbench .terminal .terminal-command-decoration.quick-fix {
 	color: var(--vscode-editorLightBulb-foreground) !important;
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
+}
+.monaco-workbench .terminal .terminal-command-decoration.quick-fix.explainOnly {
+	/* Use success background to blend in with the terminal better as it's lower priority. We will
+	 * probably want to add an explicit color for this eventually. */
+	color: var(--vscode-terminalCommandDecoration-successBackground) !important;
 }
 
 .terminal-scroll-highlight {
@@ -522,34 +542,26 @@
 	background-color: var(--vscode-terminal-hoverHighlightBackground);
 }
 
-.monaco-workbench .editor-instance .force-scrollbar .xterm .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .force-scrollbar .xterm .xterm-viewport,
-.monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
-.monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
-.monaco-workbench .editor-instance .xterm:hover .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport {
+.force-scrollbar .xterm .xterm-viewport,
+.monaco-workbench .xterm.focus .xterm-viewport,
+.monaco-workbench .xterm:focus .xterm-viewport,
+.monaco-workbench .xterm:hover .xterm-viewport {
 	background-color: var(--vscode-scrollbarSlider-background) !important;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
+.monaco-workbench .xterm-viewport {
 	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
 }
 
-.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+.monaco-workbench .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
 	background-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
-.monaco-workbench .editor-instance .xterm-viewport:hover,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport:hover {
+.monaco-workbench .xterm-viewport:hover {
 	scrollbar-color: var(--vscode-scrollbarSlider-hoverBackground) transparent;
 }
 
-.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:active,
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
+.monaco-workbench .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
@@ -578,7 +590,7 @@
 	pointer-events: all;
 	opacity: 1;
 	z-index: 33;
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 
 .monaco-workbench .xterm.terminal.hide {

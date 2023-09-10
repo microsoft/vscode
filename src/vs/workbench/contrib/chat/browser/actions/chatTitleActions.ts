@@ -4,38 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export function registerChatTitleActions() {
-	registerAction2(class VoteUpAction extends Action2 {
+	registerAction2(class MarkHelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteUp',
+				id: 'workbench.action.chat.markHelpful',
 				title: {
-					value: localize('interactive.voteUp.label', "Vote Up"),
-					original: 'Vote Up'
+					value: localize('interactive.helpful.label', "Helpful"),
+					original: 'Helpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('up'),
 				menu: {
-					id: MenuId.ChatTitle,
+					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
-					order: 1
+					order: 1,
+					when: CONTEXT_RESPONSE
 				}
 			});
 		}
@@ -59,22 +64,23 @@ export function registerChatTitleActions() {
 		}
 	});
 
-	registerAction2(class VoteDownAction extends Action2 {
+	registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteDown',
+				id: 'workbench.action.chat.markUnhelpful',
 				title: {
-					value: localize('interactive.voteDown.label', "Vote Down"),
-					original: 'Vote Down'
+					value: localize('interactive.unhelpful.label', "Unhelpful"),
+					original: 'Unhelpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
 				toggled: CONTEXT_RESPONSE_VOTE.isEqualTo('down'),
 				menu: {
-					id: MenuId.ChatTitle,
+					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
-					order: 2
+					order: 2,
+					when: CONTEXT_RESPONSE
 				}
 			});
 		}
@@ -110,10 +116,10 @@ export function registerChatTitleActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
 				menu: {
-					id: MenuId.ChatTitle,
+					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: NOTEBOOK_IS_ACTIVE_EDITOR
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED.negate())
 				}
 			});
 		}
@@ -137,7 +143,7 @@ export function registerChatTitleActions() {
 					return;
 				}
 
-				const value = item.response.value;
+				const value = item.response.asString();
 				const splitContents = splitMarkdownAndCodeBlocks(value);
 
 				const focusRange = notebookEditor.getFocus();
@@ -169,6 +175,53 @@ export function registerChatTitleActions() {
 					],
 					{ quotableLabel: 'Insert into Notebook' }
 				);
+			}
+		}
+	});
+
+
+	registerAction2(class RemoveAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.remove',
+				title: {
+					value: localize('chat.remove.label', "Remove Request and Response"),
+					original: 'Remove Request and Response'
+				},
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.x,
+				keybinding: {
+					primary: KeyCode.Delete,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+					},
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()),
+					weight: KeybindingWeight.WorkbenchContrib,
+				},
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 2,
+					when: CONTEXT_REQUEST
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			let item = args[0];
+			if (!isRequestVM(item)) {
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const widget = chatWidgetService.lastFocusedWidget;
+				item = widget?.getFocus();
+			}
+
+			const providerRequestId = isRequestVM(item) ? item.providerRequestId :
+				isResponseVM(item) ? item.providerResponseId : undefined;
+
+			if (providerRequestId) {
+				const chatService = accessor.get(IChatService);
+				chatService.removeRequest(item.sessionId, providerRequestId);
 			}
 		}
 	});
