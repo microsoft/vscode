@@ -13,7 +13,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -33,7 +33,6 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
-import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
@@ -92,7 +91,6 @@ suite('ExtensionsViews Tests', () => {
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
-		instantiationService.stub(IExperimentService, ExperimentService);
 
 		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
 			onInstallExtension: installEvent.event,
@@ -103,7 +101,7 @@ suite('ExtensionsViews Tests', () => {
 			onDidUpdateExtensionMetadata: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
-			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
 			async updateMetadata(local) { return local; }
 		});
@@ -174,7 +172,6 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(galleryEnabledLanguage));
 		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', galleryEnabledLanguage);
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [galleryEnabledLanguage]);
-		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IViewDescriptorService, {
 			getViewLocationById(): ViewContainerLocation {
@@ -205,6 +202,10 @@ suite('ExtensionsViews Tests', () => {
 	teardown(() => {
 		(<ExtensionsWorkbenchService>instantiationService.get(IExtensionsWorkbenchService)).dispose();
 		testableView.dispose();
+	});
+
+	suiteTeardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('Test query types', () => {
@@ -462,29 +463,6 @@ suite('ExtensionsViews Tests', () => {
 		});
 	});
 
-	test('Test curated list experiment', () => {
-		const curatedList = [
-			workspaceRecommendationA,
-			fileBasedRecommendationA
-		];
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getCuratedExtensionsList', curatedList.map(e => e.identifier.id));
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', curatedList);
-
-		return testableView.show('curated:mykey').then(result => {
-			const curatedKey: string = experimentTarget.args[0][0];
-			const extensionInfos: IExtensionInfo[] = queryTarget.args[0][0];
-
-			assert.ok(experimentTarget.calledOnce);
-			assert.strictEqual(extensionInfos.length, curatedList.length);
-			assert.strictEqual(result.length, curatedList.length);
-			for (let i = 0; i < curatedList.length; i++) {
-				assert.strictEqual(extensionInfos[i].id, curatedList[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, curatedList[i].identifier.id);
-			}
-			assert.strictEqual(curatedKey, 'mykey');
-		});
-	});
-
 	test('Test search', () => {
 		const searchText = 'search-me';
 		const results = [
@@ -522,31 +500,25 @@ suite('ExtensionsViews Tests', () => {
 		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
-			id: 'someId',
-			enabled: true,
-			state: ExperimentState.Run,
-			action: {
-				type: ExperimentActionType.ExtensionSearchResults,
-				properties: {
-					searchText: 'search-me',
-					preferredResults: [
-						workspaceRecommendationA.identifier.id,
-						'something-that-wasnt-in-first-page',
-						workspaceRecommendationB.identifier.id
-					]
-				}
-			}
-		}]);
+		const experimentTarget = <SinonStub>instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+			malicious: [], deprecated: {},
+			search: [{
+				query: 'search-me',
+				preferredResults: [
+					workspaceRecommendationA.identifier.id,
+					'something-that-wasnt-in-first-page',
+					workspaceRecommendationB.identifier.id
+				]
+			}]
+		});
 
-		testableView.resetSearchExperiments();
 		testableView.dispose();
 		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
 
 		return testableView.show('search-me').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
 
-			assert.ok(experimentTarget.calledOnce);
+			assert.ok(experimentTarget.calledTwice);
 			assert.ok(queryTarget.calledOnce);
 			assert.strictEqual(options.text, searchText);
 			assert.strictEqual(result.length, expected.length);

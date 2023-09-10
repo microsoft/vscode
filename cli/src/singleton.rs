@@ -53,12 +53,12 @@ struct LockFileMatter {
 
 /// Tries to acquire the singleton homed at the given lock file, either starting
 /// a new singleton if it doesn't exist, or connecting otherwise.
-pub async fn acquire_singleton(lock_file: PathBuf) -> Result<SingletonConnection, CodeError> {
+pub async fn acquire_singleton(lock_file: &Path) -> Result<SingletonConnection, CodeError> {
 	let file = OpenOptions::new()
 		.read(true)
 		.write(true)
 		.create(true)
-		.open(&lock_file)
+		.open(lock_file)
 		.map_err(CodeError::SingletonLockfileOpenFailed)?;
 
 	match FileLock::acquire(file) {
@@ -158,7 +158,7 @@ mod tests {
 	#[tokio::test]
 	async fn test_acquires_singleton() {
 		let dir = tempfile::tempdir().expect("expected to make temp dir");
-		let s = acquire_singleton(dir.path().join("lock"))
+		let s = acquire_singleton(&dir.path().join("lock"))
 			.await
 			.expect("expected to acquire");
 
@@ -172,7 +172,7 @@ mod tests {
 	async fn test_acquires_client() {
 		let dir = tempfile::tempdir().expect("expected to make temp dir");
 		let lockfile = dir.path().join("lock");
-		let s1 = acquire_singleton(lockfile.clone())
+		let s1 = acquire_singleton(&lockfile)
 			.await
 			.expect("expected to acquire1");
 		match s1 {
@@ -182,7 +182,7 @@ mod tests {
 			_ => panic!("expected to be singleton"),
 		};
 
-		let s2 = acquire_singleton(lockfile)
+		let s2 = acquire_singleton(&lockfile)
 			.await
 			.expect("expected to acquire2");
 		match s2 {

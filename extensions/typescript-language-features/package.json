@@ -35,7 +35,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "0.7.5",
     "jsonc-parser": "^3.2.0",
-    "semver": "5.5.1",
+    "semver": "7.5.2",
     "vscode-tas-client": "^0.1.63",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
@@ -43,7 +43,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -143,6 +143,12 @@
       "title": "%configuration.typescript%",
       "order": 20,
       "properties": {
+        "typescript.experimental.aiQuickFix": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.aiQuickFix%",
+          "scope": "resource"
+        },
         "typescript.tsdk": {
           "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
@@ -1250,7 +1256,7 @@
           "description": "%configuration.preferGoToSourceDefinition%",
           "scope": "window"
         },
-				"javascript.preferGoToSourceDefinition": {
+        "javascript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
           "description": "%configuration.preferGoToSourceDefinition%",
@@ -1276,12 +1282,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {

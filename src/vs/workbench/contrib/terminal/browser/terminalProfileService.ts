@@ -7,7 +7,7 @@ import { equals } from 'vs/base/common/arrays';
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -27,21 +27,22 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
  * Links TerminalService with TerminalProfileResolverService
  * and keeps the available terminal profiles updated
  */
-export class TerminalProfileService implements ITerminalProfileService {
+export class TerminalProfileService extends Disposable implements ITerminalProfileService {
 	declare _serviceBrand: undefined;
 
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
-	private _profilesReadyBarrier: AutoOpenBarrier;
+	private _profilesReadyBarrier: AutoOpenBarrier | undefined;
+	private _profilesReadyPromise: Promise<void>;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
 	private _platformConfigJustRefreshed = false;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 
-	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
+	private readonly _onDidChangeAvailableProfiles = this._register(new Emitter<ITerminalProfile[]>());
 	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
 
-	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
+	get profilesReady(): Promise<void> { return this._profilesReadyPromise; }
 	get availableProfiles(): ITerminalProfile[] {
 		if (!this._platformConfigJustRefreshed) {
 			this.refreshAvailableProfiles();
@@ -61,16 +62,22 @@ export class TerminalProfileService implements ITerminalProfileService {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
+		super();
+
 		// in web, we don't want to show the dropdown unless there's a web extension
 		// that contributes a profile
 		this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles());
 
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
 		this._updateWebContextKey();
-		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
-		// default terminal before launching the first terminal. This isn't expected to ever take
-		// this long.
-		this._profilesReadyBarrier = new AutoOpenBarrier(20000);
+		this._profilesReadyPromise = this._remoteAgentService.getEnvironment()
+			.then(() => {
+				// Wait up to 20 seconds for profiles to be ready so it's assured that we know the actual
+				// default terminal before launching the first terminal. This isn't expected to ever take
+				// this long.
+				this._profilesReadyBarrier = new AutoOpenBarrier(20000);
+				return this._profilesReadyBarrier.wait().then(() => { });
+			});
 		this.refreshAvailableProfiles();
 		this._setupConfigListener();
 	}
@@ -138,7 +145,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = profiles;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
-			this._profilesReadyBarrier.open();
+			this._profilesReadyBarrier!.open();
 			this._updateWebContextKey();
 			await this._refreshPlatformConfig(this._availableProfiles);
 		}

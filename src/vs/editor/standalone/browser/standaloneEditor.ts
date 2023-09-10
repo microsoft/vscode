@@ -23,7 +23,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { createTextModel, IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { createTextModel, IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneDiffEditor2, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
@@ -34,7 +34,7 @@ import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensi
 import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -98,6 +98,9 @@ export function getDiffEditors(): readonly IDiffEditor[] {
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
 	const instantiationService = StandaloneServices.initialize(override || {});
+	if ((options?.experimental as any)?.useVersion2) {
+		return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
+	}
 	return instantiationService.createInstance(StandaloneDiffEditor, domElement, options);
 }
 
@@ -583,6 +586,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		LineRangeMapping: <any>LineRangeMapping,
 		RangeMapping: <any>RangeMapping,
 		EditorZoom: <any>EditorZoom,
+		MovedText: <any>MovedText,
+		SimpleLineRangeMapping: <any>SimpleLineRangeMapping,
 
 		// vars
 		EditorType: EditorType,

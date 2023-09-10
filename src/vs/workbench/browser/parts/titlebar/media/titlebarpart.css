@@ -127,11 +127,6 @@
 /* Window Title Menu */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center {
 	z-index: 2500;
-}
-
-/* MacOS Desktop supports click event despite `drag` and therefore we don't need to clear it */
-.monaco-workbench:not(.mac) .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center,
-.monaco-workbench.mac.web .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center {
 	-webkit-app-region: no-drag;
 }
 

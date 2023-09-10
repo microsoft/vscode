@@ -79,6 +79,7 @@ export const enum Status {
 	IGNORED,
 	INTENT_TO_ADD,
 	INTENT_TO_RENAME,
+	TYPE_CHANGED,
 
 	ADDED_BY_US,
 	ADDED_BY_THEM,

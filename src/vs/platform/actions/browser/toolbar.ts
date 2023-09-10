@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
@@ -95,13 +96,15 @@ export class WorkbenchToolBar extends ToolBar {
 			..._options,
 			// mandatory (overide options)
 			allowContextMenu: true,
+			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
 
 		// telemetry logic
-		if (_options?.telemetrySource) {
+		const telemetrySource = _options?.telemetrySource;
+		if (telemetrySource) {
 			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 				'workbenchActionExecuted',
-				{ id: e.action.id, from: _options!.telemetrySource! })
+				{ id: e.action.id, from: telemetrySource })
 			));
 		}
 	}
@@ -168,13 +171,14 @@ export class WorkbenchToolBar extends ToolBar {
 		// add context menu for toggle actions
 		if (toggleActions.length > 0) {
 			this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
+				const event = new StandardMouseEvent(e);
 
-				const action = this.getItemAction(<HTMLElement>e.target);
+				const action = this.getItemAction(event.target);
 				if (!(action)) {
 					return;
 				}
-				e.preventDefault();
-				e.stopPropagation();
+				event.preventDefault();
+				event.stopPropagation();
 
 				let noHide = false;
 
@@ -230,11 +234,12 @@ export class WorkbenchToolBar extends ToolBar {
 				}
 
 				this._contextMenuService.showContextMenu({
-					getAnchor: () => e,
+					getAnchor: () => event,
 					getActions: () => actions,
 					// add context menu actions (iff appicable)
 					menuId: this._options?.contextMenu,
 					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					skipTelemetry: typeof this._options?.telemetrySource === 'string',
 					contextKeyService: this._contextKeyService,
 				});
 			}));

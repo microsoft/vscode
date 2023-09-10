@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -25,13 +27,14 @@ export class TreeItemCheckbox extends Disposable {
 	public toggle: Toggle | undefined;
 	private checkboxContainer: HTMLDivElement;
 	public isDisposed = false;
+	private hover: ICustomHover | undefined;
 
 	public static readonly checkboxClass = 'custom-view-tree-node-item-checkbox';
 
 	private readonly _onDidChangeState = new Emitter<boolean>();
 	readonly onDidChangeState: Event<boolean> = this._onDidChangeState.event;
 
-	constructor(container: HTMLElement, private checkboxStateHandler: CheckboxStateHandler) {
+	constructor(container: HTMLElement, private checkboxStateHandler: CheckboxStateHandler, private readonly hoverDelegate: IHoverDelegate) {
 		super();
 		this.checkboxContainer = <HTMLDivElement>container;
 	}
@@ -52,10 +55,11 @@ export class TreeItemCheckbox extends Disposable {
 		if (node.checkbox) {
 			this.toggle = new Toggle({
 				isChecked: node.checkbox.isChecked,
-				title: this.createCheckboxTitle(node.checkbox),
+				title: '',
 				icon: node.checkbox.isChecked ? Codicon.check : undefined,
 				...defaultToggleStyles
 			});
+			this.setHover(node.checkbox);
 			this.setAccessibilityInformation(node.checkbox);
 			this.toggle.domNode.classList.add(TreeItemCheckbox.checkboxClass);
 			DOM.append(this.checkboxContainer, this.toggle.domNode);
@@ -73,17 +77,29 @@ export class TreeItemCheckbox extends Disposable {
 		}
 	}
 
+	private setHover(checkbox: ITreeItemCheckboxState) {
+		if (this.toggle) {
+			if (!this.hover) {
+				this.hover = setupCustomHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox));
+				this._register(this.hover);
+			} else {
+				this.hover.update(checkbox.tooltip);
+			}
+		}
+	}
+
 	private setCheckbox(node: ITreeItem) {
 		if (this.toggle && node.checkbox) {
 			node.checkbox.isChecked = this.toggle.checked;
 			this.toggle.setIcon(this.toggle.checked ? Codicon.check : undefined);
-			this.toggle.setTitle(this.createCheckboxTitle(node.checkbox));
+			this.setHover(node.checkbox);
+
 			this.setAccessibilityInformation(node.checkbox);
 			this.checkboxStateHandler.setCheckboxState(node);
 		}
 	}
 
-	private createCheckboxTitle(checkbox: ITreeItemCheckboxState) {
+	private checkboxHoverContent(checkbox: ITreeItemCheckboxState): string {
 		return checkbox.tooltip ? checkbox.tooltip :
 			checkbox.isChecked ? localize('checked', 'Checked') : localize('unchecked', 'Unchecked');
 	}

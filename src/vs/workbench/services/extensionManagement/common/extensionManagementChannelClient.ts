@@ -25,7 +25,11 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		protected readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(channel);
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
+				e.join(this.whenProfileChanged(e));
+			}
+		}));
 	}
 
 	protected override fireEvent(event: Emitter<InstallExtensionEvent>, data: InstallExtensionEvent): Promise<void>;
@@ -85,6 +89,14 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 		return super.updateMetadata(local, metadata, await this.getProfileLocation(extensionsProfileResource));
 	}
 
+	override async toggleAppliationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {
+		return super.toggleAppliationScope(local, await this.getProfileLocation(fromProfileLocation));
+	}
+
+	override async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		return super.copyExtensions(await this.getProfileLocation(fromProfileLocation), await this.getProfileLocation(toProfileLocation));
+	}
+
 	private async whenProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		const previousProfileLocation = await this.getProfileLocation(e.previous.extensionsResource);
 		const currentProfileLocation = await this.getProfileLocation(e.profile.extensionsResource);
@@ -93,31 +105,26 @@ export abstract class ProfileAwareExtensionManagementChannelClient extends BaseE
 			return;
 		}
 
-		const eventData = await this.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, e.preserveData);
+		const eventData = await this.switchExtensionsProfile(previousProfileLocation, currentProfileLocation);
 		this._onDidChangeProfile.fire(eventData);
 	}
 
-	protected async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserve: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
-		if (preserve === true) {
-			await this.copyExtensions(previousProfileLocation, currentProfileLocation);
-			return { added: [], removed: [] };
-		} else {
-			const oldExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
-			const newExtensions = await this.getInstalled(ExtensionType.User, currentProfileLocation);
-			if (Array.isArray(preserve)) {
-				const extensionsToInstall: IExtensionIdentifier[] = [];
-				for (const extension of oldExtensions) {
-					if (preserve.some(id => ExtensionIdentifier.equals(extension.identifier.id, id)) &&
-						!newExtensions.some(e => ExtensionIdentifier.equals(e.identifier.id, extension.identifier.id))) {
-						extensionsToInstall.push(extension.identifier);
-					}
-				}
-				if (extensionsToInstall.length) {
-					await this.installExtensionsFromProfile(extensionsToInstall, previousProfileLocation, currentProfileLocation);
+	protected async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveExtensions?: ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+		const oldExtensions = await this.getInstalled(ExtensionType.User, previousProfileLocation);
+		const newExtensions = await this.getInstalled(ExtensionType.User, currentProfileLocation);
+		if (preserveExtensions?.length) {
+			const extensionsToInstall: IExtensionIdentifier[] = [];
+			for (const extension of oldExtensions) {
+				if (preserveExtensions.some(id => ExtensionIdentifier.equals(extension.identifier.id, id)) &&
+					!newExtensions.some(e => ExtensionIdentifier.equals(e.identifier.id, extension.identifier.id))) {
+					extensionsToInstall.push(extension.identifier);
 				}
 			}
-			return delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
+			if (extensionsToInstall.length) {
+				await this.installExtensionsFromProfile(extensionsToInstall, previousProfileLocation, currentProfileLocation);
+			}
 		}
+		return delta(oldExtensions, newExtensions, (a, b) => compare(`${ExtensionIdentifier.toKey(a.identifier.id)}@${a.manifest.version}`, `${ExtensionIdentifier.toKey(b.identifier.id)}@${b.manifest.version}`));
 	}
 
 	protected getProfileLocation(profileLocation: URI): Promise<URI>;

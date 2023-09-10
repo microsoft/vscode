@@ -1,0 +1,39 @@
+
+	private doAddView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		this.state = State.Busy;
+
+		// Add view
+		const container = $('.split-view-view');
+
+		if (index === this.viewItems.length) {
+			this.viewContainer.appendChild(container);
+		} else {
+			this.viewContainer.insertBefore(container, this.viewContainer.children.item(index));
+		}
+
+		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
+		const containerDisposable = toDisposable(() => this.viewContainer.removeChild(container));
+		const disposable = combinedDisposable(onChangeDisposable, containerDisposable);
+
+		let viewSize: ViewItemSize;
+
+		if (typeof size === 'number') {
+			viewSize = size;
+		} else if (size.type === 'split') {
+			viewSize = this.getViewSize(size.index) / 2;
+		} else if (size.type === 'invisible') {
+			viewSize = { cachedVisibleSize: size.cachedVisibleSize };
+		} else {
+			viewSize = view.minimumSize;
+		}
+
+		const item = this.orientation === Orientation.VERTICAL
+			? new VerticalViewItem(container, view, viewSize, disposable)
+			: new HorizontalViewItem(container, view, viewSize, disposable);
+
+		this.viewItems.splice(index, 0, item);
+

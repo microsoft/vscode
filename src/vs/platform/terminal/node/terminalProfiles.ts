@@ -140,7 +140,7 @@ async function detectAvailableWindowsProfiles(
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 
-	if (includeDetectedProfiles || useWslProfiles) {
+	if (includeDetectedProfiles && useWslProfiles) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
 			for (const wslProfile of result) {
@@ -167,84 +167,99 @@ async function transformToTerminalProfiles(
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
 ): Promise<ITerminalProfile[]> {
-	const resultProfiles: ITerminalProfile[] = [];
+	const promises: Promise<ITerminalProfile | undefined>[] = [];
 	for (const [profileName, profile] of entries) {
-		if (profile === null) { continue; }
-		let originalPaths: (string | ITerminalUnsafePath)[];
-		let args: string[] | string | undefined;
-		let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
-		// use calculated values if path is not specified
-		if ('source' in profile && !('path' in profile)) {
-			const source = profileSources?.get(profile.source);
-			if (!source) {
-				continue;
-			}
-			originalPaths = source.paths;
+		promises.push(getValidatedProfile(profileName, profile, defaultProfileName, fsProvider, shellEnv, logService, variableResolver));
+	}
+	return (await Promise.all(promises)).filter(e => !!e) as ITerminalProfile[];
+}
 
-			// if there are configured args, override the default ones
-			args = profile.args || source.args;
-			if (profile.icon) {
-				icon = validateIcon(profile.icon);
-			} else if (source.icon) {
-				icon = source.icon;
-			}
-		} else {
-			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
-			args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
+async function getValidatedProfile(
+	profileName: string,
+	profile: IUnresolvedTerminalProfile,
+	defaultProfileName: string | undefined,
+	fsProvider: IFsProvider,
+	shellEnv: typeof process.env = process.env,
+	logService?: ILogService,
+	variableResolver?: (text: string[]) => Promise<string[]>
+): Promise<ITerminalProfile | undefined> {
+	if (profile === null) {
+		return undefined;
+	}
+	let originalPaths: (string | ITerminalUnsafePath)[];
+	let args: string[] | string | undefined;
+	let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
+	// use calculated values if path is not specified
+	if ('source' in profile && !('path' in profile)) {
+		const source = profileSources?.get(profile.source);
+		if (!source) {
+			return undefined;
+		}
+		originalPaths = source.paths;
+
+		// if there are configured args, override the default ones
+		args = profile.args || source.args;
+		if (profile.icon) {
 			icon = validateIcon(profile.icon);
+		} else if (source.icon) {
+			icon = source.icon;
 		}
+	} else {
+		originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
+		args = isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
+		icon = validateIcon(profile.icon);
+	}
 
-		let paths: (string | ITerminalUnsafePath)[];
-		if (variableResolver) {
-			// Convert to string[] for resolve
-			const mapped = originalPaths.map(e => typeof e === 'string' ? e : e.path);
-			const resolved = await variableResolver(mapped);
-			// Convert resolved back to (T | string)[]
-			paths = new Array(originalPaths.length);
-			for (let i = 0; i < originalPaths.length; i++) {
-				if (typeof originalPaths[i] === 'string') {
-					paths[i] = resolved[i];
-				} else {
-					paths[i] = {
-						path: resolved[i],
-						isUnsafe: true
-					};
-				}
-			}
-		} else {
-			paths = originalPaths.slice();
-		}
+	let paths: (string | ITerminalUnsafePath)[];
+	if (variableResolver) {
+		// Convert to string[] for resolve
+		const mapped = originalPaths.map(e => typeof e === 'string' ? e : e.path);
 
-		let requiresUnsafePath: string | undefined;
-		if (profile.requiresPath) {
-			// Validate requiresPath exists
-			let actualRequiredPath: string;
-			if (isString(profile.requiresPath)) {
-				actualRequiredPath = profile.requiresPath;
+		const resolved = await variableResolver(mapped);
+		// Convert resolved back to (T | string)[]
+		paths = new Array(originalPaths.length);
+		for (let i = 0; i < originalPaths.length; i++) {
+			if (typeof originalPaths[i] === 'string') {
+				paths[i] = resolved[i];
 			} else {
-				actualRequiredPath = profile.requiresPath.path;
-				if (profile.requiresPath.isUnsafe) {
-					requiresUnsafePath = actualRequiredPath;
-				}
-			}
-			const result = await fsProvider.existsFile(actualRequiredPath);
-			if (!result) {
-				continue;
+				paths[i] = {
+					path: resolved[i],
+					isUnsafe: true
+				};
 			}
 		}
+	} else {
+		paths = originalPaths.slice();
+	}
 
-		const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, requiresUnsafePath);
-		if (validatedProfile) {
-			validatedProfile.isAutoDetected = profile.isAutoDetected;
-			validatedProfile.icon = icon;
-			validatedProfile.color = profile.color;
-			resultProfiles.push(validatedProfile);
+	let requiresUnsafePath: string | undefined;
+	if (profile.requiresPath) {
+		// Validate requiresPath exists
+		let actualRequiredPath: string;
+		if (isString(profile.requiresPath)) {
+			actualRequiredPath = profile.requiresPath;
 		} else {
-			logService?.debug('Terminal profile not validated', profileName, originalPaths);
+			actualRequiredPath = profile.requiresPath.path;
+			if (profile.requiresPath.isUnsafe) {
+				requiresUnsafePath = actualRequiredPath;
+			}
+		}
+		const result = await fsProvider.existsFile(actualRequiredPath);
+		if (!result) {
+			return;
 		}
 	}
-	logService?.debug('Validated terminal profiles', resultProfiles);
-	return resultProfiles;
+
+	const validatedProfile = await validateProfilePaths(profileName, defaultProfileName, paths, fsProvider, shellEnv, args, profile.env, profile.overrideName, profile.isAutoDetected, requiresUnsafePath);
+	if (!validatedProfile) {
+		logService?.debug('Terminal profile not validated', profileName, originalPaths);
+		return undefined;
+	}
+
+	validatedProfile.isAutoDetected = profile.isAutoDetected;
+	validatedProfile.icon = icon;
+	validatedProfile.color = profile.color;
+	return validatedProfile;
 }
 
 function validateIcon(icon: string | TerminalIcon | undefined): TerminalIcon | undefined {
@@ -391,7 +406,14 @@ async function detectAvailableUnixProfiles(
 	// Add non-quick launch profiles
 	if (includeDetectedProfiles) {
 		const contents = (await fsProvider.readFile('/etc/shells')).toString();
-		const profiles = testPaths || contents.split('\n').filter(e => e.trim().includes('#') && e.trim().length > 0);
+		const profiles = (
+			(testPaths || contents.split('\n'))
+				.map(e => {
+					const index = e.indexOf('#');
+					return index === -1 ? e : e.substring(0, index);
+				})
+				.filter(e => e.trim().length > 0)
+		);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
 			let profileName = basename(profile);

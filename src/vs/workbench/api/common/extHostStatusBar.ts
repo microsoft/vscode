@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto, ExtHostStatusBarShape, StatusBarItemDto } from './extHost.protocol';
@@ -66,12 +68,14 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 			// this can only happen when an item was contributed by an extension
 			const item = staticItems.get(this._entryId);
 			if (item) {
+				alignment = item.alignLeft ? ExtHostStatusBarAlignment.Left : ExtHostStatusBarAlignment.Right;
+				priority = item.priority;
 				this._visible = true;
-				this._alignment = item.alignLeft ? ExtHostStatusBarAlignment.Left : ExtHostStatusBarAlignment.Right;
-				this._priority = item.priority;
 				this.name = item.name;
 				this.text = item.text;
+				this.tooltip = item.tooltip;
 				this.command = item.command;
+				this.accessibilityInformation = item.accessibilityInformation;
 			}
 		} else {
 			this._entryId = String(ExtHostStatusBarEntry.ID_GEN++);

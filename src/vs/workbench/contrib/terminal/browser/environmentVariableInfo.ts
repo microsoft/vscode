@@ -105,7 +105,9 @@ function getMergedDescription(collection: IMergedEnvironmentVariableCollection, 
 		}
 		const workspaceDescription = workspaceDescriptions.get(ext);
 		if (workspaceDescription) {
-			message.push(`\n- \`${getExtensionName(ext, extensionService)} (${localize('ScopedEnvironmentContributionInfo', 'workspace')})\``);
+			// Only show '(workspace)' suffix if there is already a description for the extension.
+			const workspaceSuffix = globalDescription ? ` (${localize('ScopedEnvironmentContributionInfo', 'workspace')})` : '';
+			message.push(`\n- \`${getExtensionName(ext, extensionService)}${workspaceSuffix}\``);
 			message.push(`: ${workspaceDescription}`);
 		}
 		if (!globalDescription && !workspaceDescription) {
