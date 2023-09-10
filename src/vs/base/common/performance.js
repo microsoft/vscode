@@ -78,7 +78,7 @@
 		} else if (typeof process === 'object') {
 			// node.js: use the normal polyfill but add the timeOrigin
 			// from the node perf_hooks API as very first mark
-			const timeOrigin = Math.round((require.nodeRequire || require)('perf_hooks').performance.timeOrigin);
+			const timeOrigin = performance?.timeOrigin ?? Math.round((require.__$__nodeRequire || require)('perf_hooks').performance.timeOrigin);
 			return _definePolyfillMarks(timeOrigin);
 
 		} else {

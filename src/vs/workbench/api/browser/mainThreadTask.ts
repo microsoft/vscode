@@ -33,6 +33,7 @@ import {
 } from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 namespace TaskExecutionDTO {
 	export function from(value: ITaskExecution): ITaskExecutionDTO {
@@ -283,7 +284,7 @@ namespace TaskSourceDTO {
 			scope = value.scope;
 		} else {
 			scope = TaskScope.Folder;
-			workspaceFolder = Types.withNullAsUndefined(workspace.getWorkspaceFolder(URI.revive(value.scope)));
+			workspaceFolder = workspace.getWorkspaceFolder(URI.revive(value.scope)) ?? undefined;
 		}
 		const result: IExtensionTaskSource = {
 			kind: TaskSourceKind.Extension,
@@ -428,7 +429,11 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
 		this._taskService.onDidStateChange(async (event: ITaskEvent) => {
-			const task = event.__task!;
+			if (event.kind === TaskEventKind.Changed) {
+				return;
+			}
+
+			const task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
@@ -649,7 +654,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						return;
 					}
 				}
-				reject(new Error('Task to terminate not found'));
+				reject(new ErrorNoTelemetry('Task to terminate not found'));
 			});
 		});
 	}

@@ -35,7 +35,7 @@
 
 		mocha.setup({
 			ui: 'tdd',
-			timeout: 5000,
+			timeout: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' ? 30000 : 5000,
 			forbidOnly: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' // disallow .only() when running on build machine
 		});
 		require('./renderer');

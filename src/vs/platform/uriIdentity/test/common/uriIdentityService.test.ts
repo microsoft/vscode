@@ -9,6 +9,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('URI Identity', function () {
 
@@ -34,9 +35,15 @@ suite('URI Identity', function () {
 	setup(function () {
 		_service = new UriIdentityService(new FakeFileService(new Map([
 			['bar', FileSystemProviderCapabilities.PathCaseSensitive],
-			['foo', 0]
+			['foo', FileSystemProviderCapabilities.None]
 		])));
 	});
+
+	teardown(function () {
+		_service.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertCanonical(input: URI, expected: URI, service: UriIdentityService = _service) {
 		const actual = service.asCanonicalUri(input);

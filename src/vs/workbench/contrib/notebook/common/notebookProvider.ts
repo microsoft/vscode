@@ -54,7 +54,8 @@ export class NotebookProviderInfo {
 		this._options = {
 			transientCellMetadata: {},
 			transientDocumentMetadata: {},
-			transientOutputs: false
+			transientOutputs: false,
+			cellContentMetadata: {}
 		};
 	}
 

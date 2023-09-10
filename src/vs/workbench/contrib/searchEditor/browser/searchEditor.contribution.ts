@@ -18,13 +18,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
-import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
+import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
@@ -34,8 +33,10 @@ import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEA
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -72,13 +73,10 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 //#region Startup Contribution
 class SearchEditorContribution implements IWorkbenchContribution {
 	constructor(
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@ITelemetryService protected readonly telemetryService: ITelemetryService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-
-		this.editorResolverService.registerEditor(
+		editorResolverService.registerEditor(
 			'*' + SEARCH_EDITOR_EXT,
 			{
 				id: SearchEditorInput.ID,
@@ -88,11 +86,12 @@ class SearchEditorContribution implements IWorkbenchContribution {
 			},
 			{
 				singlePerResource: true,
-				canHandleDiff: false,
 				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
 			},
-			({ resource }) => {
-				return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+			{
+				createEditorInput: ({ resource }) => {
+					return { editor: instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: resource }) };
+				}
 			}
 		);
 	}
@@ -283,7 +282,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenNewEditorToSideCommandId,
-			title: { value: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
+			title: { value: localize('search.openNewEditorToSide', "Open New Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
 			category,
 			f1: true,
 			description: openArgDescription
@@ -566,28 +565,34 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 //#endregion
 
 //#region Search Editor Working Copy Editor Handler
-class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
+class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
+		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 	) {
 		super();
 
-		this.installHandler();
+		this._register(workingCopyEditorService.registerHandler(this));
 	}
 
-	private installHandler(): void {
-		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme,
-			isOpen: (workingCopy, editor) => editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri),
-			createEditor: workingCopy => {
-				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
-				input.setDirty(true);
+	handles(workingCopy: IWorkingCopyIdentifier): boolean {
+		return workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme;
+	}
 
-				return input;
-			}
-		}));
+	isOpen(workingCopy: IWorkingCopyIdentifier, editor: EditorInput): boolean {
+		if (!this.handles(workingCopy)) {
+			return false;
+		}
+
+		return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
+	}
+
+	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
+		const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
+		input.setDirty(true);
+
+		return input;
 	}
 }
 

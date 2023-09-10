@@ -12,7 +12,7 @@ import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {

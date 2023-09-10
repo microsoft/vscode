@@ -13,4 +13,9 @@
 
 .monaco-workbench .notebookOverlay.notebook-editor .simple-fr-find-part-wrapper .matchesCount {
 	text-align: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+	padding: 0 2px;
+	box-sizing: border-box;
 }

@@ -2,30 +2,31 @@
 # yarn lockfile v1
 
 
-"@iktakahiro/markdown-it-katex@mjbvz/markdown-it-katex":
-  version "4.0.1"
-  resolved "https://codeload.github.com/mjbvz/markdown-it-katex/tar.gz/1e0d09f9174b3ee1537de2586ce8d8a460284ce4"
-  dependencies:
-    katex "^0.13.0"
-
 "@types/markdown-it@^0.0.0":
   version "0.0.0"
   resolved "https://registry.yarnpkg.com/@types/markdown-it/-/markdown-it-0.0.0.tgz#8f6acaa5e3245e275f684e95deb3e518d1c6ab16"
-  integrity sha1-j2rKpeMkXidfaE6V3rPlGNHGqxY=
+  integrity sha512-rLEOTm6Wi9M8GFnIK7VczXSEThIN/eVoevpTYVk+FD/DPX3N15Sj9b3vkjjDY63U0Zw1yawf13CI92CCHpC5kw==
 
 "@types/vscode-notebook-renderer@^1.60.0":
-  version "1.60.0"
-  resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.60.0.tgz#8a67d561f48ddf46a95dfa9f712a79c72c7b8f7a"
-  integrity sha512-u7TD2uuEZTVuitx0iijOJdKI0JLiQP6PsSBSRy2XmHXUOXcp5p1S56NrjOEDoF+PIHd3NL3eO6KTRSf5nukDqQ==
+  version "1.72.0"
+  resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.72.0.tgz#8943dc3cef0ced2dfb1e04c0a933bd289e7d5199"
+  integrity sha512-5iTjb39DpLn03ULUwrDR3L2Dy59RV4blSUHy0oLdQuIY11PhgWO4mXIcoFS0VxY1GZQ4IcjSf3ooT2Jrrcahnw==
+
+"@vscode/markdown-it-katex@^1.0.0":
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/@vscode/markdown-it-katex/-/markdown-it-katex-1.0.0.tgz#c0b35df95be90f79ed92c8bae77a764e96dde5c4"
+  integrity sha512-J0jtR3iI1VTSX1fadhNRB6vQUh792+5D7TW6XhJuktgG9+4ZXtWHwFOttvQVw7XKMB7RiPBdGV4cLzEuYV6bSg==
+  dependencies:
+    katex "^0.16.2"
 
 commander@^8.0.0:
   version "8.3.0"
   resolved "https://registry.yarnpkg.com/commander/-/commander-8.3.0.tgz#4837ea1b2da67b9c616a67afbb0fafee567bca66"
   integrity sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==
 
-katex@^0.13.0:
-  version "0.13.24"
-  resolved "https://registry.yarnpkg.com/katex/-/katex-0.13.24.tgz#fe55455eb455698cb24b911a353d16a3c855d905"
-  integrity sha512-jZxYuKCma3VS5UuxOx/rFV1QyGSl3Uy/i0kTJF3HgQ5xMinCQVF8Zd4bMY/9aI9b9A2pjIBOsjSSm68ykTAr8w==
+katex@^0.16.2:
+  version "0.16.4"
+  resolved "https://registry.yarnpkg.com/katex/-/katex-0.16.4.tgz#87021bc3bbd80586ef715aeb476794cba6a49ad4"
+  integrity sha512-WudRKUj8yyBeVDI4aYMNxhx5Vhh2PjpzQw1GRu/LVGqL4m1AxwD1GcUp0IMbdJaf5zsjtj8ghP0DOQRYhroNkw==
   dependencies:
     commander "^8.0.0"

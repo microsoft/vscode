@@ -107,7 +107,7 @@
 		}
 	},
 	"wordPattern": {
-		"pattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\!\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>/\\?\\s]+)",
+		"pattern": "(-?\\d*\\.\\d\\w*)|([^\\`\\~\\@\\!\\%\\^\\&\\*\\(\\)\\-\\=\\+\\[\\{\\]\\}\\\\\\|\\;\\:\\'\\\"\\,\\.\\<\\>/\\?\\s]+)",
 	},
 	"indentationRules": {
 		"decreaseIndentPattern": {
@@ -187,6 +187,15 @@
 			},
 			"action": {
 				"indent": "indent"
+			}
+		},
+		{
+			// Decrease indentation after single line if/else if/else, for, or while
+			"previousLineText": "^\\s*(((else ?)?if|for|while)\\s*\\(.*\\)\\s*|else\\s*)$",
+			// But make sure line doesn't have braces or is not another if statement
+			"beforeText": "^\\s+([^{i\\s]|i(?!f\\b))",
+			"action": {
+				"indent": "outdent"
 			}
 		}
 	]

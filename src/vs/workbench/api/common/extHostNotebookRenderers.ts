@@ -53,7 +53,7 @@ export class ExtHostNotebookRenderers implements ExtHostNotebookRenderersShape {
 		}
 
 		emitter = new Emitter({
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				emitter?.dispose();
 				this._rendererMessageEmitters.delete(rendererId);
 			}

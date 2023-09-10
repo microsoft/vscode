@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
 
 class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider {
 	public constructor(
@@ -19,7 +19,7 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentHighlight[]> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return [];
 		}
@@ -33,10 +33,7 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 			return [];
 		}
 
-		return response.body
-			.filter(highlight => highlight.file === file)
-			.map(convertDocumentHighlight)
-			.flat();
+		return response.body.flatMap(convertDocumentHighlight);
 	}
 }
 

@@ -12,7 +12,8 @@ cgmanifest.json
 yarn.lock
 preview-src/**
 webpack.config.js
-esbuild.js
+esbuild-notebook.js
+esbuild-preview.js
 .gitignore
 server/src/**
 server/extension.webpack.config.js
@@ -20,3 +21,5 @@ server/extension-browser.webpack.config.js
 server/tsconfig.json
 server/.vscode/**
 server/node_modules/**
+server/yarn.lock
+server/.npmignore

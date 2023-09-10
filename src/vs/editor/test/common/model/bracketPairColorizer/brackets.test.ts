@@ -5,12 +5,15 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
 import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { Token, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Brackets', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Basic', () => {
 		const languageId = 'testMode1';
 		const denseKeyProvider = new DenseKeyProvider<string>();
@@ -24,7 +27,7 @@ suite('Bracket Pair Colorizer - Brackets', () => {
 		};
 
 		const disposableStore = new DisposableStore();
-		const languageConfigService = new TestLanguageConfigurationService();
+		const languageConfigService = disposableStore.add(new TestLanguageConfigurationService());
 		disposableStore.add(languageConfigService.register(languageId, {
 			brackets: [
 				['{', '}'], ['[', ']'], ['(', ')'],

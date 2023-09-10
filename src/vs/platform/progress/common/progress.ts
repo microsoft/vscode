@@ -8,6 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { NotificationPriority } from 'vs/platform/notification/common/notification';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -63,7 +64,8 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly primaryActions?: readonly IAction[];
 	readonly secondaryActions?: readonly IAction[];
 	readonly delay?: number;
-	readonly silent?: boolean;
+	readonly priority?: NotificationPriority;
+	readonly type?: 'syncing' | 'loading';
 }
 
 export interface IProgressDialogOptions extends IProgressOptions {
@@ -75,6 +77,7 @@ export interface IProgressDialogOptions extends IProgressOptions {
 export interface IProgressWindowOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Window;
 	readonly command?: string;
+	readonly type?: 'syncing' | 'loading';
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
@@ -108,14 +111,30 @@ export class Progress<T> implements IProgress<T> {
 
 	static readonly None = Object.freeze<IProgress<unknown>>({ report() { } });
 
+	report: (item: T) => void;
+
 	private _value?: T;
 	get value(): T | undefined { return this._value; }
 
-	constructor(private callback: (data: T) => void) { }
+	private _lastTask?: Promise<unknown>;
 
-	report(item: T) {
+	constructor(private callback: (data: T) => unknown, opts?: { async?: boolean }) {
+		this.report = opts?.async
+			? this._reportAsync.bind(this)
+			: this._reportSync.bind(this);
+	}
+
+	private _reportSync(item: T) {
 		this._value = item;
 		this.callback(this._value);
+	}
+
+	private _reportAsync(item: T) {
+		Promise.resolve(this._lastTask).finally(() => {
+			this._value = item;
+			const r = this.callback(this._value);
+			this._lastTask = Promise.resolve(r).finally(() => this._lastTask = undefined);
+		});
 	}
 }
 

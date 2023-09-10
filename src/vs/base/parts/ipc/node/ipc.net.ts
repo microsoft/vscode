@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { createHash } from 'crypto';
-import type { Server as NetServer, Socket } from 'net';
-// import { tmpdir } from 'os';
-import type * as zlib from 'zlib';
+import { createHash } from 'crypto';
+import { Server as NetServer, Socket, createServer, createConnection } from 'net';
+import { tmpdir } from 'os';
+import { createDeflateRaw, ZlibOptions, InflateRaw, DeflateRaw, createInflateRaw } from 'zlib';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,21 +17,14 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
 
-// TODO@bpasero remove me once electron utility process has landed
-function getNodeDependencies() {
-	return {
-		crypto: (require.__$__nodeRequire('crypto') as any) as typeof import('crypto'),
-		zlib: (require.__$__nodeRequire('zlib') as any) as typeof import('zlib'),
-		net: (require.__$__nodeRequire('net') as any) as typeof import('net'),
-		os: (require.__$__nodeRequire('os') as any) as typeof import('os')
-	};
-}
-
 export class NodeSocket implements ISocket {
 
 	public readonly debugLabel: string;
 	public readonly socket: Socket;
 	private readonly _errorListener: (err: any) => void;
+	private readonly _closeListener: (hadError: boolean) => void;
+	private readonly _endListener: () => void;
+	private _canWrite = true;
 
 	public traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void {
 		SocketDiagnostics.traceSocketEvent(this.socket, this.debugLabel, type, data);
@@ -57,10 +50,24 @@ export class NodeSocket implements ISocket {
 			}
 		};
 		this.socket.on('error', this._errorListener);
+
+		this._closeListener = (hadError: boolean) => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
+			this._canWrite = false;
+		};
+		this.socket.on('close', this._closeListener);
+
+		this._endListener = () => {
+			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
+			this._canWrite = false;
+		};
+		this.socket.on('end', this._endListener);
 	}
 
 	public dispose(): void {
 		this.socket.off('error', this._errorListener);
+		this.socket.off('close', this._closeListener);
+		this.socket.off('end', this._endListener);
 		this.socket.destroy();
 	}
 
@@ -77,7 +84,6 @@ export class NodeSocket implements ISocket {
 
 	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
 		const adapter = (hadError: boolean) => {
-			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			listener({
 				type: SocketCloseEventType.NodeSocketCloseEvent,
 				hadError: hadError,
@@ -92,7 +98,6 @@ export class NodeSocket implements ISocket {
 
 	public onEnd(listener: () => void): IDisposable {
 		const adapter = () => {
-			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
 			listener();
 		};
 		this.socket.on('end', adapter);
@@ -103,7 +108,7 @@ export class NodeSocket implements ISocket {
 
 	public write(buffer: VSBuffer): void {
 		// return early if socket has been destroyed in the meantime
-		if (this.socket.destroyed) {
+		if (this.socket.destroyed || !this._canWrite) {
 			return;
 		}
 
@@ -174,7 +179,15 @@ export class NodeSocket implements ISocket {
 }
 
 const enum Constants {
-	MinHeaderByteSize = 2
+	MinHeaderByteSize = 2,
+	/**
+	 * If we need to write a large buffer, we will split it into 256KB chunks and
+	 * send each chunk as a websocket message. This is to prevent that the sending
+	 * side is stuck waiting for the entire buffer to be compressed before writing
+	 * to the underlying socket or that the receiving side is stuck waiting for the
+	 * entire message to be received before processing the bytes.
+	 */
+	MaxWebSocketMessageLength = 256 * 1024 // 256 KB
 }
 
 const enum ReadState {
@@ -257,7 +270,14 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		}));
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
-		this._register(this.socket.onClose((e) => this._onClose.fire(e)));
+		this._register(this.socket.onClose(async (e) => {
+			// Delay surfacing the close event until the async inflating is done
+			// and all data has been emitted
+			if (this._flowManager.isProcessingReadQueue()) {
+				await Event.toPromise(this._flowManager.onDidFinishProcessingReadQueue);
+			}
+			this._onClose.fire(e);
+		}));
 	}
 
 	public override dispose(): void {
@@ -285,7 +305,23 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	}
 
 	public write(buffer: VSBuffer): void {
-		this._flowManager.writeMessage(buffer);
+		// If we write many logical messages (let's say 1000 messages of 100KB) during a single process tick, we do
+		// this thing where we install a process.nextTick timer and group all of them together and we then issue a
+		// single WebSocketNodeSocket.write with a 100MB buffer.
+		//
+		// The first problem is that the actual writing to the underlying node socket will only happen after all of
+		// the 100MB have been deflated (due to waiting on zlib flush). The second problem is on the reading side,
+		// where we will get a single WebSocketNodeSocket.onData event fired when all the 100MB have arrived,
+		// delaying processing the 1000 received messages until all have arrived, instead of processing them as each
+		// one arrives.
+		//
+		// We therefore split the buffer into chunks, and issue a write for each chunk.
+
+		let start = 0;
+		while (start < buffer.byteLength) {
+			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + Constants.MaxWebSocketMessageLength, buffer.byteLength)));
+			start += Constants.MaxWebSocketMessageLength;
+		}
 	}
 
 	private _write(buffer: VSBuffer, compressed: boolean): void {
@@ -450,6 +486,9 @@ class WebSocketFlowManager extends Disposable {
 	private readonly _writeQueue: VSBuffer[] = [];
 	private readonly _readQueue: { data: VSBuffer; isCompressed: boolean; isLastFrameOfMessage: boolean }[] = [];
 
+	private readonly _onDidFinishProcessingReadQueue = this._register(new Emitter<void>());
+	public readonly onDidFinishProcessingReadQueue = this._onDidFinishProcessingReadQueue.event;
+
 	private readonly _onDidFinishProcessingWriteQueue = this._register(new Emitter<void>());
 	public readonly onDidFinishProcessingWriteQueue = this._onDidFinishProcessingWriteQueue.event;
 
@@ -550,6 +589,11 @@ class WebSocketFlowManager extends Disposable {
 			}
 		}
 		this._isProcessingReadQueue = false;
+		this._onDidFinishProcessingReadQueue.fire();
+	}
+
+	public isProcessingReadQueue(): boolean {
+		return (this._isProcessingReadQueue);
 	}
 
 	/**
@@ -572,7 +616,7 @@ class ZlibInflateStream extends Disposable {
 	private readonly _onError = this._register(new Emitter<Error>());
 	public readonly onError = this._onError.event;
 
-	private readonly _zlibInflate: zlib.InflateRaw;
+	private readonly _zlibInflate: InflateRaw;
 	private readonly _recordedInflateBytes: VSBuffer[] = [];
 	private readonly _pendingInflateData: VSBuffer[] = [];
 
@@ -587,10 +631,10 @@ class ZlibInflateStream extends Disposable {
 		private readonly _tracer: ISocketTracer,
 		private readonly _recordInflateBytes: boolean,
 		inflateBytes: VSBuffer | null,
-		options: zlib.ZlibOptions
+		options: ZlibOptions
 	) {
 		super();
-		this._zlibInflate = getNodeDependencies().zlib.createInflateRaw(options);
+		this._zlibInflate = createInflateRaw(options);
 		this._zlibInflate.on('error', (err) => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (<any>err)?.code });
 			this._onError.fire(err);
@@ -632,16 +676,16 @@ class ZlibDeflateStream extends Disposable {
 	private readonly _onError = this._register(new Emitter<Error>());
 	public readonly onError = this._onError.event;
 
-	private readonly _zlibDeflate: zlib.DeflateRaw;
+	private readonly _zlibDeflate: DeflateRaw;
 	private readonly _pendingDeflateData: VSBuffer[] = [];
 
 	constructor(
 		private readonly _tracer: ISocketTracer,
-		options: zlib.ZlibOptions
+		options: ZlibOptions
 	) {
 		super();
 
-		this._zlibDeflate = getNodeDependencies().zlib.createDeflateRaw({
+		this._zlibDeflate = createDeflateRaw({
 			windowBits: 15
 		});
 		this._zlibDeflate.on('error', (err) => {
@@ -702,8 +746,7 @@ function unmask(buffer: VSBuffer, mask: number): void {
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/microsoft/vscode/issues/30624
-// TODO@bpasero revert me once electron utility process has landed
-export const XDG_RUNTIME_DIR = typeof process !== 'undefined' ? <string | undefined>process.env['XDG_RUNTIME_DIR'] : undefined;
+export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Linux]: 107,
@@ -718,14 +761,10 @@ export function createRandomIPCHandle(): string {
 		return `\\\\.\\pipe\\vscode-ipc-${randomSuffix}-sock`;
 	}
 
-	// Mac/Unix: use socket file and prefer
-	// XDG_RUNTIME_DIR over tmpDir
-	let result: string;
-	if (XDG_RUNTIME_DIR) {
-		result = join(XDG_RUNTIME_DIR, `vscode-ipc-${randomSuffix}.sock`);
-	} else {
-		result = join(getNodeDependencies().os.tmpdir(), `vscode-ipc-${randomSuffix}.sock`);
-	}
+	// Mac & Unix: Use socket file
+	// Unix: Prefer XDG_RUNTIME_DIR over user data path
+	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : tmpdir();
+	const result = join(basePath, `vscode-ipc-${randomSuffix}.sock`);
 
 	// Validate length
 	validateIPCHandleLength(result);
@@ -734,21 +773,27 @@ export function createRandomIPCHandle(): string {
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
-	const scope = getNodeDependencies().crypto.createHash('md5').update(directoryPath).digest('hex');
+	const scope = createHash('md5').update(directoryPath).digest('hex');
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
 		return `\\\\.\\pipe\\${scope}-${version}-${type}-sock`;
 	}
 
-	// Mac/Unix: use socket file and prefer
-	// XDG_RUNTIME_DIR over user data path
-	// unless portable
+	// Mac & Unix: Use socket file
+	// Unix: Prefer XDG_RUNTIME_DIR over user data path, unless portable
+	// Trim the version and type values for the socket to prevent too large
+	// file names causing issues: https://unix.stackexchange.com/q/367008
+
+	const versionForSocket = version.substr(0, 4);
+	const typeForSocket = type.substr(0, 6);
+	const scopeForSocket = scope.substr(0, 8);
+
 	let result: string;
-	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
+	if (process.platform !== 'darwin' && XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
+		result = join(XDG_RUNTIME_DIR, `vscode-${scopeForSocket}-${versionForSocket}-${typeForSocket}.sock`);
 	} else {
-		result = join(directoryPath, `${version}-${type}.sock`);
+		result = join(directoryPath, `${versionForSocket}-${typeForSocket}.sock`);
 	}
 
 	// Validate length
@@ -796,7 +841,7 @@ export function serve(port: number): Promise<Server>;
 export function serve(namedPipe: string): Promise<Server>;
 export function serve(hook: any): Promise<Server> {
 	return new Promise<Server>((c, e) => {
-		const server = getNodeDependencies().net.createServer();
+		const server = createServer();
 
 		server.on('error', e);
 		server.listen(hook, () => {
@@ -811,7 +856,7 @@ export function connect(port: number, clientId: string): Promise<Client>;
 export function connect(namedPipe: string, clientId: string): Promise<Client>;
 export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
-		const socket = getNodeDependencies().net.createConnection(hook, () => {
+		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
 			c(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
 		});

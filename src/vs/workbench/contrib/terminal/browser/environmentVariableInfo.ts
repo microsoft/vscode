@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EnvironmentVariableMutatorType, IEnvironmentVariableInfo, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { EnvironmentVariableScope, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import Severity from 'vs/base/common/severity';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;
@@ -17,55 +20,39 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	constructor(
 		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
 		private readonly _terminalId: number,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		private readonly _collection: IMergedEnvironmentVariableCollection,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 	}
 
-	getInfo(): string {
-		const addsAndChanges: string[] = [];
-		const removals: string[] = [];
-		this._diff.added.forEach((mutators, variable) => {
-			mutators.forEach(mutator => addsAndChanges.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
-		this._diff.changed.forEach((mutators, variable) => {
-			mutators.forEach(mutator => addsAndChanges.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
-		this._diff.removed.forEach((mutators, variable) => {
-			mutators.forEach(mutator => removals.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
+	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
+		const extSet: Set<string> = new Set();
+		addExtensionIdentifiers(extSet, this._diff.added.values());
+		addExtensionIdentifiers(extSet, this._diff.removed.values());
+		addExtensionIdentifiers(extSet, this._diff.changed.values());
 
-		let info: string = '';
-
-		if (addsAndChanges.length > 0) {
-			info = localize('extensionEnvironmentContributionChanges', "Extensions want to make the following changes to the terminal's environment:");
-			info += '\n\n';
-			info += '```\n';
-			info += addsAndChanges.join('\n');
-			info += '\n```';
-		}
-
-		if (removals.length > 0) {
-			info += info.length > 0 ? '\n\n' : '';
-			info += localize('extensionEnvironmentContributionRemoval', "Extensions want to remove these existing changes from the terminal's environment:");
-			info += '\n\n';
-			info += '```\n';
-			info += removals.join('\n');
-			info += '\n```';
-		}
-
-		return info;
+		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
+		message += getMergedDescription(this._collection, scope, this._extensionService, extSet);
+		return message;
 	}
 
-	getIcon(): ThemeIcon {
-		return Codicon.warning;
-	}
-
-	getActions(): IHoverAction[] {
+	private _getActions(): ITerminalStatusHoverAction[] {
 		return [{
 			label: localize('relaunchTerminalLabel', "Relaunch terminal"),
 			run: () => this._terminalService.getInstanceFromId(this._terminalId)?.relaunch(),
 			commandId: TerminalCommandId.Relaunch
 		}];
+	}
+
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus {
+		return {
+			id: TerminalStatus.RelaunchNeeded,
+			severity: Severity.Warning,
+			icon: Codicon.warning,
+			tooltip: this._getInfo(scope),
+			hoverActions: this._getActions()
+		};
 	}
 }
 
@@ -73,28 +60,71 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	readonly requiresAction = false;
 
 	constructor(
-		private _collection: IMergedEnvironmentVariableCollection
+		private readonly _collection: IMergedEnvironmentVariableCollection,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 	}
 
-	getInfo(): string {
-		const changes: string[] = [];
-		this._collection.map.forEach((mutators, variable) => {
-			mutators.forEach(mutator => changes.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
-		const message = localize('extensionEnvironmentContributionInfo', "Extensions have made changes to this terminal's environment");
-		return message + '\n\n```\n' + changes.join('\n') + '\n```';
+	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
+		const extSet: Set<string> = new Set();
+		addExtensionIdentifiers(extSet, this._collection.getVariableMap(scope).values());
+
+		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
+		message += getMergedDescription(this._collection, scope, this._extensionService, extSet);
+		return message;
 	}
 
-	getIcon(): ThemeIcon {
-		return Codicon.info;
+	private _getActions(scope: EnvironmentVariableScope | undefined): ITerminalStatusHoverAction[] {
+		return [{
+			label: localize('showEnvironmentContributions', "Show environment contributions"),
+			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions, scope),
+			commandId: TerminalCommandId.ShowEnvironmentContributions
+		}];
+	}
+
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus {
+		return {
+			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
+			severity: Severity.Info,
+			tooltip: this._getInfo(scope),
+			hoverActions: this._getActions(scope)
+		};
 	}
 }
 
-function mutatorTypeLabel(type: EnvironmentVariableMutatorType, value: string, variable: string): string {
-	switch (type) {
-		case EnvironmentVariableMutatorType.Prepend: return `${variable}=${value}\${env:${variable}}`;
-		case EnvironmentVariableMutatorType.Append: return `${variable}=\${env:${variable}}${value}`;
-		default: return `${variable}=${value}`;
+function getMergedDescription(collection: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined, extensionService: IExtensionService, extSet: Set<string>): string {
+	const message = ['\n'];
+	const globalDescriptions = collection.getDescriptionMap(undefined);
+	const workspaceDescriptions = collection.getDescriptionMap(scope);
+	for (const ext of extSet) {
+		const globalDescription = globalDescriptions.get(ext);
+		if (globalDescription) {
+			message.push(`\n- \`${getExtensionName(ext, extensionService)}\``);
+			message.push(`: ${globalDescription}`);
+		}
+		const workspaceDescription = workspaceDescriptions.get(ext);
+		if (workspaceDescription) {
+			// Only show '(workspace)' suffix if there is already a description for the extension.
+			const workspaceSuffix = globalDescription ? ` (${localize('ScopedEnvironmentContributionInfo', 'workspace')})` : '';
+			message.push(`\n- \`${getExtensionName(ext, extensionService)}${workspaceSuffix}\``);
+			message.push(`: ${workspaceDescription}`);
+		}
+		if (!globalDescription && !workspaceDescription) {
+			message.push(`\n- \`${getExtensionName(ext, extensionService)}\``);
+		}
 	}
+	return message.join('');
+}
+
+function addExtensionIdentifiers(extSet: Set<string>, diff: IterableIterator<IExtensionOwnedEnvironmentVariableMutator[]>): void {
+	for (const mutators of diff) {
+		for (const mutator of mutators) {
+			extSet.add(mutator.extensionIdentifier);
+		}
+	}
+}
+
+function getExtensionName(id: string, extensionService: IExtensionService): string {
+	return extensionService.extensions.find(e => e.id === id)?.displayName || id;
 }

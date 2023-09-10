@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getNodeFSRequestService } from './nodeFs';
-import { ExtensionContext, extensions } from 'vscode';
+import { ExtensionContext, extensions, l10n } from 'vscode';
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 import { TextDecoder } from 'util';
@@ -32,6 +32,9 @@ export async function activate(context: ExtensionContext) {
 	const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
 		return new LanguageClient(id, name, serverOptions, clientOptions);
 	};
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
 
 	client = await startClient(context, newLanguageClient, { fs: getNodeFSRequestService(), TextDecoder });
 }

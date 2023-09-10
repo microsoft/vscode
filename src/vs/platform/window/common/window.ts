@@ -6,19 +6,17 @@
 import { IStringDictionary } from 'vs/base/common/collections';
 import { PerformanceMark } from 'vs/base/common/performance';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from 'vs/base/common/platform';
-import { UriDto } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileType } from 'vs/platform/files/common/files';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { PolicyDefinition, PolicyValue } from 'vs/platform/policy/common/policy';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -52,9 +50,13 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly addMode?: boolean;
 
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IAddFoldersRequest {
@@ -63,7 +65,7 @@ export interface IAddFoldersRequest {
 
 export interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
 	readonly dirty: boolean;
@@ -135,12 +137,6 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly experimental?: { useSandbox: boolean };
-}
-
-interface IWindowBorderColors {
-	readonly 'window.activeBorder'?: string;
-	readonly 'window.inactiveBorder'?: string;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -160,11 +156,6 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
-		const colorCustomizations = configurationService.getValue<IWindowBorderColors | undefined>('workbench.colorCustomizations');
-		if (colorCustomizations?.['window.activeBorder'] || colorCustomizations?.['window.inactiveBorder']) {
-			return 'custom'; // window border colors do not work with native title style
-		}
-
 		const style = configuration.titleBarStyle;
 		if (style === 'native' || style === 'custom') {
 			return style;
@@ -174,17 +165,17 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 	return isLinux ? 'native' : 'custom'; // default to custom on all macOS and Windows
 }
 
-export function useWindowControlsOverlay(configurationService: IConfigurationService, environmentService: IEnvironmentService): boolean {
-	// Window Controls Overlay are only configurable on Windows
-	if (!isWindows || isWeb || !environmentService.isBuilt) {
-		return false;
+export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
+	if (!isWindows || isWeb) {
+		return false; // only supported on a desktop Windows instance
 	}
 
 	if (getTitleBarStyle(configurationService) === 'native') {
-		return false;
+		return false; // only supported when title bar is custom
 	}
 
-	return configurationService.getValue<boolean>('window.experimental.windowControlsOverlay.enabled');
+	// Default to true.
+	return true;
 }
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
@@ -240,6 +231,7 @@ interface IPathsToWaitForData {
 export interface IOpenFileRequest {
 	readonly filesToOpenOrCreate?: IPathData[];
 	readonly filesToDiff?: IPathData[];
+	readonly filesToMerge?: IPathData[];
 }
 
 /**
@@ -270,11 +262,13 @@ export interface IWindowConfiguration {
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+	filesToMerge?: IPath[];
 }
 
 export interface IOSConfiguration {
 	readonly release: string;
 	readonly hostname: string;
+	readonly arch: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
@@ -286,8 +280,9 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	backupPath?: string;
 
 	profiles: {
-		all: UriDto<IUserDataProfile>[];
-		current: UriDto<IUserDataProfile>;
+		home: UriComponents;
+		all: readonly UriDto<IUserDataProfile>[];
+		profile: UriDto<IUserDataProfile>;
 	};
 
 	homeDir: string;
@@ -300,6 +295,10 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
+	loggers: {
+		global: UriDto<ILoggerResource>[];
+		window: UriDto<ILoggerResource>[];
+	};
 
 	fullscreen?: boolean;
 	maximized?: boolean;

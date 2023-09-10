@@ -8,7 +8,7 @@ import { URI, Utils } from 'vscode-uri';
 import { LsConfiguration } from '../config';
 
 export function looksLikeMarkdownPath(config: LsConfiguration, resolvedHrefPath: URI) {
-	return config.markdownFileExtensions.includes(Utils.extname(URI.from(resolvedHrefPath)).toLowerCase().replace('.', ''));
+	return config.markdownFileExtensions.includes(Utils.extname(resolvedHrefPath).toLowerCase().replace('.', ''));
 }
 
 export function isMarkdownFile(document: TextDocument) {

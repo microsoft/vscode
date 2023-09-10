@@ -8,11 +8,10 @@ import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -121,7 +120,22 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		}
 	}
 
-	return editors;
+	// Prevent duplicates: it is possible that we end up with the same
+	// dragged editor multiple times because multiple data transfers
+	// are being used (https://github.com/microsoft/vscode/issues/128925)
+
+	const coalescedEditors: IDraggedResourceEditorInput[] = [];
+	const seen = new ResourceMap<boolean>();
+	for (const editor of editors) {
+		if (!editor.resource) {
+			coalescedEditors.push(editor);
+		} else if (!seen.has(editor.resource)) {
+			coalescedEditors.push(editor);
+			seen.set(editor.resource, true);
+		}
+	}
+
+	return coalescedEditors;
 }
 
 export async function extractEditorsAndFilesDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
@@ -240,7 +254,7 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 
 			// Skip for very large files because this operation is unbuffered
 			if (file.size > 100 * ByteSize.MB) {
-				dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
+				dialogService.warn(localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
 				continue;
 			}
 
@@ -254,7 +268,7 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 
 			reader.onload = async event => {
 				const name = file.name;
-				const loadResult = withNullAsUndefined(event.target?.result);
+				const loadResult = event.target?.result ?? undefined;
 				if (typeof name !== 'string' || typeof loadResult === 'undefined') {
 					result.complete(undefined);
 					return;
@@ -315,7 +329,7 @@ export interface IDragAndDropContributionRegistry {
 	getAll(): IterableIterator<IDragAndDropContribution>;
 }
 
-export interface IDragAndDropContribution {
+interface IDragAndDropContribution {
 	readonly dataFormatKey: string;
 	getEditorInputs(data: string): IDraggedResourceEditorInput[];
 	setData(resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
@@ -341,5 +355,54 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.DragAndDropContribution, new DragAndDropContributionRegistry());
+
+//#endregion
+
+//#region DND Utilities
+
+/**
+ * A singleton to store transfer data during drag & drop operations that are only valid within the application.
+ */
+export class LocalSelectionTransfer<T> {
+
+	private static readonly INSTANCE = new LocalSelectionTransfer();
+
+	private data?: T[];
+	private proto?: T;
+
+	private constructor() {
+		// protect against external instantiation
+	}
+
+	static getInstance<T>(): LocalSelectionTransfer<T> {
+		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
+	}
+
+	hasData(proto: T): boolean {
+		return proto && proto === this.proto;
+	}
+
+	clearData(proto: T): void {
+		if (this.hasData(proto)) {
+			this.proto = undefined;
+			this.data = undefined;
+		}
+	}
+
+	getData(proto: T): T[] | undefined {
+		if (this.hasData(proto)) {
+			return this.data;
+		}
+
+		return undefined;
+	}
+
+	setData(data: T[], proto: T): void {
+		if (proto) {
+			this.data = data;
+			this.proto = proto;
+		}
+	}
+}
 
 //#endregion

@@ -316,7 +316,18 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 				nextWordIndex++;
 			}
 		}
-		return result === null ? null : join({ start: j, end: j + 1 }, result);
+
+		if (!result) {
+			return null;
+		}
+
+		// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
+		// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
+		if (word.charCodeAt(i) !== target.charCodeAt(j)) {
+			return result;
+		}
+
+		return join({ start: j, end: j + 1 }, result);
 	}
 }
 
@@ -370,7 +381,7 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 export function anyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number): FuzzyScore {
 	const max = Math.min(13, pattern.length);
 	for (; patternPos < max; patternPos++) {
-		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, { firstMatchCanBeWeak: false, boostFullMatch: true });
+		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, { firstMatchCanBeWeak: true, boostFullMatch: true });
 		if (result) {
 			return result;
 		}

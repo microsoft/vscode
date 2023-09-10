@@ -80,7 +80,8 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 	}
 
 	private async invalidateOpenersOnExtensionsChanged() {
-		const registeredExtensions = await this._extensionService.getExtensions();
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		const registeredExtensions = this._extensionService.extensions;
 
 		for (const [id, entry] of this._openers) {
 			const extension = registeredExtensions.find(r => r.identifier.value === entry.extensionId);

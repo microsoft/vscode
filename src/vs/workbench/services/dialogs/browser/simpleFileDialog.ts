@@ -100,7 +100,12 @@ enum UpdateResult {
 
 export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
-export class SimpleFileDialog {
+export interface ISimpleFileDialog {
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined>;
+	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
+}
+
+export class SimpleFileDialog implements ISimpleFileDialog {
 	private options!: IOpenDialogOptions;
 	private currentFolder!: URI;
 	private filePickBox!: IQuickPick<FileQuickPickItem>;
@@ -116,6 +121,7 @@ export class SimpleFileDialog {
 	private autoCompletePathSegment: string = '';
 	private activeItem: FileQuickPickItem | undefined;
 	private userHome!: URI;
+	private trueHome!: URI;
 	private isWindows: boolean = false;
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
@@ -162,6 +168,7 @@ export class SimpleFileDialog {
 	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
+		this.trueHome = await this.getUserHome(true);
 		const newOptions = this.getOptions(options);
 		if (!newOptions) {
 			return Promise.resolve(undefined);
@@ -173,6 +180,7 @@ export class SimpleFileDialog {
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
 		this.userHome = await this.getUserHome();
+		this.trueHome = await this.getUserHome(true);
 		this.requiresTrailing = true;
 		const newOptions = this.getOptions(options, true);
 		if (!newOptions) {
@@ -243,8 +251,10 @@ export class SimpleFileDialog {
 		return this.remoteAgentEnvironment;
 	}
 
-	protected getUserHome(): Promise<URI> {
-		return this.pathService.userHome({ preferLocal: this.scheme === Schemas.file });
+	protected getUserHome(trueHome = false): Promise<URI> {
+		return trueHome
+			? this.pathService.userHome({ preferLocal: this.scheme === Schemas.file })
+			: this.fileDialogService.preferredHome(this.scheme);
 	}
 
 	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
@@ -547,11 +557,21 @@ export class SimpleFileDialog {
 	}
 
 	private tildaReplace(value: string): URI {
-		const home = this.userHome;
+		const home = this.trueHome;
 		if ((value.length > 0) && (value[0] === '~')) {
 			return resources.joinPath(home, value.substring(1));
 		}
 		return this.remoteUriFrom(value);
+	}
+
+	private tryAddTrailingSeparatorToDirectory(uri: URI, stat: IFileStatWithPartialMetadata): URI {
+		if (stat.isDirectory) {
+			// At this point we know it's a directory and can add the trailing path separator
+			if (!this.endsWithSlash(uri.path)) {
+				return resources.addTrailingPathSeparator(uri);
+			}
+		}
+		return uri;
 	}
 
 	private async tryUpdateItems(value: string, valueUri: URI): Promise<UpdateResult> {
@@ -570,6 +590,7 @@ export class SimpleFileDialog {
 				// do nothing
 			}
 			if (stat && stat.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
+				valueUri = this.tryAddTrailingSeparatorToDirectory(valueUri, stat);
 				return await this.updateItems(valueUri) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 			} else if (this.endsWithSlash(value)) {
 				// The input box contains a path that doesn't exist on the system.
@@ -593,10 +614,7 @@ export class SimpleFileDialog {
 					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory) {
 						this.badPath = undefined;
-						// At this point we know it's a directory and can add the trailing path separator
-						if (!this.endsWithSlash(inputUriDirname.path)) {
-							inputUriDirname = resources.addTrailingPathSeparator(inputUriDirname);
-						}
+						inputUriDirname = this.tryAddTrailingSeparatorToDirectory(inputUriDirname, statWithoutTrailing);
 						return await this.updateItems(inputUriDirname, false, resources.basename(valueUri)) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 					}
 				}
@@ -803,8 +821,11 @@ export class SimpleFileDialog {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
 				return Promise.resolve(false);
-			} else if (!statDirname || !statDirname.isDirectory) {
+			} else if (!statDirname) {
 				// Folder to save in doesn't exist
+				const message = nls.localize('remoteFileDialog.validateCreateDirectory', 'The folder {0} does not exist. Would you like to create it?', resources.basename(resources.dirname(uri)));
+				return this.yesNoPrompt(uri, message);
+			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
 			}
@@ -978,9 +999,22 @@ export class SimpleFileDialog {
 		return sorted;
 	}
 
+	private extname(file: URI): string {
+		const ext = resources.extname(file);
+		if (ext.length === 0) {
+			const basename = resources.basename(file);
+			if (basename.startsWith('.')) {
+				return basename;
+			}
+		} else {
+			return ext;
+		}
+		return '';
+	}
+
 	private filterFile(file: URI): boolean {
 		if (this.options.filters) {
-			const ext = resources.extname(file);
+			const ext = this.extname(file);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
 					const testExt = this.options.filters[i].extensions[j];

@@ -7,11 +7,9 @@
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-
-	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 </head>
 
-<body style="margin: 0; overflow: hidden; width: 100%; height: 100%" role="document">
+<body style="margin: 0; overflow: hidden; width: 100%; height: 100%; overscroll-behavior-x: none;" role="document">
 	<!-- TODO: Remove additional script tag once Firefox is fixed https://bugzilla.mozilla.org/show_bug.cgi?id=1737882 -->
 	<script></script>
 	<script async type="module">
@@ -34,6 +32,7 @@
 		const ID = searchParams.get('id');
 		const webviewOrigin = searchParams.get('origin');
 		const onElectron = searchParams.get('platform') === 'electron';
+		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
@@ -85,92 +84,88 @@
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
-	html {
-		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
-	}
+			html {
+				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+			}
 
-	body {
-		background-color: transparent;
-		color: var(--vscode-editor-foreground);
-		font-family: var(--vscode-font-family);
-		font-weight: var(--vscode-font-weight);
-		font-size: var(--vscode-font-size);
-		margin: 0;
-		padding: 0 20px;
-	}
+			body {
+				overscroll-behavior-x: none;
+				background-color: transparent;
+				color: var(--vscode-editor-foreground);
+				font-family: var(--vscode-font-family);
+				font-weight: var(--vscode-font-weight);
+				font-size: var(--vscode-font-size);
+				margin: 0;
+				padding: 0 20px;
+			}
 
-	img {
-		max-width: 100%;
-		max-height: 100%;
-	}
+			img, video {
+				max-width: 100%;
+				max-height: 100%;
+			}
 
-	a, a code {
-		color: var(--vscode-textLink-foreground);
-	}
+			a, a code {
+				color: var(--vscode-textLink-foreground);
+			}
 
-	a:hover {
-		color: var(--vscode-textLink-activeForeground);
-	}
+			a:hover {
+				color: var(--vscode-textLink-activeForeground);
+			}
 
-	a:focus,
-	input:focus,
-	select:focus,
-	textarea:focus {
-		outline: 1px solid -webkit-focus-ring-color;
-		outline-offset: -1px;
-	}
+			a:focus,
+			input:focus,
+			select:focus,
+			textarea:focus {
+				outline: 1px solid -webkit-focus-ring-color;
+				outline-offset: -1px;
+			}
 
-	code {
-		color: var(--vscode-textPreformat-foreground);
-	}
+			code {
+				color: var(--vscode-textPreformat-foreground);
+			}
 
-	blockquote {
-		background: var(--vscode-textBlockQuote-background);
-		border-color: var(--vscode-textBlockQuote-border);
-	}
+			blockquote {
+				background: var(--vscode-textBlockQuote-background);
+				border-color: var(--vscode-textBlockQuote-border);
+			}
 
-	kbd {
-		color: var(--vscode-editor-foreground);
-		border-radius: 3px;
-		vertical-align: middle;
-		padding: 1px 3px;
+			kbd {
+				background-color: var(--vscode-keybindingLabel-background);
+				color: var(--vscode-keybindingLabel-foreground);
+				border-style: solid;
+				border-width: 1px;
+				border-radius: 3px;
+				border-color: var(--vscode-keybindingLabel-border);
+				border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
+				box-shadow: inset 0 -1px 0 var(--vscode-widget-shadow);
+				vertical-align: middle;
+				padding: 1px 3px;
+			}
 
-		background-color: hsla(0,0%,50%,.17);
-		border: 1px solid rgba(71,71,71,.4);
-		border-bottom-color: rgba(88,88,88,.4);
-		box-shadow: inset 0 -1px 0 rgba(88,88,88,.4);
-	}
-	.vscode-light kbd {
-		background-color: hsla(0,0%,87%,.5);
-		border: 1px solid hsla(0,0%,80%,.7);
-		border-bottom-color: hsla(0,0%,73%,.7);
-		box-shadow: inset 0 -1px 0 hsla(0,0%,73%,.7);
-	}
+			::-webkit-scrollbar {
+				width: 10px;
+				height: 10px;
+			}
 
-	::-webkit-scrollbar {
-		width: 10px;
-		height: 10px;
-	}
+			::-webkit-scrollbar-corner {
+				background-color: var(--vscode-editor-background);
+			}
 
-	::-webkit-scrollbar-corner {
-		background-color: var(--vscode-editor-background);
-	}
-
-	::-webkit-scrollbar-thumb {
-		background-color: var(--vscode-scrollbarSlider-background);
-	}
-	::-webkit-scrollbar-thumb:hover {
-		background-color: var(--vscode-scrollbarSlider-hoverBackground);
-	}
-	::-webkit-scrollbar-thumb:active {
-		background-color: var(--vscode-scrollbarSlider-activeBackground);
-	}
-	::highlight(find-highlight) {
-		background-color: var(--vscode-editor-findMatchHighlightBackground);
-	}
-	::highlight(current-find-highlight) {
-		background-color: var(--vscode-editor-findMatchBackground);
-	}`;
+			::-webkit-scrollbar-thumb {
+				background-color: var(--vscode-scrollbarSlider-background);
+			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: var(--vscode-scrollbarSlider-hoverBackground);
+			}
+			::-webkit-scrollbar-thumb:active {
+				background-color: var(--vscode-scrollbarSlider-activeBackground);
+			}
+			::highlight(find-highlight) {
+				background-color: var(--vscode-editor-findMatchHighlightBackground);
+			}
+			::highlight(current-find-highlight) {
+				background-color: var(--vscode-editor-findMatchBackground);
+			}`;
 
 		/**
 		 * @param {boolean} allowMultipleAPIAcquire
@@ -180,51 +175,54 @@
 		function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 			const encodedState = state ? encodeURIComponent(state) : undefined;
 			return /* js */`
-			globalThis.acquireVsCodeApi = (function() {
-				const originalPostMessage = window.parent['${vscodePostMessageFuncName}'].bind(window.parent);
-				const doPostMessage = (channel, data, transfer) => {
-					originalPostMessage(channel, data, transfer);
-				};
+					globalThis.acquireVsCodeApi = (function() {
+						const originalPostMessage = window.parent['${vscodePostMessageFuncName}'].bind(window.parent);
+						const doPostMessage = (channel, data, transfer) => {
+							originalPostMessage(channel, data, transfer);
+						};
 
-				let acquired = false;
+						let acquired = false;
 
-				let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
+						let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
 
-				return () => {
-					if (acquired && !${allowMultipleAPIAcquire}) {
-						throw new Error('An instance of the VS Code API has already been acquired');
-					}
-					acquired = true;
-					return Object.freeze({
-						postMessage: function(message, transfer) {
-							doPostMessage('onmessage', { message, transfer }, transfer);
-						},
-						setState: function(newState) {
-							state = newState;
-							doPostMessage('do-update-state', JSON.stringify(newState));
-							return newState;
-						},
-						getState: function() {
-							return state;
-						}
-					});
-				};
-			})();
-			delete window.parent;
-			delete window.top;
-			delete window.frameElement;
-		`;
+						return () => {
+							if (acquired && !${allowMultipleAPIAcquire}) {
+								throw new Error('An instance of the VS Code API has already been acquired');
+							}
+							acquired = true;
+							return Object.freeze({
+								postMessage: function(message, transfer) {
+									doPostMessage('onmessage', { message, transfer }, transfer);
+								},
+								setState: function(newState) {
+									state = newState;
+									doPostMessage('do-update-state', JSON.stringify(newState));
+									return newState;
+								},
+								getState: function() {
+									return state;
+								}
+							});
+						};
+					})();
+					delete window.parent;
+					delete window.top;
+					delete window.frameElement;
+				`;
 		}
 
 		/** @type {Promise<void>} */
 		const workerReady = new Promise((resolve, reject) => {
+			if (disableServiceWorker) {
+				return resolve();
+			}
+
 			if (!areServiceWorkersEnabled()) {
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
 
-			const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`;
+			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
 			navigator.serviceWorker.register(swPath)
-				.then(() => navigator.serviceWorker.ready)
 				.then(async registration => {
 					/**
 					 * @param {MessageEvent} event
@@ -246,7 +244,6 @@
 							// `unregister` and `register` here.
 							return registration.unregister()
 								.then(() => navigator.serviceWorker.register(swPath))
-								.then(() => navigator.serviceWorker.ready)
 								.finally(() => { resolve(); });
 						}
 					};
@@ -265,19 +262,35 @@
 						// service worker already loaded & ready to receive messages
 						postVersionMessage(currentController);
 					} else {
-						// either there's no controlling service worker, or it's an old one:
-						// wait for it to change before posting the message
+						if (currentController) {
+							console.log(`Found unexpected service worker controller. Found: ${currentController.scriptURL}. Expected: ${swPath}. Waiting for controllerchange.`);
+						} else {
+							console.log(`No service worker controller found. Waiting for controllerchange.`);
+						}
+
+						// Either there's no controlling service worker, or it's an old one.
+						// Wait for it to change before posting the message
 						const onControllerChange = () => {
 							navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-							postVersionMessage(navigator.serviceWorker.controller);
+							if (navigator.serviceWorker.controller) {
+								postVersionMessage(navigator.serviceWorker.controller);
+							} else {
+								return reject(new Error('No controller found.'));
+							}
 						};
 						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 					}
 				}).catch(error => {
-					reject(new Error(`Could not register service workers: ${error}.`));
+					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
+						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+					}
+					return reject(new Error(`Could not register service worker: ${error}.`));
 				});
 		});
 
+		/**
+		 *  @type {import('../webviewMessages').WebviewHostMessaging}
+		 */
 		const hostMessaging = new class HostMessaging {
 
 			constructor() {
@@ -299,19 +312,10 @@
 				};
 			}
 
-			/**
-			 * @param {string} channel
-			 * @param {any} data
-			 * @param {any} [transfer]
-			 */
 			postMessage(channel, data, transfer) {
 				this.channel.port1.postMessage({ channel, data }, transfer);
 			}
 
-			/**
-			 * @param {string} channel
-			 * @param {(event: MessageEvent, data: any) => void} handler
-			 */
 			onMessage(channel, handler) {
 				let handlers = this.handlers.get(channel);
 				if (!handlers) {
@@ -332,7 +336,7 @@
 
 				if (!crypto.subtle) {
 					// cannot validate, not running in a secure context
-					throw new Error(`Cannot validate in current context!`);
+					throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
 				}
 
 				// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
@@ -366,11 +370,11 @@
 				this.confirmBeforeClose = 'keyboardOnly';
 				this.isModifierKeyDown = false;
 
-				hostMessaging.onMessage('set-confirm-before-close', (_e, /** @type {string} */ data) => {
+				hostMessaging.onMessage('set-confirm-before-close', (_e, data) => {
 					this.confirmBeforeClose = data;
 				});
 
-				hostMessaging.onMessage('content', (_e, /** @type {any} */ data) => {
+				hostMessaging.onMessage('content', (_e, data) => {
 					this.confirmBeforeClose = data.confirmBeforeClose;
 				});
 
@@ -402,11 +406,11 @@
 			}
 
 			onIframeLoaded(/** @type {HTMLIFrameElement} */ frame) {
-				frame.contentWindow.addEventListener('keydown', e => {
+				assertIsDefined(frame.contentWindow).addEventListener('keydown', e => {
 					this.isModifierKeyDown = e.metaKey || e.ctrlKey || e.altKey;
 				});
 
-				frame.contentWindow.addEventListener('keyup', () => {
+				assertIsDefined(frame.contentWindow).addEventListener('keyup', () => {
 					this.isModifierKeyDown = false;
 				});
 			}
@@ -432,7 +436,10 @@
 			activeTheme: undefined,
 
 			/** @type {string | undefined} */
-			themeName: undefined,
+			themeId: undefined,
+
+			/** @type {string | undefined} */
+			themeLabel: undefined,
 
 			/** @type {boolean} */
 			screenReader: false,
@@ -441,26 +448,25 @@
 			reduceMotion: false,
 		};
 
-		hostMessaging.onMessage('did-load-resource', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+		if (!disableServiceWorker) {
+			hostMessaging.onMessage('did-load-resource', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 			});
-		});
 
-		hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+			hostMessaging.onMessage('did-load-localhost', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-localhost', data });
 			});
-		});
 
-		navigator.serviceWorker.addEventListener('message', event => {
-			switch (event.data.channel) {
-				case 'load-resource':
-				case 'load-localhost':
-					hostMessaging.postMessage(event.data.channel, event.data);
-					return;
-			}
-		});
+			navigator.serviceWorker.addEventListener('message', event => {
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						hostMessaging.postMessage(event.data.channel, event.data);
+						return;
+				}
+			});
+		}
+
 		/**
 		 * @param {HTMLDocument?} document
 		 * @param {HTMLElement?} body
@@ -490,7 +496,9 @@
 				}
 
 				body.dataset.vscodeThemeKind = initData.activeTheme;
-				body.dataset.vscodeThemeName = initData.themeName || '';
+				/** @deprecated data-vscode-theme-name will be removed, use data-vscode-theme-id instead */
+				body.dataset.vscodeThemeName = initData.themeLabel || '';
+				body.dataset.vscodeThemeId = initData.themeId || '';
 			}
 
 			if (initData.styles) {
@@ -507,8 +515,8 @@
 				}
 
 				// Re-add new properties
-				for (const variable of Object.keys(initData.styles)) {
-					documentStyle.setProperty(`--${variable}`, initData.styles[variable]);
+				for (const [variable, value] of Object.entries(initData.styles)) {
+					documentStyle.setProperty(`--${variable}`, value);
 				}
 			}
 		};
@@ -531,10 +539,15 @@
 						event.view.scrollTo(0, 0);
 					} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
 						const fragment = node.hash.slice(1);
-						const scrollTarget = event.view.document.getElementById(fragment) ?? event.view.document.getElementById(decodeURIComponent(fragment));
-						scrollTarget?.scrollIntoView();
+						const decodedFragment = decodeURIComponent(fragment);
+						const scrollTarget = event.view.document.getElementById(fragment) ?? event.view.document.getElementById(decodedFragment);
+						if (scrollTarget) {
+							scrollTarget.scrollIntoView();
+						} else if (decodedFragment.toLowerCase() === 'top') {
+							event.view.scrollTo(0, 0);
+						}
 					} else {
-						hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
+						hostMessaging.postMessage('did-click-link', { uri: node.href.baseVal || node.href });
 					}
 					event.preventDefault();
 					return;
@@ -571,7 +584,7 @@
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
 			// if needed
-			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e)) {
+			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e) || isSaveEvent(e)) {
 				e.preventDefault();
 			} else if (isCopyPasteOrCut(e)) {
 				if (onElectron) {
@@ -579,6 +592,10 @@
 				} else {
 					return; // let the browser handle this
 				}
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e))) {
+				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
+				// (No effect in a regular browser tab.)
+				e.preventDefault();
 			}
 
 			hostMessaging.postMessage('did-keydown', {
@@ -595,7 +612,7 @@
 		/**
 		 * @param {KeyboardEvent} e
 		 */
-		const handleInnerUp = (e) => {
+		const handleInnerKeyup = (e) => {
 			hostMessaging.postMessage('did-keyup', {
 				key: e.key,
 				keyCode: e.keyCode,
@@ -614,8 +631,10 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
-			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
+			// 45: keyCode of "Insert"
+			const shiftInsert = e.shiftKey && e.keyCode === 45;
+			// 67, 86, 88: keyCode of "C", "V", "X"
+			return (hasMeta && [67, 86, 88].includes(e.keyCode)) || shiftInsert;
 		}
 
 		/**
@@ -624,7 +643,8 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
+			// 90, 89: keyCode of "Z", "Y"
+			return hasMeta && [90, 89].includes(e.keyCode);
 		}
 
 		/**
@@ -633,7 +653,8 @@
 		 */
 		function isPrint(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'p';
+			// 80: keyCode of "P"
+			return hasMeta && e.keyCode === 80;
 		}
 
 		/**
@@ -642,7 +663,38 @@
 		 */
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'f';
+			// 70: keyCode of "F"
+			return hasMeta && e.keyCode === 70;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isSaveEvent(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 83: keyCode of "S"
+			return hasMeta && e.keyCode === 83;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCloseTab(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 87: keyCode of "W"
+			return hasMeta && e.keyCode === 87;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isNewWindow(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 78: keyCode of "N"
+			return hasMeta && e.keyCode === 78;
 		}
 
 		let isHandlingScroll = false;
@@ -687,7 +739,7 @@
 			isHandlingScroll = true;
 			window.requestAnimationFrame(() => {
 				try {
-					hostMessaging.postMessage('did-scroll', progress);
+					hostMessaging.postMessage('did-scroll', { scrollYPercentage: progress });
 				} catch (e) {
 					// noop
 				}
@@ -707,7 +759,7 @@
 
 			// Only handle drags from outside editor for now
 			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
-				hostMessaging.postMessage('drag-start');
+				hostMessaging.postMessage('drag-start', undefined);
 			}
 		}
 
@@ -731,20 +783,7 @@
 		}
 
 		/**
-		 * @typedef {{
-		 *     contents: string;
-		 *     options: {
-		 *         readonly allowScripts: boolean;
-		 *         readonly allowForms: boolean;
-		 *         readonly allowMultipleAPIAcquire: boolean;
-		 *     }
-		 *     state: any;
-		 *     cspSource: string;
-		 * }} ContentUpdateData
-		 */
-
-		/**
-		 * @param {ContentUpdateData} data
+		 * @param {import('../webviewMessages').UpdateContentEvent} data
 		 * @return {string}
 		 */
 		function toContentHtml(data) {
@@ -791,7 +830,7 @@
 			// Check for CSP
 			const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
 			if (!csp) {
-				hostMessaging.postMessage('no-csp-found');
+				hostMessaging.postMessage('no-csp-found', undefined);
 			} else {
 				try {
 					// Attempt to rewrite CSPs that hardcode old-style resource endpoint
@@ -810,6 +849,12 @@
 			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
 		}
 
+		// Also forward events before the contents of the webview have loaded
+		window.addEventListener('keydown', handleInnerKeydown);
+		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('dragenter', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragStartEvent);
+
 		onDomReady(() => {
 			if (!document.body) {
 				return;
@@ -820,7 +865,8 @@
 
 				initData.styles = data.styles;
 				initData.activeTheme = data.activeTheme;
-				initData.themeName = data.themeName;
+				initData.themeLabel = data.themeLabel;
+				initData.themeId = data.themeId;
 				initData.reduceMotion = data.reduceMotion;
 				initData.screenReader = data.screenReader;
 
@@ -854,7 +900,7 @@
 
 			// update iframe-contents
 			let updateId = 0;
-			hostMessaging.onMessage('content', async (_event, /** @type {ContentUpdateData} */ data) => {
+			hostMessaging.onMessage('content', async (_event, /** @type {import('../webviewMessages').UpdateContentEvent} */ data) => {
 				const currentUpdateId = ++updateId;
 				try {
 					await workerReady;
@@ -907,6 +953,7 @@
 				}
 
 				const newFrame = document.createElement('iframe');
+				newFrame.title = data.title;
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
 
@@ -920,23 +967,26 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;']
-				if(!isFirefox && options.allowScripts) {
-					allowRules.push('clipboard-read;','clipboard-write;')
+				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
+				if (!isFirefox && options.allowScripts) {
+					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
 				newFrame.setAttribute('allow', allowRules.join(' '));
 				// We should just be able to use srcdoc, but I wasn't
 				// seeing the service worker applying properly.
 				// Fake load an empty on the correct origin and then write real html
 				// into it to get around this.
-				const fakeUrlParams = new URLSearchParams({id: ID});
-				if(globalThis.crossOriginIsolated) {
-					fakeUrlParams.set('vscode-coi', '3') /*COOP+COEP*/
+				const fakeUrlParams = new URLSearchParams({ id: ID });
+				if (globalThis.crossOriginIsolated) {
+					fakeUrlParams.set('vscode-coi', '3'); /*COOP+COEP*/
 				}
 				newFrame.src = `./fake.html?${fakeUrlParams.toString()}`;
 
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
+
+				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
 
 				/**
 				 * @param {Document} contentDocument
@@ -1045,7 +1095,7 @@
 					contentWindow.addEventListener('click', handleInnerClick);
 					contentWindow.addEventListener('auxclick', handleAuxClick);
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
-					contentWindow.addEventListener('keyup', handleInnerUp);
+					contentWindow.addEventListener('keyup', handleInnerKeyup);
 					contentWindow.addEventListener('contextmenu', e => {
 						if (e.defaultPrevented) {
 							// Extension code has already handled this event
@@ -1053,9 +1103,36 @@
 						}
 
 						e.preventDefault();
+
+						/** @type { Record<string, boolean>} */
+						let context = {};
+
+						/** @type {HTMLElement | null} */
+						let el = e.target;
+						while (true) {
+							if (!el) {
+								break;
+							}
+
+							// Search self/ancestors for the closest context data attribute
+							el = el.closest('[data-vscode-context]');
+							if (!el) {
+								break;
+							}
+
+							try {
+								context = { ...JSON.parse(el.dataset.vscodeContext), ...context };
+							} catch (e) {
+								console.error(`Error parsing 'data-vscode-context' as json`, el, e);
+							}
+
+							el = el.parentElement;
+						}
+
 						hostMessaging.postMessage('did-context-menu', {
 							clientX: e.clientX,
 							clientY: e.clientY,
+							context: context
 						});
 					});
 
@@ -1066,8 +1143,23 @@
 				}
 			});
 
+			// propagate vscode-context-menu-visible class
+			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {
+				const target = getActiveFrame();
+				if (target && target.contentDocument) {
+					target.contentDocument.body.classList.toggle('vscode-context-menu-visible', data.visible);
+				}
+			});
+
+			hostMessaging.onMessage('set-title', async (_event, data) => {
+				const target = getActiveFrame();
+				if (target) {
+					target.title = data;
+				}
+			});
+
 			// Forward message to the embedded iframe
-			hostMessaging.onMessage('message', (_event, /** @type {{message: any, transfer?: ArrayBuffer[] }} */ data) => {
+			hostMessaging.onMessage('message', (_event, data) => {
 				const pending = getPendingFrame();
 				if (!pending) {
 					const target = getActiveFrame();
@@ -1100,20 +1192,22 @@
 					return;
 				}
 
-				if (!data.previous && lastFindValue !== data.value) {
+				if (!data.previous && lastFindValue !== data.value && target.contentWindow) {
 					// Reset selection so we start search at the head of the last search
 					const selection = target.contentWindow.getSelection();
-					selection.collapse(selection.anchorNode);
+					if (selection) {
+						selection.collapse(selection.anchorNode);
+					}
 				}
 				lastFindValue = data.value;
 
 				const didFind = (/** @type {any} */ (target.contentWindow)).find(
 					data.value,
-			/* caseSensitive*/ false,
-			/* backwards*/ data.previous,
-			/* wrapAround*/ true,
-			/* wholeWord */ false,
-			/* searchInFrames*/ false,
+					/* caseSensitive*/ false,
+					/* backwards*/ data.previous,
+					/* wrapAround*/ true,
+					/* wholeWord */ false,
+					/* searchInFrames*/ false,
 					false);
 				hostMessaging.postMessage('did-find', didFind);
 			});
@@ -1126,17 +1220,19 @@
 
 				lastFindValue = undefined;
 
-				if (!data.clearSelection) {
+				if (!data.clearSelection && target.contentWindow) {
 					const selection = target.contentWindow.getSelection();
-					for (let i = 0; i < selection.rangeCount; i++) {
-						selection.removeRange(selection.getRangeAt(i));
+					if (selection) {
+						for (let i = 0; i < selection.rangeCount; i++) {
+							selection.removeRange(selection.getRangeAt(i));
+						}
 					}
 				}
 			});
 
 			trackFocus({
-				onFocus: () => hostMessaging.postMessage('did-focus'),
-				onBlur: () => hostMessaging.postMessage('did-blur')
+				onFocus: () => hostMessaging.postMessage('did-focus', undefined),
+				onBlur: () => hostMessaging.postMessage('did-blur', undefined)
 			});
 
 			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {string} */ command, /** @type {any} */ data) => {
@@ -1147,11 +1243,6 @@
 						break;
 				}
 			};
-
-			// Also forward events before the contents of the webview have loaded
-			window.addEventListener('keydown', handleInnerKeydown);
-			window.addEventListener('dragenter', handleInnerDragStartEvent);
-			window.addEventListener('dragover', handleInnerDragStartEvent);
 
 			hostMessaging.signalReady();
 		});

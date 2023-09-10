@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
@@ -52,7 +53,7 @@ export interface IView<TLayoutContext = undefined> {
 	readonly minimumSize: number;
 
 	/**
-	 * A minimum size for this view.
+	 * A maximum size for this view.
 	 *
 	 * @remarks If none, set it to `Number.POSITIVE_INFINITY`.
 	 */
@@ -65,6 +66,14 @@ export interface IView<TLayoutContext = undefined> {
 	 * @remarks Only used when `proportionalLayout` is false.
 	 */
 	readonly priority?: LayoutPriority;
+
+	/**
+	 * If the {@link SplitView} supports {@link ISplitViewOptions.proportionalLayout proportional layout},
+	 * this property allows for finer control over the proportional layout algorithm, per view.
+	 *
+	 * @defaultValue `true`
+	 */
+	readonly proportionalLayout?: boolean;
 
 	/**
 	 * Whether the view will snap whenever the user reaches its minimum size or
@@ -110,7 +119,7 @@ export interface IView<TLayoutContext = undefined> {
 /**
  * A descriptor for a {@link SplitView} instance.
  */
-export interface ISplitViewDescriptor<TLayoutContext = undefined> {
+export interface ISplitViewDescriptor<TLayoutContext = undefined, TView extends IView<TLayoutContext> = IView<TLayoutContext>> {
 
 	/**
 	 * The layout size of the {@link SplitView}.
@@ -141,11 +150,11 @@ export interface ISplitViewDescriptor<TLayoutContext = undefined> {
 		 *
 		 * @defaultValue `true`
 		 */
-		readonly view: IView<TLayoutContext>;
+		readonly view: TView;
 	}[];
 }
 
-export interface ISplitViewOptions<TLayoutContext = undefined> {
+export interface ISplitViewOptions<TLayoutContext = undefined, TView extends IView<TLayoutContext> = IView<TLayoutContext>> {
 
 	/**
 	 * Which axis the views align on.
@@ -175,7 +184,7 @@ export interface ISplitViewOptions<TLayoutContext = undefined> {
 	 * An initial description of this {@link SplitView} instance, allowing
 	 * to initialze all views within the ctor.
 	 */
-	readonly descriptor?: ISplitViewDescriptor<TLayoutContext>;
+	readonly descriptor?: ISplitViewDescriptor<TLayoutContext, TView>;
 
 	/**
 	 * The scrollbar visibility setting for whenever the views within
@@ -198,7 +207,7 @@ interface ISashEvent {
 
 type ViewItemSize = number | { cachedVisibleSize: number };
 
-abstract class ViewItem<TLayoutContext> {
+abstract class ViewItem<TLayoutContext, TView extends IView<TLayoutContext>> {
 
 	private _size: number;
 	set size(size: number) {
@@ -241,6 +250,7 @@ abstract class ViewItem<TLayoutContext> {
 	get viewMaximumSize(): number { return this.view.maximumSize; }
 
 	get priority(): LayoutPriority | undefined { return this.view.priority; }
+	get proportionalLayout(): boolean { return this.view.proportionalLayout ?? true; }
 	get snap(): boolean { return !!this.view.snap; }
 
 	set enabled(enabled: boolean) {
@@ -249,7 +259,7 @@ abstract class ViewItem<TLayoutContext> {
 
 	constructor(
 		protected container: HTMLElement,
-		private view: IView<TLayoutContext>,
+		readonly view: TView,
 		size: ViewItemSize,
 		private disposable: IDisposable
 	) {
@@ -270,13 +280,12 @@ abstract class ViewItem<TLayoutContext> {
 
 	abstract layoutContainer(offset: number): void;
 
-	dispose(): IView<TLayoutContext> {
+	dispose(): void {
 		this.disposable.dispose();
-		return this.view;
 	}
 }
 
-class VerticalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
+class VerticalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> extends ViewItem<TLayoutContext, TView> {
 
 	layoutContainer(offset: number): void {
 		this.container.style.top = `${offset}px`;
@@ -284,7 +293,7 @@ class VerticalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
 	}
 }
 
-class HorizontalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
+class HorizontalViewItem<TLayoutContext, TView extends IView<TLayoutContext>> extends ViewItem<TLayoutContext, TView> {
 
 	layoutContainer(offset: number): void {
 		this.container.style.left = `${offset}px`;
@@ -334,6 +343,12 @@ export type DistributeSizing = { type: 'distribute' };
 export type SplitSizing = { type: 'split'; index: number };
 
 /**
+ * When adding a view, use DistributeSizing when all pre-existing views are
+ * distributed evenly, otherwise use SplitSizing.
+ */
+export type AutoSizing = { type: 'auto'; index: number };
+
+/**
  * When adding or removing views, assume the view is invisible.
  */
 export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
@@ -342,7 +357,7 @@ export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
  * When adding or removing views, the sizing provides fine grained
  * control over how other views get resized.
  */
-export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
+export type Sizing = DistributeSizing | SplitSizing | AutoSizing | InvisibleSizing;
 
 export namespace Sizing {
 
@@ -357,6 +372,12 @@ export namespace Sizing {
 	 * specific view, indexed by the provided `index`.
 	 */
 	export function Split(index: number): SplitSizing { return { type: 'split', index }; }
+
+	/**
+	 * When adding a view, use DistributeSizing when all pre-existing views are
+	 * distributed evenly, otherwise use SplitSizing.
+	 */
+	export function Auto(index: number): AutoSizing { return { type: 'auto', index }; }
 
 	/**
 	 * When adding or removing views, assume the view is invisible.
@@ -392,7 +413,7 @@ export namespace Sizing {
  * - View swap/move support
  * - Alt key modifier behavior, macOS style
  */
-export class SplitView<TLayoutContext = undefined> extends Disposable {
+export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutContext> = IView<TLayoutContext>> extends Disposable {
 
 	/**
 	 * This {@link SplitView}'s orientation.
@@ -411,9 +432,9 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private size = 0;
 	private layoutContext: TLayoutContext | undefined;
 	private contentSize = 0;
-	private proportions: undefined | number[] = undefined;
-	private viewItems: ViewItem<TLayoutContext>[] = [];
-	private sashItems: ISashItem[] = [];
+	private proportions: (number | undefined)[] | undefined = undefined;
+	private viewItems: ViewItem<TLayoutContext, TView>[] = [];
+	sashItems: ISashItem[] = []; // used in tests
 	private sashDragState: ISashDragState | undefined;
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
@@ -528,7 +549,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	/**
 	 * Create a new {@link SplitView} instance.
 	 */
-	constructor(container: HTMLElement, options: ISplitViewOptions<TLayoutContext> = {}) {
+	constructor(container: HTMLElement, options: ISplitViewOptions<TLayoutContext, TView> = {}) {
 		super();
 
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
@@ -544,20 +565,37 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.sashContainer = append(this.el, $('.sash-container'));
 		this.viewContainer = $('.split-view-container');
 
-		this.scrollable = new Scrollable({
+		this.scrollable = this._register(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
 			scheduleAtNextAnimationFrame
-		});
+		}));
 		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
 			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,
 			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
 		}, this.scrollable));
 
+		// https://github.com/microsoft/vscode/issues/157737
+		const onDidScrollViewContainer = this._register(new DomEmitter(this.viewContainer, 'scroll')).event;
+		this._register(onDidScrollViewContainer(_ => {
+			const position = this.scrollableElement.getScrollPosition();
+			const scrollLeft = Math.abs(this.viewContainer.scrollLeft - position.scrollLeft) <= 1 ? undefined : this.viewContainer.scrollLeft;
+			const scrollTop = Math.abs(this.viewContainer.scrollTop - position.scrollTop) <= 1 ? undefined : this.viewContainer.scrollTop;
+
+			if (scrollLeft !== undefined || scrollTop !== undefined) {
+				this.scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
+			}
+		}));
+
 		this.onDidScroll = this.scrollableElement.onScroll;
 		this._register(this.onDidScroll(e => {
-			this.viewContainer.scrollTop = e.scrollTop;
-			this.viewContainer.scrollLeft = e.scrollLeft;
+			if (e.scrollTopChanged) {
+				this.viewContainer.scrollTop = e.scrollTop;
+			}
+
+			if (e.scrollLeftChanged) {
+				this.viewContainer.scrollLeft = e.scrollLeft;
+			}
 		}));
 
 		append(this.el, this.scrollableElement.getDomNode());
@@ -598,7 +636,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	 * @param index The index to insert the view on.
 	 * @param skipLayout Whether layout should be skipped.
 	 */
-	addView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
+	addView(view: TView, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
 		this.doAddView(view, size, index, skipLayout);
 	}
 
@@ -608,7 +646,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	 * @param index The index where the {@link IView view} is located.
 	 * @param sizing Whether to distribute other {@link IView view}'s sizes.
 	 */
-	removeView(index: number, sizing?: Sizing): IView<TLayoutContext> {
+	removeView(index: number, sizing?: Sizing): TView {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -619,9 +657,24 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			throw new Error('Index out of bounds');
 		}
 
+		if (sizing?.type === 'auto') {
+			if (this.areViewsDistributed()) {
+				sizing = { type: 'distribute' };
+			} else {
+				sizing = { type: 'split', index: sizing.index };
+			}
+		}
+
+		// Save referene view, in case of `split` sizing
+		const referenceViewItem = sizing?.type === 'split' ? this.viewItems[sizing.index] : undefined;
+
 		// Remove view
-		const viewItem = this.viewItems.splice(index, 1)[0];
-		const view = viewItem.dispose();
+		const viewItemToRemove = this.viewItems.splice(index, 1)[0];
+
+		// Resize reference view, in case of `split` sizing
+		if (referenceViewItem) {
+			referenceViewItem.size += viewItemToRemove.size;
+		}
 
 		// Remove sash
 		if (this.viewItems.length >= 1) {
@@ -637,7 +690,34 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			this.distributeViewSizes();
 		}
 
-		return view;
+		const result = viewItemToRemove.view;
+		viewItemToRemove.dispose();
+		return result;
+	}
+
+	removeAllViews(): TView[] {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		this.state = State.Busy;
+
+		const viewItems = this.viewItems.splice(0, this.viewItems.length);
+
+		for (const viewItem of viewItems) {
+			viewItem.dispose();
+		}
+
+		const sashItems = this.sashItems.splice(0, this.sashItems.length);
+
+		for (const sashItem of sashItems) {
+			sashItem.disposable.dispose();
+		}
+
+		this.relayout();
+		this.state = State.Idle;
+
+		return viewItems.map(i => i.view);
 	}
 
 	/**
@@ -747,9 +827,26 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 			this.resize(this.viewItems.length - 1, size - previousSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		} else {
+			let total = 0;
+
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
-				item.size = clamp(Math.round(this.proportions[i] * size), item.minimumSize, item.maximumSize);
+				const proportion = this.proportions[i];
+
+				if (typeof proportion === 'number') {
+					total += proportion;
+				} else {
+					size -= item.size;
+				}
+			}
+
+			for (let i = 0; i < this.viewItems.length; i++) {
+				const item = this.viewItems[i];
+				const proportion = this.proportions[i];
+
+				if (typeof proportion === 'number') {
+					item.size = clamp(Math.round(proportion * size / total), item.minimumSize, item.maximumSize);
+				}
 			}
 		}
 
@@ -759,7 +856,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 	private saveProportions(): void {
 		if (this.proportionalLayout && this.contentSize > 0) {
-			this.proportions = this.viewItems.map(i => i.size / this.contentSize);
+			this.proportions = this.viewItems.map(i => i.proportionalLayout ? i.size / this.contentSize : undefined);
 		}
 	}
 
@@ -879,7 +976,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		}
 	}
 
-	private onViewChange(item: ViewItem<TLayoutContext>, size: number | undefined): void {
+	private onViewChange(item: ViewItem<TLayoutContext, TView>, size: number | undefined): void {
 		const index = this.viewItems.indexOf(item);
 
 		if (index < 0 || index >= this.viewItems.length) {
@@ -952,7 +1049,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	 * Distribute the entire {@link SplitView} size among all {@link IView views}.
 	 */
 	distributeViewSizes(): void {
-		const flexibleViewItems: ViewItem<TLayoutContext>[] = [];
+		const flexibleViewItems: ViewItem<TLayoutContext, TView>[] = [];
 		let flexibleSize = 0;
 
 		for (const item of this.viewItems) {
@@ -986,7 +1083,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		return this.viewItems[index].size;
 	}
 
-	private doAddView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
+	private doAddView(view: TView, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -1010,12 +1107,22 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		if (typeof size === 'number') {
 			viewSize = size;
-		} else if (size.type === 'split') {
-			viewSize = this.getViewSize(size.index) / 2;
-		} else if (size.type === 'invisible') {
-			viewSize = { cachedVisibleSize: size.cachedVisibleSize };
 		} else {
-			viewSize = view.minimumSize;
+			if (size.type === 'auto') {
+				if (this.areViewsDistributed()) {
+					size = { type: 'distribute' };
+				} else {
+					size = { type: 'split', index: size.index };
+				}
+			}
+
+			if (size.type === 'split') {
+				viewSize = this.getViewSize(size.index) / 2;
+			} else if (size.type === 'invisible') {
+				viewSize = { cachedVisibleSize: size.cachedVisibleSize };
+			} else {
+				viewSize = view.minimumSize;
+			}
 		}
 
 		const item = this.orientation === Orientation.VERTICAL
@@ -1338,13 +1445,30 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		return undefined;
 	}
 
+	private areViewsDistributed() {
+		let min = undefined, max = undefined;
+
+		for (const view of this.viewItems) {
+			min = min === undefined ? view.size : Math.min(min, view.size);
+			max = max === undefined ? view.size : Math.max(max, view.size);
+
+			if (max - min > 2) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	override dispose(): void {
-		super.dispose();
+		this.sashDragState?.disposable.dispose();
 
 		dispose(this.viewItems);
 		this.viewItems = [];
 
 		this.sashItems.forEach(i => i.disposable.dispose());
 		this.sashItems = [];
+
+		super.dispose();
 	}
 }

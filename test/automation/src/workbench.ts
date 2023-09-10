@@ -55,7 +55,7 @@ export class Workbench {
 		this.explorer = new Explorer(code);
 		this.activitybar = new ActivityBar(code);
 		this.search = new Search(code);
-		this.extensions = new Extensions(code);
+		this.extensions = new Extensions(code, this.quickaccess);
 		this.editor = new Editor(code, this.quickaccess);
 		this.scm = new SCM(code);
 		this.debug = new Debug(code, this.quickaccess, this.editors, this.editor);
@@ -64,7 +64,7 @@ export class Workbench {
 		this.settingsEditor = new SettingsEditor(code, this.editors, this.editor, this.quickaccess);
 		this.keybindingsEditor = new KeybindingsEditor(code);
 		this.terminal = new Terminal(code, this.quickaccess, this.quickinput);
-		this.notebook = new Notebook(this.quickaccess, code);
+		this.notebook = new Notebook(this.quickaccess, this.quickinput, code);
 		this.localization = new Localization(code);
 		this.task = new Task(code, this.editor, this.editors, this.quickaccess, this.quickinput, this.terminal);
 	}

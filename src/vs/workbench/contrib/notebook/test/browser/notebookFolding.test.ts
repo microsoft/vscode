@@ -49,6 +49,34 @@ suite('Notebook Folding', () => {
 		);
 	});
 
+	test('Folding not based on code cells', async function () {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['# comment 1', 'python', CellKind.Code, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3\n```\n## comment 2\n```', 'markdown', CellKind.Markup, [], {}],
+				['body 4', 'markdown', CellKind.Markup, [], {}],
+				['## header 2.1', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'python', CellKind.Code, [], {}],
+			],
+			(editor, viewModel) => {
+				const foldingController = new FoldingModel();
+				foldingController.attachViewModel(viewModel);
+
+				assert.strictEqual(foldingController.regions.findRange(1), 0);
+				assert.strictEqual(foldingController.regions.findRange(2), 0);
+				assert.strictEqual(foldingController.regions.findRange(3), 0);
+				assert.strictEqual(foldingController.regions.findRange(4), 0);
+				assert.strictEqual(foldingController.regions.findRange(5), 0);
+				assert.strictEqual(foldingController.regions.findRange(6), 0);
+				assert.strictEqual(foldingController.regions.findRange(7), 1);
+				assert.strictEqual(foldingController.regions.findRange(8), 1);
+			}
+		);
+	});
+
 	test('Top level header in a cell wins', async function () {
 		await withTestNotebook(
 			[

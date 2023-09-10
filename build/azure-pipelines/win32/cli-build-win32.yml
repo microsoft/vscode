@@ -1,0 +1,83 @@
+parameters:
+  - name: VSCODE_BUILD_WIN32
+    type: boolean
+    default: false
+  - name: VSCODE_BUILD_WIN32_32BIT
+    type: boolean
+    default: false
+  - name: VSCODE_BUILD_WIN32_ARM64
+    type: boolean
+    default: false
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_QUALITY
+    type: string
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "18.x"
+
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - template: ../cli/cli-apply-patches.yml
+
+  - task: Npm@1
+    displayName: Download openssl prebuilt
+    inputs:
+      command: custom
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.8
+      customRegistry: useFeed
+      customFeed: "Monaco/openssl-prebuilt"
+      workingDir: $(Build.ArtifactStagingDirectory)
+
+  - powershell: |
+      mkdir $(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.8.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+    displayName: Extract openssl prebuilt
+
+  - template: ../cli/install-rust-win32.yml
+    parameters:
+      targets:
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+          - x86_64-pc-windows-msvc
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+          - aarch64-pc-windows-msvc
+        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
+          - i686-pc-windows-msvc
+
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_CLI_TARGET: x86_64-pc-windows-msvc
+        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_x64_cli
+        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/include
+          RUSTFLAGS: "-C target-feature=+crt-static"
+
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_CLI_TARGET: aarch64-pc-windows-msvc
+        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_arm64_cli
+        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/include
+          RUSTFLAGS: "-C target-feature=+crt-static"
+
+  - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_CLI_TARGET: i686-pc-windows-msvc
+        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_ia32_cli
+        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/include
+          RUSTFLAGS: "-C target-feature=+crt-static"

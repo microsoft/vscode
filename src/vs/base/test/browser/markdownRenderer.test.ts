@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -68,7 +69,7 @@ suite('MarkdownRenderer', () => {
 	});
 
 	suite('Code block renderer', () => {
-		const simpleCodeBlockRenderer = (code: string): Promise<HTMLElement> => {
+		const simpleCodeBlockRenderer = (lang: string, code: string): Promise<HTMLElement> => {
 			const element = document.createElement('code');
 			element.textContent = code;
 			return Promise.resolve(element);
@@ -114,6 +115,19 @@ suite('MarkdownRenderer', () => {
 					setTimeout(resolve, 50);
 				}, 50);
 			});
+		});
+
+		test('Code blocks should use leading language id (#157793)', async () => {
+			const markdown = { value: '```js some other stuff\n1 + 1;\n```' };
+			const lang = await new Promise<string>(resolve => {
+				renderMarkdown(markdown, {
+					codeBlockRenderer: async (lang, value) => {
+						resolve(lang);
+						return simpleCodeBlockRenderer(lang, value);
+					}
+				});
+			});
+			assert.strictEqual(lang, 'js');
 		});
 	});
 
@@ -310,6 +324,388 @@ suite('MarkdownRenderer', () => {
 
 			const result = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+		});
+	});
+
+	suite('fillInIncompleteTokens', () => {
+		function ignoreRaw(...tokenLists: marked.Token[][]): void {
+			tokenLists.forEach(tokens => {
+				tokens.forEach(t => t.raw = '');
+			});
+		}
+
+		const completeTable = '| a | b |\n| --- | --- |';
+
+		suite('table', () => {
+			test('complete table', () => {
+				const tokens = marked.lexer(completeTable);
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.equal(newTokens, tokens);
+			});
+
+			test('full header only', () => {
+				const incompleteTable = '| a | b |';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(completeTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('full header only with trailing space', () => {
+				const incompleteTable = '| a | b | ';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(completeTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				ignoreRaw(newTokens, completeTableTokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('incomplete header', () => {
+				const incompleteTable = '| a | b';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(completeTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				ignoreRaw(newTokens, completeTableTokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('incomplete header one column', () => {
+				const incompleteTable = '| a ';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(incompleteTable + '|\n| --- |');
+
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				ignoreRaw(newTokens, completeTableTokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('full header with extras', () => {
+				const incompleteTable = '| a **bold** | b _italics_ |';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('full header with leading text', () => {
+				// Parsing this gives one token and one 'text' subtoken
+				const incompleteTable = 'here is a table\n| a | b |';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('full header with leading other stuff', () => {
+				// Parsing this gives one token and one 'text' subtoken
+				const incompleteTable = '```js\nconst xyz = 123;\n```\n| a | b |';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('full header with incomplete separator', () => {
+				const incompleteTable = '| a | b |\n| ---';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(completeTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('full header with incomplete separator 2', () => {
+				const incompleteTable = '| a | b |\n| --- |';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(completeTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('full header with incomplete separator 3', () => {
+				const incompleteTable = '| a | b |\n|';
+				const tokens = marked.lexer(incompleteTable);
+				const completeTableTokens = marked.lexer(completeTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, completeTableTokens);
+			});
+
+			test('not a table', () => {
+				const incompleteTable = '| a | b |\nsome text';
+				const tokens = marked.lexer(incompleteTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('not a table 2', () => {
+				const incompleteTable = '| a | b |\n| --- |\nsome text';
+				const tokens = marked.lexer(incompleteTable);
+
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+		});
+
+		suite('codeblock', () => {
+			test('complete code block', () => {
+				const completeCodeblock = '```js\nconst xyz = 123;\n```';
+				const tokens = marked.lexer(completeCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+				assert.equal(newTokens, tokens);
+			});
+
+			test('code block header only', () => {
+				const incompleteCodeblock = '```js';
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
+
+			test('code block header no lang', () => {
+				const incompleteCodeblock = '```';
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
+
+			test('code block header and some code', () => {
+				const incompleteCodeblock = '```js\nconst';
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
+
+			test('code block header with leading text', () => {
+				const incompleteCodeblock = 'some text\n```js';
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
+
+			test('code block header with leading text and some code', () => {
+				const incompleteCodeblock = 'some text\n```js\nconst';
+				const tokens = marked.lexer(incompleteCodeblock);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+				assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+			});
+		});
+
+		function simpleMarkdownTestSuite(name: string, delimiter: string): void {
+			test(`incomplete ${name}`, () => {
+				const incomplete = `${delimiter}code`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`complete ${name}`, () => {
+				const text = `leading text ${delimiter}code${delimiter} trailing text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test(`${name} with leading text`, () => {
+				const incomplete = `some text and ${delimiter}some code`;
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`single loose "${delimiter}"`, () => {
+				const text = `some text and ${delimiter}by itself\nmore text here`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test(`incomplete ${name} after newline`, () => {
+				const text = `some text\nmore text here and ${delimiter}text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`incomplete after complete ${name}`, () => {
+				const text = `leading text ${delimiter}code${delimiter} trailing text and ${delimiter}another`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test.skip(`incomplete ${name} in list`, () => {
+				const text = `- list item one\n- list item two and ${delimiter}text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		}
+
+		suite('codespan', () => {
+			simpleMarkdownTestSuite('codespan', '`');
+
+			test(`backtick between letters`, () => {
+				const text = 'a`b';
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeCodespanTokens = marked.lexer(text + '`');
+				assert.deepStrictEqual(newTokens, completeCodespanTokens);
+			});
+
+			test(`nested pattern`, () => {
+				const text = 'sldkfjsd `abc __def__ ghi';
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + '`');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
+
+		suite('star', () => {
+			simpleMarkdownTestSuite('star', '*');
+
+			test(`star between letters`, () => {
+				const text = 'sldkfjsd a*b';
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + '*');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`nested pattern`, () => {
+				const text = 'sldkfjsd *abc __def__ ghi';
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + '*');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
+
+		suite('double star', () => {
+			simpleMarkdownTestSuite('double star', '**');
+
+			test(`double star between letters`, () => {
+				const text = 'a**b';
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + '**');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+		});
+
+		suite('underscore', () => {
+			simpleMarkdownTestSuite('underscore', '_');
+
+			test(`underscore between letters`, () => {
+				const text = `this_not_italics`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+		});
+
+		suite('double underscore', () => {
+			simpleMarkdownTestSuite('double underscore', '__');
+
+			test(`double underscore between letters`, () => {
+				const text = `this__not__bold`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+		});
+
+		suite('link', () => {
+			test('incomplete link text', () => {
+				const incomplete = 'abc [text';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target', () => {
+				const incomplete = 'foo [text](http://microsoft';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test.skip('incomplete link in list', () => {
+				const incomplete = '- [text';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('square brace between letters', () => {
+				const incomplete = 'a[b';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('square brace on previous line', () => {
+				const incomplete = 'text[\nmore text';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('complete link', () => {
+				const incomplete = 'text [link](http://microsoft.com)';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
 		});
 	});
 });

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISettingsEditorModel, ISetting, ISettingsGroup, IFilterMetadata, ISearchResult, IGroupFilter, ISettingMatcher, IScoredResults, ISettingMatch, IRemoteSetting, IExtensionSetting, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFilter, SettingMatchType, ISettingMatch } from 'vs/workbench/services/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
-import { distinct, top } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -14,18 +14,13 @@ import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -35,12 +30,13 @@ export interface IEndpointDetails {
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	declare readonly _serviceBrand: undefined;
 
+	// @ts-expect-error disable remote search for now, ref https://github.com/microsoft/vscode/issues/172411
 	private _installedExtensions: Promise<ILocalExtension[]>;
+	private _remoteSearchProvider: RemoteSearchProvider | undefined;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
@@ -58,40 +54,34 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 
 	private get remoteSearchAllowed(): boolean {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		if (!workbenchSettings.enableNaturalLanguageSearch) {
-			return false;
-		}
-
-		return !!this._endpoint.urlBase;
+		return workbenchSettings.enableNaturalLanguageSearch;
 	}
 
-	private get _endpoint(): IEndpointDetails {
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		if (workbenchSettings.naturalLanguageSearchEndpoint) {
-			return {
-				urlBase: workbenchSettings.naturalLanguageSearchEndpoint,
-				key: workbenchSettings.naturalLanguageSearchKey
-			};
-		} else {
-			return {
-				urlBase: this.productService.settingsSearchUrl
-			};
+	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): RemoteSearchProvider | undefined {
+		if (!this.remoteSearchAllowed) {
+			return undefined;
 		}
-	}
 
-	getRemoteSearchProvider(filter: string, newExtensionsOnly = false): ISearchProvider | undefined {
-		const opts: IRemoteSearchProviderOptions = {
-			filter,
-			newExtensionsOnly,
-			endpoint: this._endpoint
-		};
+		if (!this._remoteSearchProvider) {
+			this._remoteSearchProvider = this.instantiationService.createInstance(RemoteSearchProvider);
+		}
 
-		return this.remoteSearchAllowed ? this.instantiationService.createInstance(RemoteSearchProvider, opts, this._installedExtensions) : undefined;
+		this._remoteSearchProvider.setFilter(filter);
+		return this._remoteSearchProvider;
 	}
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider {
 		return this.instantiationService.createInstance(LocalSearchProvider, filter);
 	}
+}
+
+function cleanFilter(filter: string): string {
+	// Remove " and : which are likely to be copypasted as part of a setting name.
+	// Leave other special characters which the user might want to search for.
+	return filter
+		.replace(/[":]/g, ' ')
+		.replace(/  /g, ' ')
+		.trim();
 }
 
 export class LocalSearchProvider implements ISearchProvider {
@@ -102,12 +92,7 @@ export class LocalSearchProvider implements ISearchProvider {
 		private _filter: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		// Remove " and : which are likely to be copypasted as part of a setting name.
-		// Leave other special characters which the user might want to search for.
-		this._filter = this._filter
-			.replace(/[":]/g, ' ')
-			.replace(/  /g, ' ')
-			.trim();
+		this._filter = cleanFilter(this._filter);
 	}
 
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
@@ -150,301 +135,6 @@ export class LocalSearchProvider implements ISearchProvider {
 			return regex.test(group.title);
 		};
 	}
-}
-
-interface IRemoteSearchProviderOptions {
-	filter: string;
-	endpoint: IEndpointDetails;
-	newExtensionsOnly: boolean;
-}
-
-interface IBingRequestDetails {
-	url: string;
-	body?: string;
-	hasMoreFilters?: boolean;
-	extensions?: ILocalExtension[];
-}
-
-class RemoteSearchProvider implements ISearchProvider {
-	// Must keep extension filter size under 8kb. 42 filters puts us there.
-	private static readonly MAX_REQUEST_FILTERS = 42;
-	private static readonly MAX_REQUESTS = 10;
-	private static readonly NEW_EXTENSIONS_MIN_SCORE = 1;
-
-	private _remoteSearchP: Promise<IFilterMetadata | null>;
-
-	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
-		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		this._remoteSearchP = this.options.filter ?
-			Promise.resolve(this.getSettingsForFilter(this.options.filter)) :
-			Promise.resolve(null);
-	}
-
-	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null> {
-		return this._remoteSearchP.then<ISearchResult | null>((remoteResult) => {
-			if (!remoteResult) {
-				return null;
-			}
-
-			if (token && token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-
-			const resultKeys = Object.keys(remoteResult.scoredResults);
-			const highScoreKey = top(resultKeys, (a, b) => remoteResult.scoredResults[b].score - remoteResult.scoredResults[a].score, 1)[0];
-			const highScore = highScoreKey ? remoteResult.scoredResults[highScoreKey].score : 0;
-			const minScore = highScore / 5;
-			if (this.options.newExtensionsOnly) {
-				return this.installedExtensions.then(installedExtensions => {
-					const newExtsMinScore = Math.max(RemoteSearchProvider.NEW_EXTENSIONS_MIN_SCORE, minScore);
-					const passingScoreKeys = resultKeys
-						.filter(k => {
-							const result = remoteResult.scoredResults[k];
-							const resultExtId = (result.extensionPublisher + '.' + result.extensionName).toLowerCase();
-							return !installedExtensions.some(ext => ext.identifier.id.toLowerCase() === resultExtId);
-						})
-						.filter(k => remoteResult.scoredResults[k].score >= newExtsMinScore);
-
-					const filterMatches: ISettingMatch[] = passingScoreKeys.map(k => {
-						const remoteSetting = remoteResult.scoredResults[k];
-						const setting = remoteSettingToISetting(remoteSetting);
-						return <ISettingMatch>{
-							setting,
-							score: remoteSetting.score,
-							matches: [], // TODO
-							matchType: SettingMatchType.None
-						};
-					});
-
-					return <ISearchResult>{
-						filterMatches,
-						metadata: remoteResult
-					};
-				});
-			} else {
-				const settingMatcher = this.getRemoteSettingMatcher(remoteResult.scoredResults, minScore, preferencesModel);
-				const filterMatches = preferencesModel.filterSettings(this.options.filter, group => null, settingMatcher);
-				return <ISearchResult>{
-					filterMatches,
-					metadata: remoteResult
-				};
-			}
-		});
-	}
-
-	private async getSettingsForFilter(filter: string): Promise<IFilterMetadata> {
-		const allRequestDetails: IBingRequestDetails[] = [];
-
-		// Only send MAX_REQUESTS requests in total just to keep it sane
-		for (let i = 0; i < RemoteSearchProvider.MAX_REQUESTS; i++) {
-			const details = await this.prepareRequest(filter, i);
-			allRequestDetails.push(details);
-			if (!details.hasMoreFilters) {
-				break;
-			}
-		}
-
-		return Promise.all(allRequestDetails.map(details => this.getSettingsFromBing(details))).then(allResponses => {
-			// Merge all IFilterMetadata
-			const metadata = allResponses[0];
-			metadata.requestCount = 1;
-
-			for (const response of allResponses.slice(1)) {
-				metadata.requestCount++;
-				metadata.scoredResults = { ...metadata.scoredResults, ...response.scoredResults };
-			}
-
-			return metadata;
-		});
-	}
-
-	private getSettingsFromBing(details: IBingRequestDetails): Promise<IFilterMetadata> {
-		this.logService.debug(`Searching settings via ${details.url}`);
-		if (details.body) {
-			this.logService.debug(`Body: ${details.body}`);
-		}
-
-		const requestType = details.body ? 'post' : 'get';
-		const headers: IStringDictionary<string> = {
-			'User-Agent': 'request',
-			'Content-Type': 'application/json; charset=utf-8',
-		};
-
-		if (this.options.endpoint.key) {
-			headers['api-key'] = this.options.endpoint.key;
-		}
-
-		const start = Date.now();
-		return this.requestService.request({
-			type: requestType,
-			url: details.url,
-			data: details.body,
-			headers,
-			timeout: 5000
-		}, CancellationToken.None).then(context => {
-			if (typeof context.res.statusCode === 'number' && context.res.statusCode >= 300) {
-				throw new Error(`${JSON.stringify(details)} returned status code: ${context.res.statusCode}`);
-			}
-
-			return asJson(context);
-		}).then((result: any) => {
-			const timestamp = Date.now();
-			const duration = timestamp - start;
-			const remoteSettings: IRemoteSetting[] = (result.value || [])
-				.map((r: any) => {
-					const key = JSON.parse(r.setting || r.Setting);
-					const packageId = r['packageid'];
-					const id = getSettingKey(key, packageId);
-
-					const value = r['value'];
-					const defaultValue = value ? JSON.parse(value) : value;
-
-					const packageName = r['packagename'];
-					let extensionName: string | undefined;
-					let extensionPublisher: string | undefined;
-					if (packageName && packageName.indexOf('##') >= 0) {
-						[extensionPublisher, extensionName] = packageName.split('##');
-					}
-
-					return <IRemoteSetting>{
-						key,
-						id,
-						defaultValue,
-						score: r['@search.score'],
-						description: JSON.parse(r['details']),
-						packageId,
-						extensionName,
-						extensionPublisher
-					};
-				});
-
-			const scoredResults = Object.create(null);
-			remoteSettings.forEach(s => {
-				scoredResults[s.id] = s;
-			});
-
-			return <IFilterMetadata>{
-				requestUrl: details.url,
-				requestBody: details.body,
-				duration,
-				timestamp,
-				scoredResults,
-				context: result['@odata.context']
-			};
-		});
-	}
-
-	private getRemoteSettingMatcher(scoredResults: IScoredResults, minScore: number, preferencesModel: ISettingsEditorModel): ISettingMatcher {
-		return (setting: ISetting, group: ISettingsGroup) => {
-			const remoteSetting = scoredResults[getSettingKey(setting.key, group.id)] || // extension setting
-				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
-				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
-			if (remoteSetting && remoteSetting.score >= minScore) {
-				const { matches, matchType } = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
-				return { matches, matchType, score: remoteSetting.score };
-			}
-
-			return null;
-		};
-	}
-
-	private async prepareRequest(query: string, filterPage = 0): Promise<IBingRequestDetails> {
-		const verbatimQuery = query;
-		query = escapeSpecialChars(query);
-		const boost = 10;
-		const boostedQuery = `(${query})^${boost}`;
-
-		// Appending Fuzzy after each word.
-		query = query.replace(/\ +/g, '~ ') + '~';
-
-		const encodedQuery = encodeURIComponent(boostedQuery + ' || ' + query);
-		let url = `${this.options.endpoint.urlBase}`;
-
-		if (this.options.endpoint.key) {
-			url += `${API_VERSION}&${QUERY_TYPE}`;
-		}
-
-		const extensions = await this.installedExtensions;
-		const filters = this.options.newExtensionsOnly ?
-			[`diminish eq 'latest'`] :
-			this.getVersionFilters(extensions, this.productService.settingsSearchBuildId);
-
-		const filterStr = filters
-			.slice(filterPage * RemoteSearchProvider.MAX_REQUEST_FILTERS, (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS)
-			.join(' or ');
-		const hasMoreFilters = filters.length > (filterPage + 1) * RemoteSearchProvider.MAX_REQUEST_FILTERS;
-
-		const body = JSON.stringify({
-			search: encodedQuery,
-			filters: encodeURIComponent(filterStr),
-			rawQuery: encodeURIComponent(verbatimQuery)
-		});
-
-		return {
-			url,
-			body,
-			hasMoreFilters
-		};
-	}
-
-	private getVersionFilters(exts: ILocalExtension[], buildNumber?: number): string[] {
-		// Only search extensions that contribute settings
-		const filters = exts
-			.filter(ext => ext.manifest.contributes && ext.manifest.contributes.configuration)
-			.map(ext => this.getExtensionFilter(ext));
-
-		if (buildNumber) {
-			filters.push(`(packageid eq 'core' and startbuildno le '${buildNumber}' and endbuildno ge '${buildNumber}')`);
-		}
-
-		return filters;
-	}
-
-	private getExtensionFilter(ext: ILocalExtension): string {
-		const uuid = ext.identifier.uuid;
-		const versionString = ext.manifest.version
-			.split('.')
-			.map(versionPart => String(versionPart).padStart(10), '0')
-			.join('');
-
-		return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
-	}
-}
-
-function getSettingKey(name: string, packageId?: string): string {
-	return packageId ?
-		packageId + '##' + name :
-		name;
-}
-
-const API_VERSION = 'api-version=2016-09-01-Preview';
-const QUERY_TYPE = 'querytype=full';
-
-function escapeSpecialChars(query: string): string {
-	return query.replace(/\./g, ' ')
-		.replace(/[\\/+\-&|!"~*?:(){}\[\]\^]/g, '\\$&')
-		.replace(/  /g, ' ') // collapse spaces
-		.trim();
-}
-
-function remoteSettingToISetting(remoteSetting: IRemoteSetting): IExtensionSetting {
-	return {
-		description: remoteSetting.description.split('\n'),
-		descriptionIsMarkdown: false,
-		descriptionRanges: [],
-		key: remoteSetting.key,
-		keyRange: nullRange,
-		value: remoteSetting.defaultValue,
-		range: nullRange,
-		valueRange: nullRange,
-		overrides: [],
-		extensionName: remoteSetting.extensionName,
-		extensionPublisher: remoteSetting.extensionPublisher
-	};
 }
 
 export class SettingMatches {
@@ -607,4 +297,111 @@ export class SettingMatches {
 	}
 }
 
-registerSingleton(IPreferencesSearchService, PreferencesSearchService, true);
+class RemoteSearchKeysProvider {
+	private settingKeys: string[] = [];
+	private settingsRecord: Record<string, ISetting> = {};
+	private currentPreferencesModel: ISettingsEditorModel | undefined;
+
+	constructor(
+		private readonly aiRelatedInformationService: IAiRelatedInformationService
+	) { }
+
+	updateModel(preferencesModel: ISettingsEditorModel) {
+		if (preferencesModel === this.currentPreferencesModel) {
+			return;
+		}
+
+		this.currentPreferencesModel = preferencesModel;
+		this.refresh();
+	}
+
+	private refresh() {
+		this.settingKeys = [];
+		this.settingsRecord = {};
+
+		if (
+			!this.currentPreferencesModel ||
+			!this.aiRelatedInformationService.isEnabled()
+		) {
+			return;
+		}
+
+		for (const group of this.currentPreferencesModel.settingsGroups) {
+			if (group.id === 'mostCommonlyUsed') {
+				continue;
+			}
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					this.settingKeys.push(setting.key);
+					this.settingsRecord[setting.key] = setting;
+				}
+			}
+		}
+	}
+
+	getSettingKeys(): string[] {
+		return this.settingKeys;
+	}
+
+	getSettingsRecord(): Record<string, ISetting> {
+		return this.settingsRecord;
+	}
+}
+
+export class RemoteSearchProvider implements ISearchProvider {
+	private static readonly AI_RELATED_INFORMATION_THRESHOLD = 0.73;
+	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 15;
+
+	private readonly _keysProvider: RemoteSearchKeysProvider;
+	private _filter: string = '';
+
+	constructor(
+		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService
+	) {
+		this._keysProvider = new RemoteSearchKeysProvider(aiRelatedInformationService);
+	}
+
+	setFilter(filter: string) {
+		this._filter = cleanFilter(filter);
+	}
+
+	async searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken | undefined): Promise<ISearchResult | null> {
+		if (
+			!this._filter ||
+			!this.aiRelatedInformationService.isEnabled()
+		) {
+			return null;
+		}
+
+		this._keysProvider.updateModel(preferencesModel);
+
+		return {
+			filterMatches: await this.getAiRelatedInformationItems(token)
+		};
+	}
+
+	private async getAiRelatedInformationItems(token?: CancellationToken | undefined) {
+		const settingsRecord = this._keysProvider.getSettingsRecord();
+
+		const filterMatches: ISettingMatch[] = [];
+		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(this._filter, [RelatedInformationType.SettingInformation], token ?? CancellationToken.None) as SettingInformationResult[];
+		relatedInformation.sort((a, b) => b.weight - a.weight);
+
+		for (const info of relatedInformation) {
+			if (info.weight < RemoteSearchProvider.AI_RELATED_INFORMATION_THRESHOLD || filterMatches.length === RemoteSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+				break;
+			}
+			const pick = info.setting;
+			filterMatches.push({
+				setting: settingsRecord[pick],
+				matches: [settingsRecord[pick].range],
+				matchType: SettingMatchType.RemoteMatch,
+				score: info.weight
+			});
+		}
+
+		return filterMatches;
+	}
+}
+
+registerSingleton(IPreferencesSearchService, PreferencesSearchService, InstantiationType.Delayed);

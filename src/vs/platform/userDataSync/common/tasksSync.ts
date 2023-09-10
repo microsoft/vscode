@@ -13,12 +13,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractFileSynchroniser, AbstractInitializer, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { Change, IRemoteUserData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, IRemoteUserData, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ITasksSyncContent {
-	tasks: string;
+	tasks?: string;
 }
 
 interface ITasksResourcePreview extends IFileResourcePreview {
@@ -28,7 +28,7 @@ interface ITasksResourcePreview extends IFileResourcePreview {
 export function getTasksContentFromSyncContent(syncContent: string, logService: ILogService): string | null {
 	try {
 		const parsed = <ITasksSyncContent>JSON.parse(syncContent);
-		return parsed.tasks;
+		return parsed.tasks ?? null;
 	} catch (e) {
 		logService.error(e);
 		return null;
@@ -45,6 +45,8 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
 
 	constructor(
+		profile: IUserDataProfile,
+		collection: string | undefined,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
@@ -55,9 +57,8 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 	) {
-		super(userDataProfilesService.defaultProfile.tasksResource, SyncResource.Tasks, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		super(profile.tasksResource, { syncResource: SyncResource.Tasks, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration): Promise<ITasksResourcePreview[]> {
@@ -75,7 +76,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		let hasRemoteChanged: boolean = false;
 		let hasConflicts: boolean = false;
 
-		if (remoteContent) {
+		if (remoteUserData.syncData) {
 			const localContent = fileContent ? fileContent.value.toString() : null;
 			if (!lastSyncContent // First time sync
 				|| lastSyncContent !== localContent // Local has forwarded
@@ -98,7 +99,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		}
 
 		const previewResult: IMergeResult = {
-			content,
+			content: hasConflicts ? lastSyncContent : content,
 			localChange: hasLocalChanged ? fileContent ? Change.Modified : Change.Added : Change.None,
 			remoteChange: hasRemoteChanged ? Change.Modified : Change.None,
 			hasConflicts
@@ -109,7 +110,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			fileContent,
 
 			baseResource: this.baseResource,
-			baseContent: lastSyncContent !== null ? lastSyncContent : localContent,
+			baseContent: lastSyncContent,
 
 			localResource: this.localResource,
 			localContent,
@@ -195,13 +196,17 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			if (fileContent) {
 				await this.backupLocal(JSON.stringify(this.toTasksSyncContent(fileContent.value.toString())));
 			}
-			await this.updateLocalFileContent(content || '{}', fileContent, force);
+			if (content) {
+				await this.updateLocalFileContent(content, fileContent, force);
+			} else {
+				await this.deleteLocalFile();
+			}
 			this.logService.info(`${this.syncResourceLogLabel}: Updated local tasks`);
 		}
 
 		if (remoteChange !== Change.None) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote tasks...`);
-			const remoteContents = JSON.stringify(this.toTasksSyncContent(content || '{}'));
+			const remoteContents = JSON.stringify(this.toTasksSyncContent(content));
 			remoteUserData = await this.updateRemoteUserData(remoteContents, force ? null : remoteUserData.ref);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote tasks`);
 		}
@@ -223,11 +228,6 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		return this.fileService.exists(this.file);
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
-		return [{ resource: this.extUri.joinPath(uri, 'tasks.json'), comparableResource }];
-	}
-
 	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(this.remoteResource, uri)
 			|| this.extUri.isEqual(this.baseResource, uri)
@@ -236,25 +236,11 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 		) {
 			return this.resolvePreviewContent(uri);
 		}
-		let content = await super.resolveContent(uri);
-		if (content) {
-			return content;
-		}
-		content = await super.resolveContent(this.extUri.dirname(uri));
-		if (content) {
-			const syncData = this.parseSyncData(content);
-			if (syncData) {
-				switch (this.extUri.basename(uri)) {
-					case 'tasks.json':
-						return getTasksContentFromSyncContent(syncData.content, this.logService);
-				}
-			}
-		}
 		return null;
 	}
 
-	private toTasksSyncContent(tasks: string): ITasksSyncContent {
-		return { tasks };
+	private toTasksSyncContent(tasks: string | null): ITasksSyncContent {
+		return tasks ? { tasks } : {};
 	}
 
 }
@@ -268,12 +254,13 @@ export class TasksInitializer extends AbstractInitializer {
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IStorageService storageService: IStorageService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Tasks, userDataProfilesService, environmentService, logService, fileService, uriIdentityService);
+		super(SyncResource.Tasks, userDataProfilesService, environmentService, logService, fileService, storageService, uriIdentityService);
 	}
 
-	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+	protected async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
 		const tasksContent = remoteUserData.syncData ? getTasksContentFromSyncContent(remoteUserData.syncData.content, this.logService) : null;
 		if (!tasksContent) {
 			this.logService.info('Skipping initializing tasks because remote tasks does not exist.');

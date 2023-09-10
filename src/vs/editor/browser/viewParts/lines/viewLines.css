@@ -19,18 +19,39 @@
 	background: rgb(150, 0, 0) !important;
 }
 
+.mtkoverflow {
+	background-color: var(--vscode-button-background, var(--vscode-editor-background));
+	color: var(--vscode-button-foreground, var(--vscode-editor-foreground));
+	border-width: 1px;
+	border-style: solid;
+	border-color: var(--vscode-contrastBorder);
+	border-radius: 2px;
+	padding: 4px;
+	cursor: pointer;
+}
+.mtkoverflow:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
 .monaco-editor.no-user-select .lines-content,
 .monaco-editor.no-user-select .view-line,
 .monaco-editor.no-user-select .view-lines {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
+}
+/* Use user-select: text for lookup feature on macOS */
+/* https://github.com/microsoft/vscode/issues/85632 */
+.monaco-editor.mac .lines-content:hover,
+.monaco-editor.mac .view-line:hover,
+.monaco-editor.mac .view-lines:hover {
+	user-select: text;
+	-webkit-user-select: text;
+	-ms-user-select: text;
 }
 
 .monaco-editor.enable-user-select {
 	user-select: initial;
 	-webkit-user-select: initial;
-	-ms-user-select: initial;
 }
 
 .monaco-editor .view-lines {
@@ -42,8 +63,13 @@
 	width: 100%;
 }
 
+.monaco-editor .mtkw {
+	color: var(--vscode-editorWhitespace-foreground) !important;
+}
+
 .monaco-editor .mtkz {
 	display: inline-block;
+	color: var(--vscode-editorWhitespace-foreground) !important;
 }
 
 /* TODO@tokenization bootstrap fix */

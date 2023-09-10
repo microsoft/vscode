@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import * as dom from 'vs/base/browser/dom';
 import type { IViewportRange } from 'xterm';
 import { IHoverTarget, IHoverService, IHoverAction } from 'vs/workbench/services/hover/browser/hover';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
@@ -39,10 +37,6 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		super();
 	}
 
-	override dispose() {
-		super.dispose();
-	}
-
 	attach(container: HTMLElement): void {
 		const showLinkHover = this._configurationService.getValue(TerminalSettingId.ShowLinkHover);
 		if (!showLinkHover) {
@@ -64,7 +58,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 }
 
 class CellHoverTarget extends Widget implements IHoverTarget {
-	private _domNode: HTMLElement | undefined;
+	private _domNode: HTMLElement;
 	private readonly _targetElements: HTMLElement[] = [];
 
 	get targetElements(): readonly HTMLElement[] { return this._targetElements; }
@@ -124,20 +118,6 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		}
 
 		container.appendChild(this._domNode);
-	}
-
-	override dispose(): void {
-		this._domNode?.parentElement?.removeChild(this._domNode);
-		super.dispose();
+		this._register(toDisposable(() => this._domNode?.remove()));
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
-	if (editorHoverHighlightColor) {
-		if (editorHoverHighlightColor.isOpaque()) {
-			editorHoverHighlightColor = editorHoverHighlightColor.transparent(0.5);
-		}
-		collector.addRule(`.integrated-terminal .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
-	}
-});

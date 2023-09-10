@@ -10,26 +10,27 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
-import Severity from 'vs/base/common/severity';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
-	commandId: string;
-	commandAlias?: string;
+	readonly commandId: string;
+	readonly commandAlias?: string;
+	readonly args?: any[];
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
-	showAlias: boolean;
+	readonly showAlias: boolean;
+	suggestedCommandIds?: Set<string>;
 }
 
 export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable {
@@ -55,10 +56,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		this.options = options;
 	}
 
-	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Promise<Picks<ICommandQuickPick> | FastAndSlowPicks<ICommandQuickPick>> {
 
 		// Ask subclass for all command picks
-		const allCommandPicks = await this.getCommandPicks(disposables, token);
+		const allCommandPicks = await this.getCommandPicks(token);
 
 		if (token.isCancellationRequested) {
 			return [];
@@ -67,8 +68,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
-			const labelHighlights = withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label));
-			const aliasHighlights = commandPick.commandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias)) : undefined;
+			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label) ?? undefined;
+			const aliasHighlights = commandPick.commandAlias ? AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined : undefined;
 
 			// Add if matching in label or alias
 			if (labelHighlights || aliasHighlights) {
@@ -115,80 +116,129 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				return 1; // other command was used so it wins over the command
 			}
 
+			if (this.options.suggestedCommandIds) {
+				const commandASuggestion = this.options.suggestedCommandIds.has(commandPickA.commandId);
+				const commandBSuggestion = this.options.suggestedCommandIds.has(commandPickB.commandId);
+				if (commandASuggestion && commandBSuggestion) {
+					return 0; // honor the order of the array
+				}
+
+				if (commandASuggestion) {
+					return -1; // first command was suggested, so it wins over the non suggested one
+				}
+
+				if (commandBSuggestion) {
+					return 1; // other command was suggested so it wins over the command
+				}
+			}
+
 			// both commands were never used, so we sort by name
 			return commandPickA.label.localeCompare(commandPickB.label);
 		});
 
 		const commandPicks: Array<ICommandQuickPick | IQuickPickSeparator> = [];
 
-		let addSeparator = false;
+		let addOtherSeparator = false;
+		let addCommonlyUsedSeparator = !!this.options.suggestedCommandIds;
 		for (let i = 0; i < filteredCommandPicks.length; i++) {
 			const commandPick = filteredCommandPicks[i];
-			const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
-			const ariaLabel = keybinding ?
-				localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
-				commandPick.label;
 
 			// Separator: recently used
 			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('recentlyUsed', "recently used") });
-				addSeparator = true;
+				addOtherSeparator = true;
+			}
+
+			// Separator: commonly used
+			if (addCommonlyUsedSeparator && !this.commandsHistory.peek(commandPick.commandId) && this.options.suggestedCommandIds?.has(commandPick.commandId)) {
+				commandPicks.push({ type: 'separator', label: localize('commonlyUsed', "commonly used") });
+				addOtherSeparator = true;
+				addCommonlyUsedSeparator = false;
 			}
 
 			// Separator: other commands
-			if (i !== 0 && addSeparator && !this.commandsHistory.peek(commandPick.commandId)) {
+			if (addOtherSeparator && !this.commandsHistory.peek(commandPick.commandId) && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('morecCommands', "other commands") });
-				addSeparator = false; // only once
+				addOtherSeparator = false;
 			}
 
 			// Command
-			commandPicks.push({
-				...commandPick,
-				ariaLabel,
-				detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
-				keybinding,
-				accept: async () => {
-
-					// Add to history
-					this.commandsHistory.push(commandPick.commandId);
-
-					// Telementry
-					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-						id: commandPick.commandId,
-						from: 'quick open'
-					});
-
-					// Run
-					try {
-						await this.commandService.executeCommand(commandPick.commandId);
-					} catch (error) {
-						if (!isCancellationError(error)) {
-							this.dialogService.show(Severity.Error, localize('canNotRun', "Command '{0}' resulted in an error ({1})", commandPick.label, toErrorMessage(error)));
-						}
-					}
-				}
-			});
+			commandPicks.push(this.toCommandPick(commandPick, runOptions));
 		}
 
-		return commandPicks;
+		if (!this.hasAdditionalCommandPicks(filter, token)) {
+			return commandPicks;
+		}
+
+		return {
+			picks: commandPicks,
+			additionalPicks: (async (): Promise<Picks<ICommandQuickPick>> => {
+				const additionalCommandPicks = await this.getAdditionalCommandPicks(allCommandPicks, filteredCommandPicks, filter, token);
+				if (token.isCancellationRequested) {
+					return [];
+				}
+
+				return additionalCommandPicks.map(commandPick => this.toCommandPick(commandPick, runOptions));
+			})()
+		};
 	}
 
-	/**
-	 * Subclasses to provide the actual command entries.
-	 */
-	protected abstract getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>>;
+	private toCommandPick(commandPick: ICommandQuickPick | IQuickPickSeparator, runOptions?: IQuickAccessProviderRunOptions): ICommandQuickPick | IQuickPickSeparator {
+		if (commandPick.type === 'separator') {
+			return commandPick;
+		}
+
+		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
+		const ariaLabel = keybinding ?
+			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
+			commandPick.label;
+
+		return {
+			...commandPick,
+			ariaLabel,
+			detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
+			keybinding,
+			accept: async () => {
+
+				// Add to history
+				this.commandsHistory.push(commandPick.commandId);
+
+				// Telementry
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+					id: commandPick.commandId,
+					from: runOptions?.from ?? 'quick open'
+				});
+
+				// Run
+				try {
+					commandPick.args?.length
+						? await this.commandService.executeCommand(commandPick.commandId, ...commandPick.args)
+						: await this.commandService.executeCommand(commandPick.commandId);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
+					}
+				}
+			}
+		};
+	}
+
+	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
+
+	protected abstract hasAdditionalCommandPicks(filter: string, token: CancellationToken): boolean;
+	protected abstract getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>>;
 }
 
 interface ISerializedCommandHistory {
-	usesLRU?: boolean;
-	entries: { key: string; value: number }[];
+	readonly usesLRU?: boolean;
+	readonly entries: { key: string; value: number }[];
 }
 
 interface ICommandsQuickAccessConfiguration {
-	workbench: {
-		commandPalette: {
-			history: number;
-			preserveInput: boolean;
+	readonly workbench: {
+		readonly commandPalette: {
+			readonly history: number;
+			readonly preserveInput: boolean;
 		};
 	};
 }
@@ -218,10 +268,14 @@ export class CommandsHistory extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.updateConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(e)));
 	}
 
-	private updateConfiguration(): void {
+	private updateConfiguration(e?: IConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('workbench.commandPalette.history')) {
+			return;
+		}
+
 		this.configuredCommandsHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
 
 		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
