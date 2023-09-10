@@ -18,7 +18,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
 import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
+import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,8 +34,6 @@ import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/wor
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -98,8 +96,8 @@ export interface IWalkthroughsService {
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
 
-	getWalkthroughs(): Promise<IResolvedWalkthrough[]>;
-	getWalkthrough(id: string): Promise<IResolvedWalkthrough>;
+	getWalkthroughs(): IResolvedWalkthrough[];
+	getWalkthrough(id: string): IResolvedWalkthrough;
 
 	registerWalkthrough(descriptor: IWalkthroughLoose): void;
 
@@ -113,12 +111,6 @@ export interface IWalkthroughsService {
 // Show walkthrough as "new" for 7 days after first install
 const DAYS = 24 * 60 * 60 * 1000;
 const NEW_WALKTHROUGH_TIME = 7 * DAYS;
-
-type WalkthroughTreatment = {
-	walkthroughId: string;
-	walkthroughStepIds?: string[];
-	stepOrder: number[];
-};
 
 export class WalkthroughsService extends Disposable implements IWalkthroughsService {
 	declare readonly _serviceBrand: undefined;
@@ -149,7 +141,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 	private metadata: WalkthroughMetaDataType;
 
-	private registeredWalkthroughs: boolean = false;
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -162,9 +153,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService
 	) {
 		super();
 
@@ -178,28 +167,13 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.initCompletionEventListeners();
 
 		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
+		this.registerWalkthroughs();
+
 	}
 
-	private async registerWalkthroughs() {
-
-		const treatmentString = await Promise.race([
-			this.tasExperimentService?.getTreatment<string>('welcome.walkthrough.content'),
-			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
-		]);
-
-		const treatment: WalkthroughTreatment = treatmentString ? JSON.parse(treatmentString) : { walkthroughId: '' };
+	private registerWalkthroughs() {
 
 		walkthroughs.forEach(async (category, index) => {
-			let shouldReorder = false;
-			if (category.id === treatment?.walkthroughId) {
-				category = this.updateWalkthroughContent(category, treatment);
-
-				shouldReorder = (treatment?.stepOrder !== undefined && category.content.steps.length === treatment.stepOrder.length);
-				if (shouldReorder) {
-					category.content.steps = category.content.steps.filter((_step, index) => treatment.stepOrder[index] >= 0);
-					treatment.stepOrder = treatment.stepOrder.filter(value => value >= 0);
-				}
-			}
 
 			this._registerWalkthrough({
 				...category,
@@ -214,7 +188,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 							completionEvents: step.completionEvents ?? [],
 							description: parseDescription(step.description),
 							category: category.id,
-							order: shouldReorder ? (treatment?.stepOrder ? treatment.stepOrder[index] : index) : index,
+							order: index,
 							when: ContextKeyExpr.deserialize(step.when) ?? ContextKeyExpr.true(),
 							media: step.media.type === 'image'
 								? {
@@ -239,36 +213,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			});
 		});
 
-		await this.lifecycleService.when(LifecyclePhase.Restored);
-
 		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
 			added.map(e => this.registerExtensionWalkthroughContributions(e.description));
 			removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description));
 		});
-	}
-
-	private updateWalkthroughContent(walkthrough: BuiltinGettingStartedCategory, experimentTreatment: WalkthroughTreatment): BuiltinGettingStartedCategory {
-
-		if (!experimentTreatment?.walkthroughStepIds) {
-			return walkthrough;
-		}
-
-		const walkthroughMetadata = this.productService.walkthroughMetadata?.find(value => value.id === walkthrough.id);
-		for (const step of experimentTreatment.walkthroughStepIds) {
-			const stepMetadata = walkthroughMetadata?.steps.find(value => value.id === step);
-			if (stepMetadata) {
-
-				const newStep: BuiltinGettingStartedStep = {
-					id: step,
-					title: stepMetadata.title,
-					description: stepMetadata.description,
-					when: stepMetadata.when,
-					media: stepMetadata.media
-				};
-				walkthrough.content.steps.push(newStep);
-			}
-		}
-		return walkthrough;
 	}
 
 	private initCompletionEventListeners() {
@@ -493,22 +441,14 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		});
 	}
 
-	async getWalkthrough(id: string): Promise<IResolvedWalkthrough> {
-		if (!this.registeredWalkthroughs) {
-			await this.registerWalkthroughs();
-			this.registeredWalkthroughs = true;
-		}
+	getWalkthrough(id: string): IResolvedWalkthrough {
 
 		const walkthrough = this.gettingStartedContributions.get(id);
 		if (!walkthrough) { throw Error('Trying to get unknown walkthrough: ' + id); }
 		return this.resolveWalkthrough(walkthrough);
 	}
 
-	async getWalkthroughs(): Promise<IResolvedWalkthrough[]> {
-		if (!this.registeredWalkthroughs) {
-			await this.registerWalkthroughs();
-			this.registeredWalkthroughs = true;
-		}
+	getWalkthroughs(): IResolvedWalkthrough[] {
 
 		const registeredCategories = [...this.gettingStartedContributions.values()];
 		const categoriesWithCompletion = registeredCategories

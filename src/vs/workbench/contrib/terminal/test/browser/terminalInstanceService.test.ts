@@ -36,6 +36,10 @@ suite('Workbench - TerminalInstanceService', () => {
 		terminalInstanceService = instantiationService.createInstance(TerminalInstanceService);
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('convertProfileToShellLaunchConfig', () => {
 		test('should return an empty shell launch config when undefined is provided', () => {
 			deepStrictEqual(terminalInstanceService.convertProfileToShellLaunchConfig(), {});

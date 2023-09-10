@@ -124,7 +124,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed {
-	min-width: var(--tab-sizing-current-width, 50px);
+	min-width: var(--tab-sizing-current-width, var(--tab-sizing-fixed-min-width, 50px));
 	max-width: var(--tab-sizing-current-width, var(--tab-sizing-fixed-max-width, 160px));
 	flex: 1 0 0; /* all tabs are evenly sized and grow */
 }
@@ -133,7 +133,7 @@
 	/* prevent last tab in a row from moving to next row when tab widths are
 	 * fixed in case rounding errors make the fixed tabs grow over the size
 	 * of the tabs container */
-	min-width: calc(var(--tab-sizing-current-width, 50px) - 1px);
+	min-width: calc(var(--tab-sizing-current-width, var(--tab-sizing-fixed-min-width, 50px)) - 1px);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) {

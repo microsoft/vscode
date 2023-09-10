@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4b19be579cb4a3c680f8b4bb613dcebfac826f8b",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/7adad0868ecafbb1df978f1e052d6c3c85c38732",
 	"name": "BibTeX",
 	"scopeName": "text.bibtex",
 	"comment": "Grammar based on description from http://artis.imag.fr/~Xavier.Decoret/resources/xdkbibtex/bibtex_summary.html#comment\n\t\n\tTODO: Does not support @preamble\n\t",
@@ -345,7 +345,7 @@
 					"end": "(?!\\G)",
 					"patterns": [
 						{
-							"begin": "%",
+							"begin": "(?<!\\\\)%",
 							"beginCaptures": {
 								"0": {
 									"name": "punctuation.definition.comment.bibtex"

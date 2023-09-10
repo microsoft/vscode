@@ -113,6 +113,14 @@ export class ListService implements IListService {
 	}
 }
 
+export const RawWorkbenchListScrollAtBoundaryContextKey = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('listScrollAtBoundary', 'none');
+export const WorkbenchListScrollAtTopContextKey = ContextKeyExpr.or(
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('top'),
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('both'));
+export const WorkbenchListScrollAtBottomContextKey = ContextKeyExpr.or(
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('bottom'),
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('both'));
+
 export const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
@@ -137,6 +145,33 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
+}
+
+// Note: We must declare IScrollObservarable as the arithmetic of concrete classes,
+// instead of object type like { onDidScroll: Event<any>; ... }. The latter will not mark
+// those properties as referenced during tree-shaking, causing them to be shaked away.
+type IScrollObservarable = Exclude<WorkbenchListWidget, WorkbenchPagedList<any>> | List<any>;
+
+function createScrollObserver(contextKeyService: IContextKeyService, widget: IScrollObservarable): IDisposable {
+	const listScrollAt = RawWorkbenchListScrollAtBoundaryContextKey.bindTo(contextKeyService);
+	const update = () => {
+		const atTop = widget.scrollTop === 0;
+
+		// We need a threshold `1` since scrollHeight is rounded.
+		// https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight#determine_if_an_element_has_been_totally_scrolled
+		const atBottom = widget.scrollHeight - widget.renderHeight - widget.scrollTop < 1;
+		if (atTop && atBottom) {
+			listScrollAt.set('both');
+		} else if (atTop) {
+			listScrollAt.set('top');
+		} else if (atBottom) {
+			listScrollAt.set('bottom');
+		} else {
+			listScrollAt.set('none');
+		}
+	};
+	update();
+	return widget.onDidScroll(update);
 }
 
 const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
@@ -258,6 +293,8 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		this.disposables.add(createScrollObserver(this.contextKeyService, this));
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
@@ -390,6 +427,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
+		this.disposables.add(createScrollObserver(this.contextKeyService, this.widget));
+
 		this.horizontalScrolling = options.horizontalScrolling;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
@@ -513,6 +552,8 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		this.disposables.add(createScrollObserver(this.contextKeyService, this));
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
@@ -1164,6 +1205,8 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, tree);
+
+		this.disposables.push(createScrollObserver(this.contextKeyService, tree));
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);

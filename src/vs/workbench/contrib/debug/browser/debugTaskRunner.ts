@@ -12,7 +12,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { ITaskEvent, TaskEventKind, ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -235,7 +234,7 @@ export class DebugTaskRunner {
 				return inactivePromise;
 			}
 
-			return taskPromise.then(withUndefinedAsNull);
+			return taskPromise.then(x => x ?? null);
 		});
 
 		return new Promise((c, e) => {

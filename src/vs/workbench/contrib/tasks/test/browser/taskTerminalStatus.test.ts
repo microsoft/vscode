@@ -76,6 +76,9 @@ suite('Task Terminal Status', () => {
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
 		problemCollector = instantiationService.createInstance(TestProblemCollector) as any;
 	});
+	teardown(() => {
+		instantiationService.dispose();
+	});
 	test('Should add failed status when there is an exit code on task end', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });

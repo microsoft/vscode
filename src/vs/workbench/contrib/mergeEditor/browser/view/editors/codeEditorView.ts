@@ -113,7 +113,8 @@ export function createSelectionsAutorun(
 	codeEditorView: CodeEditorView,
 	translateRange: (baseRange: Range, viewModel: MergeEditorViewModel) => Range
 ): IDisposable {
-	const selections = derived('selections', reader => {
+	const selections = derived(reader => {
+		/** @description selections */
 		const viewModel = codeEditorView.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -125,7 +126,8 @@ export function createSelectionsAutorun(
 		return baseRange.rangesInBase.map(r => translateRange(r, viewModel));
 	});
 
-	return autorun('set selections', (reader) => {
+	return autorun(reader => {
+		/** @description set selections */
 		const ranges = selections.read(reader);
 		if (ranges.length === 0) {
 			return;

@@ -5,8 +5,12 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -23,6 +27,9 @@ import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 
@@ -94,23 +101,22 @@ export function registerChatActions() {
 		}
 	});
 
-	registerEditorAction(class AccessibilityHelpChatAction extends EditorAction {
+	class ChatAccessibilityHelpContribution extends Disposable {
+		static ID: 'chatAccessibilityHelpContribution';
 		constructor() {
-			super({
-				id: 'chat.action.accessibilityHelp',
-				label: localize('chat.action.accessibiltyHelp', "Chat View Accessibility Help"),
-				alias: 'Chat View Accessibility Help',
-				precondition: CONTEXT_IN_CHAT_INPUT,
-				kbOpts: {
-					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.EditorContrib + 10
+			super();
+			this._register(AccessibilityHelpAction.addImplementation(105, 'panelChat', async accessor => {
+				const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
+				if (!codeEditor) {
+					return;
 				}
-			});
+				runAccessibilityHelpAction(accessor, codeEditor, 'panelChat');
+			}, CONTEXT_IN_CHAT_SESSION));
 		}
-		async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-			runAccessibilityHelpAction(accessor, editor, 'chat');
-		}
-	});
+	}
+
+	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+	workbenchRegistry.registerWorkbenchContribution(ChatAccessibilityHelpContribution, LifecyclePhase.Eventually);
 
 	registerAction2(class FocusChatInputAction extends Action2 {
 		constructor() {
@@ -185,9 +191,20 @@ export function getHistoryAction(viewId: string, providerId: string) {
 			const items = chatService.getHistory();
 			const picks = items.map(i => (<IQuickPickItem & { chat: IChatDetail }>{
 				label: i.title,
-				chat: i
+				chat: i,
+				buttons: [{
+					iconClass: ThemeIcon.asClassName(Codicon.x),
+					tooltip: localize('interactiveSession.history.delete', "Delete"),
+				}]
 			}));
-			const selection = await quickInputService.pick(picks, { placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore") });
+			const selection = await quickInputService.pick(picks,
+				{
+					placeHolder: localize('interactiveSession.history.pick', "Select a chat session to restore"),
+					onDidTriggerItemButton: context => {
+						chatService.removeHistoryEntry(context.item.chat.sessionId);
+						context.removeItem();
+					}
+				});
 			if (selection) {
 				const sessionId = selection.chat.sessionId;
 				await editorService.openEditor({

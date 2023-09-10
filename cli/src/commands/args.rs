@@ -6,7 +6,7 @@
 use std::{fmt, path::PathBuf};
 
 use crate::{constants, log, options, tunnels::code_server::CodeServerArgs};
-use clap::{ArgEnum, Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
@@ -174,7 +174,20 @@ pub enum Commands {
 
 	/// Runs the control server on process stdin/stdout
 	#[clap(hide = true)]
-	CommandShell,
+	CommandShell(CommandShellArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct CommandShellArgs {
+	/// Listen on a socket instead of stdin/stdout.
+	#[clap(long)]
+	pub on_socket: bool,
+	/// Listen on a port instead of stdin/stdout.
+	#[clap(long)]
+	pub on_port: bool,
+	/// Require the given token string to be given in the handshake.
+	#[clap(long)]
+	pub require_token: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -399,7 +412,7 @@ pub struct DesktopCodeOptions {
 #[derive(Args, Debug, Clone)]
 pub struct OutputFormatOptions {
 	/// Set the data output formats.
-	#[clap(arg_enum, long, value_name = "format", default_value_t = OutputFormat::Text)]
+	#[clap(value_enum, long, value_name = "format", default_value_t = OutputFormat::Text)]
 	pub format: OutputFormat,
 }
 
@@ -429,7 +442,7 @@ pub struct GlobalOptions {
 	pub log_to_file: Option<PathBuf>,
 
 	/// Log level to use.
-	#[clap(long, arg_enum, value_name = "level", global = true)]
+	#[clap(long, value_enum, value_name = "level", global = true)]
 	pub log: Option<log::Level>,
 
 	/// Disable telemetry for the current command, even if it was previously
@@ -438,7 +451,7 @@ pub struct GlobalOptions {
 	pub disable_telemetry: bool,
 
 	/// Sets the initial telemetry level
-	#[clap(arg_enum, long, global = true, hide = true)]
+	#[clap(value_enum, long, global = true, hide = true)]
 	pub telemetry_level: Option<options::TelemetryLevel>,
 }
 
@@ -474,7 +487,7 @@ pub struct EditorTroubleshooting {
 	pub disable_extension: Vec<String>,
 
 	/// Turn sync on or off.
-	#[clap(arg_enum, long, value_name = "on | off")]
+	#[clap(value_enum, long, value_name = "on | off")]
 	pub sync: Option<SyncState>,
 
 	/// Allow debugging and profiling of extensions. Check the developer tools for the connection URI.
@@ -524,7 +537,7 @@ impl EditorTroubleshooting {
 	}
 }
 
-#[derive(ArgEnum, Clone, Copy, Debug)]
+#[derive(ValueEnum, Clone, Copy, Debug)]
 pub enum SyncState {
 	On,
 	Off,
@@ -539,7 +552,7 @@ impl fmt::Display for SyncState {
 	}
 }
 
-#[derive(ArgEnum, Clone, Copy, Debug)]
+#[derive(ValueEnum, Clone, Copy, Debug)]
 pub enum OutputFormat {
 	Json,
 	Text,
@@ -548,6 +561,7 @@ pub enum OutputFormat {
 #[derive(Args, Clone, Debug, Default)]
 pub struct ExistingTunnelArgs {
 	/// Name you'd like to assign preexisting tunnel to use to connect the tunnel
+	/// Old option, new code sohuld just use `--name`.
 	#[clap(long, hide = true)]
 	pub tunnel_name: Option<String>,
 
@@ -611,7 +625,7 @@ pub enum TunnelSubcommand {
 	/// Restarts any running tunnel on the system.
 	Restart,
 
-	/// Gets whether there is a tunnel running on the current machineiou.
+	/// Gets whether there is a tunnel running on the current machine.
 	Status,
 
 	/// Rename the name of this machine associated with port forwarding service.
@@ -626,6 +640,10 @@ pub enum TunnelSubcommand {
 	/// (Preview) Manages the tunnel when installed as a system service,
 	#[clap(subcommand)]
 	Service(TunnelServiceSubCommands),
+
+	/// (Preview) Forwards local port using the dev tunnel
+	#[clap(hide = true)]
+	ForwardInternal(TunnelForwardArgs),
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -649,12 +667,26 @@ pub struct TunnelServiceInstallArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Sets the machine name for port forwarding service
+	#[clap(long)]
+	pub name: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct TunnelRenameArgs {
 	/// The name you'd like to rename your machine to.
 	pub name: String,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TunnelForwardArgs {
+	/// One or more ports to forward.
+	pub ports: Vec<u16>,
+
+	/// Login args -- used for convenience so the forwarding call is a single action.
+	#[clap(flatten)]
+	pub login: LoginArgs,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -677,11 +709,11 @@ pub struct LoginArgs {
 	pub access_token: Option<String>,
 
 	/// The auth provider to use. If not provided, a prompt will be shown.
-	#[clap(arg_enum, long)]
+	#[clap(value_enum, long)]
 	pub provider: Option<AuthProvider>,
 }
 
-#[derive(clap::ArgEnum, Debug, Clone, Copy)]
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
 pub enum AuthProvider {
 	Microsoft,
 	Github,

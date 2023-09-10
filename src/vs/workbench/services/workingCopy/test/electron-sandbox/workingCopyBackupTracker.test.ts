@@ -565,6 +565,109 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			});
 		});
 
+		suite('"onExit" setting - scratchpad', () => {
+			test('should hot exit (reason: CLOSE, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, true, false);
+			});
+			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, false, !!isMacintosh);
+			});
+			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, true, false);
+			});
+			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, false, true);
+			});
+			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, false, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, false, false);
+			});
+			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, false, true);
+			});
+			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, false, true);
+			});
+		});
+
+		suite('"onExitAndWindowClose" setting - scratchpad', () => {
+			test('should hot exit (reason: CLOSE, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, true, false);
+			});
+			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, false, !!isMacintosh);
+			});
+			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, true, false);
+			});
+			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, false, true);
+			});
+			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, false, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, false, false);
+			});
+			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, false, true);
+			});
+			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, false, true);
+			});
+		});
+
+
 		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
 			const { accessor, cleanup } = await createTracker();
 
@@ -592,6 +695,59 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			await model?.resolve();
 			model?.textEditorModel?.setValue('foo');
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
+
+			const event = new TestBeforeShutdownEvent();
+			event.reason = shutdownReason;
+			accessor.lifecycleService.fireBeforeShutdown(event);
+
+			const veto = await event.value;
+			assert.ok(typeof event.finalValue === 'function'); // assert the tracker uses the internal finalVeto API
+			assert.strictEqual(accessor.workingCopyBackupService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.strictEqual(veto, shouldVeto);
+
+			await cleanup();
+		}
+
+		async function scratchpadHotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
+			const { accessor, cleanup } = await createTracker();
+
+			class TestBackupWorkingCopy extends TestWorkingCopy {
+
+				constructor(resource: URI) {
+					super(resource);
+
+					accessor.workingCopyService.registerWorkingCopy(this);
+				}
+
+				override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
+
+				override isDirty(): boolean {
+					return false;
+				}
+
+				override isModified(): boolean {
+					return true;
+				}
+			}
+
+			// Set hot exit config
+			accessor.filesConfigurationService.testOnFilesConfigurationChange({ files: { hotExit: setting } });
+
+			// Set empty workspace if required
+			if (!workspace) {
+				accessor.contextService.setWorkspace(new Workspace('empty:1508317022751'));
+			}
+
+			// Set multiple windows if required
+			if (multipleWindows) {
+				accessor.nativeHostService.windowCount = Promise.resolve(2);
+			}
+
+			// Set cancel to force a veto if hot exit does not trigger
+			accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
+
+			const resource = toResource.call(this, '/path/custom.txt');
+			new TestBackupWorkingCopy(resource);
 
 			const event = new TestBeforeShutdownEvent();
 			event.reason = shutdownReason;
