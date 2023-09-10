@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 
 export abstract class ViewPart extends ViewEventHandler {
 
@@ -19,9 +18,8 @@ export abstract class ViewPart extends ViewEventHandler {
 		this._context.addEventHandler(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._context.removeEventHandler(this);
-		this._context = null;
 		super.dispose();
 	}
 
@@ -44,23 +42,20 @@ export const enum PartFingerprint {
 export class PartFingerprints {
 
 	public static write(target: Element | FastDomNode<HTMLElement>, partId: PartFingerprint) {
-		if (target instanceof FastDomNode) {
-			target.setAttribute('data-mprt', String(partId));
-		} else {
-			target.setAttribute('data-mprt', String(partId));
-		}
+		target.setAttribute('data-mprt', String(partId));
 	}
 
 	public static read(target: Element): PartFingerprint {
-		let r = target.getAttribute('data-mprt');
+		const r = target.getAttribute('data-mprt');
 		if (r === null) {
 			return PartFingerprint.None;
 		}
 		return parseInt(r, 10);
 	}
 
-	public static collect(child: Element, stopAt: Element): Uint8Array {
-		let result: PartFingerprint[] = [], resultLen = 0;
+	public static collect(child: Element | null, stopAt: Element): Uint8Array {
+		const result: PartFingerprint[] = [];
+		let resultLen = 0;
 
 		while (child && child !== document.body) {
 			if (child === stopAt) {
@@ -72,7 +67,7 @@ export class PartFingerprints {
 			child = child.parentElement;
 		}
 
-		let r = new Uint8Array(resultLen);
+		const r = new Uint8Array(resultLen);
 		for (let i = 0; i < resultLen; i++) {
 			r[i] = result[resultLen - i - 1];
 		}

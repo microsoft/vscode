@@ -1,14 +1,32 @@
 {
 	"compilerOptions": {
-		"target": "es5",
+		"target": "es2022",
+		"lib": [
+			"ES2020"
+		],
 		"module": "commonjs",
-		"noImplicitAny": false,
+		"alwaysStrict": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
-		"experimentalDecorators": true,
-		"newLine": "LF"
+		"inlineSourceMap": true,
+		"resolveJsonModule": true,
+		// enable JavaScript type checking for the language service
+		// use the tsconfig.build.json for compiling which disable JavaScript
+		// type checking so that JavaScript file are not transpiled
+		"allowJs": true,
+		"strict": true,
+		"exactOptionalPropertyTypes": false,
+		"useUnknownInCatchVariables": false,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"newLine": "lf",
+		"noEmit": true
 	},
+	"include": [
+		"**/*.ts",
+		"**/*.js"
+	],
 	"exclude": [
 		"node_modules/**"
 	]

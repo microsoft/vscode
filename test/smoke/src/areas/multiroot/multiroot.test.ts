@@ -3,28 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication, CODE_WORKSPACE_PATH, VSCODE_BUILD } from '../../spectron/application';
+import { writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { Application, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-describe('Multiroot', () => {
-	let app: SpectronApplication = new SpectronApplication(void 0, CODE_WORKSPACE_PATH);
-	if (app.build === VSCODE_BUILD.STABLE) {
-		return;
+function toUri(path: string): string {
+	if (process.platform === 'win32') {
+		return `${path.replace(/\\/g, '/')}`;
 	}
 
-	before(() => app.start('Multi Root'));
-	after(() => app.stop());
+	return `${path}`;
+}
 
-	it('shows results from all folders', async function () {
-		await app.workbench.quickopen.openQuickOpen('*.*');
+function createWorkspaceFile(workspacePath: string): string {
+	const workspaceFilePath = join(dirname(workspacePath), 'smoketest.code-workspace');
+	const workspace = {
+		folders: [
+			{ path: toUri(join(workspacePath, 'public')) },
+			{ path: toUri(join(workspacePath, 'routes')) },
+			{ path: toUri(join(workspacePath, 'views')) }
+		],
+		settings: {
+			'workbench.startupEditor': 'none',
+			'workbench.enableExperiments': false,
+			'typescript.disableAutomaticTypeAcquisition': true,
+			'json.schemaDownload.enable': false,
+			'npm.fetchOnlinePackageInfo': false,
+			'npm.autoDetect': 'off',
+			'workbench.editor.languageDetection': false,
+			"workbench.localHistory.enabled": false
+		}
+	};
 
-		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
-		await app.workbench.quickopen.closeQuickOpen();
+	writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
+
+	return workspaceFilePath;
+}
+
+export function setup(logger: Logger) {
+	describe('Multiroot', () => {
+
+		// Shared before/after handling
+		installAllHandlers(logger, opts => {
+			const workspacePath = createWorkspaceFile(opts.workspacePath);
+			return { ...opts, workspacePath };
+		});
+
+		it('shows results from all folders', async function () {
+			const app = this.app as Application;
+			const expectedNames = [
+				'index.js',
+				'users.js',
+				'style.css',
+				'error.pug',
+				'index.pug',
+				'layout.pug'
+			];
+
+			await app.workbench.quickaccess.openFileQuickAccessAndWait('*.*', 6);
+			await app.workbench.quickinput.waitForQuickInputElements(names => expectedNames.every(expectedName => names.some(name => expectedName === name)));
+			await app.workbench.quickinput.closeQuickInput();
+		});
+
+		it('shows workspace name in title', async function () {
+			const app = this.app as Application;
+
+			await app.code.waitForTitle(title => /smoketest \(Workspace\)/i.test(title));
+		});
 	});
-
-	it('shows workspace name in title', async function () {
-		const title = await app.client.getTitle();
-		await app.screenCapturer.capture('window title');
-		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
-	});
-});
+}

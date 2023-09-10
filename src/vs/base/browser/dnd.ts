@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { $ } from 'vs/base/browser/builder';
-import URI from 'vs/base/common/uri';
+import { addDisposableListener } from 'vs/base/browser/dom';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
-export class DelayedDragHandler {
-
-	private timeout: number;
+export class DelayedDragHandler extends Disposable {
+	private timeout: any;
 
 	constructor(container: HTMLElement, callback: () => void) {
-		$(container).on('dragover', () => {
+		super();
+
+		this._register(addDisposableListener(container, 'dragover', e => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
 					callback();
@@ -25,9 +27,13 @@ export class DelayedDragHandler {
 					this.timeout = null;
 				}, 800);
 			}
-		});
+		}));
 
-		$(container).on(['dragleave', 'drop', 'dragend'], () => this.clearDragTimeout());
+		['dragleave', 'drop', 'dragend'].forEach(type => {
+			this._register(addDisposableListener(container, type, () => {
+				this.clearDragTimeout();
+			}));
+		});
 	}
 
 	private clearDragTimeout(): void {
@@ -37,45 +43,67 @@ export class DelayedDragHandler {
 		}
 	}
 
-	public dispose(): void {
+	override dispose(): void {
+		super.dispose();
+
 		this.clearDragTimeout();
 	}
 }
 
-export interface IDraggedResource {
-	resource: URI;
-	isExternal: boolean;
-}
+// Common data transfers
+export const DataTransfers = {
 
-export function extractResources(e: DragEvent, externalOnly?: boolean): IDraggedResource[] {
-	const resources: IDraggedResource[] = [];
-	if (e.dataTransfer.types.length > 0) {
+	/**
+	 * Application specific resource transfer type
+	 */
+	RESOURCES: 'ResourceURLs',
 
-		// Check for in-app DND
-		if (!externalOnly) {
-			const rawData = e.dataTransfer.getData('URL');
-			if (rawData) {
-				try {
-					resources.push({ resource: URI.parse(rawData), isExternal: false });
-				} catch (error) {
-					// Invalid URI
-				}
-			}
-		}
+	/**
+	 * Browser specific transfer type to download
+	 */
+	DOWNLOAD_URL: 'DownloadURL',
 
-		// Check for native file transfer
-		if (e.dataTransfer && e.dataTransfer.files) {
-			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				if (e.dataTransfer.files[i] && e.dataTransfer.files[i].path) {
-					try {
-						resources.push({ resource: URI.file(e.dataTransfer.files[i].path), isExternal: true });
-					} catch (error) {
-						// Invalid URI
-					}
-				}
-			}
-		}
+	/**
+	 * Browser specific transfer type for files
+	 */
+	FILES: 'Files',
+
+	/**
+	 * Typically transfer type for copy/paste transfers.
+	 */
+	TEXT: Mimes.text,
+
+	/**
+	 * Internal type used to pass around text/uri-list data.
+	 *
+	 * This is needed to work around https://bugs.chromium.org/p/chromium/issues/detail?id=239745.
+	 */
+	INTERNAL_URI_LIST: 'application/vnd.code.uri-list',
+};
+
+export function applyDragImage(event: DragEvent, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
+	const dragImage = document.createElement('div');
+	dragImage.className = clazz;
+	dragImage.textContent = label;
+
+	if (foregroundColor) {
+		dragImage.style.color = foregroundColor;
 	}
 
-	return resources;
+	if (backgroundColor) {
+		dragImage.style.background = backgroundColor;
+	}
+
+	if (event.dataTransfer) {
+		document.body.appendChild(dragImage);
+		event.dataTransfer.setDragImage(dragImage, -10, -10);
+
+		// Removes the element when the DND operation is done
+		setTimeout(() => document.body.removeChild(dragImage), 0);
+	}
+}
+
+export interface IDragAndDropData {
+	update(dataTransfer: DataTransfer): void;
+	getData(): unknown;
 }

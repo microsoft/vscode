@@ -9,15 +9,17 @@
 
 .monaco-editor .cursors-layer > .cursor {
 	position: absolute;
-	cursor: text;
+	overflow: hidden;
+	box-sizing: border-box;
 }
-.monaco-editor .cursors-layer > .cursor.secondary {
-	opacity: 0.6;
+
+/* -- smooth-caret-animation -- */
+.monaco-editor .cursors-layer.cursor-smooth-caret-animation > .cursor {
+	transition: all 80ms;
 }
 
 /* -- block-outline-style -- */
 .monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
-	box-sizing: border-box;
 	background: transparent !important;
 	border-style: solid;
 	border-width: 1px;
@@ -28,7 +30,6 @@
 	border-bottom-width: 2px;
 	border-bottom-style: solid;
 	background: transparent !important;
-	box-sizing: border-box;
 }
 
 /* -- underline-thin-style -- */
@@ -36,7 +37,6 @@
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
 	background: transparent !important;
-	box-sizing: border-box;
 }
 
 @keyframes monaco-cursor-smooth {

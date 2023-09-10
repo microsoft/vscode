@@ -2,44 +2,47 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 
-export class TrimTrailingWhitespaceCommand implements editorCommon.ICommand {
+export class TrimTrailingWhitespaceCommand implements ICommand {
 
-	private selection: Selection;
-	private selectionId: string;
+	private readonly _selection: Selection;
+	private _selectionId: string | null;
+	private readonly _cursors: Position[];
 
-	constructor(selection: Selection) {
-		this.selection = selection;
+	constructor(selection: Selection, cursors: Position[]) {
+		this._selection = selection;
+		this._cursors = cursors;
+		this._selectionId = null;
 	}
 
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		let ops = trimTrailingWhitespace(model, []);
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		const ops = trimTrailingWhitespace(model, this._cursors);
 		for (let i = 0, len = ops.length; i < len; i++) {
-			let op = ops[i];
+			const op = ops[i];
 
 			builder.addEditOperation(op.range, op.text);
 		}
 
-		this.selectionId = builder.trackSelection(this.selection);
+		this._selectionId = builder.trackSelection(this._selection);
 	}
 
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId);
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this._selectionId!);
 	}
 }
 
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: Position[]): editorCommon.IIdentifiedSingleEditOperation[] {
+export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): ISingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {
@@ -56,14 +59,14 @@ export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: 
 		}
 	}
 
-	let r: editorCommon.IIdentifiedSingleEditOperation[] = [];
+	const r: ISingleEditOperation[] = [];
 	let rLen = 0;
 	let cursorIndex = 0;
-	let cursorLen = cursors.length;
+	const cursorLen = cursors.length;
 
 	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-		let lineContent = model.getLineContent(lineNumber);
-		let maxLineColumn = lineContent.length + 1;
+		const lineContent = model.getLineContent(lineNumber);
+		const maxLineColumn = lineContent.length + 1;
 		let minEditColumn = 0;
 
 		if (cursorIndex < cursorLen && cursors[cursorIndex].lineNumber === lineNumber) {
@@ -79,7 +82,7 @@ export function trimTrailingWhitespace(model: editorCommon.ITextModel, cursors: 
 			continue;
 		}
 
-		let lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
+		const lastNonWhitespaceIndex = strings.lastNonWhitespaceIndex(lineContent);
 
 		let fromColumn = 0;
 		if (lastNonWhitespaceIndex === -1) {

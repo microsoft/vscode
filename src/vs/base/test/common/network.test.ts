@@ -2,91 +2,68 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { isWeb } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
-function assertUrl(raw: string, scheme: string, domain: string, port: string, path: string, queryString: string, fragmentId: string): void {
-	// check for equivalent behaviour
-	const uri = URI.parse(raw);
-	assert.equal(uri.scheme, scheme);
-	assert.equal(uri.authority, port ? domain + ':' + port : domain);
-	assert.equal(uri.path, path);
-	assert.equal(uri.query, queryString);
-	assert.equal(uri.fragment, fragmentId);
-}
+suite('network', () => {
 
-suite('Network', () => {
-	test('urls', () => {
-		assertUrl('http://www.test.com:8000/this/that/theother.html?query=foo#hash',
-			'http', 'www.test.com', '8000', '/this/that/theother.html', 'query=foo', 'hash'
-		);
+	(isWeb ? test.skip : test)('FileAccess: URI (native)', () => {
 
-		assertUrl('http://www.test.com:8000/this/that/theother.html?query=foo',
-			'http', 'www.test.com', '8000', '/this/that/theother.html', 'query=foo', ''
-		);
+		// asCodeUri() & asFileUri(): simple, without authority
+		let originalFileUri = URI.file('network.test.ts');
+		let browserUri = FileAccess.uriToBrowserUri(originalFileUri);
+		assert.ok(browserUri.authority.length > 0);
+		let fileUri = FileAccess.uriToFileUri(browserUri);
+		assert.strictEqual(fileUri.authority.length, 0);
+		assert(isEqual(originalFileUri, fileUri));
 
-		assertUrl('http://www.test.com:8000/this/that/theother.html#hash',
-			'http', 'www.test.com', '8000', '/this/that/theother.html', '', 'hash'
-		);
+		// asCodeUri() & asFileUri(): with authority
+		originalFileUri = URI.file('network.test.ts').with({ authority: 'test-authority' });
+		browserUri = FileAccess.uriToBrowserUri(originalFileUri);
+		assert.strictEqual(browserUri.authority, originalFileUri.authority);
+		fileUri = FileAccess.uriToFileUri(browserUri);
+		assert(isEqual(originalFileUri, fileUri));
+	});
 
-		assertUrl('http://www.test.com:8000/#hash',
-			'http', 'www.test.com', '8000', '/', '', 'hash'
-		);
+	(isWeb ? test.skip : test)('FileAccess: moduleId (native)', () => {
+		const browserUri = FileAccess.asBrowserUri('vs/base/test/node/network.test');
+		assert.strictEqual(browserUri.scheme, Schemas.vscodeFileResource);
 
-		assertUrl('http://www.test.com:8000#hash',
-			'http', 'www.test.com', '8000', '', '', 'hash'
-		);
+		const fileUri = FileAccess.asFileUri('vs/base/test/node/network.test');
+		assert.strictEqual(fileUri.scheme, Schemas.file);
+	});
 
-		assertUrl('http://www.test.com/#hash',
-			'http', 'www.test.com', '', '/', '', 'hash'
-		);
+	(isWeb ? test.skip : test)('FileAccess: query and fragment is dropped (native)', () => {
+		const originalFileUri = URI.file('network.test.ts').with({ query: 'foo=bar', fragment: 'something' });
+		const browserUri = FileAccess.uriToBrowserUri(originalFileUri);
+		assert.strictEqual(browserUri.query, '');
+		assert.strictEqual(browserUri.fragment, '');
+	});
 
-		assertUrl('http://www.test.com#hash',
-			'http', 'www.test.com', '', '', '', 'hash'
-		);
+	(isWeb ? test.skip : test)('FileAccess: query and fragment is kept if URI is already of same scheme (native)', () => {
+		const originalFileUri = URI.file('network.test.ts').with({ query: 'foo=bar', fragment: 'something' });
+		const browserUri = FileAccess.uriToBrowserUri(originalFileUri.with({ scheme: Schemas.vscodeFileResource }));
+		assert.strictEqual(browserUri.query, 'foo=bar');
+		assert.strictEqual(browserUri.fragment, 'something');
 
-		assertUrl('http://www.test.com:8000/this/that/theother.html',
-			'http', 'www.test.com', '8000', '/this/that/theother.html', '', ''
-		);
+		const fileUri = FileAccess.uriToFileUri(originalFileUri);
+		assert.strictEqual(fileUri.query, 'foo=bar');
+		assert.strictEqual(fileUri.fragment, 'something');
+	});
 
-		assertUrl('http://www.test.com:8000/',
-			'http', 'www.test.com', '8000', '/', '', ''
-		);
+	(isWeb ? test.skip : test)('FileAccess: web', () => {
+		const originalHttpsUri = URI.file('network.test.ts').with({ scheme: 'https' });
+		const browserUri = FileAccess.uriToBrowserUri(originalHttpsUri);
+		assert.strictEqual(originalHttpsUri.toString(), browserUri.toString());
+	});
 
-		assertUrl('http://www.test.com:8000',
-			'http', 'www.test.com', '8000', '', '', ''
-		);
-
-		assertUrl('http://www.test.com/',
-			'http', 'www.test.com', '', '/', '', ''
-		);
-
-		assertUrl('//www.test.com/',
-			'', 'www.test.com', '', '/', '', ''
-		);
-
-		assertUrl('//www.test.com:8000/this/that/theother.html?query=foo#hash',
-			'', 'www.test.com', '8000', '/this/that/theother.html', 'query=foo', 'hash'
-		);
-
-		assertUrl('//www.test.com/this/that/theother.html?query=foo#hash',
-			'', 'www.test.com', '', '/this/that/theother.html', 'query=foo', 'hash'
-		);
-
-		assertUrl('https://www.test.com:8000/this/that/theother.html?query=foo#hash',
-			'https', 'www.test.com', '8000', '/this/that/theother.html', 'query=foo', 'hash'
-		);
-
-		assertUrl('f12://www.test.com:8000/this/that/theother.html?query=foo#hash',
-			'f12', 'www.test.com', '8000', '/this/that/theother.html', 'query=foo', 'hash'
-		);
-
-		assertUrl('inmemory://model/0',
-			'inmemory', 'model', '', '/0', '', ''
-		);
-
-		assertUrl('file:///c/far/boo/file.cs', 'file', '', '', '/c/far/boo/file.cs', '', '');
+	test('FileAccess: remote URIs', () => {
+		const originalRemoteUri = URI.file('network.test.ts').with({ scheme: Schemas.vscodeRemote });
+		const browserUri = FileAccess.uriToBrowserUri(originalRemoteUri);
+		assert.notStrictEqual(originalRemoteUri.scheme, browserUri.scheme);
 	});
 });

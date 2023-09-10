@@ -2,22 +2,39 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export const ITitleService = createDecorator<ITitleService>('titleService');
 
+export interface ITitleProperties {
+	isPure?: boolean;
+	isAdmin?: boolean;
+	prefix?: string;
+}
+
 export interface ITitleService {
-	_serviceBrand: any;
+
+	readonly _serviceBrand: undefined;
 
 	/**
-	 * Set the window title with the given value.
+	 * An event when the menubar visibility changes.
 	 */
-	setTitle(title: string): void;
+	readonly onMenubarVisibilityChange: Event<boolean>;
 
 	/**
-	 * Set the represented file name to the title if any.
+	 *  Title menu is visible
 	 */
-	setRepresentedFilename(path: string): void;
+	readonly isCommandCenterVisible: boolean;
+
+	/**
+	 * An event when the title menu is enabled/disabled
+	 */
+	readonly onDidChangeCommandCenterVisibility: Event<void>;
+
+	/**
+	 * Update some environmental title properties.
+	 */
+	updateProperties(properties: ITitleProperties): void;
 }

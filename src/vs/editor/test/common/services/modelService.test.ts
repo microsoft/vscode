@@ -2,60 +2,97 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import URI from 'vs/base/common/uri';
+import { CharCode } from 'vs/base/common/charCode';
 import * as platform from 'vs/base/common/platform';
-import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
-import { TextSource } from 'vs/editor/common/model/textSource';
+import { URI } from 'vs/base/common/uri';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { CharCode } from 'vs/base/common/charCode';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { Selection } from 'vs/editor/common/core/selection';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { createTextBuffer } from 'vs/editor/common/model/textModel';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IModelService } from 'vs/editor/common/services/model';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 const GENERATE_TESTS = false;
 
 suite('ModelService', () => {
-	let modelService: ModelServiceImpl;
+	let disposables: DisposableStore;
+	let modelService: IModelService;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
+		disposables = new DisposableStore();
+
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
-		modelService = new ModelServiceImpl(null, configService);
+		instantiationService = createModelServices(disposables, [
+			[IConfigurationService, configService]
+		]);
+		modelService = instantiationService.get(IModelService);
 	});
 
 	teardown(() => {
-		modelService.dispose();
+		disposables.dispose();
 	});
 
 	test('EOL setting respected depending on root', () => {
-		const model1 = modelService.createModel('farboo', null, null);
+		const model1 = modelService.createModel('farboo', null);
 		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
 		const model3 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\other\\myfile.txt' : '/other/myfile.txt'));
 
-		assert.equal(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
-		assert.equal(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
-		assert.equal(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assert.strictEqual(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assert.strictEqual(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
+		assert.strictEqual(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
 	});
 
-	test('_computeEdits first line changed', function () {
+	test('_computeEdits no change', function () {
 
-		const model = Model.createFromString(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
+			[
+				'This is line one', //16
+				'and this is line number two', //27
+				'it is followed by #3', //20
+				'and finished with the fourth.', //29
+			].join('\n'),
+			DefaultEndOfLine.LF
+		).textBuffer;
+
+		const actual = ModelService._computeEdits(model, textBuffer);
+
+		assert.deepStrictEqual(actual, []);
+	});
+
+	test('_computeEdits first line changed', function () {
+
+		const model = disposables.add(createTextModel(
+			[
+				'This is line one', //16
+				'and this is line number two', //27
+				'it is followed by #3', //20
+				'and finished with the fourth.', //29
+			].join('\n')
+		));
+
+		const textBuffer = createTextBuffer(
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -63,27 +100,27 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One')
+		assert.deepStrictEqual(actual, [
+			EditOperation.replaceMove(new Range(1, 1, 2, 1), 'This is line One\n')
 		]);
 	});
 
 	test('_computeEdits EOL changed', function () {
 
-		const model = Model.createFromString(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -91,25 +128,25 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	test('_computeEdits EOL and other change 1', function () {
 
-		const model = Model.createFromString(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -117,27 +154,34 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(1, 1, 1, 17), 'This is line One'),
-			EditOperation.replace(new Range(3, 1, 3, 21), 'It is followed by #3')
+		assert.deepStrictEqual(actual, [
+			EditOperation.replaceMove(
+				new Range(1, 1, 4, 1),
+				[
+					'This is line One',
+					'and this is line number two',
+					'It is followed by #3',
+					''
+				].join('\r\n')
+			)
 		]);
 	});
 
 	test('_computeEdits EOL and other change 2', function () {
 
-		const model = Model.createFromString(
+		const model = disposables.add(createTextModel(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
 				'}'				// 3
 			].join('\n')
-		);
+		));
 
-		const textSource = TextSource.fromString(
+		const textBuffer = createTextBuffer(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
@@ -145,12 +189,12 @@ suite('ModelService', () => {
 				''
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
-		const actual = ModelServiceImpl._computeEdits(model, textSource);
+		const actual = ModelService._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
-			EditOperation.replace(new Range(3, 2, 3, 2), '\n')
+		assert.deepStrictEqual(actual, [
+			EditOperation.replaceMove(new Range(3, 2, 3, 2), '\r\n')
 		]);
 	});
 
@@ -268,21 +312,97 @@ suite('ModelService', () => {
 		];
 		assertComputeEdits(file1, file2);
 	});
+
+	test('maintains undo for same resource and same content', () => {
+		const resource = URI.parse('file://test.txt');
+
+		// create a model
+		const model1 = modelService.createModel('text', null, resource);
+		// make an edit
+		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+		assert.strictEqual(model1.getValue(), 'text1');
+		// dispose it
+		modelService.destroyModel(resource);
+
+		// create a new model with the same content
+		const model2 = modelService.createModel('text1', null, resource);
+		// undo
+		model2.undo();
+		assert.strictEqual(model2.getValue(), 'text');
+		// dispose it
+		modelService.destroyModel(resource);
+	});
+
+	test('maintains version id and alternative version id for same resource and same content', () => {
+		const resource = URI.parse('file://test.txt');
+
+		// create a model
+		const model1 = modelService.createModel('text', null, resource);
+		// make an edit
+		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+		assert.strictEqual(model1.getValue(), 'text1');
+		const versionId = model1.getVersionId();
+		const alternativeVersionId = model1.getAlternativeVersionId();
+		// dispose it
+		modelService.destroyModel(resource);
+
+		// create a new model with the same content
+		const model2 = modelService.createModel('text1', null, resource);
+		assert.strictEqual(model2.getVersionId(), versionId);
+		assert.strictEqual(model2.getAlternativeVersionId(), alternativeVersionId);
+		// dispose it
+		modelService.destroyModel(resource);
+	});
+
+	test('does not maintain undo for same resource and different content', () => {
+		const resource = URI.parse('file://test.txt');
+
+		// create a model
+		const model1 = modelService.createModel('text', null, resource);
+		// make an edit
+		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+		assert.strictEqual(model1.getValue(), 'text1');
+		// dispose it
+		modelService.destroyModel(resource);
+
+		// create a new model with the same content
+		const model2 = modelService.createModel('text2', null, resource);
+		// undo
+		model2.undo();
+		assert.strictEqual(model2.getValue(), 'text2');
+		// dispose it
+		modelService.destroyModel(resource);
+	});
+
+	test('setValue should clear undo stack', () => {
+		const resource = URI.parse('file://test.txt');
+
+		const model = modelService.createModel('text', null, resource);
+		model.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
+		assert.strictEqual(model.getValue(), 'text1');
+
+		model.setValue('text2');
+		model.undo();
+		assert.strictEqual(model.getValue(), 'text2');
+		// dispose it
+		modelService.destroyModel(resource);
+	});
 });
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
-	const model = Model.createFromString(lines1.join('\n'));
-	const textSource = TextSource.fromString(lines2.join('\n'), DefaultEndOfLine.LF);
+	const model = createTextModel(lines1.join('\n'));
+	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF).textBuffer;
 
 	// compute required edits
 	// let start = Date.now();
-	const edits = ModelServiceImpl._computeEdits(model, textSource);
+	const edits = ModelService._computeEdits(model, textBuffer);
 	// console.log(`took ${Date.now() - start} ms.`);
 
 	// apply edits
-	model.pushEditOperations(null, edits, null);
+	model.pushEditOperations([], edits, null);
 
-	assert.equal(model.getValue(), lines2.join('\n'));
+	assert.strictEqual(model.getValue(), lines2.join('\n'));
+	model.dispose();
 }
 
 function getRandomInt(min: number, max: number): number {
@@ -290,17 +410,17 @@ function getRandomInt(min: number, max: number): number {
 }
 
 function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
-	let t = createStringBuilder(length);
+	const length = getRandomInt(minLength, maxLength);
+	const t = new StringBuilder(length);
 	for (let i = 0; i < length; i++) {
-		t.appendASCII(getRandomInt(CharCode.a, CharCode.z));
+		t.appendASCIICharCode(getRandomInt(CharCode.a, CharCode.z));
 	}
 	return t.build();
 }
 
 function generateFile(small: boolean): string[] {
-	let lineCount = getRandomInt(1, small ? 3 : 10000);
-	let lines: string[] = [];
+	const lineCount = getRandomInt(1, small ? 3 : 10000);
+	const lines: string[] = [];
 	for (let i = 0; i < lineCount; i++) {
 		lines.push(getRandomString(0, small ? 3 : 10000));
 	}

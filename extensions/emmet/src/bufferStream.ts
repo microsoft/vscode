@@ -5,9 +5,7 @@
 
 /* Based on @sergeche's work in his emmet plugin */
 
-'use strict';
-
-import { TextDocument, Position, Range, EndOfLine } from 'vscode';
+import { TextDocument } from 'vscode';
 
 /**
  * A stream reader for VSCode's `TextDocument`
@@ -15,78 +13,65 @@ import { TextDocument, Position, Range, EndOfLine } from 'vscode';
  */
 export class DocumentStreamReader {
 	private document: TextDocument;
-	private start: Position;
-	private _eof: Position;
-	public pos: Position;
-	private _eol: string;
+	private start: number;
+	private _eof: number;
+	private _sof: number;
+	public pos: number;
+
+	constructor(document: TextDocument, pos?: number, limit?: [number, number]) {
+		this.document = document;
+		this.start = this.pos = pos ? pos : 0;
+		this._sof = limit ? limit[0] : 0;
+		this._eof = limit ? limit[1] : document.getText().length;
+	}
 
 	/**
-	 * @param  {TextDocument} buffer
-	 * @param  {Position}      pos
-	 * @param  {Range}        limit
+	 * Returns true only if the stream is at the start of the file.
 	 */
-	constructor(document: TextDocument, pos?: Position, limit?: Range) {
-
-		this.document = document;
-		this.start = this.pos = pos ? pos : new Position(0, 0);
-		this._eof = limit ? limit.end : new Position(this.document.lineCount - 1, this._lineLength(this.document.lineCount - 1));
-		this._eol = this.document.eol === EndOfLine.LF ? '\n' : '\r\n';
+	sof(): boolean {
+		return this.pos <= this._sof;
 	}
 
 	/**
 	 * Returns true only if the stream is at the end of the file.
-	 * @returns {Boolean}
 	 */
-	eof() {
-		return this.pos.isAfterOrEqual(this._eof);
+	eof(): boolean {
+		return this.pos >= this._eof;
 	}
 
 	/**
 	 * Creates a new stream instance which is limited to given range for given document
-	 * @param  {Position} start
-	 * @param  {Position} end
-	 * @return {DocumentStreamReader}
 	 */
-	limit(start, end) {
-		return new DocumentStreamReader(this.document, start, new Range(start, end));
+	limit(start: number, end: number): DocumentStreamReader {
+		return new DocumentStreamReader(this.document, start, [start, end]);
 	}
 
 	/**
 	 * Returns the next character code in the stream without advancing it.
 	 * Will return NaN at the end of the file.
-	 * @returns {Number}
 	 */
-	peek() {
+	peek(): number {
 		if (this.eof()) {
 			return NaN;
 		}
-		const line = this.document.lineAt(this.pos.line).text;
-		return this.pos.character < line.length ? line.charCodeAt(this.pos.character) : this._eol.charCodeAt(this.pos.character - line.length);
+		return this.document.getText().charCodeAt(this.pos);
 	}
 
 	/**
 	 * Returns the next character in the stream and advances it.
 	 * Also returns NaN when no more characters are available.
-	 * @returns {Number}
 	 */
-	next() {
+	next(): number {
 		if (this.eof()) {
 			return NaN;
 		}
 
-		const line = this.document.lineAt(this.pos.line).text;
-		let code: number;
-		if (this.pos.character < line.length) {
-			code = line.charCodeAt(this.pos.character);
-			this.pos = this.pos.translate(0, 1);
-		} else {
-			code = this._eol.charCodeAt(this.pos.character - line.length);
-			this.pos = new Position(this.pos.line + 1, 0);
-		}
+		const code = this.document.getText().charCodeAt(this.pos);
+		this.pos++;
 
 		if (this.eof()) {
 			// restrict pos to eof, if in case it got moved beyond eof
-			this.pos = new Position(this._eof.line, this._eof.character);
+			this.pos = this._eof;
 		}
 
 		return code;
@@ -95,65 +80,36 @@ export class DocumentStreamReader {
 	/**
 	 * Backs up the stream n characters. Backing it up further than the
 	 * start of the current token will cause things to break, so be careful.
-	 * @param {Number} n
 	 */
-	backUp(n) {
-		let row = this.pos.line;
-		let column = this.pos.character;
-		column -= (n || 1);
-
-		while (row >= 0 && column < 0) {
-			row--;
-			column += this._lineLength(row);
+	backUp(n: number): number {
+		this.pos -= n;
+		if (this.pos < 0) {
+			this.pos = 0;
 		}
-
-		this.pos = row < 0 || column < 0
-			? new Position(0, 0)
-			: new Position(row, column);
-
 		return this.peek();
 	}
 
 	/**
 	 * Get the string between the start of the current token and the
 	 * current stream position.
-	 * @returns {String}
 	 */
-	current() {
+	current(): string {
 		return this.substring(this.start, this.pos);
 	}
 
 	/**
 	 * Returns contents for given range
-	 * @param  {Position} from
-	 * @param  {Position} to
-	 * @return {String}
 	 */
-	substring(from, to) {
-		return this.document.getText(new Range(from, to));
+	substring(from: number, to: number): string {
+		return this.document.getText().substring(from, to);
 	}
 
 	/**
 	 * Creates error object with current stream state
-	 * @param {String} message
-	 * @return {Error}
 	 */
-	error(message) {
-		const err = new Error(`${message} at row ${this.pos.line}, column ${this.pos.character}`);
-
+	error(message: string): Error {
+		const err = new Error(`${message} at offset ${this.pos}`);
 		return err;
-	}
-
-	/**
-	 * Returns line length of given row, including line ending
-	 * @param  {Number} row
-	 * @return {Number}
-	 */
-	_lineLength(row) {
-		if (row === this.document.lineCount - 1) {
-			return this.document.lineAt(row).text.length;
-		}
-		return this.document.lineAt(row).text.length + this._eol.length;
 	}
 
 	/**
@@ -161,10 +117,8 @@ export class DocumentStreamReader {
 	 * and returns a boolean. If the next character in the stream 'matches'
 	 * the given argument, it is consumed and returned.
 	 * Otherwise, `false` is returned.
-	 * @param {Number|Function} match
-	 * @returns {Boolean}
 	 */
-	eat(match) {
+	eat(match: number | Function): boolean {
 		const ch = this.peek();
 		const ok = typeof match === 'function' ? match(ch) : ch === match;
 
@@ -178,12 +132,10 @@ export class DocumentStreamReader {
 	/**
 	 * Repeatedly calls <code>eat</code> with the given argument, until it
 	 * fails. Returns <code>true</code> if any characters were eaten.
-	 * @param {Object} match
-	 * @returns {Boolean}
 	 */
-	eatWhile(match) {
+	eatWhile(match: number | Function): boolean {
 		const start = this.pos;
 		while (!this.eof() && this.eat(match)) { }
-		return !this.pos.isEqual(start);
+		return this.pos !== start;
 	}
 }

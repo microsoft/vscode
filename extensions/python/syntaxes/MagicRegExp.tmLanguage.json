@@ -4,13 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/361a4964a559481330764a447e7bab88d4f1b01b",
+	"version": "https://github.com/MagicStack/MagicPython/commit/c9b3409deb69acec31bbf7913830e93a046b30cc",
 	"name": "MagicRegExp",
 	"scopeName": "source.regexp.python",
-	"fileTypes": [
-		"re"
-	],
-	"uuid": "39e15186-71e6-11e5-b82c-7c6d62900c7c",
 	"patterns": [
 		{
 			"include": "#regexp-expression"

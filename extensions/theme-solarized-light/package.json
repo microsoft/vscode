@@ -1,15 +1,25 @@
 {
-	"name": "theme-solarized-light",
-	"version": "0.1.0",
-	"publisher": "vscode",
-	"engines": { "vscode": "*" },
-	"contributes": {
-		"themes": [
-			{
-				"label": "Solarized Light",
-				"uiTheme": "vs",
-				"path": "./themes/solarized-light-color-theme.json"
-			}
-		]
-	}
+  "name": "theme-solarized-light",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "Solarized Light",
+        "label": "%themeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/solarized-light-color-theme.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

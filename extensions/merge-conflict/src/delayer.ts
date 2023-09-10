@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 export interface ITask<T> {
 	(): T;
@@ -13,7 +12,7 @@ export class Delayer<T> {
 	public defaultDelay: number;
 	private timeout: any; // Timer
 	private completionPromise: Promise<T> | null;
-	private onSuccess: ((value?: T | Thenable<T> | null) => void) | null;
+	private onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
 	private task: ITask<T> | null;
 
 	constructor(defaultDelay: number) {
@@ -31,12 +30,12 @@ export class Delayer<T> {
 		}
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T>((resolve) => {
+			this.completionPromise = new Promise<T | undefined>((resolve) => {
 				this.onSuccess = resolve;
 			}).then(() => {
 				this.completionPromise = null;
 				this.onSuccess = null;
-				var result = this.task!();
+				const result = this.task!();
 				this.task = null;
 				return result;
 			});
@@ -45,7 +44,7 @@ export class Delayer<T> {
 		if (delay >= 0 || this.timeout === null) {
 			this.timeout = setTimeout(() => {
 				this.timeout = null;
-				this.onSuccess!(null);
+				this.onSuccess!(undefined);
 			}, delay >= 0 ? delay : this.defaultDelay);
 		}
 
@@ -57,8 +56,8 @@ export class Delayer<T> {
 			return null;
 		}
 		this.cancelTimeout();
-		let result = this.completionPromise;
-		this.onSuccess!(null);
+		const result = this.completionPromise;
+		this.onSuccess!(undefined);
 		return result;
 	}
 

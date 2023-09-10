@@ -2,64 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { generateUuid } from 'vs/base/common/uuid';
+import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { NullCommandService } from 'vs/platform/commands/common/commands';
+import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 // --- service instances
 
-class MockExtensionService implements IExtensionService {
-	public _serviceBrand: any;
-
-	public activateByEvent(activationEvent: string): TPromise<void> {
-		throw new Error('Not implemented');
-	}
-
-	public onReady(): TPromise<boolean> {
-		return TPromise.as(true);
-	}
-
-	public getExtensions(): TPromise<IExtensionDescription[]> {
-		throw new Error('Not implemented');
-	}
-
-	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
-		throw new Error('Not implemented');
-	}
-
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
-		throw new Error('Not implemented');
-	}
-
-	public getExtensionsActivationTimes(): { [id: string]: ActivationTimes; } {
-		throw new Error('Not implemented');
-	}
-
-	public restartExtensionHost(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	public startExtensionHost(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	public stopExtensionHost(): void {
-		throw new Error('Method not implemented.');
-	}
-}
-
-const extensionService = new MockExtensionService();
-
 const contextKeyService = new class extends MockContextKeyService {
-	contextMatchesRules() {
+	override contextMatchesRules() {
 		return true;
 	}
 };
@@ -69,159 +25,161 @@ const contextKeyService = new class extends MockContextKeyService {
 suite('MenuService', function () {
 
 	let menuService: MenuService;
-	let disposables: IDisposable[];
+	const disposables = new DisposableStore();
+	let testMenuId: MenuId;
 
 	setup(function () {
-		menuService = new MenuService(extensionService, NullCommandService);
-		disposables = [];
+		menuService = new MenuService(NullCommandService, new InMemoryStorageService());
+		testMenuId = new MenuId(`testo/${generateUuid()}`);
+		disposables.clear();
 	});
 
 	teardown(function () {
-		dispose(disposables);
+		disposables.clear();
 	});
 
 	test('group sorting', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'one', title: 'FOO' },
 			group: '0_hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'two', title: 'FOO' },
 			group: 'hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'three', title: 'FOO' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'four', title: 'FOO' },
 			group: ''
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'five', title: 'FOO' },
 			group: 'navigation'
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
+		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 5);
+		assert.strictEqual(groups.length, 5);
 		const [one, two, three, four, five] = groups;
 
-		assert.equal(one[0], 'navigation');
-		assert.equal(two[0], '0_hello');
-		assert.equal(three[0], 'hello');
-		assert.equal(four[0], 'Hello');
-		assert.equal(five[0], '');
+		assert.strictEqual(one[0], 'navigation');
+		assert.strictEqual(two[0], '0_hello');
+		assert.strictEqual(three[0], 'hello');
+		assert.strictEqual(four[0], 'Hello');
+		assert.strictEqual(five[0], '');
 	});
 
 	test('in group sorting, by title', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'a', title: 'aaa' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'b', title: 'fff' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'c', title: 'zzz' },
 			group: 'Hello'
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
+		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
-		const [[, actions]] = groups;
+		assert.strictEqual(groups.length, 1);
+		const [, actions] = groups[0];
 
-		assert.equal(actions.length, 3);
+		assert.strictEqual(actions.length, 3);
 		const [one, two, three] = actions;
-		assert.equal(one.id, 'a');
-		assert.equal(two.id, 'b');
-		assert.equal(three.id, 'c');
+		assert.strictEqual(one.id, 'a');
+		assert.strictEqual(two.id, 'b');
+		assert.strictEqual(three.id, 'c');
 	});
 
 	test('in group sorting, by title and order', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'a', title: 'aaa' },
 			group: 'Hello',
 			order: 10
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'b', title: 'fff' },
 			group: 'Hello'
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'c', title: 'zzz' },
 			group: 'Hello',
 			order: -1
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'd', title: 'yyy' },
 			group: 'Hello',
 			order: -1
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
+		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
-		const [[, actions]] = groups;
+		assert.strictEqual(groups.length, 1);
+		const [, actions] = groups[0];
 
-		assert.equal(actions.length, 4);
+		assert.strictEqual(actions.length, 4);
 		const [one, two, three, four] = actions;
-		assert.equal(one.id, 'd');
-		assert.equal(two.id, 'c');
-		assert.equal(three.id, 'b');
-		assert.equal(four.id, 'a');
+		assert.strictEqual(one.id, 'd');
+		assert.strictEqual(two.id, 'c');
+		assert.strictEqual(three.id, 'b');
+		assert.strictEqual(four.id, 'a');
 	});
 
 
 	test('in group sorting, special: navigation', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'a', title: 'aaa' },
 			group: 'navigation',
 			order: 1.3
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'b', title: 'fff' },
 			group: 'navigation',
 			order: 1.2
 		}));
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
 			command: { id: 'c', title: 'zzz' },
 			group: 'navigation',
 			order: 1.1
 		}));
 
-		const groups = menuService.createMenu(MenuId.ExplorerContext, contextKeyService).getActions();
+		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
 
-		assert.equal(groups.length, 1);
+		assert.strictEqual(groups.length, 1);
 		const [[, actions]] = groups;
 
-		assert.equal(actions.length, 3);
+		assert.strictEqual(actions.length, 3);
 		const [one, two, three] = actions;
-		assert.equal(one.id, 'c');
-		assert.equal(two.id, 'b');
-		assert.equal(three.id, 'a');
+		assert.strictEqual(one.id, 'c');
+		assert.strictEqual(two.id, 'b');
+		assert.strictEqual(three.id, 'a');
 	});
 
 	test('special MenuId palette', function () {
 
-		disposables.push(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: { id: 'a', title: 'Explicit' }
 		}));
 
@@ -230,16 +188,27 @@ suite('MenuService', function () {
 		let foundA = false;
 		let foundB = false;
 		for (const item of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
-			if (item.command.id === 'a') {
-				assert.equal(item.command.title, 'Explicit');
-				foundA = true;
-			}
-			if (item.command.id === 'b') {
-				assert.equal(item.command.title, 'Implicit');
-				foundB = true;
+			if (isIMenuItem(item)) {
+				if (item.command.id === 'a') {
+					assert.strictEqual(item.command.title, 'Explicit');
+					foundA = true;
+				}
+				if (item.command.id === 'b') {
+					assert.strictEqual(item.command.title, 'Implicit');
+					foundB = true;
+				}
 			}
 		}
-		assert.equal(foundA, true);
-		assert.equal(foundB, true);
+		assert.strictEqual(foundA, true);
+		assert.strictEqual(foundB, true);
+	});
+
+	test('Extension contributed submenus missing with errors in output #155030', function () {
+
+		const id = generateUuid();
+		const menu = new MenuId(id);
+
+		assert.throws(() => new MenuId(id));
+		assert.ok(menu === MenuId.for(id));
 	});
 });

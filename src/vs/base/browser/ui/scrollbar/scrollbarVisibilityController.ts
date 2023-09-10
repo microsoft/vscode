@@ -2,18 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { TimeoutTimer } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export class ScrollbarVisibilityController extends Disposable {
 	private _visibility: ScrollbarVisibility;
 	private _visibleClassName: string;
 	private _invisibleClassName: string;
-	private _domNode: FastDomNode<HTMLElement>;
+	private _domNode: FastDomNode<HTMLElement> | null;
+	private _rawShouldBeVisible: boolean;
 	private _shouldBeVisible: boolean;
 	private _isNeeded: boolean;
 	private _isVisible: boolean;
@@ -27,24 +27,37 @@ export class ScrollbarVisibilityController extends Disposable {
 		this._domNode = null;
 		this._isVisible = false;
 		this._isNeeded = false;
+		this._rawShouldBeVisible = false;
 		this._shouldBeVisible = false;
 		this._revealTimer = this._register(new TimeoutTimer());
 	}
 
+	public setVisibility(visibility: ScrollbarVisibility): void {
+		if (this._visibility !== visibility) {
+			this._visibility = visibility;
+			this._updateShouldBeVisible();
+		}
+	}
+
 	// ----------------- Hide / Reveal
 
-	private applyVisibilitySetting(shouldBeVisible: boolean): boolean {
+	public setShouldBeVisible(rawShouldBeVisible: boolean): void {
+		this._rawShouldBeVisible = rawShouldBeVisible;
+		this._updateShouldBeVisible();
+	}
+
+	private _applyVisibilitySetting(): boolean {
 		if (this._visibility === ScrollbarVisibility.Hidden) {
 			return false;
 		}
 		if (this._visibility === ScrollbarVisibility.Visible) {
 			return true;
 		}
-		return shouldBeVisible;
+		return this._rawShouldBeVisible;
 	}
 
-	public setShouldBeVisible(rawShouldBeVisible: boolean): void {
-		let shouldBeVisible = this.applyVisibilitySetting(rawShouldBeVisible);
+	private _updateShouldBeVisible(): void {
+		const shouldBeVisible = this._applyVisibilitySetting();
 
 		if (this._shouldBeVisible !== shouldBeVisible) {
 			this._shouldBeVisible = shouldBeVisible;
@@ -90,7 +103,7 @@ export class ScrollbarVisibilityController extends Disposable {
 
 		// The CSS animation doesn't play otherwise
 		this._revealTimer.setIfNotSet(() => {
-			this._domNode.setClassName(this._visibleClassName);
+			this._domNode?.setClassName(this._visibleClassName);
 		}, 0);
 	}
 
@@ -100,6 +113,6 @@ export class ScrollbarVisibilityController extends Disposable {
 			return;
 		}
 		this._isVisible = false;
-		this._domNode.setClassName(this._invisibleClassName + (withFadeAway ? ' fade' : ''));
+		this._domNode?.setClassName(this._invisibleClassName + (withFadeAway ? ' fade' : ''));
 	}
 }

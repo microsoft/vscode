@@ -1,0 +1,31 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "TypeScript contributions to package.json",
+	"type": "object",
+	"properties": {
+		"contributes": {
+			"type": "object",
+			"properties": {
+				"typescriptServerPlugins": {
+					"type": "array",
+					"description": "Contributed TypeScript server plugins.",
+					"items": {
+						"type": "object",
+						"description": "TypeScript server plugin.",
+						"properties": {
+							"name": {
+								"type": "string",
+								"description": "Name of the plugin as listed in the package.json."
+							},
+							"enableForWorkspaceTypeScriptVersions": {
+								"type": "boolean",
+								"default": false,
+								"description": "Should the plugin be loaded when using workspace versions of TypeScript?"
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

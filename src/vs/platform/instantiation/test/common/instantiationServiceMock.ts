@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as sinon from 'sinon';
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as types from 'vs/base/common/types';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 interface IServiceMock<T> {
 	id: ServiceIdentifier<T>;
 	service: any;
 }
 
-export class TestInstantiationService extends InstantiationService {
+const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount' in fn;
+
+export class TestInstantiationService extends InstantiationService implements IDisposable {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection()) {
-		super(_serviceCollection);
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService) {
+		super(_serviceCollection, strict, parent);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {
-		return <T>this._serviceCollection.get(service);
+		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
@@ -39,27 +39,29 @@ export class TestInstantiationService extends InstantiationService {
 		return <T>this._create(service, { mock: true });
 	}
 
-	public stub<T>(service?: ServiceIdentifier<T>, ctor?: any): T
-	public stub<T>(service?: ServiceIdentifier<T>, obj?: any): T
-	public stub<T>(service?: ServiceIdentifier<T>, ctor?: any, property?: string, value?: any): sinon.SinonStub
-	public stub<T>(service?: ServiceIdentifier<T>, obj?: any, property?: string, value?: any): sinon.SinonStub
-	public stub<T>(service?: ServiceIdentifier<T>, property?: string, value?: any): sinon.SinonStub
-	public stub<T>(serviceIdentifier?: ServiceIdentifier<T>, arg2?: any, arg3?: string, arg4?: any): sinon.SinonStub {
-		let service = typeof arg2 !== 'string' ? arg2 : void 0;
-		let serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
-		let property = typeof arg2 === 'string' ? arg2 : arg3;
-		let value = typeof arg2 === 'string' ? arg3 : arg4;
+	public stub<T>(service: ServiceIdentifier<T>, ctor: Function): T;
+	public stub<T>(service: ServiceIdentifier<T>, obj: Partial<T>): T;
+	public stub<T, V>(service: ServiceIdentifier<T>, ctor: Function, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	public stub<T, V>(service: ServiceIdentifier<T>, obj: Partial<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	public stub<T, V>(service: ServiceIdentifier<T>, property: string, value: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	public stub<T>(serviceIdentifier: ServiceIdentifier<T>, arg2: any, arg3?: string, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
+		const service = typeof arg2 !== 'string' ? arg2 : undefined;
+		const serviceMock: IServiceMock<any> = { id: serviceIdentifier, service: service };
+		const property = typeof arg2 === 'string' ? arg2 : arg3;
+		const value = typeof arg2 === 'string' ? arg3 : arg4;
 
-		let stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
+		const stubObject = <any>this._create(serviceMock, { stub: true }, service && !property);
 		if (property) {
 			if (stubObject[property]) {
 				if (stubObject[property].hasOwnProperty('restore')) {
 					stubObject[property].restore();
 				}
 				if (typeof value === 'function') {
-					stubObject[property] = value;
+					const spy = isSinonSpyLike(value) ? value : sinon.spy(value);
+					stubObject[property] = spy;
+					return spy;
 				} else {
-					let stub = value ? sinon.stub().returns(value) : sinon.stub();
+					const stub = value ? sinon.stub().returns(value) : sinon.stub();
 					stubObject[property] = stub;
 					return stub;
 				}
@@ -70,26 +72,26 @@ export class TestInstantiationService extends InstantiationService {
 		return stubObject;
 	}
 
-	public stubPromise<T>(service?: ServiceIdentifier<T>, fnProperty?: string, value?: any): T | sinon.SinonStub
-	public stubPromise<T>(service?: ServiceIdentifier<T>, ctor?: any, fnProperty?: string, value?: any): sinon.SinonStub
-	public stubPromise<T>(service?: ServiceIdentifier<T>, obj?: any, fnProperty?: string, value?: any): sinon.SinonStub
-	public stubPromise<T>(arg1?: any, arg2?: any, arg3?: any, arg4?: any): sinon.SinonStub {
-		arg3 = typeof arg2 === 'string' ? TPromise.as(arg3) : arg3;
-		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? TPromise.as(arg4) : arg4;
+	public stubPromise<T>(service?: ServiceIdentifier<T>, fnProperty?: string, value?: any): T | sinon.SinonStub;
+	public stubPromise<T, V>(service?: ServiceIdentifier<T>, ctor?: any, fnProperty?: string, value?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	public stubPromise<T, V>(service?: ServiceIdentifier<T>, obj?: any, fnProperty?: string, value?: V): V extends Function ? sinon.SinonSpy : sinon.SinonStub;
+	public stubPromise(arg1?: any, arg2?: any, arg3?: any, arg4?: any): sinon.SinonStub | sinon.SinonSpy {
+		arg3 = typeof arg2 === 'string' ? Promise.resolve(arg3) : arg3;
+		arg4 = typeof arg2 !== 'string' && typeof arg3 === 'string' ? Promise.resolve(arg4) : arg4;
 		return this.stub(arg1, arg2, arg3, arg4);
 	}
 
 	public spy<T>(service: ServiceIdentifier<T>, fnProperty: string): sinon.SinonSpy {
-		let spy = sinon.spy();
+		const spy = sinon.spy();
 		this.stub(service, fnProperty, spy);
 		return spy;
 	}
 
-	private _create<T>(serviceMock: IServiceMock<T>, options: SinonOptions, reset?: boolean): any
-	private _create<T>(ctor: any, options: SinonOptions): any
-	private _create<T>(arg1: any, options: SinonOptions, reset: boolean = false): any {
+	private _create<T>(serviceMock: IServiceMock<T>, options: SinonOptions, reset?: boolean): any;
+	private _create<T>(ctor: any, options: SinonOptions): any;
+	private _create(arg1: any, options: SinonOptions, reset: boolean = false): any {
 		if (this.isServiceMock(arg1)) {
-			let service = this._getOrCreateService(arg1, options, reset);
+			const service = this._getOrCreateService(arg1, options, reset);
 			this._serviceCollection.set(arg1.id, service);
 			return service;
 		}
@@ -97,7 +99,7 @@ export class TestInstantiationService extends InstantiationService {
 	}
 
 	private _getOrCreateService<T>(serviceMock: IServiceMock<T>, opts: SinonOptions, reset?: boolean): any {
-		let service: any = this._serviceCollection.get(serviceMock.id);
+		const service: any = this._serviceCollection.get(serviceMock.id);
 		if (!reset && service) {
 			if (opts.mock && service['sinonOptions'] && !!service['sinonOptions'].mock) {
 				return service;
@@ -111,7 +113,7 @@ export class TestInstantiationService extends InstantiationService {
 
 	private _createService(serviceMock: IServiceMock<any>, opts: SinonOptions): any {
 		serviceMock.service = serviceMock.service ? serviceMock.service : this._servciesMap.get(serviceMock.id);
-		let service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
+		const service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
 		service['sinonOptions'] = opts;
 		return service;
 	}
@@ -123,16 +125,50 @@ export class TestInstantiationService extends InstantiationService {
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
 	}
-}
 
-export function stubFunction<T>(ctor: any, fnProperty: string, value: any): T | sinon.SinonStub {
-	let stub = sinon.createStubInstance(ctor);
-	stub[fnProperty].restore();
-	sinon.stub(stub, fnProperty, types.isFunction(value) ? value : () => { return value; });
-	return stub;
+	override createChild(services: ServiceCollection): TestInstantiationService {
+		return new TestInstantiationService(services, false, this);
+	}
+
+	dispose() {
+		sinon.restore();
+	}
 }
 
 interface SinonOptions {
 	mock?: boolean;
 	stub?: boolean;
+}
+
+export type ServiceIdCtorPair<T> = [id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)];
+
+export function createServices(disposables: DisposableStore, services: ServiceIdCtorPair<any>[]): TestInstantiationService {
+	const serviceIdentifiers: ServiceIdentifier<any>[] = [];
+	const serviceCollection = new ServiceCollection();
+
+	const define = <T>(id: ServiceIdentifier<T>, ctorOrInstance: T | (new (...args: any[]) => T)) => {
+		if (!serviceCollection.has(id)) {
+			if (typeof ctorOrInstance === 'function') {
+				serviceCollection.set(id, new SyncDescriptor(ctorOrInstance as any));
+			} else {
+				serviceCollection.set(id, ctorOrInstance);
+			}
+		}
+		serviceIdentifiers.push(id);
+	};
+
+	for (const [id, ctor] of services) {
+		define(id, ctor);
+	}
+
+	const instantiationService = disposables.add(new TestInstantiationService(serviceCollection, true));
+	disposables.add(toDisposable(() => {
+		for (const id of serviceIdentifiers) {
+			const instanceOrDescriptor = serviceCollection.get(id);
+			if (typeof instanceOrDescriptor.dispose === 'function') {
+				instanceOrDescriptor.dispose();
+			}
+		}
+	}));
+	return instantiationService;
 }

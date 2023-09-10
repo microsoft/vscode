@@ -3,46 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IIterator } from 'vs/base/common/iterator';
-
 class Node<E> {
+
+	static readonly Undefined = new Node<any>(undefined);
+
 	element: E;
 	next: Node<E>;
 	prev: Node<E>;
 
 	constructor(element: E) {
 		this.element = element;
+		this.next = Node.Undefined;
+		this.prev = Node.Undefined;
 	}
 }
 
 export class LinkedList<E> {
 
-	private _first: Node<E>;
-	private _last: Node<E>;
+	private _first: Node<E> = Node.Undefined;
+	private _last: Node<E> = Node.Undefined;
+	private _size: number = 0;
+
+	get size(): number {
+		return this._size;
+	}
 
 	isEmpty(): boolean {
-		return !this._first;
+		return this._first === Node.Undefined;
 	}
 
-	unshift(element: E) {
-		return this.insert(element, false);
+	clear(): void {
+		let node = this._first;
+		while (node !== Node.Undefined) {
+			const next = node.next;
+			node.prev = Node.Undefined;
+			node.next = Node.Undefined;
+			node = next;
+		}
+
+		this._first = Node.Undefined;
+		this._last = Node.Undefined;
+		this._size = 0;
 	}
 
-	push(element: E) {
-		return this.insert(element, true);
+	unshift(element: E): () => void {
+		return this._insert(element, false);
 	}
 
-	private insert(element: E, atTheEnd: boolean) {
+	push(element: E): () => void {
+		return this._insert(element, true);
+	}
+
+	private _insert(element: E, atTheEnd: boolean): () => void {
 		const newNode = new Node(element);
-		if (!this._first) {
+		if (this._first === Node.Undefined) {
 			this._first = newNode;
 			this._last = newNode;
 
 		} else if (atTheEnd) {
 			// push
-			const oldLast = this._last;
+			const oldLast = this._last!;
 			this._last = newNode;
 			newNode.prev = oldLast;
 			oldLast.next = newNode;
@@ -54,69 +74,69 @@ export class LinkedList<E> {
 			newNode.next = oldFirst;
 			oldFirst.prev = newNode;
 		}
+		this._size += 1;
 
+		let didRemove = false;
 		return () => {
-
-			for (let candidate = this._first; candidate instanceof Node; candidate = candidate.next) {
-				if (candidate !== newNode) {
-					continue;
-				}
-				if (candidate.prev && candidate.next) {
-					// middle
-					let anchor = candidate.prev;
-					anchor.next = candidate.next;
-					candidate.next.prev = anchor;
-
-				} else if (!candidate.prev && !candidate.next) {
-					// only node
-					this._first = undefined;
-					this._last = undefined;
-
-				} else if (!candidate.next) {
-					// last
-					this._last = this._last.prev;
-					this._last.next = undefined;
-
-				} else if (!candidate.prev) {
-					// first
-					this._first = this._first.next;
-					this._first.prev = undefined;
-				}
-
-				// done
-				break;
+			if (!didRemove) {
+				didRemove = true;
+				this._remove(newNode);
 			}
 		};
 	}
 
-	iterator(): IIterator<E> {
-		let _done: boolean;
-		let _value: E;
-		let element = {
-			get done() { return _done; },
-			get value() { return _value; }
-		};
-		let node = this._first;
-		return {
-			next(): { done: boolean; value: E } {
-				if (!node) {
-					_done = true;
-					_value = undefined;
-				} else {
-					_done = false;
-					_value = node.element;
-					node = node.next;
-				}
-				return element;
-			}
-		};
-	}
-
-	toArray(): E[] {
-		let result: E[] = [];
-		for (let node = this._first; node instanceof Node; node = node.next) {
-			result.push(node.element);
+	shift(): E | undefined {
+		if (this._first === Node.Undefined) {
+			return undefined;
+		} else {
+			const res = this._first.element;
+			this._remove(this._first);
+			return res;
 		}
-		return result;
+	}
+
+	pop(): E | undefined {
+		if (this._last === Node.Undefined) {
+			return undefined;
+		} else {
+			const res = this._last.element;
+			this._remove(this._last);
+			return res;
+		}
+	}
+
+	private _remove(node: Node<E>): void {
+		if (node.prev !== Node.Undefined && node.next !== Node.Undefined) {
+			// middle
+			const anchor = node.prev;
+			anchor.next = node.next;
+			node.next.prev = anchor;
+
+		} else if (node.prev === Node.Undefined && node.next === Node.Undefined) {
+			// only node
+			this._first = Node.Undefined;
+			this._last = Node.Undefined;
+
+		} else if (node.next === Node.Undefined) {
+			// last
+			this._last = this._last!.prev!;
+			this._last.next = Node.Undefined;
+
+		} else if (node.prev === Node.Undefined) {
+			// first
+			this._first = this._first!.next!;
+			this._first.prev = Node.Undefined;
+		}
+
+		// done
+		this._size -= 1;
+	}
+
+	*[Symbol.iterator](): Iterator<E> {
+		let node = this._first;
+		while (node !== Node.Undefined) {
+			yield node.element;
+			node = node.next;
+		}
 	}
 }

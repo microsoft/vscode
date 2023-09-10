@@ -2,64 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
-import platform = require('vs/base/common/platform');
-import types = require('vs/base/common/types');
-import { IAction } from 'vs/base/common/actions';
-import Severity from 'vs/base/common/severity';
-import { TPromise, IPromiseError, IPromiseErrorDetail } from 'vs/base/common/winjs.base';
-
-// ------ BEGIN Hook up error listeners to winjs promises
-
-let outstandingPromiseErrors: { [id: string]: IPromiseErrorDetail; } = {};
-function promiseErrorHandler(e: IPromiseError): void {
-
-	//
-	// e.detail looks like: { exception, error, promise, handler, id, parent }
-	//
-	const details = e.detail;
-	const id = details.id;
-
-	// If the error has a parent promise then this is not the origination of the
-	//  error so we check if it has a handler, and if so we mark that the error
-	//  was handled by removing it from outstandingPromiseErrors
-	//
-	if (details.parent) {
-		if (details.handler && outstandingPromiseErrors) {
-			delete outstandingPromiseErrors[id];
-		}
-		return;
-	}
-
-	// Indicate that this error was originated and needs to be handled
-	outstandingPromiseErrors[id] = details;
-
-	// The first time the queue fills up this iteration, schedule a timeout to
-	// check if any errors are still unhandled.
-	if (Object.keys(outstandingPromiseErrors).length === 1) {
-		setTimeout(function () {
-			const errors = outstandingPromiseErrors;
-			outstandingPromiseErrors = {};
-			Object.keys(errors).forEach(function (errorId) {
-				const error = errors[errorId];
-				if (error.exception) {
-					onUnexpectedError(error.exception);
-				} else if (error.error) {
-					onUnexpectedError(error.error);
-				}
-				console.log('WARNING: Promise with no error callback:' + error.id);
-				console.log(error);
-				if (error.exception) {
-					console.log(error.exception.stack);
-				}
-			});
-		}, 0);
-	}
-}
-TPromise.addEventListener('error', promiseErrorHandler);
-
-// ------ END Hook up error listeners to winjs promises
 
 export interface ErrorListenerCallback {
 	(error: any): void;
@@ -79,8 +21,12 @@ export class ErrorHandler {
 		this.listeners = [];
 
 		this.unexpectedErrorHandler = function (e: any) {
-			platform.setTimeout(() => {
+			setTimeout(() => {
 				if (e.stack) {
+					if (ErrorNoTelemetry.isErrorNoTelemetry(e)) {
+						throw new ErrorNoTelemetry(e.message + '\n\n' + e.stack);
+					}
+
 					throw new Error(e.message + '\n\n' + e.stack);
 				}
 
@@ -89,7 +35,7 @@ export class ErrorHandler {
 		};
 	}
 
-	public addListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
+	addListener(listener: ErrorListenerCallback): ErrorListenerUnbind {
 		this.listeners.push(listener);
 
 		return () => {
@@ -107,34 +53,50 @@ export class ErrorHandler {
 		this.listeners.splice(this.listeners.indexOf(listener), 1);
 	}
 
-	public setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
+	setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 		this.unexpectedErrorHandler = newUnexpectedErrorHandler;
 	}
 
-	public getUnexpectedErrorHandler(): (e: any) => void {
+	getUnexpectedErrorHandler(): (e: any) => void {
 		return this.unexpectedErrorHandler;
 	}
 
-	public onUnexpectedError(e: any): void {
+	onUnexpectedError(e: any): void {
 		this.unexpectedErrorHandler(e);
 		this.emit(e);
 	}
 
 	// For external errors, we don't want the listeners to be called
-	public onUnexpectedExternalError(e: any): void {
+	onUnexpectedExternalError(e: any): void {
 		this.unexpectedErrorHandler(e);
 	}
 }
 
 export const errorHandler = new ErrorHandler();
 
+/** @skipMangle */
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
 
+/**
+ * Returns if the error is a SIGPIPE error. SIGPIPE errors should generally be
+ * logged at most once, to avoid a loop.
+ *
+ * @see https://github.com/microsoft/vscode-remote-release/issues/6481
+ */
+export function isSigPipeError(e: unknown): e is Error {
+	if (!e || typeof e !== 'object') {
+		return false;
+	}
+
+	const cast = e as Record<string, string | undefined>;
+	return cast.code === 'EPIPE' && cast.syscall?.toUpperCase() === 'WRITE';
+}
+
 export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
+	if (!isCancellationError(e)) {
 		errorHandler.onUnexpectedError(e);
 	}
 	return undefined;
@@ -142,14 +104,10 @@ export function onUnexpectedError(e: any): undefined {
 
 export function onUnexpectedExternalError(e: any): undefined {
 	// ignore errors from cancelled promises
-	if (!isPromiseCanceledError(e)) {
+	if (!isCancellationError(e)) {
 		errorHandler.onUnexpectedExternalError(e);
 	}
 	return undefined;
-}
-
-export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | void> {
-	return promise.then(null, onUnexpectedError);
 }
 
 export interface SerializedError {
@@ -157,19 +115,21 @@ export interface SerializedError {
 	readonly name: string;
 	readonly message: string;
 	readonly stack: string;
+	readonly noTelemetry: boolean;
 }
 
 export function transformErrorForSerialization(error: Error): SerializedError;
 export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
-		let { name, message } = error;
-		let stack: string = (<any>error).stacktrace || (<any>error).stack;
+		const { name, message } = error;
+		const stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,
 			name,
 			message,
-			stack
+			stack,
+			noTelemetry: ErrorNoTelemetry.isErrorNoTelemetry(error)
 		};
 	}
 
@@ -179,15 +139,15 @@ export function transformErrorForSerialization(error: any): any {
 
 // see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
 export interface V8CallSite {
-	getThis(): any;
-	getTypeName(): string;
-	getFunction(): string;
-	getFunctionName(): string;
-	getMethodName(): string;
-	getFileName(): string;
-	getLineNumber(): number;
-	getColumnNumber(): number;
-	getEvalOrigin(): string;
+	getThis(): unknown;
+	getTypeName(): string | null;
+	getFunction(): Function | undefined;
+	getFunctionName(): string | null;
+	getMethodName(): string | null;
+	getFileName(): string | null;
+	getLineNumber(): number | null;
+	getColumnNumber(): number | null;
+	getEvalOrigin(): string | undefined;
 	isToplevel(): boolean;
 	isEval(): boolean;
 	isNative(): boolean;
@@ -200,24 +160,29 @@ const canceledName = 'Canceled';
 /**
  * Checks if the given error is a promise in canceled state
  */
-export function isPromiseCanceledError(error: any): boolean {
+export function isCancellationError(error: any): boolean {
+	if (error instanceof CancellationError) {
+		return true;
+	}
 	return error instanceof Error && error.name === canceledName && error.message === canceledName;
 }
 
-/**
- * Returns an error that signals cancellation.
- */
-export function canceled(): Error {
-	let error = new Error(canceledName);
-	error.name = error.message;
-	return error;
+// !!!IMPORTANT!!!
+// Do NOT change this class because it is also used as an API-type.
+export class CancellationError extends Error {
+	constructor() {
+		super(canceledName);
+		this.name = this.message;
+	}
 }
 
 /**
- * Returns an error that signals something is not implemented.
+ * @deprecated use {@link CancellationError `new CancellationError()`} instead
  */
-export function notImplemented(): Error {
-	return new Error('Not Implemented');
+export function canceled(): Error {
+	const error = new Error(canceledName);
+	error.name = error.message;
+	return error;
 }
 
 export function illegalArgument(name?: string): Error {
@@ -248,25 +213,6 @@ export function disposed(what: string): Error {
 	return result;
 }
 
-export interface IErrorOptions {
-	severity?: Severity;
-	actions?: IAction[];
-}
-
-export function create(message: string, options: IErrorOptions = {}): Error {
-	let result = new Error(message);
-
-	if (types.isNumber(options.severity)) {
-		(<any>result).severity = options.severity;
-	}
-
-	if (options.actions) {
-		(<any>result).actions = options.actions;
-	}
-
-	return result;
-}
-
 export function getErrorMessage(err: any): string {
 	if (!err) {
 		return 'Error';
@@ -281,4 +227,70 @@ export function getErrorMessage(err: any): string {
 	}
 
 	return String(err);
+}
+
+export class NotImplementedError extends Error {
+	constructor(message?: string) {
+		super('NotImplemented');
+		if (message) {
+			this.message = message;
+		}
+	}
+}
+
+export class NotSupportedError extends Error {
+	constructor(message?: string) {
+		super('NotSupported');
+		if (message) {
+			this.message = message;
+		}
+	}
+}
+
+export class ExpectedError extends Error {
+	readonly isExpected = true;
+}
+
+/**
+ * Error that when thrown won't be logged in telemetry as an unhandled error.
+ */
+export class ErrorNoTelemetry extends Error {
+	override readonly name: string;
+
+	constructor(msg?: string) {
+		super(msg);
+		this.name = 'CodeExpectedError';
+	}
+
+	public static fromError(err: Error): ErrorNoTelemetry {
+		if (err instanceof ErrorNoTelemetry) {
+			return err;
+		}
+
+		const result = new ErrorNoTelemetry();
+		result.message = err.message;
+		result.stack = err.stack;
+		return result;
+	}
+
+	public static isErrorNoTelemetry(err: Error): err is ErrorNoTelemetry {
+		return err.name === 'CodeExpectedError';
+	}
+}
+
+/**
+ * This error indicates a bug.
+ * Do not throw this for invalid user input.
+ * Only catch this error to recover gracefully from bugs.
+ */
+export class BugIndicatingError extends Error {
+	constructor(message?: string) {
+		super(message || 'An unexpected bug occurred.');
+		Object.setPrototypeOf(this, BugIndicatingError.prototype);
+
+		// Because we know for sure only buggy code throws this,
+		// we definitely want to break here and fix the bug.
+		// eslint-disable-next-line no-debugger
+		// debugger;
+	}
 }

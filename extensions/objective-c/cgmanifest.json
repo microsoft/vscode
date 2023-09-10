@@ -1,0 +1,31 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-objcpp-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-objcpp-syntax",
+					"commitHash": "5a7eb15eee382dd5aa388bc04fdb60a0d2128e14"
+				}
+			},
+			"license": "MIT",
+			"version": "0.1.0",
+			"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the language package https://github.com/jeff-hykin/cpp-textmate-grammar."
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-objc-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-objc-syntax",
+					"commitHash": "119b75fb1f4d3e8726fa62588e3b935e0b719294"
+				}
+			},
+			"license": "MIT",
+			"version": "0.2.0",
+			"description": "The files syntaxes/objective-c.tmLanguage.json and syntaxes/objective-c++.tmLanguage.json were derived from the language package https://github.com/jeff-hykin/cpp-textmate-grammar."
+		}
+	],
+	"version": 1
+}

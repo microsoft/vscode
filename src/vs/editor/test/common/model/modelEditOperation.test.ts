@@ -2,39 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { Model } from 'vs/editor/common/model/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Editor Model - Model Edit Operation', () => {
-	var LINE1 = 'My First Line';
-	var LINE2 = '\t\tMy Second Line';
-	var LINE3 = '    Third Line';
-	var LINE4 = '';
-	var LINE5 = '1';
+	const LINE1 = 'My First Line';
+	const LINE2 = '\t\tMy Second Line';
+	const LINE3 = '    Third Line';
+	const LINE4 = '';
+	const LINE5 = '1';
 
-	var model: Model;
+	let model: TextModel;
 
 	setup(() => {
-		var text =
+		const text =
 			LINE1 + '\r\n' +
 			LINE2 + '\n' +
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		model = Model.createFromString(text);
+		model = createTextModel(text);
 	});
 
 	teardown(() => {
 		model.dispose();
-		model = null;
 	});
 
-	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
-		var range = new Range(
+	function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
+		const range = new Range(
 			selectionLineNumber,
 			selectionColumn,
 			positionLineNumber,
@@ -42,36 +40,39 @@ suite('Editor Model - Model Edit Operation', () => {
 		);
 
 		return {
-			identifier: {
-				major: 0,
-				minor: 0
-			},
 			range: range,
 			text: text,
 			forceMoveMarkers: false
 		};
 	}
 
-	function assertSingleEditOp(singleEditOp: IIdentifiedSingleEditOperation, editedLines: string[]) {
-		var editOp = [singleEditOp];
+	function assertSingleEditOp(singleEditOp: ISingleEditOperation, editedLines: string[]) {
+		const editOp = [singleEditOp];
 
-		var inverseEditOp = model.applyEdits(editOp);
+		const inverseEditOp = model.applyEdits(editOp, true);
 
-		assert.equal(model.getLineCount(), editedLines.length);
-		for (var i = 0; i < editedLines.length; i++) {
-			assert.equal(model.getLineContent(i + 1), editedLines[i]);
+		assert.strictEqual(model.getLineCount(), editedLines.length);
+		for (let i = 0; i < editedLines.length; i++) {
+			assert.strictEqual(model.getLineContent(i + 1), editedLines[i]);
 		}
 
-		var originalOp = model.applyEdits(inverseEditOp);
+		const originalOp = model.applyEdits(inverseEditOp, true);
 
-		assert.equal(model.getLineCount(), 5);
-		assert.equal(model.getLineContent(1), LINE1);
-		assert.equal(model.getLineContent(2), LINE2);
-		assert.equal(model.getLineContent(3), LINE3);
-		assert.equal(model.getLineContent(4), LINE4);
-		assert.equal(model.getLineContent(5), LINE5);
+		assert.strictEqual(model.getLineCount(), 5);
+		assert.strictEqual(model.getLineContent(1), LINE1);
+		assert.strictEqual(model.getLineContent(2), LINE2);
+		assert.strictEqual(model.getLineContent(3), LINE3);
+		assert.strictEqual(model.getLineContent(4), LINE4);
+		assert.strictEqual(model.getLineContent(5), LINE5);
 
-		assert.deepEqual(originalOp, editOp);
+		const simplifyEdit = (edit: ISingleEditOperation) => {
+			return {
+				range: edit.range,
+				text: edit.text,
+				forceMoveMarkers: edit.forceMoveMarkers || false
+			};
+		};
+		assert.deepStrictEqual(originalOp.map(simplifyEdit), editOp.map(simplifyEdit));
 	}
 
 	test('Insert inline', () => {

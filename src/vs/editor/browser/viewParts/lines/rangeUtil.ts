@@ -2,29 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
-
-class FloatHorizontalRange {
-	_floatHorizontalRangeBrand: void;
-
-	public readonly left: number;
-	public readonly width: number;
-
-	constructor(left: number, width: number) {
-		this.left = left;
-		this.width = width;
-	}
-
-	public toString(): string {
-		return `[${this.left},${this.width}]`;
-	}
-
-	public static compare(a: FloatHorizontalRange, b: FloatHorizontalRange): number {
-		return a.left - b.left;
-	}
-}
+import { Constants } from 'vs/base/common/uint';
+import { FloatHorizontalRange } from 'vs/editor/browser/view/renderingContext';
+import { DomReadingContext } from 'vs/editor/browser/viewParts/lines/domReadingContext';
 
 export class RangeUtil {
 
@@ -48,8 +29,8 @@ export class RangeUtil {
 		range.selectNodeContents(endNode);
 	}
 
-	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): ClientRectList {
-		let range = this._createRange();
+	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): DOMRectList | null {
+		const range = this._createRange();
 		try {
 			range.setStart(startElement, startOffset);
 			range.setEnd(endElement, endOffset);
@@ -63,38 +44,34 @@ export class RangeUtil {
 		}
 	}
 
-	private static _mergeAdjacentRanges(ranges: FloatHorizontalRange[]): HorizontalRange[] {
+	private static _mergeAdjacentRanges(ranges: FloatHorizontalRange[]): FloatHorizontalRange[] {
 		if (ranges.length === 1) {
 			// There is nothing to merge
-			return [new HorizontalRange(ranges[0].left, ranges[0].width)];
+			return ranges;
 		}
 
 		ranges.sort(FloatHorizontalRange.compare);
 
-		let result: HorizontalRange[] = [], resultLen = 0;
-		let prevLeft = ranges[0].left;
-		let prevWidth = ranges[0].width;
+		const result: FloatHorizontalRange[] = [];
+		let resultLen = 0;
+		let prev = ranges[0];
 
 		for (let i = 1, len = ranges.length; i < len; i++) {
 			const range = ranges[i];
-			const myLeft = range.left;
-			const myWidth = range.width;
-
-			if (prevLeft + prevWidth + 0.9 /* account for browser's rounding errors*/ >= myLeft) {
-				prevWidth = Math.max(prevWidth, myLeft + myWidth - prevLeft);
+			if (prev.left + prev.width + 0.9 /* account for browser's rounding errors*/ >= range.left) {
+				prev.width = Math.max(prev.width, range.left + range.width - prev.left);
 			} else {
-				result[resultLen++] = new HorizontalRange(prevLeft, prevWidth);
-				prevLeft = myLeft;
-				prevWidth = myWidth;
+				result[resultLen++] = prev;
+				prev = range;
 			}
 		}
 
-		result[resultLen++] = new HorizontalRange(prevLeft, prevWidth);
+		result[resultLen++] = prev;
 
 		return result;
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList, clientRectDeltaLeft: number): HorizontalRange[] {
+	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number, clientRectScale: number): FloatHorizontalRange[] | null {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
 		}
@@ -102,31 +79,39 @@ export class RangeUtil {
 		// We go through FloatHorizontalRange because it has been observed in bi-di text
 		// that the clientRects are not coming in sorted from the browser
 
-		let result: FloatHorizontalRange[] = [];
+		const result: FloatHorizontalRange[] = [];
 		for (let i = 0, len = clientRects.length; i < len; i++) {
 			const clientRect = clientRects[i];
-			result[i] = new FloatHorizontalRange(Math.max(0, clientRect.left - clientRectDeltaLeft), clientRect.width);
+			result[i] = new FloatHorizontalRange(Math.max(0, (clientRect.left - clientRectDeltaLeft) / clientRectScale), clientRect.width / clientRectScale);
 		}
 
 		return this._mergeAdjacentRanges(result);
 	}
 
-	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] {
+	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, context: DomReadingContext): FloatHorizontalRange[] | null {
 		// Panic check
-		let min = 0;
-		let max = domNode.children.length - 1;
+		const min = 0;
+		const max = domNode.children.length - 1;
 		if (min > max) {
 			return null;
 		}
 		startChildIndex = Math.min(max, Math.max(min, startChildIndex));
 		endChildIndex = Math.min(max, Math.max(min, endChildIndex));
 
+		if (startChildIndex === endChildIndex && startOffset === endOffset && startOffset === 0 && !domNode.children[startChildIndex].firstChild) {
+			// We must find the position at the beginning of a <span>
+			// To cover cases of empty <span>s, avoid using a range and use the <span>'s bounding box
+			const clientRects = domNode.children[startChildIndex].getClientRects();
+			context.markDidDomLayout();
+			return this._createHorizontalRangesFromClientRects(clientRects, context.clientRectDeltaLeft, context.clientRectScale);
+		}
+
 		// If crossing over to a span only to select offset 0, then use the previous span's maximum offset
 		// Chrome is buggy and doesn't handle 0 offsets well sometimes.
 		if (startChildIndex !== endChildIndex) {
 			if (endChildIndex > 0 && endOffset === 0) {
 				endChildIndex--;
-				endOffset = Number.MAX_VALUE;
+				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
 			}
 		}
 
@@ -134,13 +119,26 @@ export class RangeUtil {
 		let endElement = domNode.children[endChildIndex].firstChild;
 
 		if (!startElement || !endElement) {
+			// When having an empty <span> (without any text content), try to move to the previous <span>
+			if (!startElement && startOffset === 0 && startChildIndex > 0) {
+				startElement = domNode.children[startChildIndex - 1].firstChild;
+				startOffset = Constants.MAX_SAFE_SMALL_INTEGER;
+			}
+			if (!endElement && endOffset === 0 && endChildIndex > 0) {
+				endElement = domNode.children[endChildIndex - 1].firstChild;
+				endOffset = Constants.MAX_SAFE_SMALL_INTEGER;
+			}
+		}
+
+		if (!startElement || !endElement) {
 			return null;
 		}
 
-		startOffset = Math.min(startElement.textContent.length, Math.max(0, startOffset));
-		endOffset = Math.min(endElement.textContent.length, Math.max(0, endOffset));
+		startOffset = Math.min(startElement.textContent!.length, Math.max(0, startOffset));
+		endOffset = Math.min(endElement.textContent!.length, Math.max(0, endOffset));
 
-		let clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, endNode);
-		return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
+		const clientRects = this._readClientRects(startElement, startOffset, endElement, endOffset, context.endNode);
+		context.markDidDomLayout();
+		return this._createHorizontalRangesFromClientRects(clientRects, context.clientRectDeltaLeft, context.clientRectScale);
 	}
 }

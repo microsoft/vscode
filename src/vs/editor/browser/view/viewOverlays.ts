@@ -2,19 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { IVisibleLine, VisibleLinesCollection, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IVisibleLine, IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
-import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOverlayLine> {
 
@@ -29,19 +29,23 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 		this._visibleLines = new VisibleLinesCollection<ViewOverlayLine>(this);
 		this.domNode = this._visibleLines.domNode;
 
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		applyFontInfo(this.domNode, fontInfo);
+
 		this._dynamicOverlays = [];
 		this._isFocused = false;
 
 		this.domNode.setClassName('view-overlays');
 	}
 
-	public shouldRender(): boolean {
+	public override shouldRender(): boolean {
 		if (super.shouldRender()) {
 			return true;
 		}
 
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			let dynamicOverlay = this._dynamicOverlays[i];
+			const dynamicOverlay = this._dynamicOverlays[i];
 			if (dynamicOverlay.shouldRender()) {
 				return true;
 			}
@@ -50,14 +54,14 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 		return false;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			let dynamicOverlay = this._dynamicOverlays[i];
+			const dynamicOverlay = this._dynamicOverlays[i];
 			dynamicOverlay.dispose();
 		}
-		this._dynamicOverlays = null;
+		this._dynamicOverlays = [];
 	}
 
 	public getDomNode(): FastDomNode<HTMLElement> {
@@ -78,54 +82,57 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 	// ----- event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._visibleLines.onConfigurationChanged(e);
-		let startLineNumber = this._visibleLines.getStartLineNumber();
-		let endLineNumber = this._visibleLines.getEndLineNumber();
+		const startLineNumber = this._visibleLines.getStartLineNumber();
+		const endLineNumber = this._visibleLines.getEndLineNumber();
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			let line = this._visibleLines.getVisibleLine(lineNumber);
+			const line = this._visibleLines.getVisibleLine(lineNumber);
 			line.onConfigurationChanged(e);
 		}
+
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		applyFontInfo(this.domNode, fontInfo);
+
 		return true;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return this._visibleLines.onFlushed(e);
 	}
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this._isFocused = e.isFocused;
 		return true;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return this._visibleLines.onLinesChanged(e);
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return this._visibleLines.onLinesDeleted(e);
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return this._visibleLines.onLinesInserted(e);
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return this._visibleLines.onScrollChanged(e) || true;
 	}
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return this._visibleLines.onTokensChanged(e);
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return this._visibleLines.onZonesChanged(e);
 	}
 
 	// ----- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		let toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
+		const toRender = this._dynamicOverlays.filter(overlay => overlay.shouldRender());
 
 		for (let i = 0, len = toRender.length; i < len; i++) {
-			let dynamicOverlay = toRender[i];
+			const dynamicOverlay = toRender[i];
 			dynamicOverlay.prepareRender(ctx);
 			dynamicOverlay.onDidRender();
 		}
-
-		return null;
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -142,22 +149,22 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 export class ViewOverlayLine implements IVisibleLine {
 
-	private _configuration: IConfiguration;
-	private _dynamicOverlays: DynamicViewOverlay[];
-	private _domNode: FastDomNode<HTMLElement>;
-	private _renderedContent: string;
+	private readonly _configuration: IEditorConfiguration;
+	private readonly _dynamicOverlays: DynamicViewOverlay[];
+	private _domNode: FastDomNode<HTMLElement> | null;
+	private _renderedContent: string | null;
 	private _lineHeight: number;
 
-	constructor(configuration: IConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
+	constructor(configuration: IEditorConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
 		this._configuration = configuration;
-		this._lineHeight = this._configuration.editor.lineHeight;
+		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
 		this._renderedContent = null;
 	}
 
-	public getDomNode(): HTMLElement {
+	public getDomNode(): HTMLElement | null {
 		if (!this._domNode) {
 			return null;
 		}
@@ -174,15 +181,13 @@ export class ViewOverlayLine implements IVisibleLine {
 		// Nothing
 	}
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		if (e.lineHeight) {
-			this._lineHeight = this._configuration.editor.lineHeight;
-		}
+		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		let result = '';
 		for (let i = 0, len = this._dynamicOverlays.length; i < len; i++) {
-			let dynamicOverlay = this._dynamicOverlays[i];
+			const dynamicOverlay = this._dynamicOverlays[i];
 			result += dynamicOverlay.render(viewportData.startLineNumber, lineNumber);
 		}
 
@@ -193,13 +198,13 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		sb.appendASCIIString('<div style="position:absolute;top:');
-		sb.appendASCIIString(String(deltaTop));
-		sb.appendASCIIString('px;width:100%;height:');
-		sb.appendASCIIString(String(this._lineHeight));
-		sb.appendASCIIString('px;">');
-		sb.appendASCIIString(result);
-		sb.appendASCIIString('</div>');
+		sb.appendString('<div style="position:absolute;top:');
+		sb.appendString(String(deltaTop));
+		sb.appendString('px;width:100%;height:');
+		sb.appendString(String(this._lineHeight));
+		sb.appendString('px;">');
+		sb.appendString(result);
+		sb.appendString('</div>');
 
 		return true;
 	}
@@ -218,27 +223,28 @@ export class ContentViewOverlays extends ViewOverlays {
 
 	constructor(context: ViewContext) {
 		super(context);
-
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentWidth = layoutInfo.contentWidth;
 
 		this.domNode.setHeight(0);
 	}
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.layoutInfo) {
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		}
-		return super.onConfigurationChanged(e);
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentWidth = layoutInfo.contentWidth;
+		return super.onConfigurationChanged(e) || true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollWidthChanged;
 	}
 
 	// --- end event handlers
 
-	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
+	override _viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
 
 		this.domNode.setWidth(Math.max(ctx.scrollWidth, this._contentWidth));
@@ -252,34 +258,31 @@ export class MarginViewOverlays extends ViewOverlays {
 	constructor(context: ViewContext) {
 		super(context);
 
-		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
+		const options = this._context.configuration.options;
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentLeft = layoutInfo.contentLeft;
 
 		this.domNode.setClassName('margin-view-overlays');
 		this.domNode.setWidth(1);
 
-		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
+		applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
 	}
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		let shouldRender = false;
-		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
-			shouldRender = true;
-		}
-		if (e.layoutInfo) {
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-			shouldRender = true;
-		}
-		return super.onConfigurationChanged(e) || shouldRender;
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		const options = this._context.configuration.options;
+		applyFontInfo(this.domNode, options.get(EditorOption.fontInfo));
+		const layoutInfo = options.get(EditorOption.layoutInfo);
+		this._contentLeft = layoutInfo.contentLeft;
+		return super.onConfigurationChanged(e) || true;
 	}
 
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
 	}
 
-	_viewOverlaysRender(ctx: RestrictedRenderingContext): void {
+	override _viewOverlaysRender(ctx: RestrictedRenderingContext): void {
 		super._viewOverlaysRender(ctx);
-		let height = Math.min(ctx.scrollHeight, 1000000);
+		const height = Math.min(ctx.scrollHeight, 1000000);
 		this.domNode.setHeight(height);
 		this.domNode.setWidth(this._contentLeft);
 	}

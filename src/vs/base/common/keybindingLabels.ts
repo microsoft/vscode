@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import * as nls from 'vs/nls';
+import { Modifiers } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
 
 export interface ModifierLabels {
 	readonly ctrlKey: string;
@@ -16,11 +15,8 @@ export interface ModifierLabels {
 	readonly separator: string;
 }
 
-export interface Modifiers {
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
+export interface KeyLabelProvider<T extends Modifiers> {
+	(keybinding: T): string | null;
 }
 
 export class ModifierLabelProvider {
@@ -28,17 +24,28 @@ export class ModifierLabelProvider {
 	public readonly modifierLabels: ModifierLabels[];
 
 	constructor(mac: ModifierLabels, windows: ModifierLabels, linux: ModifierLabels = windows) {
-		this.modifierLabels = [null];
+		this.modifierLabels = [null!]; // index 0 will never me accessed.
 		this.modifierLabels[OperatingSystem.Macintosh] = mac;
 		this.modifierLabels[OperatingSystem.Windows] = windows;
 		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
-	public toLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): string {
-		if (firstPartKey === null && chordPartKey === null) {
+	public toLabel<T extends Modifiers>(OS: OperatingSystem, chords: readonly T[], keyLabelProvider: KeyLabelProvider<T>): string | null {
+		if (chords.length === 0) {
 			return null;
 		}
-		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this.modifierLabels[OS]);
+
+		const result: string[] = [];
+		for (let i = 0, len = chords.length; i < len; i++) {
+			const chord = chords[i];
+			const keyLabel = keyLabelProvider(chord);
+			if (keyLabel === null) {
+				// this keybinding cannot be expressed...
+				return null;
+			}
+			result[i] = _simpleAsString(chord, keyLabel, this.modifierLabels[OS]);
+		}
+		return result.join(' ');
 	}
 }
 
@@ -47,17 +54,24 @@ export class ModifierLabelProvider {
  */
 export const UILabelProvider = new ModifierLabelProvider(
 	{
-		ctrlKey: '⌃',
+		ctrlKey: '\u2303',
 		shiftKey: '⇧',
 		altKey: '⌥',
 		metaKey: '⌘',
 		separator: '',
 	},
 	{
-		ctrlKey: nls.localize('ctrlKey', "Ctrl"),
-		shiftKey: nls.localize('shiftKey', "Shift"),
-		altKey: nls.localize('altKey', "Alt"),
-		metaKey: nls.localize('windowsKey', "Windows"),
+		ctrlKey: nls.localize({ key: 'ctrlKey', comment: ['This is the short form for the Control key on the keyboard'] }, "Ctrl"),
+		shiftKey: nls.localize({ key: 'shiftKey', comment: ['This is the short form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey', comment: ['This is the short form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'windowsKey', comment: ['This is the short form for the Windows key on the keyboard'] }, "Windows"),
+		separator: '+',
+	},
+	{
+		ctrlKey: nls.localize({ key: 'ctrlKey', comment: ['This is the short form for the Control key on the keyboard'] }, "Ctrl"),
+		shiftKey: nls.localize({ key: 'shiftKey', comment: ['This is the short form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey', comment: ['This is the short form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'superKey', comment: ['This is the short form for the Super key on the keyboard'] }, "Super"),
 		separator: '+',
 	}
 );
@@ -67,17 +81,24 @@ export const UILabelProvider = new ModifierLabelProvider(
  */
 export const AriaLabelProvider = new ModifierLabelProvider(
 	{
-		ctrlKey: nls.localize('ctrlKey.long', "Control"),
-		shiftKey: nls.localize('shiftKey.long', "Shift"),
-		altKey: nls.localize('altKey.long', "Alt"),
-		metaKey: nls.localize('cmdKey.long', "Command"),
+		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
+		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'optKey.long', comment: ['This is the long form for the Alt/Option key on the keyboard'] }, "Option"),
+		metaKey: nls.localize({ key: 'cmdKey.long', comment: ['This is the long form for the Command key on the keyboard'] }, "Command"),
 		separator: '+',
 	},
 	{
-		ctrlKey: nls.localize('ctrlKey.long', "Control"),
-		shiftKey: nls.localize('shiftKey.long', "Shift"),
-		altKey: nls.localize('altKey.long', "Alt"),
-		metaKey: nls.localize('windowsKey.long', "Windows"),
+		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
+		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'windowsKey.long', comment: ['This is the long form for the Windows key on the keyboard'] }, "Windows"),
+		separator: '+',
+	},
+	{
+		ctrlKey: nls.localize({ key: 'ctrlKey.long', comment: ['This is the long form for the Control key on the keyboard'] }, "Control"),
+		shiftKey: nls.localize({ key: 'shiftKey.long', comment: ['This is the long form for the Shift key on the keyboard'] }, "Shift"),
+		altKey: nls.localize({ key: 'altKey.long', comment: ['This is the long form for the Alt key on the keyboard'] }, "Alt"),
+		metaKey: nls.localize({ key: 'superKey.long', comment: ['This is the long form for the Super key on the keyboard'] }, "Super"),
 		separator: '+',
 	}
 );
@@ -135,7 +156,7 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 		return '';
 	}
 
-	let result: string[] = [];
+	const result: string[] = [];
 
 	// translate modifier keys: Ctrl-Shift-Alt-Meta
 	if (modifiers.ctrlKey) {
@@ -155,18 +176,9 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	}
 
 	// the actual key
-	result.push(key);
-
-	return result.join(labels.separator);
-}
-
-function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): string {
-	let result = _simpleAsString(firstPartMod, firstPartKey, labels);
-
-	if (chordPartKey !== null) {
-		result += ' ';
-		result += _simpleAsString(chordPartMod, chordPartKey, labels);
+	if (key !== '') {
+		result.push(key);
 	}
 
-	return result;
+	return result.join(labels.separator);
 }

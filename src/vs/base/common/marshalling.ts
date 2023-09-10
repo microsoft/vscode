@@ -2,43 +2,80 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { regExpFlags } from 'vs/base/common/strings';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { MarshalledId } from './marshallingIds';
 
 export function stringify(obj: any): string {
 	return JSON.stringify(obj, replacer);
 }
 
 export function parse(text: string): any {
-	return JSON.parse(text, reviver);
+	let data = JSON.parse(text);
+	data = revive(data);
+	return data;
 }
 
-interface MarshalledObject {
-	$mid: number;
+export interface MarshalledObject {
+	$mid: MarshalledId;
 }
 
 function replacer(key: string, value: any): any {
 	// URI is done via toJSON-member
 	if (value instanceof RegExp) {
 		return {
-			$mid: 2,
-			source: (<RegExp>value).source,
-			flags: ((<RegExp>value).global ? 'g' : '') + ((<RegExp>value).ignoreCase ? 'i' : '') + ((<RegExp>value).multiline ? 'm' : ''),
+			$mid: MarshalledId.Regexp,
+			source: value.source,
+			flags: regExpFlags(value),
 		};
 	}
 	return value;
 }
 
-function reviver(key: string, value: any): any {
-	let marshallingConst: number;
-	if (value !== void 0 && value !== null) {
-		marshallingConst = (<MarshalledObject>value).$mid;
+
+type Deserialize<T> = T extends UriComponents ? URI
+	: T extends VSBuffer ? VSBuffer
+	: T extends object
+	? Revived<T>
+	: T;
+
+export type Revived<T> = { [K in keyof T]: Deserialize<T[K]> };
+
+export function revive<T = any>(obj: any, depth = 0): Revived<T> {
+	if (!obj || depth > 200) {
+		return obj;
 	}
 
-	switch (marshallingConst) {
-		case 1: return URI.revive(value);
-		case 2: return new RegExp(value.source, value.flags);
-		default: return value;
+	if (typeof obj === 'object') {
+
+		switch ((<MarshalledObject>obj).$mid) {
+			case MarshalledId.Uri: return <any>URI.revive(obj);
+			case MarshalledId.Regexp: return <any>new RegExp(obj.source, obj.flags);
+			case MarshalledId.Date: return <any>new Date(obj.source);
+		}
+
+		if (
+			obj instanceof VSBuffer
+			|| obj instanceof Uint8Array
+		) {
+			return <any>obj;
+		}
+
+		if (Array.isArray(obj)) {
+			for (let i = 0; i < obj.length; ++i) {
+				obj[i] = revive(obj[i], depth + 1);
+			}
+		} else {
+			// walk object
+			for (const key in obj) {
+				if (Object.hasOwnProperty.call(obj, key)) {
+					obj[key] = revive(obj[key], depth + 1);
+				}
+			}
+		}
 	}
+
+	return obj;
 }

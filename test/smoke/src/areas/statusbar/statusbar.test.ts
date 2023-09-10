@@ -3,82 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import { join } from 'path';
+import { Application, StatusBarElement, Logger } from '../../../../automation';
+import { installAllHandlers } from '../../utils';
 
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
-import { StatusBarElement } from './statusbar';
+export function setup(logger: Logger) {
+	describe('Statusbar', () => {
 
+		// Shared before/after handling
+		installAllHandlers(logger);
 
-describe('Statusbar', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	before(() => app.start('Statusbar'));
-	after(() => app.stop());
+		it('verifies presence of all default status bar elements', async function () {
+			const app = this.app as Application;
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
-	it('verifies presence of all default status bar elements', async function () {
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
-		if (app.build !== VSCODE_BUILD.DEV) {
-			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
-		}
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
-
-		await app.workbench.quickopen.openFile('app.js');
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS);
-		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS);
-	});
-
-	it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
-		await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
-		await app.workbench.quickopen.waitForQuickOpenOpened();
-		await app.workbench.quickopen.closeQuickOpen();
-
-		await app.workbench.quickopen.openFile('app.js');
-		await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
-		await app.workbench.quickopen.waitForQuickOpenOpened();
-		await app.workbench.quickopen.closeQuickOpen();
-		await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-		await app.workbench.quickopen.waitForQuickOpenOpened();
-		await app.workbench.quickopen.closeQuickOpen();
-		await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-		await app.workbench.quickopen.waitForQuickOpenOpened();
-		await app.workbench.quickopen.closeQuickOpen();
-		await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
-		await app.workbench.quickopen.waitForQuickOpenOpened();
-		await app.workbench.quickopen.closeQuickOpen();
-	});
-
-	it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
-		await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
-		await app.workbench.problems.waitForProblemsView();
-	});
-
-	if (app.build !== VSCODE_BUILD.DEV) {
-		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-			assert.ok(!!await app.client.waitForElement('.feedback-form'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS);
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS);
 		});
-	}
 
-	it(`checks if 'Go to Line' works if called from the status bar`, async function () {
-		await app.workbench.quickopen.openFile('app.js');
-		await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
+		it(`verifies that 'quick input' opens when clicking on status bar elements`, async function () {
+			const app = this.app as Application;
+			await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 
-		await app.workbench.quickopen.waitForQuickOpenOpened();
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
+			await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
+			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
+			await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
+		});
 
-		await app.workbench.quickopen.submit(':15');
-		await app.workbench.editor.waitForHighlightingLine(15);
+		it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
+			const app = this.app as Application;
+			await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
+			await app.workbench.problems.waitForProblemsView();
+		});
+
+		it(`verifies if changing EOL is reflected in the status bar`, async function () {
+			const app = this.app as Application;
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
+
+			await app.workbench.quickinput.selectQuickInputElement(1);
+
+			await app.workbench.statusbar.waitForEOL('CRLF');
+		});
 	});
-
-	it(`verifies if changing EOL is reflected in the status bar`, async function () {
-		await app.workbench.quickopen.openFile('app.js');
-		await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-
-		await app.workbench.quickopen.waitForQuickOpenOpened();
-		await app.workbench.quickopen.selectQuickOpenElement(1);
-
-		await app.workbench.statusbar.waitForEOL('CRLF');
-	});
-});
+}

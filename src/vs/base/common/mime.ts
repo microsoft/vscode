@@ -2,258 +2,125 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import paths = require('vs/base/common/paths');
-import types = require('vs/base/common/types');
-import strings = require('vs/base/common/strings');
-import { match } from 'vs/base/common/glob';
+import { extname } from 'vs/base/common/path';
 
-export const MIME_TEXT = 'text/plain';
-export const MIME_BINARY = 'application/octet-stream';
-export const MIME_UNKNOWN = 'application/unknown';
+export const Mimes = Object.freeze({
+	text: 'text/plain',
+	binary: 'application/octet-stream',
+	unknown: 'application/unknown',
+	markdown: 'text/markdown',
+	latex: 'text/latex',
+	uriList: 'text/uri-list',
+});
 
-export interface ITextMimeAssociation {
-	id: string;
-	mime: string;
-	filename?: string;
-	extension?: string;
-	filepattern?: string;
-	firstline?: RegExp;
-	userConfigured?: boolean;
+interface MapExtToMediaMimes {
+	[index: string]: string;
 }
 
-interface ITextMimeAssociationItem extends ITextMimeAssociation {
-	filenameLowercase?: string;
-	extensionLowercase?: string;
-	filepatternLowercase?: string;
-	filepatternOnPath?: boolean;
-}
+const mapExtToTextMimes: MapExtToMediaMimes = {
+	'.css': 'text/css',
+	'.csv': 'text/csv',
+	'.htm': 'text/html',
+	'.html': 'text/html',
+	'.ics': 'text/calendar',
+	'.js': 'text/javascript',
+	'.mjs': 'text/javascript',
+	'.txt': 'text/plain',
+	'.xml': 'text/xml'
+};
 
-let registeredAssociations: ITextMimeAssociationItem[] = [];
-let nonUserRegisteredAssociations: ITextMimeAssociationItem[] = [];
-let userRegisteredAssociations: ITextMimeAssociationItem[] = [];
+// Known media mimes that we can handle
+const mapExtToMediaMimes: MapExtToMediaMimes = {
+	'.aac': 'audio/x-aac',
+	'.avi': 'video/x-msvideo',
+	'.bmp': 'image/bmp',
+	'.flv': 'video/x-flv',
+	'.gif': 'image/gif',
+	'.ico': 'image/x-icon',
+	'.jpe': 'image/jpg',
+	'.jpeg': 'image/jpg',
+	'.jpg': 'image/jpg',
+	'.m1v': 'video/mpeg',
+	'.m2a': 'audio/mpeg',
+	'.m2v': 'video/mpeg',
+	'.m3a': 'audio/mpeg',
+	'.mid': 'audio/midi',
+	'.midi': 'audio/midi',
+	'.mk3d': 'video/x-matroska',
+	'.mks': 'video/x-matroska',
+	'.mkv': 'video/x-matroska',
+	'.mov': 'video/quicktime',
+	'.movie': 'video/x-sgi-movie',
+	'.mp2': 'audio/mpeg',
+	'.mp2a': 'audio/mpeg',
+	'.mp3': 'audio/mpeg',
+	'.mp4': 'video/mp4',
+	'.mp4a': 'audio/mp4',
+	'.mp4v': 'video/mp4',
+	'.mpe': 'video/mpeg',
+	'.mpeg': 'video/mpeg',
+	'.mpg': 'video/mpeg',
+	'.mpg4': 'video/mp4',
+	'.mpga': 'audio/mpeg',
+	'.oga': 'audio/ogg',
+	'.ogg': 'audio/ogg',
+	'.opus': 'audio/opus',
+	'.ogv': 'video/ogg',
+	'.png': 'image/png',
+	'.psd': 'image/vnd.adobe.photoshop',
+	'.qt': 'video/quicktime',
+	'.spx': 'audio/ogg',
+	'.svg': 'image/svg+xml',
+	'.tga': 'image/x-tga',
+	'.tif': 'image/tiff',
+	'.tiff': 'image/tiff',
+	'.wav': 'audio/x-wav',
+	'.webm': 'video/webm',
+	'.webp': 'image/webp',
+	'.wma': 'audio/x-ms-wma',
+	'.wmv': 'video/x-ms-wmv',
+	'.woff': 'application/font-woff',
+};
 
-/**
- * Associate a text mime to the registry.
- */
-export function registerTextMime(association: ITextMimeAssociation): void {
-
-	// Register
-	const associationItem = toTextMimeAssociationItem(association);
-	registeredAssociations.push(associationItem);
-	if (!associationItem.userConfigured) {
-		nonUserRegisteredAssociations.push(associationItem);
+export function getMediaOrTextMime(path: string): string | undefined {
+	const ext = extname(path);
+	const textMime = mapExtToTextMimes[ext.toLowerCase()];
+	if (textMime !== undefined) {
+		return textMime;
 	} else {
-		userRegisteredAssociations.push(associationItem);
-	}
-
-	// Check for conflicts unless this is a user configured association
-	if (!associationItem.userConfigured) {
-		registeredAssociations.forEach(a => {
-			if (a.mime === associationItem.mime || a.userConfigured) {
-				return; // same mime or userConfigured is ok
-			}
-
-			if (associationItem.extension && a.extension === associationItem.extension) {
-				console.warn(`Overwriting extension <<${associationItem.extension}>> to now point to mime <<${associationItem.mime}>>`);
-			}
-
-			if (associationItem.filename && a.filename === associationItem.filename) {
-				console.warn(`Overwriting filename <<${associationItem.filename}>> to now point to mime <<${associationItem.mime}>>`);
-			}
-
-			if (associationItem.filepattern && a.filepattern === associationItem.filepattern) {
-				console.warn(`Overwriting filepattern <<${associationItem.filepattern}>> to now point to mime <<${associationItem.mime}>>`);
-			}
-
-			if (associationItem.firstline && a.firstline === associationItem.firstline) {
-				console.warn(`Overwriting firstline <<${associationItem.firstline}>> to now point to mime <<${associationItem.mime}>>`);
-			}
-		});
+		return getMediaMime(path);
 	}
 }
 
-function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMimeAssociationItem {
-	return {
-		id: association.id,
-		mime: association.mime,
-		filename: association.filename,
-		extension: association.extension,
-		filepattern: association.filepattern,
-		firstline: association.firstline,
-		userConfigured: association.userConfigured,
-		filenameLowercase: association.filename ? association.filename.toLowerCase() : void 0,
-		extensionLowercase: association.extension ? association.extension.toLowerCase() : void 0,
-		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : void 0,
-		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(paths.sep) >= 0 : false
-	};
+export function getMediaMime(path: string): string | undefined {
+	const ext = extname(path);
+	return mapExtToMediaMimes[ext.toLowerCase()];
 }
 
-/**
- * Clear text mimes from the registry.
- */
-export function clearTextMimes(onlyUserConfigured?: boolean): void {
-	if (!onlyUserConfigured) {
-		registeredAssociations = [];
-		nonUserRegisteredAssociations = [];
-		userRegisteredAssociations = [];
-	} else {
-		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
-		userRegisteredAssociations = [];
-	}
-}
-
-/**
- * Given a file, return the best matching mime type for it
- */
-export function guessMimeTypes(path: string, firstLine?: string): string[] {
-	if (!path) {
-		return [MIME_UNKNOWN];
-	}
-
-	path = path.toLowerCase();
-	let filename = paths.basename(path);
-
-	// 1.) User configured mappings have highest priority
-	let configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
-	if (configuredMime) {
-		return [configuredMime, MIME_TEXT];
-	}
-
-	// 2.) Registered mappings have middle priority
-	let registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
-	if (registeredMime) {
-		return [registeredMime, MIME_TEXT];
-	}
-
-	// 3.) Firstline has lowest priority
-	if (firstLine) {
-		let firstlineMime = guessMimeTypeByFirstline(firstLine);
-		if (firstlineMime) {
-			return [firstlineMime, MIME_TEXT];
+export function getExtensionForMimeType(mimeType: string): string | undefined {
+	for (const extension in mapExtToMediaMimes) {
+		if (mapExtToMediaMimes[extension] === mimeType) {
+			return extension;
 		}
 	}
 
-	return [MIME_UNKNOWN];
+	return undefined;
 }
 
-function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string {
-	let filenameMatch: ITextMimeAssociationItem;
-	let patternMatch: ITextMimeAssociationItem;
-	let extensionMatch: ITextMimeAssociationItem;
+const _simplePattern = /^(.+)\/(.+?)(;.+)?$/;
 
-	// We want to prioritize associations based on the order they are registered so that the last registered
-	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
-	for (let i = associations.length - 1; i >= 0; i--) {
-		let association = associations[i];
+export function normalizeMimeType(mimeType: string): string;
+export function normalizeMimeType(mimeType: string, strict: true): string | undefined;
+export function normalizeMimeType(mimeType: string, strict?: true): string | undefined {
 
-		// First exact name match
-		if (filename === association.filenameLowercase) {
-			filenameMatch = association;
-			break; // take it!
-		}
-
-		// Longest pattern match
-		if (association.filepattern) {
-			if (!patternMatch || association.filepattern.length > patternMatch.filepattern.length) {
-				let target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
-				if (match(association.filepatternLowercase, target)) {
-					patternMatch = association;
-				}
-			}
-		}
-
-		// Longest extension match
-		if (association.extension) {
-			if (!extensionMatch || association.extension.length > extensionMatch.extension.length) {
-				if (strings.endsWith(filename, association.extensionLowercase)) {
-					extensionMatch = association;
-				}
-			}
-		}
+	const match = _simplePattern.exec(mimeType);
+	if (!match) {
+		return strict
+			? undefined
+			: mimeType;
 	}
-
-	// 1.) Exact name match has second highest prio
-	if (filenameMatch) {
-		return filenameMatch.mime;
-	}
-
-	// 2.) Match on pattern
-	if (patternMatch) {
-		return patternMatch.mime;
-	}
-
-	// 3.) Match on extension comes next
-	if (extensionMatch) {
-		return extensionMatch.mime;
-	}
-
-	return null;
-}
-
-function guessMimeTypeByFirstline(firstLine: string): string {
-	if (strings.startsWithUTF8BOM(firstLine)) {
-		firstLine = firstLine.substr(1);
-	}
-
-	if (firstLine.length > 0) {
-		for (let i = 0; i < registeredAssociations.length; ++i) {
-			let association = registeredAssociations[i];
-			if (!association.firstline) {
-				continue;
-			}
-
-			let matches = firstLine.match(association.firstline);
-			if (matches && matches.length > 0) {
-				return association.mime;
-			}
-		}
-	}
-
-	return null;
-}
-
-export function isBinaryMime(mimes: string): boolean;
-export function isBinaryMime(mimes: string[]): boolean;
-export function isBinaryMime(mimes: any): boolean {
-	if (!mimes) {
-		return false;
-	}
-
-	let mimeVals: string[];
-	if (types.isArray(mimes)) {
-		mimeVals = (<string[]>mimes);
-	} else {
-		mimeVals = (<string>mimes).split(',').map((mime) => mime.trim());
-	}
-
-	return mimeVals.indexOf(MIME_BINARY) >= 0;
-}
-
-export function isUnspecific(mime: string[] | string): boolean {
-	if (!mime) {
-		return true;
-	}
-
-	if (typeof mime === 'string') {
-		return mime === MIME_BINARY || mime === MIME_TEXT || mime === MIME_UNKNOWN;
-	}
-
-	return mime.length === 1 && isUnspecific(mime[0]);
-}
-
-export function suggestFilename(langId: string, prefix: string): string {
-	for (let i = 0; i < registeredAssociations.length; i++) {
-		let association = registeredAssociations[i];
-		if (association.userConfigured) {
-			continue; // only support registered ones
-		}
-
-		if (association.id === langId && association.extension) {
-			return prefix + association.extension;
-		}
-	}
-
-	return prefix; // without any known extension, just return the prefix
+	// https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
+	// media and subtype must ALWAYS be lowercase, parameter not
+	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
 }

@@ -3,147 +3,86 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import nls = require('vs/nls');
-import Event, { Emitter } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { ResourceViewer } from 'vs/base/browser/ui/resourceviewer/resourceViewer';
-import { EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { localize } from 'vs/nls';
+import { Emitter } from 'vs/base/common/event';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ByteSize } from 'vs/platform/files/common/files';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorPlaceholder, IEditorPlaceholderContents } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+
+export interface IOpenCallbacks {
+	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
+}
 
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends BaseEditor {
-	private _onMetadataChanged: Emitter<void>;
-	private metadata: string;
+export abstract class BaseBinaryResourceEditor extends EditorPlaceholder {
 
-	private binaryContainer: Builder;
-	private scrollbar: DomScrollableElement;
+	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
+	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
+
+	private readonly _onDidOpenInPlace = this._register(new Emitter<void>());
+	readonly onDidOpenInPlace = this._onDidOpenInPlace.event;
+
+	private metadata: string | undefined;
 
 	constructor(
 		id: string,
+		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		private windowsService: IWindowsService
+		@IStorageService storageService: IStorageService
 	) {
-		super(id, telemetryService, themeService);
-
-		this._onMetadataChanged = new Emitter<void>();
+		super(id, telemetryService, themeService, storageService);
 	}
 
-	public get onMetadataChanged(): Event<void> {
-		return this._onMetadataChanged.event;
+	override getTitle(): string {
+		return this.input ? this.input.getName() : localize('binaryEditor', "Binary Viewer");
 	}
 
-	public getTitle(): string {
-		return this.input ? this.input.getName() : nls.localize('binaryEditor', "Binary Viewer");
-	}
+	protected async getContents(input: EditorInput, options: IEditorOptions): Promise<IEditorPlaceholderContents> {
+		const model = await input.resolve(options);
 
-	protected createEditor(parent: Builder): void {
-
-		// Container for Binary
-		const binaryContainerElement = document.createElement('div');
-		binaryContainerElement.className = 'binary-container';
-		this.binaryContainer = $(binaryContainerElement);
-		this.binaryContainer.style('outline', 'none');
-		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
-
-		// Custom Scrollbars
-		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
-		parent.getHTMLElement().appendChild(this.scrollbar.getDomNode());
-	}
-
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-			return TPromise.as<void>(null);
+		// Assert Model instance
+		if (!(model instanceof BinaryEditorModel)) {
+			throw new Error('Unable to open file as binary');
 		}
 
-		// Otherwise set input and resolve
-		return super.setInput(input, options).then(() => {
-			return input.resolve(true).then((resolvedModel: EditorModel) => {
+		// Update metadata
+		const size = model.getSize();
+		this.handleMetadataChanged(typeof size === 'number' ? ByteSize.formatSize(size) : '');
 
-				// Assert Model instance
-				if (!(resolvedModel instanceof BinaryEditorModel)) {
-					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
+		return {
+			icon: '$(warning)',
+			label: localize('binaryError', "The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding."),
+			actions: [
+				{
+					label: localize('openAnyway', "Open Anyway"),
+					run: async () => {
+
+						// Open in place
+						await this.callbacks.openInternal(input, options);
+
+						// Signal to listeners that the binary editor has been opened in-place
+						this._onDidOpenInPlace.fire();
+					}
 				}
-
-				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-				if (!this.input || this.input !== input) {
-					return null;
-				}
-
-				// Render Input
-				const model = <BinaryEditorModel>resolvedModel;
-				ResourceViewer.show(
-					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() },
-					this.binaryContainer,
-					this.scrollbar,
-					(resource: URI) => {
-						this.windowsService.openExternal(resource.toString()).then(didOpen => {
-							if (!didOpen) {
-								return this.windowsService.showItemInFolder(resource.fsPath);
-							}
-
-							return void 0;
-						});
-					},
-					(meta) => this.handleMetadataChanged(meta));
-
-				return TPromise.as<void>(null);
-			});
-		});
+			]
+		};
 	}
 
-	private handleMetadataChanged(meta: string): void {
+	private handleMetadataChanged(meta: string | undefined): void {
 		this.metadata = meta;
-		this._onMetadataChanged.fire();
+
+		this._onDidChangeMetadata.fire();
 	}
 
-	public getMetadata(): string {
+	getMetadata(): string | undefined {
 		return this.metadata;
-	}
-
-	public clearInput(): void {
-
-		// Clear Meta
-		this.handleMetadataChanged(null);
-
-		// Empty HTML Container
-		$(this.binaryContainer).empty();
-
-		super.clearInput();
-	}
-
-	public layout(dimension: Dimension): void {
-
-		// Pass on to Binary Container
-		this.binaryContainer.size(dimension.width, dimension.height);
-		this.scrollbar.scanDomNode();
-	}
-
-	public focus(): void {
-		this.binaryContainer.domFocus();
-	}
-
-	public dispose(): void {
-
-		// Destroy Container
-		this.binaryContainer.destroy();
-		this.scrollbar.dispose();
-
-		super.dispose();
 	}
 }

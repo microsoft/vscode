@@ -1,0 +1,13 @@
+pool:
+  vmImage: "ubuntu-latest"
+
+trigger:
+  branches:
+    include: ["main", "release/*"]
+pr: none
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "18.x"
+  - template: ./distro/download-distro.yml

@@ -1,0 +1,775 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extension-editor {
+	height: 100%;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	margin: 0px auto;
+	max-width: 80%;
+}
+
+.extension-editor .clickable {
+	cursor: pointer;
+}
+
+.extension-editor > .header {
+	display: flex;
+	padding-top: 20px;
+	padding-bottom: 14px;
+	padding-left: 20px;
+	padding-right: 20px;
+	overflow: hidden;
+	font-size: 14px;
+}
+
+.extension-editor > .header > .icon-container {
+	position: relative;
+}
+
+.extension-editor > .header > .icon-container .icon {
+	height: 128px;
+	width: 128px;
+	object-fit: contain;
+}
+
+.extension-editor > .header > .icon-container .extension-remote-badge {
+	position: absolute;
+	right: 0px;
+	top: 88px;
+	width: 38px;
+	height: 38px;
+	line-height: 38px;
+	border-radius: 20px;
+	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.extension-editor > .header > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
+	font-size: 28px;
+}
+
+.extension-editor > .header > .details {
+	padding-left: 20px;
+	overflow: hidden;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.extension-editor > .header > .details > .title {
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .title > .name {
+	flex: 0;
+	font-size: 26px;
+	line-height: 30px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title > .name.deprecated {
+	text-decoration: line-through;
+}
+
+.extension-editor > .header > .details > .title > .version {
+	margin-left: 10px;
+	user-select: text;
+	-webkit-user-select: text;
+	white-space: nowrap;
+}
+
+.extension-editor > .header > .details > .title > .builtin {
+	font-size: 10px;
+	font-style: italic;
+	margin-left: 10px;
+}
+
+.extension-editor > .header > .details > .title > .pre-release {
+	margin-left: 10px;
+	padding: 0px 4px;
+	border-radius: 4px;
+	background-color: var(--vscode-extensionIcon-preReleaseForeground);
+	color: #ffffff;
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .title > .pre-release > .codicon.codicon-extensions-pre-release {
+	color: #ffffff;
+	font-size: 14px;
+}
+
+.extension-editor > .header > .details > .title > .pre-release > .pre-release-text {
+	font-size: 10px;
+	padding-left: 3px;
+}
+
+.monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {
+	color: white;
+}
+
+.extension-editor > .header > .details > .title > .preview {
+	background: rgb(214, 63, 38);
+	font-size: 10px;
+	font-style: italic;
+	margin-left: 10px;
+	padding: 0px 4px;
+	border-radius: 4px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.extension-editor > .header > .details > .subtitle {
+	padding-top: 6px;
+	white-space: nowrap;
+	height: 20px;
+	line-height: 20px;
+}
+
+.extension-editor > .header > .details > .subtitle .hide {
+	display: none;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher {
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher .verified-publisher:not(:empty) {
+	margin-left: 4px;
+}
+
+.extension-editor > .header > .details > .subtitle,
+.extension-editor > .header > .details > .subtitle .install,
+.extension-editor > .header > .details > .subtitle .rating,
+.extension-editor > .header > .details > .subtitle .sponsor {
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .subtitle .sponsor .codicon {
+	padding-right: 3px;
+}
+
+.extension-editor > .header > .details > .subtitle .install > .count {
+	margin-left: 6px;
+}
+
+.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty) {
+	border-left: 1px solid rgba(128, 128, 128, 0.7);
+	margin-left: 14px;
+	padding-left: 14px;
+}
+
+.extension-editor > .header > .details > .description {
+	margin-top: 10px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.extension-editor > .header > .details > .actions-status-container {
+	margin-top: 10px;
+	display: flex;
+}
+
+.extension-editor > .header > .details > .actions-status-container.list-layout {
+	display: inherit;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar {
+	text-align: initial;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item {
+	margin-right: 0;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action {
+	margin-bottom: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
+	margin-left: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	margin-right: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
+	border-radius: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	line-height: 22px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
+	margin-right: 6px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
+	font-weight: 600;
+	max-width: 300px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .extension-action.label {
+	border-right-width: 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	height: 22px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	height: 16px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action.label {
+	margin-right: 2px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .action-dropdown-item-separator {
+	display: none;
+}
+
+/* single install */
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item.empty > .extension-action.label {
+	border-radius: 2px;
+}
+
+/* split install */
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .extension-action.label {
+	border-radius: 2px 0 0 2px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty)  > .monaco-dropdown .extension-action.label {
+	border-left-width: 0;
+	border-radius: 0 2px 2px 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
+	margin-right: 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status {
+	font-weight: normal;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label:hover,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status:hover {
+	opacity: 0.9;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status {
+	line-height: 22px;
+	font-size: 90%;
+	margin-top: 3px;
+}
+
+.extension-editor > .header > .details > .actions-status-container.list-layout > .status {
+	margin-top: 5px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status .codicon {
+	vertical-align: text-bottom;
+}
+
+.extension-editor > .header > .details > .pre-release-text p,
+.extension-editor > .header > .details > .actions-status-container > .status p {
+	margin-top: 0px;
+	margin-bottom: 0px;
+}
+
+.extension-editor > .header > .details > .pre-release-text a,
+.extension-editor > .header > .details > .actions-status-container > .status a {
+	color: var(--vscode-textLink-foreground)
+}
+
+.extension-editor > .header > .details > .pre-release-text a:hover,
+.extension-editor > .header > .details > .actions-status-container > .status a:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.extension-editor > .header > .details > .pre-release-text a:active,
+.extension-editor > .header > .details > .actions-status-container > .status a:active {
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.extension-editor > .header > .details > .pre-release-text:not(:empty){
+	margin-top: 5px;
+	display: flex;
+	font-size: 90%;
+}
+
+.extension-editor > .header > .details > .recommendation {
+	display: flex;
+	margin-top: 5px;
+}
+
+.extension-editor > .header > .details > .recommendation .codicon {
+	font-size: inherit;
+	margin-right: 5px;
+}
+
+.extension-editor > .header > .details > .recommendation .recommendation-text {
+	vertical-align: text-bottom;
+	font-size: 90%;
+}
+
+.extension-editor > .body {
+	flex: 1;
+	overflow: hidden;
+}
+
+.extension-editor > .body > .navbar {
+	height: 36px;
+	font-weight: bold;
+	font-size: 14px;
+	line-height: 36px;
+	padding-left: 20px;
+	border-bottom: 1px solid var(--vscode-panelSection-border);
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container {
+	justify-content: initial;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item {
+	height: 100%;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
+	padding: 0 10px;
+	font-size: 11px;
+	font-weight: normal;
+	color: var(--vscode-panelTitle-inactiveForeground);
+	text-transform: uppercase;
+	background: none !important;
+	border-radius: 0px !important;
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
+	border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+	color: var(--vscode-panelTitle-activeForeground);
+}
+
+.extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label:hover {
+	color: var(--vscode-panelTitle-activeForeground);
+}
+
+.extension-editor > .body > .content {
+	height: calc(100% - 36px);
+	position: relative;
+	overflow: hidden;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.extension-editor > .body > .content.loading {
+	background: url('loading.svg') center center no-repeat;
+}
+
+.extension-editor > .body > .content > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .nocontent {
+	margin-left: 20px;
+}
+
+.extension-editor > .body > .content > .details {
+	height: 100%;
+	display: flex;
+}
+
+.extension-editor > .body > .content > .details > .readme-container {
+	margin: 0px auto;
+	max-width: 75%;
+	height: 100%;
+	flex: 1;
+}
+
+.extension-editor > .body > .content > .details.narrow > .readme-container {
+	margin: inherit;
+	max-width: inherit;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container {
+	width: 25%;
+	min-width: 175px;
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details.narrow > .additional-details-container {
+	display: none;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element > .additional-details-content {
+	height: 100%;
+	overflow-y: scroll;
+	padding: 20px;
+	box-sizing: border-box;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:first-child) {
+	padding-top: 15px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element {
+	padding-bottom: 15px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element:not(:last-child) {
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-element > .additional-details-title {
+	font-size: 120%;
+	padding-bottom: 15px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,
+.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags > .tag {
+	display: inline-block;
+	border: 1px solid rgba(136, 136, 136, 0.45);
+	padding: 2px 4px;
+	border-radius: 2px;
+	font-size: 90%;
+	margin: 0px 6px 3px 0px;
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+	display: block;
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
+	text-decoration: underline;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry {
+	font-size: 90%;
+	display: flex;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :first-child {
+	width: 40%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :last-child {
+	width: 60%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {
+	background-color: transparent;
+	padding: 0px;
+}
+
+.extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack {
+	height: 224px;
+	padding-left: 20px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .extension-pack {
+	height: 142px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .extension-pack {
+	height: 224px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .extension-pack {
+	height: 306px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .extension-pack {
+	height: 326px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .readme-content {
+	height: calc(100% - 142px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .readme-content {
+	height: calc(100% - 224px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .readme-content {
+	height: calc(100% - 306px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .readme-content {
+	height: calc(100% - 326px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .header,
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .footer {
+	margin-bottom: 10px;
+	margin-right: 30px;
+	font-weight: bold;
+	font-size: 120%;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	padding: 4px 6px;
+	line-height: 22px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content {
+	height: calc(100% - 60px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
+	height: 100%;
+	overflow-y: scroll;
+	box-sizing: border-box;
+}
+
+.extension-editor > .body > .content > .monaco-scrollable-element > .subcontent {
+	height: 100%;
+	padding: 20px;
+	overflow-y: scroll;
+	box-sizing: border-box;
+}
+
+.extension-editor > .body > .content table {
+	width: 100%;
+	border-spacing: 0;
+	border-collapse: separate;
+}
+
+.extension-editor > .body > .content details:not(:first-child) {
+	margin-top: 20px;
+}
+
+.extension-editor > .body > .content details > summary {
+	cursor: pointer;
+	margin-bottom: 10px;
+	font-weight: bold;
+	font-size: 120%;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	padding: 3px 6px;
+	line-height: 22px;
+}
+
+.extension-editor > .body > .content table tr:nth-child(odd) {
+	background-color: rgba(130, 130, 130, 0.04);
+}
+
+.extension-editor > .body > .content table tr:not(:first-child):hover {
+	background-color: rgba(128, 128, 128, 0.15);
+}
+
+.extension-editor > .body > .content table th,
+.extension-editor > .body > .content table td {
+	padding: 2px 16px 2px 4px;
+}
+
+.extension-editor > .body > .content table th:last-child,
+.extension-editor > .body > .content table td:last-child {
+	padding: 2px 4px;
+}
+
+.extension-editor > .body > .content table th {
+	text-align: left;
+	word-break: keep-all;
+}
+
+.extension-editor > .body > .content table td > div,
+.extension-editor > .body > .content table td > div > p {
+	padding: 0px;
+	margin: 0px;
+}
+
+.extension-editor code:not(:empty) {
+	font-family: var(--monaco-monospace-font);
+	font-size: 90%;
+	background-color: rgba(128, 128, 128, 0.17);
+	border-radius: 4px;
+	padding: 1px 4px;
+}
+
+.extension-editor > .body > .content table .colorBox {
+	box-sizing: border-box;
+	width: 0.8em;
+	height: 0.8em;
+	display: inline-block;
+	border-width: 0.1em;
+	border-style: solid;
+	border-color: rgb(0, 0, 0);
+	margin: 0em 0.2em;
+	vertical-align: middle;
+}
+
+.monaco-workbench.vs-dark .extension-editor > .body > .content table .colorBox,
+.monaco-workbench.hc-black .extension-editor > .body > .content table .colorBox {
+	border-color: rgb(238, 238, 238);
+}
+
+.extension-editor .subcontent .monaco-list-row .content .unknown-extension {
+	line-height: 62px;
+}
+
+.extension-editor .subcontent .monaco-list-row .content .unknown-extension > .error-marker {
+	background-color: #BE1100;
+	padding: 2px 4px;
+	font-weight: bold;
+	font-size: 11px;
+	color: #CCC;
+}
+
+.extension-editor .subcontent .monaco-list-row .unknown-extension > .message {
+	padding-left: 10px;
+	font-weight: bold;
+	font-size: 14px;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension {
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .details {
+	flex: 1;
+	overflow: hidden;
+	padding-left: 10px;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .details > .header {
+	display: flex;
+	align-items: center;
+	line-height: 19px;
+	overflow: hidden;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .icon {
+	height: 40px;
+	width: 40px;
+	object-fit: contain;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .name {
+	font-weight: bold;
+	font-size: 16px;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .name:hover {
+	text-decoration: underline;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .details > .header > .identifier {
+	font-size: 90%;
+	opacity: 0.6;
+	margin-left: 10px;
+	background: rgba(173, 173, 173, 0.31);
+	padding: 0px 4px;
+	border-radius: 4px;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .details > .footer {
+	display: flex;
+	line-height: 19px;
+	overflow: hidden;
+	padding-top: 5px;
+}
+
+.extension-editor .subcontent .monaco-list-row .extension > .details > .footer > .author {
+	font-size: 90%;
+	font-weight: 600;
+	opacity: 0.6;
+}
+
+.extension-editor .extensions-grid-view {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.extension-editor .extensions-grid-view > .extension-container {
+	width: 350px;
+	margin: 0 10px 20px 0;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item {
+	cursor: default;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item > .details .header > .name {
+	cursor: pointer;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .version,
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .ratings,
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .install-count {
+	display: none;
+}
+
+.extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
+.extension-editor .extensions-grid-view > .extension-container:hover > .extension-list-item > .details .header > .name {
+	text-decoration: underline;
+}
+
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon {
+	opacity: 0.5;
+}
+
+.extension-editor > .body > .content .runtime-status .activation-details > .activation-element-entry > .activation-message-title {
+	padding-right: 10px;
+}
+
+.extension-editor > .body > .content .runtime-status .message-entry {
+	display: flex;
+	align-items: center;
+	margin: 5px;
+}
+
+.extension-editor > .body > .content .runtime-status .message-entry .codicon {
+	padding-right: 2px;
+}
+
+.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon {
+	color: var(--vscode-extensionButton-prominentBackground);
+}

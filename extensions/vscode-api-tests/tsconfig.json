@@ -1,15 +1,14 @@
 {
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"module": "commonjs",
-		"target": "ES5",
-		"outDir": "out",
-		"lib": [
-			"es2015"
-		],
-		"sourceMap": true,
-		"strictNullChecks": true
+		"outDir": "./out",
+		"types": [
+			"node"
+		]
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.*.d.ts"
 	]
 }

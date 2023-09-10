@@ -1,4 +1,11 @@
 test/**
+test-workspace/**
 src/**
+out/**
 tsconfig.json
-npm-shrinkwrap.json
+extension.webpack.config.js
+extension-browser.webpack.config.js
+CONTRIBUTING.md
+cgmanifest.json
+yarn.lock
+.vscode

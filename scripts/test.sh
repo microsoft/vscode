@@ -1,11 +1,14 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
+set -e
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	# --disable-dev-shm-usage: when run on docker containers where size of /dev/shm
+	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
+	LINUX_EXTRA_ARGS="--disable-dev-shm-usage"
 fi
 
 cd $ROOT
@@ -18,23 +21,23 @@ else
 	CODE=".build/electron/$NAME"
 fi
 
-INTENDED_VERSION="v`node -p "require('./package.json').electronVersion"`"
-INSTALLED_VERSION=$(cat .build/electron/version 2> /dev/null)
+VSCODECRASHDIR=$ROOT/.build/crashes
 
 # Node modules
-test -d node_modules || ./scripts/npm.sh install
+test -d node_modules || yarn
 
 # Get electron
-(test -f "$CODE" && [ $INTENDED_VERSION == $INSTALLED_VERSION ]) || ./node_modules/.bin/gulp electron
+yarn electron
 
 # Unit Tests
-export ELECTRON_ENABLE_LOGGING=1
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
+		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/electron/index.js "$@"
+		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
 else
 	cd $ROOT ; \
+		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/electron/index.js "$@"
+		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR $LINUX_EXTRA_ARGS "$@"
 fi

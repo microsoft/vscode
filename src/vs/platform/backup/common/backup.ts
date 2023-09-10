@@ -3,27 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { URI } from 'vs/base/common/uri';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export interface IBackupWorkspacesFormat {
-	rootWorkspaces: IWorkspaceIdentifier[];
-	folderWorkspaces: string[];
-	emptyWorkspaces: string[];
+export interface IBaseBackupInfo {
+	remoteAuthority?: string;
 }
 
-export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
+export interface IWorkspaceBackupInfo extends IBaseBackupInfo {
+	readonly workspace: IWorkspaceIdentifier;
+}
 
-export interface IBackupMainService {
-	_serviceBrand: any;
+export interface IFolderBackupInfo extends IBaseBackupInfo {
+	readonly folderUri: URI;
+}
 
-	isHotExitEnabled(): boolean;
+export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {
+	return curr && curr.hasOwnProperty('folderUri');
+}
 
-	getWorkspaceBackups(): IWorkspaceIdentifier[];
-	getFolderBackupPaths(): string[];
-	getEmptyWindowBackupPaths(): string[];
-
-	registerWorkspaceBackupSync(workspace: IWorkspaceIdentifier, migrateFrom?: string): string;
-	registerFolderBackupSync(folderPath: string): string;
-	registerEmptyWindowBackupSync(backupFolder?: string): string;
+export function isWorkspaceBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IWorkspaceBackupInfo {
+	return curr && curr.hasOwnProperty('workspace');
 }

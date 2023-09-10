@@ -3,63 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IRange, Range } from 'vs/base/common/range';
+
 export interface IItem {
 	size: number;
-}
-
-export interface IRange {
-	start: number;
-	end: number;
 }
 
 export interface IRangedGroup {
 	range: IRange;
 	size: number;
-}
-
-/**
- * Returns the intersection between two ranges as a range itself.
- * Returns `null` if the intersection is empty.
- */
-export function intersect(one: IRange, other: IRange): IRange {
-	if (one.start >= other.end || other.start >= one.end) {
-		return null;
-	}
-
-	const start = Math.max(one.start, other.start);
-	const end = Math.min(one.end, other.end);
-
-	if (end - start <= 0) {
-		return null;
-	}
-
-	return { start, end };
-}
-
-export function isEmpty(range: IRange): boolean {
-	return range.end - range.start <= 0;
-}
-
-export function relativeComplement(one: IRange, other: IRange): IRange[] {
-	const result: IRange[] = [];
-	const first = { start: one.start, end: Math.min(other.start, one.end) };
-	const second = { start: Math.max(other.end, one.start), end: one.end };
-
-	if (!isEmpty(first)) {
-		result.push(first);
-	}
-
-	if (!isEmpty(second)) {
-		result.push(second);
-	}
-
-	return result;
-}
-
-export function each(range: IRange, fn: (index: number) => void): void {
-	for (let i = range.start; i < range.end; i++) {
-		fn(i);
-	}
 }
 
 /**
@@ -69,7 +21,7 @@ export function each(range: IRange, fn: (index: number) => void): void {
 export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGroup[] {
 	const result: IRangedGroup[] = [];
 
-	for (let r of groups) {
+	for (const r of groups) {
 		if (range.start >= r.range.end) {
 			continue;
 		}
@@ -78,9 +30,9 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 			break;
 		}
 
-		const intersection = intersect(range, r.range);
+		const intersection = Range.intersect(range, r.range);
 
-		if (!intersection) {
+		if (Range.isEmpty(intersection)) {
 			continue;
 		}
 
@@ -96,7 +48,7 @@ export function groupIntersect(range: IRange, groups: IRangedGroup[]): IRangedGr
 /**
  * Shifts a range by that `much`.
  */
-function shift({ start, end }: IRange, much: number): IRange {
+export function shift({ start, end }: IRange, much: number): IRange {
 	return { start: start + much, end: end + much };
 }
 
@@ -108,9 +60,9 @@ function shift({ start, end }: IRange, much: number): IRange {
  */
 export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
 	const result: IRangedGroup[] = [];
-	let previousGroup: IRangedGroup = null;
+	let previousGroup: IRangedGroup | null = null;
 
-	for (let group of groups) {
+	for (const group of groups) {
 		const start = group.range.start;
 		const end = group.range.end;
 		const size = group.size;
@@ -132,15 +84,30 @@ export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
  * collection.
  */
 function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
-	return consolidate(groups.reduce((r, g) => r.concat(g), [] as IRangedGroup[]));
+	return consolidate(groups.reduce((r, g) => r.concat(g), []));
 }
 
 export class RangeMap {
 
 	private groups: IRangedGroup[] = [];
 	private _size = 0;
+	private _paddingTop = 0;
 
-	splice(index: number, deleteCount: number, ...items: IItem[]): void {
+	get paddingTop() {
+		return this._paddingTop;
+	}
+
+	set paddingTop(paddingTop: number) {
+		this._size = this._size + paddingTop - this._paddingTop;
+		this._paddingTop = paddingTop;
+	}
+
+	constructor(topPadding?: number) {
+		this._paddingTop = topPadding ?? 0;
+		this._size = this._paddingTop;
+	}
+
+	splice(index: number, deleteCount: number, items: IItem[] = []): void {
 		const diff = items.length - deleteCount;
 		const before = groupIntersect({ start: 0, end: index }, this.groups);
 		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
@@ -152,7 +119,7 @@ export class RangeMap {
 		}));
 
 		this.groups = concat(before, middle, after);
-		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+		this._size = this._paddingTop + this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
 	}
 
 	/**
@@ -183,10 +150,14 @@ export class RangeMap {
 			return -1;
 		}
 
-		let index = 0;
-		let size = 0;
+		if (position < this._paddingTop) {
+			return 0;
+		}
 
-		for (let group of this.groups) {
+		let index = 0;
+		let size = this._paddingTop;
+
+		for (const group of this.groups) {
 			const count = group.range.end - group.range.start;
 			const newSize = size + (count * group.size);
 
@@ -220,12 +191,12 @@ export class RangeMap {
 		let position = 0;
 		let count = 0;
 
-		for (let group of this.groups) {
+		for (const group of this.groups) {
 			const groupCount = group.range.end - group.range.start;
 			const newCount = count + groupCount;
 
 			if (index < newCount) {
-				return position + ((index - count) * group.size);
+				return this._paddingTop + position + ((index - count) * group.size);
 			}
 
 			position += groupCount * group.size;
@@ -233,9 +204,5 @@ export class RangeMap {
 		}
 
 		return -1;
-	}
-
-	dispose() {
-		this.groups = null;
 	}
 }

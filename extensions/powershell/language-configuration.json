@@ -12,9 +12,11 @@
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
+		{ "open": "@'", "close": "\n'@", "notIn": ["string", "comment"]},
+		{ "open": "@\"", "close": "\n\"@", "notIn": ["string", "comment"]},
 		{ "open": "\"", "close": "\"", "notIn": ["string"]},
 		{ "open": "'", "close": "'", "notIn": ["string", "comment"]},
-		["/**", " */"]
+		["<#", "#>"]
 	],
 	"surroundingPairs": [
 		["{", "}"],
@@ -25,8 +27,8 @@
 	],
 	"folding": {
 		"markers": {
-			"start": "^\\s*#region\\b",
-			"end": "^\\s*#endregion\\b"
+			"start": "^\\s*#[rR]egion\\b",
+			"end": "^\\s*#[eE]nd[rR]egion\\b"
 		}
 	}
 }

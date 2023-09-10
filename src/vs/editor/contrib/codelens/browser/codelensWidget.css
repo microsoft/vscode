@@ -7,39 +7,59 @@
 	overflow: hidden;
 	display: inline-block;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-editorCodeLens-foreground);
+	line-height: var(--vscode-editorCodeLens-lineHeight);
+	font-size: var(--vscode-editorCodeLens-fontSize);
+	padding-right: calc(var(--vscode-editorCodeLens-fontSize)*0.5);
+	font-feature-settings: var(--vscode-editorCodeLens-fontFeatureSettings);
+	font-family: var(--vscode-editorCodeLens-fontFamily), var(--vscode-editorCodeLens-fontFamilyDefault);
 }
 
-.monaco-editor .codelens-decoration > span,
-.monaco-editor .codelens-decoration > a {
-	-moz-user-select: none;
-	-webkit-user-select: none;
-	-ms-user-select: none;
+.monaco-editor .codelens-decoration>span,
+.monaco-editor .codelens-decoration>a {
 	user-select: none;
+	-webkit-user-select: none;
 	white-space: nowrap;
 	vertical-align: sub;
 }
 
-.monaco-editor .codelens-decoration > a {
+.monaco-editor .codelens-decoration>a {
 	text-decoration: none;
 }
 
-.monaco-editor .codelens-decoration > a:hover {
-	text-decoration: underline;
+.monaco-editor .codelens-decoration>a:hover {
+	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.monaco-editor .codelens-decoration>a:hover .codicon {
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.monaco-editor .codelens-decoration .codicon {
+	vertical-align: middle;
+	color: currentColor !important;
+	color: var(--vscode-editorCodeLens-foreground);
+	line-height: var(--vscode-editorCodeLens-lineHeight);
+	font-size: var(--vscode-editorCodeLens-fontSize);
+}
+
+.monaco-editor .codelens-decoration>a:hover .codicon::before {
 	cursor: pointer;
 }
 
-.monaco-editor .codelens-decoration.invisible-cl {
-	opacity: 0;
+@keyframes fadein {
+	0% {
+		opacity: 0;
+		visibility: visible;
+	}
+
+	100% {
+		opacity: 1;
+	}
 }
 
-@keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
-@-moz-keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
-@-o-keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
-@-webkit-keyframes fadein { 0% { opacity:0; visibility:visible;} 100% { opacity:1; } }
-
 .monaco-editor .codelens-decoration.fadein {
-	-webkit-animation: fadein 0.5s linear;
-	-moz-animation: fadein 0.5s linear;
-	-o-animation: fadein 0.5s linear;
-	animation: fadein 0.5s linear;
+	animation: fadein 0.1s linear;
 }

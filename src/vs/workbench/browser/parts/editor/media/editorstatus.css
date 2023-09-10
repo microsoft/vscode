@@ -3,27 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .editor-statusbar-item > a:not(:first-child) {
-	margin-left: 5px;
-}
-
-.monaco-workbench .editor-statusbar-item > .editor-status-mode,
-.monaco-workbench .editor-statusbar-item > .editor-status-encoding,
-.monaco-workbench .editor-statusbar-item > .editor-status-eol,
-.monaco-workbench .editor-statusbar-item > .editor-status-selection,
-.monaco-workbench .editor-statusbar-item > .editor-status-indentation,
-.monaco-workbench .editor-statusbar-item > .editor-status-metadata,
-.monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode,
-.monaco-workbench .editor-statusbar-item > .editor-status-screenreadermode {
-	padding: 0 5px 0 5px;
-}
-
-.monaco-workbench .editor-statusbar-item > .editor-status-metadata {
-	cursor: default !important;
-}
-
-
-.monaco-shell .screen-reader-detected-explanation {
+.monaco-workbench .screen-reader-detected-explanation {
 	width: 420px;
 	top: 30px;
 	right: 6px;
@@ -31,11 +11,10 @@
 	cursor: default;
 }
 
-.monaco-shell .screen-reader-detected-explanation .cancel {
+.monaco-workbench .screen-reader-detected-explanation .cancel {
 	position: absolute;
 	top: 0;
 	right: 0;
-	margin: .5em 0 0;
 	padding: .5em;
 	width: 22px;
 	height: 22px;
@@ -43,53 +22,30 @@
 	cursor: pointer;
 }
 
-.monaco-shell .screen-reader-detected-explanation h2 {
+.monaco-workbench .screen-reader-detected-explanation h2 {
 	margin: 0;
 	padding: 0;
 	font-weight: 400;
 	font-size: 1.8em;
 }
 
-.monaco-shell .screen-reader-detected-explanation p {
+.monaco-workbench .screen-reader-detected-explanation p {
 	font-size: 1.2em;
 }
 
-.monaco-shell .screen-reader-detected-explanation p.question {
-	font-size: 1.4em;
-	font-weight: bold;
+.monaco-workbench .screen-reader-detected-explanation hr {
+	border: 0;
+	height: 2px;
 }
 
-.monaco-shell .screen-reader-detected-explanation .button {
-	color: white;
-	border: none;
-	cursor: pointer;
-	background-color: #007ACC;
+.monaco-workbench .screen-reader-detected-explanation .buttons {
+	display: flex;
+}
+
+.monaco-workbench .screen-reader-detected-explanation .buttons a {
+	font-size: 13px;
 	padding-left: 12px;
 	padding-right: 12px;
-	border: 4px solid #007ACC;
-	border-radius: 4px;
-	float: left;
 	margin-right: 5px;
-}
-
-.monaco-shell.vs .screen-reader-detected-explanation .cancel {
-	background: url('close-big.svg') center center no-repeat;
-}
-.monaco-shell.vs .screen-reader-detected-explanation .cancel:hover {
-	background-color: #eaeaea;
-}
-
-.monaco-shell.vs-dark .screen-reader-detected-explanation .cancel,
-.monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
-	background: url('close-big-dark.svg') center center no-repeat;
-}
-.monaco-shell.vs-dark .screen-reader-detected-explanation .cancel:hover {
-	background-color: rgba(30,30,30,0.8);
-}
-
-.monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
-	opacity: 0.6;
-}
-.monaco-shell.hc-black .screen-reader-detected-explanation .cancel:hover {
-	opacity: 1;
+	max-width: fit-content;
 }

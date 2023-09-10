@@ -1,5 +1,0 @@
-{
-    newReleaseLabel: 'new release',
-    newReleases: ['1.17.2'],
-    perform: true
-}

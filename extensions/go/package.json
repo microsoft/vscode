@@ -1,27 +1,44 @@
 {
-	"name": "go",
-	"version": "0.1.0",
-	"publisher": "vscode",
-	"engines": { "vscode": "*" },
-	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-go grammars/go.cson ./syntaxes/go.json"
-	},
-	"contributes": {
-		"languages": [{
-			"id": "go",
-			"extensions": [ ".go" ],
-			"aliases": [ "Go" ],
-			"configuration": "./language-configuration.json"
-		}],
-		"grammars": [{
-			"language": "go",
-			"scopeName": "source.go",
-			"path": "./syntaxes/go.json"
-		}],
-		"configurationDefaults": {
-			"[go]": {
-				"editor.insertSpaces": false
-			}
-		}
-	}
+  "name": "go",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin jeff-hykin/better-go-syntax export/generated.tmLanguage.json ./syntaxes/go.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "go",
+        "extensions": [
+          ".go"
+        ],
+        "aliases": [
+          "Go"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "go",
+        "scopeName": "source.go",
+        "path": "./syntaxes/go.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[go]": {
+        "editor.insertSpaces": false
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

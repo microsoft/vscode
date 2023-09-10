@@ -1,0 +1,241 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.markers-panel .markers-panel-container {
+	height: 100%;
+}
+
+.markers-panel .hide {
+	display: none;
+}
+
+.markers-panel .markers-panel-container .message-box-container {
+	line-height: 22px;
+	padding-left: 20px;
+}
+
+.markers-panel .markers-panel-container .message-box-container .messageAction {
+	margin-left: 4px;
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.markers-panel  .markers-panel-container .hidden {
+	display: none;
+}
+
+.markers-panel  .markers-panel-container .codicon.codicon-light-bulb {
+	color:  var(--vscode-editorLightBulb-foreground);
+}
+
+.markers-panel  .markers-panel-container .codicon.codicon-lightbulb-autofix {
+	color:  var(--vscode-editorLightBulbAutoFix-foreground);
+}
+
+.markers-panel .markers-panel-container .tree-container.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+	display: flex;
+	line-height: 22px;
+	padding-right: 10px;
+}
+
+.monaco-workbench.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents,
+.monaco-workbench.hc-light .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+	line-height: 20px;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-stats {
+	display: inline-block;
+	margin-left: 10px;
+}
+
+.markers-panel:not(.wide) .markers-panel-container .tree-container .monaco-tl-contents .resource-label-container {
+	flex: 1;
+}
+
+.markers-panel.wide .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
+	margin-left: 10px;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line {
+	overflow: hidden;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line > .marker-message {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
+	display: flex;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-list:focus .monaco-list-row.focused .monaco-tl-contents .details-container a.monaco-link {
+	color: inherit;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.monaco-link .monaco-highlighted-label {
+	text-decoration: underline;
+	text-underline-position: under;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:before {
+	content: '(';
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:after {
+	content: ')';
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .multiline-actions,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-source,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-line {
+	margin-left: 6px;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource-separator,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-line,
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code {
+	opacity: 0.7;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .highlight {
+	font-weight: bold;
+}
+
+.markers-panel .monaco-tl-contents .marker-icon {
+	height: 22px;
+	margin: 0 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.markers-panel .monaco-tl-contents .actions .monaco-action-bar {
+	display: none;
+}
+
+.markers-panel .monaco-list-row:hover .monaco-tl-contents > .marker-icon.quickFix,
+.markers-panel .monaco-list-row.selected .monaco-tl-contents > .marker-icon.quickFix,
+.markers-panel .monaco-list-row.focused .monaco-tl-contents > .marker-icon.quickFix {
+	display: none;
+}
+
+.markers-panel .monaco-list-row:hover .monaco-tl-contents .actions .monaco-action-bar,
+.markers-panel .monaco-list-row.selected .monaco-tl-contents .actions .monaco-action-bar,
+.markers-panel .monaco-list-row.focused .monaco-tl-contents .actions .monaco-action-bar {
+	display: block;
+}
+
+.markers-panel .monaco-tl-contents .actions,
+.markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar {
+	height: 22px;
+}
+
+.markers-panel .monaco-tl-contents .actions .action-label,
+.markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar .action-label {
+	padding: 2px;
+}
+
+.markers-panel .monaco-tl-contents .actions .action-item {
+	margin: 0 4px;
+}
+
+.markers-panel .monaco-tl-contents .multiline-actions .action-item.disabled,
+.markers-panel .monaco-tl-contents .actions .action-item.disabled {
+	display: none;
+}
+
+/* Table */
+
+.markers-panel .markers-table-container .monaco-table .monaco-table-th {
+	display: flex;
+	font-weight: 600;
+	align-items: center;
+	padding-left: 10px;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td {
+	display: flex;
+	align-items: center;
+	padding-left: 10px;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td .highlight {
+	font-weight: bold;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .message,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .file,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .owner {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .severity {
+	display: flex;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.selected .monaco-table-tr > .monaco-table-td.quickFix > .severity,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.focused .monaco-table-tr > .monaco-table-td.quickFix > .severity,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row:hover .monaco-table-tr > .monaco-table-td.quickFix > .severity {
+	display: none;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .actions {
+	margin-left: -3px;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .actions > .monaco-action-bar .action-item {
+	display: none;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.selected .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row.focused .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row:hover .monaco-table-tr > .monaco-table-td.quickFix > .actions > .monaco-action-bar .action-item {
+	display: flex;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .monaco-link::before,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .code-label::before {
+	content: '(';
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .monaco-link::after,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .code-label::after {
+	content: ')';
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .code-label,
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code > .monaco-link {
+	display: none;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code.code-label > .code-label {
+	display: inline;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .code.code-link > .monaco-link {
+	display: inline;
+	text-decoration: underline;
+}
+
+.markers-panel .markers-table-container .monaco-table .monaco-list-row .monaco-table-tr > .monaco-table-td > .file > .file-position {
+	margin-left: 6px;
+	opacity: 0.7;
+}

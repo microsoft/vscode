@@ -1,15 +1,25 @@
 {
-	"name": "theme-abyss",
-	"version": "0.1.0",
-	"publisher": "vscode",
-	"engines": { "vscode": "*" },
-	"contributes": {
-		"themes": [
-			{
-				"label": "Abyss",
-				"uiTheme": "vs-dark",
-				"path": "./themes/abyss-color-theme.json"
-			}
-		]
-	}
+  "name": "theme-abyss",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "Abyss",
+        "label": "%themeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/abyss-color-theme.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

@@ -2,13 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { ok } from 'vs/base/common/assert';
 
 suite('Assert', () => {
-	test('ok', function () {
+	test('ok', () => {
 		assert.throws(function () {
 			ok(false);
 		});
@@ -23,7 +22,7 @@ suite('Assert', () => {
 
 		assert.throws(function () {
 			ok(null, 'Foo Bar');
-		}, function (e) {
+		}, function (e: Error) {
 			return e.message.indexOf('Foo Bar') >= 0;
 		});
 

@@ -1,0 +1,6 @@
+{
+	"displayName": "Markdown Math",
+	"description": "Adds math support to Markdown in notebooks.",
+	"config.markdown.math.enabled": "Enable/disable rendering math in the built-in Markdown preview.",
+	"config.markdown.math.macros": "A collection of custom macros. Each macro is a key-value pair where the key is a new command name and the value is the expansion of the macro."
+}

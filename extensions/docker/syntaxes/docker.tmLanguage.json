@@ -5,10 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/moby/moby/commit/abd39744c6f3ed854500e423f5fabf952165161f",
-	"fileTypes": [
-		"Dockerfile"
-	],
 	"name": "Dockerfile",
+	"scopeName": "source.dockerfile",
 	"patterns": [
 		{
 			"captures": {
@@ -100,7 +98,5 @@
 			"comment": "comment.line",
 			"match": "^(\\s*)((#).*$\\n?)"
 		}
-	],
-	"scopeName": "source.dockerfile",
-	"uuid": "a39d8795-59d2-49af-aa00-fe74ee29576e"
+	]
 }

@@ -3,64 +3,100 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { IStoredWorkspaceFolder, isRawFileWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { isAbsolute, relative } from 'path';
-import { isEqualOrParent, normalize } from 'vs/base/common/paths';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-
-const SLASH = '/';
+import { createHash } from 'crypto';
+import { Stats } from 'fs';
+import { Schemas } from 'vs/base/common/network';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { originalFSPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 /**
- * Given the absolute path to a folder, massage it in a way that it fits
- * into an existing set of workspace folders of a workspace.
- *
- * @param absoluteFolderPath the absolute path of a workspace folder
- * @param targetConfigFolder the folder where the workspace is living in
- * @param existingFolders a set of existing folders of the workspace
+ * Length of workspace identifiers that are not empty. Those are
+ * MD5 hashes (128bits / 4 due to hex presentation).
  */
-export function massageFolderPathForWorkspace(absoluteFolderPath: string, targetConfigFolder: string, existingFolders: IStoredWorkspaceFolder[]): string {
-	const useSlashesForPath = shouldUseSlashForPath(existingFolders);
+export const NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
 
-	// Convert path to relative path if the target config folder
-	// is a parent of the path.
-	if (isEqualOrParent(absoluteFolderPath, targetConfigFolder, !isLinux)) {
-		absoluteFolderPath = relative(targetConfigFolder, absoluteFolderPath) || '.';
-	}
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	// Windows gets special treatment:
-	// - normalize all paths to get nice casing of drive letters
-	// - convert to slashes if we want to use slashes for paths
-	if (isWindows) {
-		if (isAbsolute(absoluteFolderPath)) {
-			if (useSlashesForPath) {
-				absoluteFolderPath = normalize(absoluteFolderPath, false /* do not use OS path separator */);
-			}
+export function getWorkspaceIdentifier(configPath: URI): IWorkspaceIdentifier {
 
-			absoluteFolderPath = normalizeDriveLetter(absoluteFolderPath);
-		} else if (useSlashesForPath) {
-			absoluteFolderPath = absoluteFolderPath.replace(/[\\]/g, SLASH);
+	function getWorkspaceId(): string {
+		let configPathStr = configPath.scheme === Schemas.file ? originalFSPath(configPath) : configPath.toString();
+		if (!isLinux) {
+			configPathStr = configPathStr.toLowerCase(); // sanitize for platform file system
 		}
+
+		return createHash('md5').update(configPathStr).digest('hex');
 	}
 
-	return absoluteFolderPath;
+	return {
+		id: getWorkspaceId(),
+		configPath
+	};
 }
 
-function shouldUseSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	// Determine which path separator to use:
-	// - macOS/Linux: slash
-	// - Windows: use slash if already used in that file
-	let useSlashesForPath = !isWindows;
-	if (isWindows) {
-		storedFolders.forEach(folder => {
-			if (isRawFileWorkspaceFolder(folder) && !useSlashesForPath && folder.path.indexOf(SLASH) >= 0) {
-				useSlashesForPath = true;
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI): ISingleFolderWorkspaceIdentifier | undefined;
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat: Stats): ISingleFolderWorkspaceIdentifier;
+export function getSingleFolderWorkspaceIdentifier(folderUri: URI, folderStat?: Stats): ISingleFolderWorkspaceIdentifier | undefined {
+
+	function getFolderId(): string | undefined {
+
+		// Remote: produce a hash from the entire URI
+		if (folderUri.scheme !== Schemas.file) {
+			return createHash('md5').update(folderUri.toString()).digest('hex');
+		}
+
+		// Local: we use the ctime as extra salt to the
+		// identifier so that folders getting recreated
+		// result in a different identifier. However, if
+		// the stat is not provided we return `undefined`
+		// to ensure identifiers are stable for the given
+		// URI.
+
+		if (!folderStat) {
+			return undefined;
+		}
+
+		let ctime: number | undefined;
+		if (isLinux) {
+			ctime = folderStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
+		} else if (isMacintosh) {
+			ctime = folderStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
+		} else if (isWindows) {
+			if (typeof folderStat.birthtimeMs === 'number') {
+				ctime = Math.floor(folderStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
+			} else {
+				ctime = folderStat.birthtime.getTime();
 			}
-		});
+		}
+
+		return createHash('md5').update(folderUri.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 	}
 
-	return useSlashesForPath;
+	const folderId = getFolderId();
+	if (typeof folderId === 'string') {
+		return {
+			id: folderId,
+			uri: folderUri
+		};
+	}
+
+	return undefined; // invalid folder
+}
+
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// NOTE: DO NOT CHANGE. IDENTIFIERS HAVE TO REMAIN STABLE
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+export function createEmptyWorkspaceIdentifier(): IEmptyWorkspaceIdentifier {
+	return {
+		id: (Date.now() + Math.round(Math.random() * 1000)).toString()
+	};
 }

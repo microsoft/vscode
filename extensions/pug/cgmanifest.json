@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "davidrios/pug-tmbundle",
+					"repositoryUrl": "https://github.com/davidrios/pug-tmbundle",
+					"commitHash": "ae1dd60ca4aa4b45617f236d584216cd8d19eecf"
+				}
+			},
+			"license": "MIT",
+			"description": "The file syntaxes/pug.tmLanguage.json was derived from Syntaxes/Pug.JSON-tmLanguage in https://github.com/davidrios/pug-tmbundle.",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

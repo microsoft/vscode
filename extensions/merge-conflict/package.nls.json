@@ -1,5 +1,8 @@
 {
+	"displayName": "Merge Conflict",
+	"description": "Highlighting and commands for inline merge conflicts.",
 	"command.category": "Merge Conflict",
+	"command.accept.all-current": "Accept All Current",
 	"command.accept.all-incoming": "Accept All Incoming",
 	"command.accept.all-both": "Accept All Both",
 	"command.accept.current": "Accept Current",
@@ -10,6 +13,11 @@
 	"command.previous": "Previous Conflict",
 	"command.compare": "Compare Current Conflict",
 	"config.title": "Merge Conflict",
-	"config.codeLensEnabled": "Enable/disable merge conflict block CodeLens within editor",
-	"config.decoratorsEnabled": "Enable/disable merge conflict decorators within editor"
+	"config.autoNavigateNextConflictEnabled": "Whether to automatically navigate to the next merge conflict after resolving a merge conflict.",
+	"config.codeLensEnabled": "Create a CodeLens for merge conflict blocks within editor.",
+	"config.decoratorsEnabled": "Create decorators for merge conflict blocks within editor.",
+	"config.diffViewPosition": "Controls where the diff view should be opened when comparing changes in merge conflicts.",
+	"config.diffViewPosition.current": "Open the diff view in the current editor group.",
+	"config.diffViewPosition.beside": "Open the diff view next to the current editor group.",
+	"config.diffViewPosition.below": "Open the diff view below the current editor group."
 }

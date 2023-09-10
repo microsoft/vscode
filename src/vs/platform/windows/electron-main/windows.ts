@@ -3,101 +3,102 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import Event from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { WebContents } from 'electron';
+import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
-
-export interface ICodeWindow {
-	id: number;
-	win: Electron.BrowserWindow;
-	config: IWindowConfiguration;
-
-	openedFolderPath: string;
-	openedWorkspace: IWorkspaceIdentifier;
-
-	lastFocusTime: number;
-
-	readyState: ReadyState;
-
-	close(): void;
-
-	send(channel: string, ...args: any[]): void;
-	sendWhenReady(channel: string, ...args: any[]): void;
-
-	toggleFullScreen(): void;
-	hasHiddenTitleBarStyle(): boolean;
-	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string;
-	onWindowTitleDoubleClick(): void;
-
-	updateTouchBar(items: ICommandAction[][]): void;
-}
+import { URI } from 'vs/base/common/uri';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
-export interface IWindowsCountChangedEvent {
-	oldCount: number;
-	newCount: number;
-}
-
 export interface IWindowsMainService {
-	_serviceBrand: any;
 
-	// events
-	onWindowReady: Event<ICodeWindow>;
-	onActiveWindowChanged: Event<ICodeWindow>;
-	onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
-	onWindowClose: Event<number>;
-	onWindowReload: Event<number>;
+	readonly _serviceBrand: undefined;
 
-	// methods
-	ready(initialUserEnv: IProcessEnvironment): void;
-	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	openWorkspace(win?: ICodeWindow): void;
-	createAndEnterWorkspace(win: ICodeWindow, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
-	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
-	closeWorkspace(win: ICodeWindow): void;
-	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openExtensionDevelopmentHostWindow(openConfig: IOpenConfiguration): void;
-	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void;
-	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
-	pickFileAndOpen(options: INativeOpenDialogOptions): void;
-	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
-	getLastActiveWindow(): ICodeWindow;
-	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;
-	openNewWindow(context: OpenContext): void;
+	readonly onDidChangeWindowsCount: Event<IWindowsCountChangedEvent>;
+
+	readonly onDidOpenWindow: Event<ICodeWindow>;
+	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidTriggerSystemContextMenu: Event<{ window: ICodeWindow; x: number; y: number }>;
+	readonly onDidDestroyWindow: Event<ICodeWindow>;
+
+	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+
+	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
+
 	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
-	getFocusedWindow(): ICodeWindow;
-	getWindowById(windowId: number): ICodeWindow;
+	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
-	quit(): void;
+
+	getFocusedWindow(): ICodeWindow | undefined;
+	getLastActiveWindow(): ICodeWindow | undefined;
+
+	getWindowById(windowId: number): ICodeWindow | undefined;
+	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined;
 }
 
-export interface IOpenConfiguration {
-	context: OpenContext;
-	cli: ParsedArgs;
-	userEnv?: IProcessEnvironment;
-	pathsToOpen?: string[];
-	preferNewWindow?: boolean;
-	forceNewWindow?: boolean;
-	forceReuseWindow?: boolean;
-	forceEmpty?: boolean;
-	diffMode?: boolean;
+export interface IWindowsCountChangedEvent {
+	readonly oldCount: number;
+	readonly newCount: number;
+}
+
+export const enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
+
+export interface IBaseOpenConfiguration {
+	readonly context: OpenContext;
+	readonly contextWindowId?: number;
+}
+
+export interface IOpenConfiguration extends IBaseOpenConfiguration {
+	readonly cli: NativeParsedArgs;
+	readonly userEnv?: IProcessEnvironment;
+	readonly urisToOpen?: IWindowOpenable[];
+	readonly waitMarkerFileURI?: URI;
+	readonly preferNewWindow?: boolean;
+	readonly forceNewWindow?: boolean;
+	readonly forceNewTabbedWindow?: boolean;
+	readonly forceReuseWindow?: boolean;
+	readonly forceEmpty?: boolean;
+	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	addMode?: boolean;
-	forceOpenWorkspaceAsFile?: boolean;
-	initialStartup?: boolean;
+	readonly gotoLineMode?: boolean;
+	readonly initialStartup?: boolean;
+	readonly noRecentEntry?: boolean;
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 */
+	readonly remoteAuthority?: string;
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
-export interface ISharedProcess {
-	whenReady(): TPromise<void>;
-	toggle(): void;
-}
+export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

@@ -1,2 +1,7 @@
 src/**
+out/**
 tsconfig.json
+.vscode/**
+extension.webpack.config.js
+extension-browser.webpack.config.js
+yarn.lock

@@ -4,47 +4,81 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { HtmlNode } from 'EmmetNode';
-import { getNode, parseDocument, validate } from './util';
+import { getHtmlFlatNode, validate } from './util';
+import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+import { getRootNode } from './parseDocument';
 
-export function updateTag(tagName: string): Thenable<boolean> {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+interface TagRange {
+	name: string;
+	range: vscode.Range;
+}
+
+export async function updateTag(tagName: string | undefined): Promise<boolean | undefined> {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
-	let rootNode = <HtmlNode>parseDocument(editor.document);
+
+	const editor = vscode.window.activeTextEditor;
+	const document = editor.document;
+	const rootNode = <HtmlFlatNode>getRootNode(document, true);
 	if (!rootNode) {
 		return;
 	}
 
-	let rangesToUpdate = [];
-	editor.selections.reverse().forEach(selection => {
-		rangesToUpdate = rangesToUpdate.concat(getRangesToUpdate(editor, selection, rootNode));
-	});
+	const rangesToUpdate = Array.from(editor.selections).reverse()
+		.reduce<TagRange[]>((prev, selection) =>
+			prev.concat(getRangesToUpdate(document, selection, rootNode)), []);
+	if (!rangesToUpdate.length) {
+		return;
+	}
+	const firstTagName = rangesToUpdate[0].name;
+	const tagNamesAreEqual = rangesToUpdate.every(range => range.name === firstTagName);
+
+	if (tagName === undefined) {
+		tagName = await vscode.window.showInputBox({
+			prompt: 'Enter Tag',
+			value: tagNamesAreEqual ? firstTagName : undefined
+		});
+
+		// TODO: Accept fragments for JSX and TSX
+		if (!tagName) {
+			return false;
+		}
+	}
 
 	return editor.edit(editBuilder => {
-		rangesToUpdate.forEach(range => {
-			editBuilder.replace(range, tagName);
+		rangesToUpdate.forEach(tagRange => {
+			editBuilder.replace(tagRange.range, tagName!);
 		});
 	});
 }
 
-function getRangesToUpdate(editor: vscode.TextEditor, selection: vscode.Selection, rootNode: HtmlNode): vscode.Range[] {
-	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
-	if (!nodeToUpdate) {
-		return [];
+function getRangesFromNode(node: HtmlFlatNode, document: vscode.TextDocument): TagRange[] {
+	const ranges: TagRange[] = [];
+	if (node.open) {
+		const start = document.positionAt(node.open.start);
+		ranges.push({
+			name: node.name,
+			range: new vscode.Range(start.translate(0, 1), start.translate(0, 1).translate(0, node.name.length))
+		});
 	}
-
-	let openStart = nodeToUpdate.open.start.translate(0, 1);
-	let openEnd = openStart.translate(0, nodeToUpdate.name.length);
-
-	let ranges = [new vscode.Range(openStart, openEnd)];
-	if (nodeToUpdate.close) {
-		let closeStart = nodeToUpdate.close.start.translate(0, 2);
-		let closeEnd = nodeToUpdate.close.end.translate(0, -1);
-		ranges.push(new vscode.Range(closeStart, closeEnd));
+	if (node.close) {
+		const endTagStart = document.positionAt(node.close.start);
+		const end = document.positionAt(node.close.end);
+		ranges.push({
+			name: node.name,
+			range: new vscode.Range(endTagStart.translate(0, 2), end.translate(0, -1))
+		});
 	}
 	return ranges;
 }
 
-
+function getRangesToUpdate(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlFlatNode): TagRange[] {
+	const documentText = document.getText();
+	const offset = document.offsetAt(selection.start);
+	const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);
+	if (!nodeToUpdate) {
+		return [];
+	}
+	return getRangesFromNode(nodeToUpdate, document);
+}

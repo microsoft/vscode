@@ -5,25 +5,85 @@
 
 'use strict';
 
-var path = require('path');
-var fs = require('fs');
-var https = require('https');
-var url = require('url');
+const path = require('path');
+const fs = require('fs');
+const https = require('https');
+const url = require('url');
+const minimatch = require('minimatch');
 
-function getCommitSha(repoId, repoPath) {
-	var commitInfo = 'https://api.github.com/repos/' + repoId + '/commits?path=' + repoPath;
+// list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
+// Please try and keep this list in alphabetical order! Thank you.
+const nonBuiltInLanguages = { // { fileNames, extensions  }
+	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
+	"bicep": { extensions: ['bicep'] },
+	"elixir": { extensions: ['ex'] },
+	"elm": { extensions: ['elm'] },
+	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
+	"github-issues": { extensions: ['github-issues'] },
+	"gradle": { extensions: ['gradle'] },
+	"godot": { extensions: ['gd', 'godot', 'tres', 'tscn'] },
+	"haml": { extensions: ['haml'] },
+	"haskell": { extensions: ['hs'] },
+	"haxe": { extensions: ['hx'] },
+	"jinja": { extensions: ['jinja'] },
+	"kotlin": { extensions: ['kt'] },
+	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
+	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
+	"ocaml": { extensions: ['ml', 'mli', 'mll', 'mly', 'eliom', 'eliomi'] },
+	"puppet": { extensions: ['puppet'] },
+	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"rescript": { extensions: ['res', 'resi'] },
+	"sass": { extensions: ['sass'] },
+	"stylus": { extensions: ['styl'] },
+	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
+	"todo": { fileNames: ['todo'] },
+	"vala": { extensions: ['vala'] },
+	"vue": { extensions: ['vue'] }
+};
+
+// list of languagesId that inherit the icon from another language
+const inheritIconFromLanguage = {
+	"jsonc": 'json',
+	"jsonl": 'json',
+	"postcss": 'css',
+	"django-html": 'html',
+	"blade": 'php'
+};
+
+const ignoreExtAssociation = {
+	"properties": true
+};
+
+const FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo
+
+let font, fontMappingsFile, fileAssociationFile, colorsFile;
+if (!FROM_DISK) {
+	font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
+	fontMappingsFile = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
+	fileAssociationFile = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
+	colorsFile = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
+} else {
+	font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
+	fontMappingsFile = '../../../seti-ui/styles/_fonts/seti.less';
+	fileAssociationFile = '../../../seti-ui/styles/components/icons/mapping.less';
+	colorsFile = '../../../seti-ui/styles/ui-variables.less';
+}
+
+function getCommitSha(repoId) {
+	const commitInfo = 'https://api.github.com/repos/' + repoId + '/commits/master';
 	return download(commitInfo).then(function (content) {
 		try {
-			let lastCommit = JSON.parse(content)[0];
+			const lastCommit = JSON.parse(content);
 			return Promise.resolve({
 				commitSha: lastCommit.sha,
 				commitDate: lastCommit.commit.author.date
 			});
 		} catch (e) {
+			console.error('Failed parsing ' + content);
 			return Promise.resolve(null);
 		}
 	}, function () {
-		console.err('Failed loading ' + commitInfo);
+		console.error('Failed loading ' + commitInfo);
 		return Promise.resolve(null);
 	});
 }
@@ -33,9 +93,9 @@ function download(source) {
 		return readFile(source);
 	}
 	return new Promise((c, e) => {
-		var _url = url.parse(source);
-		var options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' }};
-		var content = '';
+		const _url = url.parse(source);
+		const options = { host: _url.host, port: _url.port, path: _url.path, headers: { 'User-Agent': 'NodeJS' } };
+		let content = '';
 		https.get(options, function (response) {
 			response.on('data', function (data) {
 				content += data.toString();
@@ -50,7 +110,7 @@ function download(source) {
 
 function readFile(fileName) {
 	return new Promise((c, e) => {
-		fs.readFile(fileName, function(err, data) {
+		fs.readFile(fileName, function (err, data) {
 			if (err) {
 				e(err);
 			} else {
@@ -67,12 +127,12 @@ function downloadBinary(source, dest) {
 
 	return new Promise((c, e) => {
 		https.get(source, function (response) {
-			switch(response.statusCode) {
-				case 200:
-					var file = fs.createWriteStream(dest);
-					response.on('data', function(chunk){
+			switch (response.statusCode) {
+				case 200: {
+					const file = fs.createWriteStream(dest);
+					response.on('data', function (chunk) {
 						file.write(chunk);
-					}).on('end', function(){
+					}).on('end', function () {
 						file.end();
 						c(null);
 					}).on('error', function (err) {
@@ -80,6 +140,7 @@ function downloadBinary(source, dest) {
 						e(err.message);
 					});
 					break;
+				}
 				case 301:
 				case 302:
 				case 303:
@@ -96,18 +157,18 @@ function downloadBinary(source, dest) {
 
 function copyFile(fileName, dest) {
 	return new Promise((c, e) => {
-		var cbCalled = false;
+		let cbCalled = false;
 		function handleError(err) {
 			if (!cbCalled) {
 				e(err);
 				cbCalled = true;
 			}
 		}
-		var rd = fs.createReadStream(fileName);
+		const rd = fs.createReadStream(fileName);
 		rd.on("error", handleError);
-		var wr = fs.createWriteStream(dest);
+		const wr = fs.createWriteStream(dest);
 		wr.on("error", handleError);
-		wr.on("close", function() {
+		wr.on("close", function () {
 			if (!cbCalled) {
 				c();
 				cbCalled = true;
@@ -118,11 +179,11 @@ function copyFile(fileName, dest) {
 }
 
 function darkenColor(color) {
-	var res = '#';
-	for (var i = 1; i < 7; i+=2) {
-		var newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
-		var hex = newVal.toString(16);
-		if (hex.length == 1) {
+	let res = '#';
+	for (let i = 1; i < 7; i += 2) {
+		const newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
+		const hex = newVal.toString(16);
+		if (hex.length === 1) {
 			res += '0';
 		}
 		res += hex;
@@ -130,74 +191,99 @@ function darkenColor(color) {
 	return res;
 }
 
+function mergeMapping(to, from, property) {
+	if (from[property]) {
+		if (to[property]) {
+			to[property].push(...from[property]);
+		} else {
+			to[property] = from[property];
+		}
+	}
+}
+
 function getLanguageMappings() {
-	let langMappings = {};
-	var allExtensions = fs.readdirSync('..');
-	for (var i= 0; i < allExtensions.length; i++) {
-		let dirPath = path.join('..', allExtensions[i], 'package.json');
+	const langMappings = {};
+	const allExtensions = fs.readdirSync('..');
+	for (let i = 0; i < allExtensions.length; i++) {
+		const dirPath = path.join('..', allExtensions[i], 'package.json');
 		if (fs.existsSync(dirPath)) {
-			let content = fs.readFileSync(dirPath).toString();
-			let jsonContent = JSON.parse(content);
-			let languages = jsonContent.contributes && jsonContent.contributes.languages;
+			const content = fs.readFileSync(dirPath).toString();
+			const jsonContent = JSON.parse(content);
+			const languages = jsonContent.contributes && jsonContent.contributes.languages;
 			if (Array.isArray(languages)) {
-				for (var k = 0; k < languages.length; k++) {
-					var languageId = languages[k].id;
+				for (let k = 0; k < languages.length; k++) {
+					const languageId = languages[k].id;
 					if (languageId) {
-						var extensions = languages[k].extensions;
-						var mapping = {};
+						const extensions = languages[k].extensions;
+						const mapping = {};
 						if (Array.isArray(extensions)) {
 							mapping.extensions = extensions.map(function (e) { return e.substr(1).toLowerCase(); });
 						}
-						var filenames = languages[k].filenames;
+						const filenames = languages[k].filenames;
 						if (Array.isArray(filenames)) {
 							mapping.fileNames = filenames.map(function (f) { return f.toLowerCase(); });
 						}
-						langMappings[languageId] = mapping;
+						const filenamePatterns = languages[k].filenamePatterns;
+						if (Array.isArray(filenamePatterns)) {
+							mapping.filenamePatterns = filenamePatterns.map(function (f) { return f.toLowerCase(); });
+						}
+						const existing = langMappings[languageId];
+
+						if (existing) {
+							// multiple contributions to the same language
+							// give preference to the contribution wth the configuration
+							if (languages[k].configuration) {
+								mergeMapping(mapping, existing, 'extensions');
+								mergeMapping(mapping, existing, 'fileNames');
+								mergeMapping(mapping, existing, 'filenamePatterns');
+								langMappings[languageId] = mapping;
+							} else {
+								mergeMapping(existing, mapping, 'extensions');
+								mergeMapping(existing, mapping, 'fileNames');
+								mergeMapping(existing, mapping, 'filenamePatterns');
+							}
+						} else {
+							langMappings[languageId] = mapping;
+						}
 					}
 				}
 			}
 		}
 	}
+	for (const languageId in nonBuiltInLanguages) {
+		langMappings[languageId] = nonBuiltInLanguages[languageId];
+	}
 	return langMappings;
 }
 
-//var font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
-var font = '../../../seti-ui/styles/_fonts/seti/seti.woff';
-
-exports.copyFont = function() {
+exports.copyFont = function () {
 	return downloadBinary(font, './icons/seti.woff');
 };
 
-//var fontMappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti.less';
-//var mappings = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/components/icons/mapping.less';
-//var colors = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/ui-variables.less';
-
-var fontMappings = '../../../seti-ui/styles/_fonts/seti.less';
-var mappings = '../../../seti-ui/styles/components/icons/mapping.less';
-var colors = '../../../seti-ui/styles/ui-variables.less';
-
 exports.update = function () {
 
-	console.log('Reading from ' + fontMappings);
-	var def2Content = {};
-	var ext2Def = {};
-	var fileName2Def = {};
-	var def2ColorId = {};
-	var colorId2Value = {};
-	var lang2Def = {};
+	console.log('Reading from ' + fontMappingsFile);
+	const def2Content = {};
+	const ext2Def = {};
+	const fileName2Def = {};
+	const def2ColorId = {};
+	const colorId2Value = {};
+	const lang2Def = {};
 
 	function writeFileIconContent(info) {
-		var iconDefinitions = {};
+		const iconDefinitions = {};
+		const allDefs = Object.keys(def2Content).sort();
 
-		for (var def in def2Content) {
-			var entry = { fontCharacter: def2Content[def] };
-			var colorId = def2ColorId[def];
+		for (let i = 0; i < allDefs.length; i++) {
+			const def = allDefs[i];
+			const entry = { fontCharacter: def2Content[def] };
+			const colorId = def2ColorId[def];
 			if (colorId) {
-				var colorValue = colorId2Value[colorId];
+				const colorValue = colorId2Value[colorId];
 				if (colorValue) {
 					entry.fontColor = colorValue;
 
-					var entryInverse = { fontCharacter: entry.fontCharacter, fontColor: darkenColor(colorValue) };
+					const entryInverse = { fontCharacter: entry.fontCharacter, fontColor: darkenColor(colorValue) };
 					iconDefinitions[def + '_light'] = entryInverse;
 				}
 			}
@@ -205,9 +291,9 @@ exports.update = function () {
 		}
 
 		function getInvertSet(input) {
-			var result = {};
-			for (var assoc in input) {
-				let invertDef = input[assoc] + '_light';
+			const result = {};
+			for (const assoc in input) {
+				const invertDef = input[assoc] + '_light';
 				if (iconDefinitions[invertDef]) {
 					result[assoc] = invertDef;
 				}
@@ -215,7 +301,7 @@ exports.update = function () {
 			return result;
 		}
 
-		var res = {
+		const res = {
 			information_for_contributors: [
 				'This file has been generated from data in https://github.com/jesseweed/seti-ui',
 				'- icon definitions: https://github.com/jesseweed/seti-ui/blob/master/styles/_fonts/seti.less',
@@ -232,7 +318,7 @@ exports.update = function () {
 				size: "150%"
 			}],
 			iconDefinitions: iconDefinitions,
-		//	folder: "_folder",
+			//	folder: "_folder",
 			file: "_default",
 			fileExtensions: ext2Def,
 			fileNames: fileName2Def,
@@ -246,77 +332,129 @@ exports.update = function () {
 			version: 'https://github.com/jesseweed/seti-ui/commit/' + info.commitSha,
 		};
 
-		var path = './icons/vs-seti-icon-theme.json';
+		const path = './icons/vs-seti-icon-theme.json';
 		fs.writeFileSync(path, JSON.stringify(res, null, '\t'));
 		console.log('written ' + path);
 	}
 
 
-	var match;
+	let match;
 
-	return download(fontMappings).then(function (content) {
-		var regex = /@([\w-]+):\s*'(\\E[0-9A-F]+)';/g;
+	return download(fontMappingsFile).then(function (content) {
+		const regex = /@([\w-]+):\s*'(\\E[0-9A-F]+)';/g;
+		const contents = {};
 		while ((match = regex.exec(content)) !== null) {
-			def2Content['_' + match[1]] = match[2];
+			contents[match[1]] = match[2];
 		}
 
-		return download(mappings).then(function (content) {
-			var regex2 = /\.icon-(?:set|partial)\('([\w-\.]+)',\s*'([\w-]+)',\s*(@[\w-]+)\)/g;
+		return download(fileAssociationFile).then(function (content) {
+			const regex2 = /\.icon-(?:set|partial)\(['"]([\w-\.+]+)['"],\s*['"]([\w-]+)['"],\s*(@[\w-]+)\)/g;
 			while ((match = regex2.exec(content)) !== null) {
-				let pattern = match[1];
+				const pattern = match[1];
 				let def = '_' + match[2];
-				let colorId = match[3];
+				const colorId = match[3];
+				let storedColorId = def2ColorId[def];
+				let i = 1;
+				while (storedColorId && colorId !== storedColorId) { // different colors for the same def?
+					def = `_${match[2]}_${i}`;
+					storedColorId = def2ColorId[def];
+					i++;
+				}
+				if (!def2ColorId[def]) {
+					def2ColorId[def] = colorId;
+					def2Content[def] = contents[match[2]];
+				}
+
+				if (def === '_default') {
+					continue; // no need to assign default color.
+				}
 				if (pattern[0] === '.') {
 					ext2Def[pattern.substr(1).toLowerCase()] = def;
 				} else {
 					fileName2Def[pattern.toLowerCase()] = def;
 				}
-				def2ColorId[def] = colorId;
 			}
 			// replace extensions for languageId
-			var langMappings = getLanguageMappings();
-			for (var lang in langMappings) {
-				var mappings = langMappings[lang];
-				var exts = mappings.extensions || [];
-				var fileNames = mappings.fileNames || [];
-				var preferredDef = null;
-				// use the first file association for the preferred definition
+			const langMappings = getLanguageMappings();
+			for (let lang in langMappings) {
+				const mappings = langMappings[lang];
+				const exts = mappings.extensions || [];
+				const fileNames = mappings.fileNames || [];
+				const filenamePatterns = mappings.filenamePatterns || [];
+				let preferredDef = null;
+				// use the first file extension association for the preferred definition
 				for (let i1 = 0; i1 < exts.length && !preferredDef; i1++) {
 					preferredDef = ext2Def[exts[i1]];
 				}
-				// use the first file association for the preferred definition
+				// use the first file name association for the preferred definition, if not availbale
 				for (let i1 = 0; i1 < fileNames.length && !preferredDef; i1++) {
 					preferredDef = fileName2Def[fileNames[i1]];
 				}
-				if (preferredDef) {
-					lang2Def[lang] = preferredDef;
-					for (let i2 = 0; i2 < exts.length; i2++) {
-						// remove the extension association, unless it is different from the preferred
-						if (ext2Def[exts[i2]] === preferredDef) {
-							delete ext2Def[exts[i2]];
+				for (let i1 = 0; i1 < filenamePatterns.length && !preferredDef; i1++) {
+					let pattern = filenamePatterns[i1];
+					for (const name in fileName2Def) {
+						if (minimatch(name, pattern)) {
+							preferredDef = fileName2Def[name];
+							break;
 						}
 					}
-					for (let i2 = 0; i2 < fileNames.length; i2++) {
-						// remove the fileName association, unless it is different from the preferred
-						if (fileName2Def[fileNames[i2]] === preferredDef) {
-							delete fileName2Def[fileNames[i2]];
+				}
+				if (preferredDef) {
+					lang2Def[lang] = preferredDef;
+					if (!nonBuiltInLanguages[lang] && !inheritIconFromLanguage[lang]) {
+						for (let i2 = 0; i2 < exts.length; i2++) {
+							// remove the extension association, unless it is different from the preferred
+							if (ext2Def[exts[i2]] === preferredDef || ignoreExtAssociation[exts[i2]]) {
+								delete ext2Def[exts[i2]];
+							}
+						}
+						for (let i2 = 0; i2 < fileNames.length; i2++) {
+							// remove the fileName association, unless it is different from the preferred
+							if (fileName2Def[fileNames[i2]] === preferredDef) {
+								delete fileName2Def[fileNames[i2]];
+							}
+						}
+						for (let i2 = 0; i2 < filenamePatterns.length; i2++) {
+							let pattern = filenamePatterns[i2];
+							// remove the filenamePatterns association, unless it is different from the preferred
+							for (const name in fileName2Def) {
+								if (minimatch(name, pattern) && fileName2Def[name] === preferredDef) {
+									delete fileName2Def[name];
+								}
+							}
 						}
 					}
 				}
 			}
-
-
-			return download(colors).then(function (content) {
-				var regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
-				while ((match = regex3.exec(content)) !== null) {
-					colorId2Value[match[1]] =  match[2];
+			for (const lang in inheritIconFromLanguage) {
+				const superLang = inheritIconFromLanguage[lang];
+				const def = lang2Def[superLang];
+				if (def) {
+					lang2Def[lang] = def;
+				} else {
+					console.log('skipping icon def for ' + lang + ': no icon for ' + superLang + ' defined');
 				}
-				return getCommitSha('jesseweed/seti-ui', 'styles/_fonts/seti.less').then(function (info) {
+
+			}
+
+
+			return download(colorsFile).then(function (content) {
+				const regex3 = /(@[\w-]+):\s*(#[0-9a-z]+)/g;
+				while ((match = regex3.exec(content)) !== null) {
+					colorId2Value[match[1]] = match[2];
+				}
+				return getCommitSha('jesseweed/seti-ui').then(function (info) {
 					try {
 						writeFileIconContent(info);
-						if (info) {
-							console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
-						}
+
+						const cgmanifestPath = './cgmanifest.json';
+						const cgmanifest = fs.readFileSync(cgmanifestPath).toString();
+						const cgmanifestContent = JSON.parse(cgmanifest);
+						cgmanifestContent['registrations'][0]['component']['git']['commitHash'] = info.commitSha;
+						fs.writeFileSync(cgmanifestPath, JSON.stringify(cgmanifestContent, null, '\t'));
+						console.log('updated ' + cgmanifestPath);
+
+						console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
 
 					} catch (e) {
 						console.error(e);

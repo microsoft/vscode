@@ -2,21 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { Selection } from 'vs/editor/common/core/selection';
-import { editorCommand, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import * as nls from 'vs/nls';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class CursorState {
-	readonly selections: Selection[];
+	readonly selections: readonly Selection[];
 
-	constructor(selections: Selection[]) {
+	constructor(selections: readonly Selection[]) {
 		this.selections = selections;
 	}
 
@@ -35,95 +35,131 @@ class CursorState {
 	}
 }
 
-@editorContribution
-export class CursorUndoController extends Disposable implements IEditorContribution {
+class StackElement {
+	constructor(
+		public readonly cursorState: CursorState,
+		public readonly scrollTop: number,
+		public readonly scrollLeft: number
+	) { }
+}
 
-	private static ID = 'editor.contrib.cursorUndoController';
+export class CursorUndoRedoController extends Disposable implements IEditorContribution {
 
-	public static get(editor: ICommonCodeEditor): CursorUndoController {
-		return editor.getContribution<CursorUndoController>(CursorUndoController.ID);
+	public static readonly ID = 'editor.contrib.cursorUndoRedoController';
+
+	public static get(editor: ICodeEditor): CursorUndoRedoController | null {
+		return editor.getContribution<CursorUndoRedoController>(CursorUndoRedoController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
-	private _isCursorUndo: boolean;
+	private _isCursorUndoRedo: boolean;
 
-	private _undoStack: CursorState[];
-	private _prevState: CursorState;
+	private _undoStack: StackElement[];
+	private _redoStack: StackElement[];
 
 	constructor(editor: ICodeEditor) {
 		super();
 		this._editor = editor;
-		this._isCursorUndo = false;
+		this._isCursorUndoRedo = false;
 
 		this._undoStack = [];
-		this._prevState = this._readState();
+		this._redoStack = [];
 
 		this._register(editor.onDidChangeModel((e) => {
 			this._undoStack = [];
-			this._prevState = null;
+			this._redoStack = [];
 		}));
 		this._register(editor.onDidChangeModelContent((e) => {
 			this._undoStack = [];
-			this._prevState = null;
+			this._redoStack = [];
 		}));
 		this._register(editor.onDidChangeCursorSelection((e) => {
-
-			if (!this._isCursorUndo && this._prevState) {
-				this._undoStack.push(this._prevState);
+			if (this._isCursorUndoRedo) {
+				return;
+			}
+			if (!e.oldSelections) {
+				return;
+			}
+			if (e.oldModelVersionId !== e.modelVersionId) {
+				return;
+			}
+			const prevState = new CursorState(e.oldSelections);
+			const isEqualToLastUndoStack = (this._undoStack.length > 0 && this._undoStack[this._undoStack.length - 1].cursorState.equals(prevState));
+			if (!isEqualToLastUndoStack) {
+				this._undoStack.push(new StackElement(prevState, editor.getScrollTop(), editor.getScrollLeft()));
+				this._redoStack = [];
 				if (this._undoStack.length > 50) {
 					// keep the cursor undo stack bounded
 					this._undoStack.shift();
 				}
 			}
-
-			this._prevState = this._readState();
 		}));
 	}
 
-	private _readState(): CursorState {
-		if (!this._editor.getModel()) {
-			// no model => no state
-			return null;
-		}
-
-		return new CursorState(this._editor.getSelections());
-	}
-
-	public getId(): string {
-		return CursorUndoController.ID;
-	}
-
 	public cursorUndo(): void {
-		const currState = new CursorState(this._editor.getSelections());
-
-		while (this._undoStack.length > 0) {
-			const prevState = this._undoStack.pop();
-
-			if (!prevState.equals(currState)) {
-				this._isCursorUndo = true;
-				this._editor.setSelections(prevState.selections);
-				this._editor.revealRangeInCenterIfOutsideViewport(prevState.selections[0], ScrollType.Smooth);
-				this._isCursorUndo = false;
-				return;
-			}
+		if (!this._editor.hasModel() || this._undoStack.length === 0) {
+			return;
 		}
+
+		this._redoStack.push(new StackElement(new CursorState(this._editor.getSelections()), this._editor.getScrollTop(), this._editor.getScrollLeft()));
+		this._applyState(this._undoStack.pop()!);
+	}
+
+	public cursorRedo(): void {
+		if (!this._editor.hasModel() || this._redoStack.length === 0) {
+			return;
+		}
+
+		this._undoStack.push(new StackElement(new CursorState(this._editor.getSelections()), this._editor.getScrollTop(), this._editor.getScrollLeft()));
+		this._applyState(this._redoStack.pop()!);
+	}
+
+	private _applyState(stackElement: StackElement): void {
+		this._isCursorUndoRedo = true;
+		this._editor.setSelections(stackElement.cursorState.selections);
+		this._editor.setScrollPosition({
+			scrollTop: stackElement.scrollTop,
+			scrollLeft: stackElement.scrollLeft
+		});
+		this._isCursorUndoRedo = false;
 	}
 }
 
-@editorCommand
-export class CursorUndo extends EditorCommand {
+export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
-			precondition: null,
+			label: nls.localize('cursor.undo', "Cursor Undo"),
+			alias: 'Cursor Undo',
+			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_U
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyU,
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
-		CursorUndoController.get(editor).cursorUndo();
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		CursorUndoRedoController.get(editor)?.cursorUndo();
 	}
 }
+
+export class CursorRedo extends EditorAction {
+	constructor() {
+		super({
+			id: 'cursorRedo',
+			label: nls.localize('cursor.redo', "Cursor Redo"),
+			alias: 'Cursor Redo',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		CursorUndoRedoController.get(editor)?.cursorRedo();
+	}
+}
+
+registerEditorContribution(CursorUndoRedoController.ID, CursorUndoRedoController, EditorContributionInstantiation.Eager); // eager because it needs to listen to record cursor state ASAP
+registerEditorAction(CursorUndo);
+registerEditorAction(CursorRedo);

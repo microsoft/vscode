@@ -4,8 +4,44 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/daaain/Handlebars/commit/790f2b0222098a3a236bd9e91bb9a039eeca4d8e",
+	"version": "https://github.com/daaain/Handlebars/commit/85a153a6f759df4e8da7533e1b3651f007867c51",
 	"name": "Handlebars",
+	"scopeName": "text.html.handlebars",
+	"patterns": [
+		{
+			"include": "#yfm"
+		},
+		{
+			"include": "#extends"
+		},
+		{
+			"include": "#block_comments"
+		},
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#block_helper"
+		},
+		{
+			"include": "#end_block"
+		},
+		{
+			"include": "#else_token"
+		},
+		{
+			"include": "#partial_and_var"
+		},
+		{
+			"include": "#inline_script"
+		},
+		{
+			"include": "#html_tags"
+		},
+		{
+			"include": "text.html.basic"
+		}
+	],
 	"repository": {
 		"html_tags": {
 			"patterns": [
@@ -617,7 +653,7 @@
 			]
 		},
 		"else_token": {
-			"begin": "(\\{\\{)(~?else)(@?\\s(if)\\s([-a-zA-Z0-9_\\./]+))?",
+			"begin": "(\\{\\{)(~?else)(@?\\s(if)\\s([-a-zA-Z0-9_\\.\\(\\s\\)/]+))?",
 			"end": "(~?\\}\\}\\}*)",
 			"name": "meta.function.inline.else.handlebars",
 			"beginCaptures": {
@@ -812,57 +848,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "text.html.handlebars",
-	"patterns": [
-		{
-			"include": "#yfm"
-		},
-		{
-			"include": "#extends"
-		},
-		{
-			"include": "#block_comments"
-		},
-		{
-			"include": "#comments"
-		},
-		{
-			"include": "#block_helper"
-		},
-		{
-			"include": "#end_block"
-		},
-		{
-			"include": "#else_token"
-		},
-		{
-			"include": "#partial_and_var"
-		},
-		{
-			"include": "#inline_script"
-		},
-		{
-			"include": "#html_tags"
-		},
-		{
-			"include": "text.html.basic"
-		}
-	],
-	"fileTypes": [
-		"handlebars",
-		"handlebars.html",
-		"hbr",
-		"hbrs",
-		"hbs",
-		"hdbs",
-		"hjs",
-		"mu",
-		"mustache",
-		"rac",
-		"stache",
-		"template",
-		"tmpl"
-	],
-	"uuid": "70E91676-DE0A-4266-A2B9-3AD2E535E484"
+	}
 }

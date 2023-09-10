@@ -3,17 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-export function not<A>(fn: (a: A) => boolean): (a: A) => boolean;
-export function not(fn: Function): Function {
-	return (...args) => !fn(...args);
-}
-
-export function once<T extends Function>(fn: T): T {
+export function once<T extends Function>(this: unknown, fn: T): T {
 	const _this = this;
 	let didCall = false;
-	let result: any;
+	let result: unknown;
 
 	return function () {
 		if (didCall) {
@@ -24,5 +17,5 @@ export function once<T extends Function>(fn: T): T {
 		result = fn.apply(_this, arguments);
 
 		return result;
-	} as any as T;
+	} as unknown as T;
 }

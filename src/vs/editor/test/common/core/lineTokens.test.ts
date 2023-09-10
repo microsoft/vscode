@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { MetadataConsts } from 'vs/editor/common/modes';
-import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LineTokens', () => {
 
@@ -18,17 +16,16 @@ suite('LineTokens', () => {
 	}
 
 	function createLineTokens(text: string, tokens: ILineToken[]): LineTokens {
-		let binTokens = new Uint32Array(tokens.length << 1);
+		const binTokens = new Uint32Array(tokens.length << 1);
 
 		for (let i = 0, len = tokens.length; i < len; i++) {
-			let token = tokens[i];
-			binTokens[(i << 1)] = token.startIndex;
+			binTokens[(i << 1)] = (i + 1 < len ? tokens[i + 1].startIndex : text.length);
 			binTokens[(i << 1) + 1] = (
-				token.foreground << MetadataConsts.FOREGROUND_OFFSET
+				tokens[i].foreground << MetadataConsts.FOREGROUND_OFFSET
 			) >>> 0;
 		}
 
-		return new LineTokens(binTokens, text);
+		return new LineTokens(binTokens, text, new LanguageIdCodec());
 	}
 
 	function createTestLineTokens(): LineTokens {
@@ -46,159 +43,117 @@ suite('LineTokens', () => {
 		);
 	}
 
+	function renderLineTokens(tokens: LineTokens): string {
+		let result = '';
+		const str = tokens.getLineContent();
+		let lastOffset = 0;
+		for (let i = 0; i < tokens.getCount(); i++) {
+			result += str.substring(lastOffset, tokens.getEndOffset(i));
+			result += `(${tokens.getMetadata(i)})`;
+			lastOffset = tokens.getEndOffset(i);
+		}
+		return result;
+	}
+
+	test('withInserted 1', () => {
+		const lineTokens = createTestLineTokens();
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
+
+		const lineTokens2 = lineTokens.withInserted([
+			{ offset: 0, text: '1', tokenMetadata: 0, },
+			{ offset: 6, text: '2', tokenMetadata: 0, },
+			{ offset: 9, text: '3', tokenMetadata: 0, },
+		]);
+
+		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)Hello (32768)2(0)wor(65536)3(0)ld, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
+	});
+
+	test('withInserted (tokens at the same position)', () => {
+		const lineTokens = createTestLineTokens();
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
+
+		const lineTokens2 = lineTokens.withInserted([
+			{ offset: 0, text: '1', tokenMetadata: 0, },
+			{ offset: 0, text: '2', tokenMetadata: 0, },
+			{ offset: 0, text: '3', tokenMetadata: 0, },
+		]);
+
+		assert.strictEqual(renderLineTokens(lineTokens2), '1(0)2(0)3(0)Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
+	});
+
+	test('withInserted (tokens at the end)', () => {
+		const lineTokens = createTestLineTokens();
+		assert.strictEqual(renderLineTokens(lineTokens), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)day(229376)');
+
+		const lineTokens2 = lineTokens.withInserted([
+			{ offset: 'Hello world, this is a lovely day'.length - 1, text: '1', tokenMetadata: 0, },
+			{ offset: 'Hello world, this is a lovely day'.length, text: '2', tokenMetadata: 0, },
+		]);
+
+		assert.strictEqual(renderLineTokens(lineTokens2), 'Hello (32768)world, (65536)this (98304)is (131072)a (163840)lovely (196608)da(229376)1(0)y(229376)2(0)');
+	});
+
 	test('basics', () => {
 		const lineTokens = createTestLineTokens();
 
-		assert.equal(lineTokens.getLineContent(), 'Hello world, this is a lovely day');
-		assert.equal(lineTokens.getLineLength(), 33);
-		assert.equal(lineTokens.getTokenCount(), 7);
+		assert.strictEqual(lineTokens.getLineContent(), 'Hello world, this is a lovely day');
+		assert.strictEqual(lineTokens.getLineContent().length, 33);
+		assert.strictEqual(lineTokens.getCount(), 7);
 
-		assert.equal(lineTokens.getTokenStartOffset(0), 0);
-		assert.equal(lineTokens.getTokenEndOffset(0), 6);
-		assert.equal(lineTokens.getTokenStartOffset(1), 6);
-		assert.equal(lineTokens.getTokenEndOffset(1), 13);
-		assert.equal(lineTokens.getTokenStartOffset(2), 13);
-		assert.equal(lineTokens.getTokenEndOffset(2), 18);
-		assert.equal(lineTokens.getTokenStartOffset(3), 18);
-		assert.equal(lineTokens.getTokenEndOffset(3), 21);
-		assert.equal(lineTokens.getTokenStartOffset(4), 21);
-		assert.equal(lineTokens.getTokenEndOffset(4), 23);
-		assert.equal(lineTokens.getTokenStartOffset(5), 23);
-		assert.equal(lineTokens.getTokenEndOffset(5), 30);
-		assert.equal(lineTokens.getTokenStartOffset(6), 30);
-		assert.equal(lineTokens.getTokenEndOffset(6), 33);
+		assert.strictEqual(lineTokens.getStartOffset(0), 0);
+		assert.strictEqual(lineTokens.getEndOffset(0), 6);
+		assert.strictEqual(lineTokens.getStartOffset(1), 6);
+		assert.strictEqual(lineTokens.getEndOffset(1), 13);
+		assert.strictEqual(lineTokens.getStartOffset(2), 13);
+		assert.strictEqual(lineTokens.getEndOffset(2), 18);
+		assert.strictEqual(lineTokens.getStartOffset(3), 18);
+		assert.strictEqual(lineTokens.getEndOffset(3), 21);
+		assert.strictEqual(lineTokens.getStartOffset(4), 21);
+		assert.strictEqual(lineTokens.getEndOffset(4), 23);
+		assert.strictEqual(lineTokens.getStartOffset(5), 23);
+		assert.strictEqual(lineTokens.getEndOffset(5), 30);
+		assert.strictEqual(lineTokens.getStartOffset(6), 30);
+		assert.strictEqual(lineTokens.getEndOffset(6), 33);
 	});
 
 	test('findToken', () => {
 		const lineTokens = createTestLineTokens();
 
-		assert.equal(lineTokens.findTokenIndexAtOffset(0), 0);
-		assert.equal(lineTokens.findTokenIndexAtOffset(1), 0);
-		assert.equal(lineTokens.findTokenIndexAtOffset(2), 0);
-		assert.equal(lineTokens.findTokenIndexAtOffset(3), 0);
-		assert.equal(lineTokens.findTokenIndexAtOffset(4), 0);
-		assert.equal(lineTokens.findTokenIndexAtOffset(5), 0);
-		assert.equal(lineTokens.findTokenIndexAtOffset(6), 1);
-		assert.equal(lineTokens.findTokenIndexAtOffset(7), 1);
-		assert.equal(lineTokens.findTokenIndexAtOffset(8), 1);
-		assert.equal(lineTokens.findTokenIndexAtOffset(9), 1);
-		assert.equal(lineTokens.findTokenIndexAtOffset(10), 1);
-		assert.equal(lineTokens.findTokenIndexAtOffset(11), 1);
-		assert.equal(lineTokens.findTokenIndexAtOffset(12), 1);
-		assert.equal(lineTokens.findTokenIndexAtOffset(13), 2);
-		assert.equal(lineTokens.findTokenIndexAtOffset(14), 2);
-		assert.equal(lineTokens.findTokenIndexAtOffset(15), 2);
-		assert.equal(lineTokens.findTokenIndexAtOffset(16), 2);
-		assert.equal(lineTokens.findTokenIndexAtOffset(17), 2);
-		assert.equal(lineTokens.findTokenIndexAtOffset(18), 3);
-		assert.equal(lineTokens.findTokenIndexAtOffset(19), 3);
-		assert.equal(lineTokens.findTokenIndexAtOffset(20), 3);
-		assert.equal(lineTokens.findTokenIndexAtOffset(21), 4);
-		assert.equal(lineTokens.findTokenIndexAtOffset(22), 4);
-		assert.equal(lineTokens.findTokenIndexAtOffset(23), 5);
-		assert.equal(lineTokens.findTokenIndexAtOffset(24), 5);
-		assert.equal(lineTokens.findTokenIndexAtOffset(25), 5);
-		assert.equal(lineTokens.findTokenIndexAtOffset(26), 5);
-		assert.equal(lineTokens.findTokenIndexAtOffset(27), 5);
-		assert.equal(lineTokens.findTokenIndexAtOffset(28), 5);
-		assert.equal(lineTokens.findTokenIndexAtOffset(29), 5);
-		assert.equal(lineTokens.findTokenIndexAtOffset(30), 6);
-		assert.equal(lineTokens.findTokenIndexAtOffset(31), 6);
-		assert.equal(lineTokens.findTokenIndexAtOffset(32), 6);
-		assert.equal(lineTokens.findTokenIndexAtOffset(33), 6);
-		assert.equal(lineTokens.findTokenIndexAtOffset(34), 6);
-
-		assert.equal(lineTokens.findTokenAtOffset(7).startOffset, 6);
-		assert.equal(lineTokens.findTokenAtOffset(7).endOffset, 13);
-		assert.equal(lineTokens.findTokenAtOffset(7).foregroundId, 2);
-
-		assert.equal(lineTokens.findTokenAtOffset(30).startOffset, 30);
-		assert.equal(lineTokens.findTokenAtOffset(30).endOffset, 33);
-		assert.equal(lineTokens.findTokenAtOffset(30).foregroundId, 7);
-	});
-
-	test('iterate forward', () => {
-		const lineTokens = createTestLineTokens();
-
-		let token = lineTokens.firstToken();
-		assert.equal(token.startOffset, 0);
-		assert.equal(token.endOffset, 6);
-		assert.equal(token.foregroundId, 1);
-
-		token = token.next();
-		assert.equal(token.startOffset, 6);
-		assert.equal(token.endOffset, 13);
-		assert.equal(token.foregroundId, 2);
-
-		token = token.next();
-		assert.equal(token.startOffset, 13);
-		assert.equal(token.endOffset, 18);
-		assert.equal(token.foregroundId, 3);
-
-		token = token.next();
-		assert.equal(token.startOffset, 18);
-		assert.equal(token.endOffset, 21);
-		assert.equal(token.foregroundId, 4);
-
-		token = token.next();
-		assert.equal(token.startOffset, 21);
-		assert.equal(token.endOffset, 23);
-		assert.equal(token.foregroundId, 5);
-
-		token = token.next();
-		assert.equal(token.startOffset, 23);
-		assert.equal(token.endOffset, 30);
-		assert.equal(token.foregroundId, 6);
-
-		token = token.next();
-		assert.equal(token.startOffset, 30);
-		assert.equal(token.endOffset, 33);
-		assert.equal(token.foregroundId, 7);
-
-		token = token.next();
-		assert.equal(token, null);
-	});
-
-	test('iterate backward', () => {
-		const lineTokens = createTestLineTokens();
-
-		let token = lineTokens.lastToken();
-		assert.equal(token.startOffset, 30);
-		assert.equal(token.endOffset, 33);
-		assert.equal(token.foregroundId, 7);
-
-		token = token.prev();
-		assert.equal(token.startOffset, 23);
-		assert.equal(token.endOffset, 30);
-		assert.equal(token.foregroundId, 6);
-
-		token = token.prev();
-		assert.equal(token.startOffset, 21);
-		assert.equal(token.endOffset, 23);
-		assert.equal(token.foregroundId, 5);
-
-		token = token.prev();
-		assert.equal(token.startOffset, 18);
-		assert.equal(token.endOffset, 21);
-		assert.equal(token.foregroundId, 4);
-
-		token = token.prev();
-		assert.equal(token.startOffset, 13);
-		assert.equal(token.endOffset, 18);
-		assert.equal(token.foregroundId, 3);
-
-		token = token.prev();
-		assert.equal(token.startOffset, 6);
-		assert.equal(token.endOffset, 13);
-		assert.equal(token.foregroundId, 2);
-
-		token = token.prev();
-		assert.equal(token.startOffset, 0);
-		assert.equal(token.endOffset, 6);
-		assert.equal(token.foregroundId, 1);
-
-		token = token.prev();
-		assert.equal(token, null);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(0), 0);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(1), 0);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(2), 0);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(3), 0);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(4), 0);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(5), 0);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(6), 1);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(7), 1);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(8), 1);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(9), 1);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(10), 1);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(11), 1);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(12), 1);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(13), 2);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(14), 2);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(15), 2);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(16), 2);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(17), 2);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(18), 3);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(19), 3);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(20), 3);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(21), 4);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(22), 4);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(23), 5);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(24), 5);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(25), 5);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(26), 5);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(27), 5);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(28), 5);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(29), 5);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(30), 6);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(31), 6);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(32), 6);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(33), 6);
+		assert.strictEqual(lineTokens.findTokenIndexAtOffset(34), 6);
 	});
 
 	interface ITestViewLineToken {
@@ -206,13 +161,15 @@ suite('LineTokens', () => {
 		foreground: number;
 	}
 
-	function assertViewLineTokens(actual: ViewLineToken[], expected: ITestViewLineToken[]): void {
-		assert.deepEqual(actual.map(token => {
-			return {
-				endIndex: token.endIndex,
-				foreground: token.getForeground()
+	function assertViewLineTokens(_actual: IViewLineTokens, expected: ITestViewLineToken[]): void {
+		const actual: ITestViewLineToken[] = [];
+		for (let i = 0, len = _actual.getCount(); i < len; i++) {
+			actual[i] = {
+				endIndex: _actual.getEndOffset(i),
+				foreground: _actual.getForeground(i)
 			};
-		}), expected);
+		}
+		assert.deepStrictEqual(actual, expected);
 	}
 
 	test('inflate', () => {

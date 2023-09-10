@@ -1,14 +1,14 @@
 {
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"target": "es5",
-		"module": "commonjs",
 		"outDir": "./out",
-		"lib": [
-			"es2015"
-		],
-		"strictNullChecks": true
+		"types": [
+			"node"
+		]
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.profileContentHandlers.d.ts",
 	]
 }

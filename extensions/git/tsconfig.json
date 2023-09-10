@@ -1,15 +1,21 @@
 {
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"target": "es6",
-		"lib": [
-			"es2016"
-		],
-		"module": "commonjs",
 		"outDir": "./out",
-		"strictNullChecks": true,
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
+		"typeRoots": [
+			"./node_modules/@types"
+		]
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/vscode-dts/vscode.proposed.diffCommand.d.ts",
+		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",
+		"../../src/vscode-dts/vscode.proposed.scmSelectedProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.scmValidation.d.ts",
+		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
+		"../../src/vscode-dts/vscode.proposed.timeline.d.ts",
+		"../types/lib.textEncoder.d.ts"
 	]
 }

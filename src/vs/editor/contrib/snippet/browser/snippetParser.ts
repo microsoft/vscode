@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { CharCode } from 'vs/base/common/charCode';
 
-export enum TokenType {
+export const enum TokenType {
 	Dollar,
 	Colon,
 	Comma,
@@ -58,12 +56,8 @@ export class Scanner {
 			|| (ch >= CharCode.A && ch <= CharCode.Z);
 	}
 
-	value: string;
-	pos: number;
-
-	constructor() {
-		this.text('');
-	}
+	value: string = '';
+	pos: number = 0;
 
 	text(value: string) {
 		this.value = value;
@@ -80,7 +74,7 @@ export class Scanner {
 			return { type: TokenType.EOF, pos: this.pos, len: 0 };
 		}
 
-		let pos = this.pos;
+		const pos = this.pos;
 		let len = 0;
 		let ch = this.value.charCodeAt(pos);
 		let type: TokenType;
@@ -137,7 +131,7 @@ export abstract class Marker {
 
 	readonly _markerBrand: any;
 
-	public parent: Marker;
+	public parent!: Marker;
 	protected _children: Marker[] = [];
 
 	appendChild(child: Marker): this {
@@ -158,14 +152,27 @@ export abstract class Marker {
 		const newChildren = parent.children.slice(0);
 		newChildren.splice(idx, 1, ...others);
 		parent._children = newChildren;
-		others.forEach(node => node.parent = parent);
+
+		(function _fixParent(children: Marker[], parent: Marker) {
+			for (const child of children) {
+				child.parent = parent;
+				_fixParent(child.children, child);
+			}
+		})(others, parent);
 	}
 
 	get children(): Marker[] {
 		return this._children;
 	}
 
-	get snippet(): TextmateSnippet {
+	get rightMostDescendant(): Marker {
+		if (this._children.length > 0) {
+			return this._children[this._children.length - 1].rightMostDescendant;
+		}
+		return this;
+	}
+
+	get snippet(): TextmateSnippet | undefined {
 		let candidate: Marker = this;
 		while (true) {
 			if (!candidate) {
@@ -200,13 +207,13 @@ export class Text extends Marker {
 	constructor(public value: string) {
 		super();
 	}
-	toString() {
+	override toString() {
 		return this.value;
 	}
 	toTextmateString(): string {
 		return Text.escape(this.value);
 	}
-	len(): number {
+	override len(): number {
 		return this.value.length;
 	}
 	clone(): Text {
@@ -214,8 +221,11 @@ export class Text extends Marker {
 	}
 }
 
-export class Placeholder extends Marker {
+export abstract class TransformableMarker extends Marker {
+	public transform?: Transform;
+}
 
+export class Placeholder extends TransformableMarker {
 	static compareByIndex(a: Placeholder, b: Placeholder): number {
 		if (a.index === b.index) {
 			return 0;
@@ -240,24 +250,33 @@ export class Placeholder extends Marker {
 		return this.index === 0;
 	}
 
-	get choice(): Choice {
+	get choice(): Choice | undefined {
 		return this._children.length === 1 && this._children[0] instanceof Choice
 			? this._children[0] as Choice
 			: undefined;
 	}
 
 	toTextmateString(): string {
-		if (this.children.length === 0) {
+		let transformString = '';
+		if (this.transform) {
+			transformString = this.transform.toTextmateString();
+		}
+		if (this.children.length === 0 && !this.transform) {
 			return `\$${this.index}`;
+		} else if (this.children.length === 0) {
+			return `\${${this.index}${transformString}}`;
 		} else if (this.choice) {
-			return `\${${this.index}|${this.choice.toTextmateString()}|}`;
+			return `\${${this.index}|${this.choice.toTextmateString()}|${transformString}}`;
 		} else {
-			return `\${${this.index}:${this.children.map(child => child.toTextmateString()).join('')}}`;
+			return `\${${this.index}:${this.children.map(child => child.toTextmateString()).join('')}${transformString}}`;
 		}
 	}
 
 	clone(): Placeholder {
-		let ret = new Placeholder(this.index);
+		const ret = new Placeholder(this.index);
+		if (this.transform) {
+			ret.transform = this.transform.clone();
+		}
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
@@ -267,7 +286,7 @@ export class Choice extends Marker {
 
 	readonly options: Text[] = [];
 
-	appendChild(marker: Marker): this {
+	override appendChild(marker: Marker): this {
 		if (marker instanceof Text) {
 			marker.parent = this;
 			this.options.push(marker);
@@ -275,22 +294,22 @@ export class Choice extends Marker {
 		return this;
 	}
 
-	toString() {
+	override toString() {
 		return this.options[0].value;
 	}
 
 	toTextmateString(): string {
 		return this.options
-			.map(option => option.value.replace(/\||,/g, '\\$&'))
+			.map(option => option.value.replace(/\||,|\\/g, '\\$&'))
 			.join(',');
 	}
 
-	len(): number {
+	override len(): number {
 		return this.options[0].len();
 	}
 
 	clone(): Choice {
-		let ret = new Choice();
+		const ret = new Choice();
 		this.options.forEach(ret.appendChild, ret);
 		return ret;
 	}
@@ -298,36 +317,48 @@ export class Choice extends Marker {
 
 export class Transform extends Marker {
 
-	regexp: RegExp;
+	regexp: RegExp = new RegExp('');
 
 	resolve(value: string): string {
 		const _this = this;
-		return value.replace(this.regexp, function () {
-			let ret = '';
-			for (const marker of _this._children) {
-				if (marker instanceof FormatString) {
-					let value = arguments.length - 2 > marker.index ? <string>arguments[marker.index] : '';
-					value = marker.resolve(value);
-					ret += value;
-				} else {
-					ret += marker.toString();
-				}
-			}
-			return ret;
+		let didMatch = false;
+		let ret = value.replace(this.regexp, function () {
+			didMatch = true;
+			return _this._replace(Array.prototype.slice.call(arguments, 0, -2));
 		});
+		// when the regex didn't match and when the transform has
+		// else branches, then run those
+		if (!didMatch && this._children.some(child => child instanceof FormatString && Boolean(child.elseValue))) {
+			ret = this._replace([]);
+		}
+		return ret;
 	}
 
-	toString(): string {
+	private _replace(groups: string[]): string {
+		let ret = '';
+		for (const marker of this._children) {
+			if (marker instanceof FormatString) {
+				let value = groups[marker.index] || '';
+				value = marker.resolve(value);
+				ret += value;
+			} else {
+				ret += marker.toString();
+			}
+		}
+		return ret;
+	}
+
+	override toString(): string {
 		return '';
 	}
 
 	toTextmateString(): string {
-		return `/${Text.escape(this.regexp.source)}/${this.children.map(c => c.toTextmateString())}/${this.regexp.ignoreCase ? 'i' : ''}`;
+		return `/${this.regexp.source}/${this.children.map(c => c.toTextmateString())}/${(this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : '')}`;
 	}
 
 	clone(): Transform {
-		let ret = new Transform();
-		ret.regexp = new RegExp(this.regexp.source, this.regexp.ignoreCase ? 'i' : '');
+		const ret = new Transform();
+		ret.regexp = new RegExp(this.regexp.source, '' + (this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : ''));
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
@@ -345,13 +376,17 @@ export class FormatString extends Marker {
 		super();
 	}
 
-	resolve(value: string): string {
+	resolve(value?: string): string {
 		if (this.shorthandName === 'upcase') {
-			return value.toLocaleUpperCase();
+			return !value ? '' : value.toLocaleUpperCase();
 		} else if (this.shorthandName === 'downcase') {
-			return value.toLocaleLowerCase();
+			return !value ? '' : value.toLocaleLowerCase();
 		} else if (this.shorthandName === 'capitalize') {
-			return value[0].toLocaleUpperCase() + value.substr(1);
+			return !value ? '' : (value[0].toLocaleUpperCase() + value.substr(1));
+		} else if (this.shorthandName === 'pascalcase') {
+			return !value ? '' : this._toPascalCase(value);
+		} else if (this.shorthandName === 'camelcase') {
+			return !value ? '' : this._toCamelCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -359,6 +394,31 @@ export class FormatString extends Marker {
 		} else {
 			return value || '';
 		}
+	}
+
+	private _toPascalCase(value: string): string {
+		const match = value.match(/[a-z0-9]+/gi);
+		if (!match) {
+			return value;
+		}
+		return match.map(word => {
+			return word.charAt(0).toUpperCase() + word.substr(1);
+		})
+			.join('');
+	}
+
+	private _toCamelCase(value: string): string {
+		const match = value.match(/[a-z0-9]+/gi);
+		if (!match) {
+			return value;
+		}
+		return match.map((word, index) => {
+			if (index === 0) {
+				return word.charAt(0).toLowerCase() + word.substr(1);
+			}
+			return word.charAt(0).toUpperCase() + word.substr(1);
+		})
+			.join('');
 	}
 
 	toTextmateString(): string {
@@ -379,12 +439,12 @@ export class FormatString extends Marker {
 	}
 
 	clone(): FormatString {
-		let ret = new FormatString(this.index, this.shorthandName, this.ifValue, this.elseValue);
+		const ret = new FormatString(this.index, this.shorthandName, this.ifValue, this.elseValue);
 		return ret;
 	}
 }
 
-export class Variable extends Marker {
+export class Variable extends TransformableMarker {
 
 	constructor(public name: string) {
 		super();
@@ -392,9 +452,8 @@ export class Variable extends Marker {
 
 	resolve(resolver: VariableResolver): boolean {
 		let value = resolver.resolve(this);
-		let [firstChild] = this._children;
-		if (firstChild instanceof Transform && this._children.length === 1) {
-			value = firstChild.resolve(value || '');
+		if (this.transform) {
+			value = this.transform.resolve(value || '');
 		}
 		if (value !== undefined) {
 			this._children = [new Text(value)];
@@ -404,15 +463,22 @@ export class Variable extends Marker {
 	}
 
 	toTextmateString(): string {
+		let transformString = '';
+		if (this.transform) {
+			transformString = this.transform.toTextmateString();
+		}
 		if (this.children.length === 0) {
-			return `\${${this.name}}`;
+			return `\${${this.name}${transformString}}`;
 		} else {
-			return `\${${this.name}:${this.children.map(child => child.toTextmateString()).join('')}}`;
+			return `\${${this.name}:${this.children.map(child => child.toTextmateString()).join('')}${transformString}}`;
 		}
 	}
 
 	clone(): Variable {
 		const ret = new Variable(this.name);
+		if (this.transform) {
+			ret.transform = this.transform.clone();
+		}
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
@@ -425,7 +491,7 @@ export interface VariableResolver {
 function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
 	const stack = [...marker];
 	while (stack.length > 0) {
-		const marker = stack.shift();
+		const marker = stack.shift()!;
 		const recurse = visitor(marker);
 		if (!recurse) {
 			break;
@@ -436,13 +502,13 @@ function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
 
 export class TextmateSnippet extends Marker {
 
-	private _placeholders: { all: Placeholder[], last: Placeholder };
+	private _placeholders?: { all: Placeholder[]; last?: Placeholder };
 
 	get placeholderInfo() {
 		if (!this._placeholders) {
 			// fill in placeholders
-			let all: Placeholder[] = [];
-			let last: Placeholder;
+			const all: Placeholder[] = [];
+			let last: Placeholder | undefined;
 			this.walk(function (candidate) {
 				if (candidate instanceof Placeholder) {
 					all.push(candidate);
@@ -488,7 +554,7 @@ export class TextmateSnippet extends Marker {
 	}
 
 	enclosingPlaceholders(placeholder: Placeholder): Placeholder[] {
-		let ret: Placeholder[] = [];
+		const ret: Placeholder[] = [];
 		let { parent } = placeholder;
 		while (parent) {
 			if (parent instanceof Placeholder) {
@@ -511,12 +577,12 @@ export class TextmateSnippet extends Marker {
 		return this;
 	}
 
-	appendChild(child: Marker) {
+	override appendChild(child: Marker) {
 		this._placeholders = undefined;
 		return super.appendChild(child);
 	}
 
-	replace(child: Marker, others: Marker[]): void {
+	override replace(child: Marker, others: Marker[]): void {
 		this._placeholders = undefined;
 		return super.replace(child, others);
 	}
@@ -526,7 +592,7 @@ export class TextmateSnippet extends Marker {
 	}
 
 	clone(): TextmateSnippet {
-		let ret = new TextmateSnippet();
+		const ret = new TextmateSnippet();
 		this._children = this.children.map(child => child.clone());
 		return ret;
 	}
@@ -542,33 +608,45 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
-	private _scanner = new Scanner();
-	private _token: Token;
-
-	text(value: string): string {
-		return this.parse(value).toString();
+	/**
+	 * Takes a snippet and returns the insertable string, e.g return the snippet-string
+	 * without any placeholder, tabstop, variables etc...
+	 */
+	static asInsertText(value: string): string {
+		return new SnippetParser().parse(value).toString();
 	}
 
-	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
+	static guessNeedsClipboard(template: string): boolean {
+		return /\${?CLIPBOARD/.test(template);
+	}
 
+	private _scanner: Scanner = new Scanner();
+	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
+
+	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
+		const snippet = new TextmateSnippet();
+		this.parseFragment(value, snippet);
+		this.ensureFinalTabstop(snippet, enforceFinalTabstop ?? false, insertFinalTabstop ?? false);
+		return snippet;
+	}
+
+	parseFragment(value: string, snippet: TextmateSnippet): readonly Marker[] {
+
+		const offset = snippet.children.length;
 		this._scanner.text(value);
 		this._token = this._scanner.next();
-
-		const snippet = new TextmateSnippet();
 		while (this._parse(snippet)) {
 			// nothing
 		}
 
 		// fill in values for placeholders. the first placeholder of an index
 		// that has a value defines the value for all placeholders with that index
-		const placeholderDefaultValues = new Map<number, Marker[]>();
+		const placeholderDefaultValues = new Map<number, Marker[] | undefined>();
 		const incompletePlaceholders: Placeholder[] = [];
-		let placeholderCount = 0;
 		snippet.walk(marker => {
 			if (marker instanceof Placeholder) {
-				placeholderCount += 1;
 				if (marker.isFinalTabstop) {
-					placeholderDefaultValues.set(0);
+					placeholderDefaultValues.set(0, undefined);
 				} else if (!placeholderDefaultValues.has(marker.index) && marker.children.length > 0) {
 					placeholderDefaultValues.set(marker.index, marker.children);
 				} else {
@@ -577,34 +655,54 @@ export class SnippetParser {
 			}
 			return true;
 		});
-		for (const placeholder of incompletePlaceholders) {
-			if (placeholderDefaultValues.has(placeholder.index)) {
-				const clone = new Placeholder(placeholder.index);
-				for (const child of placeholderDefaultValues.get(placeholder.index)) {
-					clone.appendChild(child.clone());
+
+		const fillInIncompletePlaceholder = (placeholder: Placeholder, stack: Set<number>) => {
+			const defaultValues = placeholderDefaultValues.get(placeholder.index);
+			if (!defaultValues) {
+				return;
+			}
+			const clone = new Placeholder(placeholder.index);
+			clone.transform = placeholder.transform;
+			for (const child of defaultValues) {
+				const newChild = child.clone();
+				clone.appendChild(newChild);
+
+				// "recurse" on children that are again placeholders
+				if (newChild instanceof Placeholder && placeholderDefaultValues.has(newChild.index) && !stack.has(newChild.index)) {
+					stack.add(newChild.index);
+					fillInIncompletePlaceholder(newChild, stack);
+					stack.delete(newChild.index);
 				}
-				snippet.replace(placeholder, [clone]);
+			}
+			snippet.replace(placeholder, [clone]);
+		};
+
+		const stack = new Set<number>();
+		for (const placeholder of incompletePlaceholders) {
+			fillInIncompletePlaceholder(placeholder, stack);
+		}
+
+		return snippet.children.slice(offset);
+	}
+
+	ensureFinalTabstop(snippet: TextmateSnippet, enforceFinalTabstop: boolean, insertFinalTabstop: boolean) {
+
+		if (enforceFinalTabstop || insertFinalTabstop && snippet.placeholders.length > 0) {
+			const finalTabstop = snippet.placeholders.find(p => p.index === 0);
+			if (!finalTabstop) {
+				// the snippet uses placeholders but has no
+				// final tabstop defined -> insert at the end
+				snippet.appendChild(new Placeholder(0));
 			}
 		}
 
-		if (!enforceFinalTabstop) {
-			enforceFinalTabstop = placeholderCount > 0 && insertFinalTabstop;
-		}
-
-		if (!placeholderDefaultValues.has(0) && enforceFinalTabstop) {
-			// the snippet uses placeholders but has no
-			// final tabstop defined -> insert at the end
-			snippet.appendChild(new Placeholder(0));
-		}
-
-		return snippet;
 	}
 
-	private _accept(type: TokenType): boolean;
-	private _accept(type: TokenType, value: true): string;
+	private _accept(type?: TokenType): boolean;
+	private _accept(type: TokenType | undefined, value: true): string;
 	private _accept(type: TokenType, value?: boolean): boolean | string {
 		if (type === undefined || this._token.type === type) {
-			let ret = !value ? true : this._scanner.tokenText(this._token);
+			const ret = !value ? true : this._scanner.tokenText(this._token);
 			this._token = this._scanner.next();
 			return ret;
 		}
@@ -618,14 +716,21 @@ export class SnippetParser {
 	}
 
 	private _until(type: TokenType): false | string {
-		if (this._token.type === TokenType.EOF) {
-			return false;
-		}
-		let start = this._token;
+		const start = this._token;
 		while (this._token.type !== type) {
+			if (this._token.type === TokenType.EOF) {
+				return false;
+			} else if (this._token.type === TokenType.Backslash) {
+				const nextToken = this._scanner.next();
+				if (nextToken.type !== TokenType.Dollar
+					&& nextToken.type !== TokenType.CurlyClose
+					&& nextToken.type !== TokenType.Backslash) {
+					return false;
+				}
+			}
 			this._token = this._scanner.next();
 		}
-		let value = this._scanner.value.substring(start.pos, this._token.pos);
+		const value = this._scanner.value.substring(start.pos, this._token.pos).replace(/\\(\$|}|\\)/g, '$1');
 		this._token = this._scanner.next();
 		return value;
 	}
@@ -665,9 +770,9 @@ export class SnippetParser {
 			return this._backTo(token);
 		}
 
-		parent.appendChild(/^\d+$/.test(value)
-			? new Placeholder(Number(value))
-			: new Variable(value)
+		parent.appendChild(/^\d+$/.test(value!)
+			? new Placeholder(Number(value!))
+			: new Variable(value!)
 		);
 		return true;
 	}
@@ -684,7 +789,7 @@ export class SnippetParser {
 			return this._backTo(token);
 		}
 
-		const placeholder = new Placeholder(Number(index));
+		const placeholder = new Placeholder(Number(index!));
 
 		if (this._accept(TokenType.Colon)) {
 			// ${1:<children>}
@@ -701,7 +806,7 @@ export class SnippetParser {
 				}
 
 				// fallback
-				parent.appendChild(new Text('${' + index + ':'));
+				parent.appendChild(new Text('${' + index! + ':'));
 				placeholder.children.forEach(parent.appendChild, parent);
 				return true;
 			}
@@ -717,17 +822,29 @@ export class SnippetParser {
 						continue;
 					}
 
-					if (this._accept(TokenType.Pipe) && this._accept(TokenType.CurlyClose)) {
-						// ..|} -> done
+					if (this._accept(TokenType.Pipe)) {
 						placeholder.appendChild(choice);
-						parent.appendChild(placeholder);
-						return true;
+						if (this._accept(TokenType.CurlyClose)) {
+							// ..|} -> done
+							parent.appendChild(placeholder);
+							return true;
+						}
 					}
 				}
 
 				this._backTo(token);
 				return false;
 			}
+
+		} else if (this._accept(TokenType.Forwardslash)) {
+			// ${1/<regex>/<format>/<options>}
+			if (this._parseTransform(placeholder)) {
+				parent.appendChild(placeholder);
+				return true;
+			}
+
+			this._backTo(token);
+			return false;
 
 		} else if (this._accept(TokenType.CurlyClose)) {
 			// ${1}
@@ -750,9 +867,10 @@ export class SnippetParser {
 			}
 			let value: string;
 			if (value = this._accept(TokenType.Backslash, true)) {
-				// \, or \|
+				// \, \|, or \\
 				value = this._accept(TokenType.Comma, true)
 					|| this._accept(TokenType.Pipe, true)
+					|| this._accept(TokenType.Backslash, true)
 					|| value;
 			} else {
 				value = this._accept(undefined, true);
@@ -786,7 +904,7 @@ export class SnippetParser {
 			return this._backTo(token);
 		}
 
-		const variable = new Variable(name);
+		const variable = new Variable(name!);
 
 		if (this._accept(TokenType.Colon)) {
 			// ${foo:<children>}
@@ -803,7 +921,7 @@ export class SnippetParser {
 				}
 
 				// fallback
-				parent.appendChild(new Text('${' + name + ':'));
+				parent.appendChild(new Text('${' + name! + ':'));
 				variable.children.forEach(parent.appendChild, parent);
 				return true;
 			}
@@ -829,10 +947,10 @@ export class SnippetParser {
 		}
 	}
 
-	private _parseTransform(parent: Variable): boolean {
+	private _parseTransform(parent: TransformableMarker): boolean {
 		// ...<regex>/<format>/<options>}
 
-		let transform = new Transform();
+		const transform = new Transform();
 		let regexValue = '';
 		let regexOptions = '';
 
@@ -846,6 +964,7 @@ export class SnippetParser {
 			if (escaped = this._accept(TokenType.Backslash, true)) {
 				escaped = this._accept(TokenType.Forwardslash, true) || escaped;
 				regexValue += escaped;
+				continue;
 			}
 
 			if (this._token.type !== TokenType.EOF) {
@@ -860,6 +979,14 @@ export class SnippetParser {
 			if (this._accept(TokenType.Forwardslash)) {
 				break;
 			}
+
+			let escaped: string;
+			if (escaped = this._accept(TokenType.Backslash, true)) {
+				escaped = this._accept(TokenType.Backslash, true) || this._accept(TokenType.Forwardslash, true) || escaped;
+				transform.appendChild(new Text(escaped));
+				continue;
+			}
+
 			if (this._parseFormatString(transform) || this._parseAnything(transform)) {
 				continue;
 			}
@@ -885,7 +1012,7 @@ export class SnippetParser {
 			return false;
 		}
 
-		parent.appendChild(transform);
+		parent.transform = transform;
 		return true;
 	}
 
@@ -901,7 +1028,7 @@ export class SnippetParser {
 			complex = true;
 		}
 
-		let index = this._accept(TokenType.Int, true);
+		const index = this._accept(TokenType.Int, true);
 
 		if (!index) {
 			this._backTo(token);
@@ -924,7 +1051,7 @@ export class SnippetParser {
 
 		if (this._accept(TokenType.Forwardslash)) {
 			// ${1:/upcase}
-			let shorthand = this._accept(TokenType.VariableName, true);
+			const shorthand = this._accept(TokenType.VariableName, true);
 			if (!shorthand || !this._accept(TokenType.CurlyClose)) {
 				this._backTo(token);
 				return false;
@@ -935,7 +1062,7 @@ export class SnippetParser {
 
 		} else if (this._accept(TokenType.Plus)) {
 			// ${1:+<if>}
-			let ifValue = this._until(TokenType.CurlyClose);
+			const ifValue = this._until(TokenType.CurlyClose);
 			if (ifValue) {
 				parent.appendChild(new FormatString(Number(index), undefined, ifValue, undefined));
 				return true;
@@ -943,7 +1070,7 @@ export class SnippetParser {
 
 		} else if (this._accept(TokenType.Dash)) {
 			// ${2:-<else>}
-			let elseValue = this._until(TokenType.CurlyClose);
+			const elseValue = this._until(TokenType.CurlyClose);
 			if (elseValue) {
 				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
 				return true;
@@ -951,9 +1078,9 @@ export class SnippetParser {
 
 		} else if (this._accept(TokenType.QuestionMark)) {
 			// ${2:?<if>:<else>}
-			let ifValue = this._until(TokenType.Colon);
+			const ifValue = this._until(TokenType.Colon);
 			if (ifValue) {
-				let elseValue = this._until(TokenType.CurlyClose);
+				const elseValue = this._until(TokenType.CurlyClose);
 				if (elseValue) {
 					parent.appendChild(new FormatString(Number(index), undefined, ifValue, elseValue));
 					return true;
@@ -962,7 +1089,7 @@ export class SnippetParser {
 
 		} else {
 			// ${1:<else>}
-			let elseValue = this._until(TokenType.CurlyClose);
+			const elseValue = this._until(TokenType.CurlyClose);
 			if (elseValue) {
 				parent.appendChild(new FormatString(Number(index), undefined, undefined, elseValue));
 				return true;

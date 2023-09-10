@@ -2,15 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
+import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { CharCode } from 'vs/base/common/charCode';
+import { EndOfLinePreference, FindMatch, SearchData } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { getMapForWordSeparators, WordCharacterClassifier, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
 
 const LIMIT_FIND_COUNT = 999;
 
@@ -18,44 +17,16 @@ export class SearchParams {
 	public readonly searchString: string;
 	public readonly isRegex: boolean;
 	public readonly matchCase: boolean;
-	public readonly wordSeparators: string;
+	public readonly wordSeparators: string | null;
 
-	constructor(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string) {
+	constructor(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string | null) {
 		this.searchString = searchString;
 		this.isRegex = isRegex;
 		this.matchCase = matchCase;
 		this.wordSeparators = wordSeparators;
 	}
 
-	private static _isMultilineRegexSource(searchString: string): boolean {
-		if (!searchString || searchString.length === 0) {
-			return false;
-		}
-
-		for (let i = 0, len = searchString.length; i < len; i++) {
-			const chCode = searchString.charCodeAt(i);
-
-			if (chCode === CharCode.Backslash) {
-
-				// move to next char
-				i++;
-
-				if (i >= len) {
-					// string ends with a \
-					break;
-				}
-
-				const nextChCode = searchString.charCodeAt(i);
-				if (nextChCode === CharCode.n || nextChCode === CharCode.r) {
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	public parseSearchRequest(): SearchData {
+	public parseSearchRequest(): SearchData | null {
 		if (this.searchString === '') {
 			return null;
 		}
@@ -63,18 +34,19 @@ export class SearchParams {
 		// Try to create a RegExp out of the params
 		let multiline: boolean;
 		if (this.isRegex) {
-			multiline = SearchParams._isMultilineRegexSource(this.searchString);
+			multiline = isMultilineRegexSource(this.searchString);
 		} else {
 			multiline = (this.searchString.indexOf('\n') >= 0);
 		}
 
-		let regex: RegExp = null;
+		let regex: RegExp | null = null;
 		try {
 			regex = strings.createRegExp(this.searchString, this.isRegex, {
 				matchCase: this.matchCase,
 				wholeWord: false,
 				multiline: multiline,
-				global: true
+				global: true,
+				unicode: true
 			});
 		} catch (err) {
 			return null;
@@ -94,37 +66,96 @@ export class SearchParams {
 	}
 }
 
-export class SearchData {
-
-	/**
-	 * The regex to search for. Always defined.
-	 */
-	public readonly regex: RegExp;
-	/**
-	 * The word separator classifier.
-	 */
-	public readonly wordSeparators: WordCharacterClassifier;
-	/**
-	 * The simple string to search for (if possible).
-	 */
-	public readonly simpleSearch: string;
-
-	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier, simpleSearch: string) {
-		this.regex = regex;
-		this.wordSeparators = wordSeparators;
-		this.simpleSearch = simpleSearch;
+export function isMultilineRegexSource(searchString: string): boolean {
+	if (!searchString || searchString.length === 0) {
+		return false;
 	}
+
+	for (let i = 0, len = searchString.length; i < len; i++) {
+		const chCode = searchString.charCodeAt(i);
+
+		if (chCode === CharCode.LineFeed) {
+			return true;
+		}
+
+		if (chCode === CharCode.Backslash) {
+
+			// move to next char
+			i++;
+
+			if (i >= len) {
+				// string ends with a \
+				break;
+			}
+
+			const nextChCode = searchString.charCodeAt(i);
+			if (nextChCode === CharCode.n || nextChCode === CharCode.r || nextChCode === CharCode.W) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
-function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
+export function createFindMatch(range: Range, rawMatches: RegExpExecArray, captureMatches: boolean): FindMatch {
 	if (!captureMatches) {
 		return new FindMatch(range, null);
 	}
-	let matches: string[] = [];
+	const matches: string[] = [];
 	for (let i = 0, len = rawMatches.length; i < len; i++) {
 		matches[i] = rawMatches[i];
 	}
 	return new FindMatch(range, matches);
+}
+
+class LineFeedCounter {
+
+	private readonly _lineFeedsOffsets: number[];
+
+	constructor(text: string) {
+		const lineFeedsOffsets: number[] = [];
+		let lineFeedsOffsetsLen = 0;
+		for (let i = 0, textLen = text.length; i < textLen; i++) {
+			if (text.charCodeAt(i) === CharCode.LineFeed) {
+				lineFeedsOffsets[lineFeedsOffsetsLen++] = i;
+			}
+		}
+		this._lineFeedsOffsets = lineFeedsOffsets;
+	}
+
+	public findLineFeedCountBeforeOffset(offset: number): number {
+		const lineFeedsOffsets = this._lineFeedsOffsets;
+		let min = 0;
+		let max = lineFeedsOffsets.length - 1;
+
+		if (max === -1) {
+			// no line feeds
+			return 0;
+		}
+
+		if (offset <= lineFeedsOffsets[0]) {
+			// before first line feed
+			return 0;
+		}
+
+		while (min < max) {
+			const mid = min + ((max - min) / 2 >> 0);
+
+			if (lineFeedsOffsets[mid] >= offset) {
+				max = mid - 1;
+			} else {
+				if (lineFeedsOffsets[mid + 1] >= offset) {
+					// bingo!
+					min = mid;
+					max = mid;
+				} else {
+					min = mid + 1;
+				}
+			}
+		}
+		return min + 1;
+	}
 }
 
 export class TextModelSearch {
@@ -145,30 +176,20 @@ export class TextModelSearch {
 	 * Multiline search always executes on the lines concatenated with \n.
 	 * We must therefore compensate for the count of \n in case the model is CRLF
 	 */
-	private static _getMultilineMatchRange(model: TextModel, deltaOffset: number, text: string, matchIndex: number, match0: string): Range {
+	private static _getMultilineMatchRange(model: TextModel, deltaOffset: number, text: string, lfCounter: LineFeedCounter | null, matchIndex: number, match0: string): Range {
 		let startOffset: number;
-		if (model.getEOL() === '\r\n') {
-			let lineFeedCountBeforeMatch = 0;
-			for (let i = 0; i < matchIndex; i++) {
-				let chCode = text.charCodeAt(i);
-				if (chCode === CharCode.LineFeed) {
-					lineFeedCountBeforeMatch++;
-				}
-			}
+		let lineFeedCountBeforeMatch = 0;
+		if (lfCounter) {
+			lineFeedCountBeforeMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex);
 			startOffset = deltaOffset + matchIndex + lineFeedCountBeforeMatch /* add as many \r as there were \n */;
 		} else {
 			startOffset = deltaOffset + matchIndex;
 		}
 
 		let endOffset: number;
-		if (model.getEOL() === '\r\n') {
-			let lineFeedCountInMatch = 0;
-			for (let i = 0, len = match0.length; i < len; i++) {
-				let chCode = text.charCodeAt(i + matchIndex);
-				if (chCode === CharCode.LineFeed) {
-					lineFeedCountInMatch++;
-				}
-			}
+		if (lfCounter) {
+			const lineFeedCountBeforeEndOfMatch = lfCounter.findLineFeedCountBeforeOffset(matchIndex + match0.length);
+			const lineFeedCountInMatch = lineFeedCountBeforeEndOfMatch - lineFeedCountBeforeMatch;
 			endOffset = startOffset + match0.length + lineFeedCountInMatch /* add as many \r as there were \n */;
 		} else {
 			endOffset = startOffset + match0.length;
@@ -185,14 +206,15 @@ export class TextModelSearch {
 		// This makes it that \n will match the EOL for both CRLF and LF models
 		// We compensate for offset errors in `_getMultilineMatchRange`
 		const text = model.getValueInRange(searchRange, EndOfLinePreference.LF);
+		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
 
 		const result: FindMatch[] = [];
 		let counter = 0;
 
-		let m: RegExpExecArray;
+		let m: RegExpExecArray | null;
 		searcher.reset(0);
 		while ((m = searcher.next(text))) {
-			result[counter++] = createFindMatch(this._getMultilineMatchRange(model, deltaOffset, text, m.index, m[0]), m, captureMatches);
+			result[counter++] = createFindMatch(this._getMultilineMatchRange(model, deltaOffset, text, lfCounter, m.index, m[0]), m, captureMatches);
 			if (counter >= limitResultCount) {
 				return result;
 			}
@@ -250,7 +272,7 @@ export class TextModelSearch {
 		}
 
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
-		let m: RegExpExecArray;
+		let m: RegExpExecArray | null;
 		// Reset regex to search from the beginning
 		searcher.reset(0);
 		do {
@@ -265,7 +287,7 @@ export class TextModelSearch {
 		return resultLen;
 	}
 
-	public static findNextMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch {
+	public static findNextMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch | null {
 		const searchData = searchParams.parseSearchRequest();
 		if (!searchData) {
 			return null;
@@ -279,7 +301,7 @@ export class TextModelSearch {
 		return this._doFindNextMatchLineByLine(model, searchStart, searcher, captureMatches);
 	}
 
-	private static _doFindNextMatchMultiline(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch {
+	private static _doFindNextMatchMultiline(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
 		const searchTextStart = new Position(searchStart.lineNumber, 1);
 		const deltaOffset = model.getOffsetAt(searchTextStart);
 		const lineCount = model.getLineCount();
@@ -287,11 +309,12 @@ export class TextModelSearch {
 		// This makes it that \n will match the EOL for both CRLF and LF models
 		// We compensate for offset errors in `_getMultilineMatchRange`
 		const text = model.getValueInRange(new Range(searchTextStart.lineNumber, searchTextStart.column, lineCount, model.getLineMaxColumn(lineCount)), EndOfLinePreference.LF);
+		const lfCounter = (model.getEOL() === '\r\n' ? new LineFeedCounter(text) : null);
 		searcher.reset(searchStart.column - 1);
-		let m = searcher.next(text);
+		const m = searcher.next(text);
 		if (m) {
 			return createFindMatch(
-				this._getMultilineMatchRange(model, deltaOffset, text, m.index, m[0]),
+				this._getMultilineMatchRange(model, deltaOffset, text, lfCounter, m.index, m[0]),
 				m,
 				captureMatches
 			);
@@ -305,7 +328,7 @@ export class TextModelSearch {
 		return null;
 	}
 
-	private static _doFindNextMatchLineByLine(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch {
+	private static _doFindNextMatchLineByLine(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
 		const lineCount = model.getLineCount();
 		const startLineNumber = searchStart.lineNumber;
 
@@ -328,10 +351,10 @@ export class TextModelSearch {
 		return null;
 	}
 
-	private static _findFirstMatchInLine(searcher: Searcher, text: string, lineNumber: number, fromColumn: number, captureMatches: boolean): FindMatch {
+	private static _findFirstMatchInLine(searcher: Searcher, text: string, lineNumber: number, fromColumn: number, captureMatches: boolean): FindMatch | null {
 		// Set regex to search from column
 		searcher.reset(fromColumn - 1);
-		const m: RegExpExecArray = searcher.next(text);
+		const m: RegExpExecArray | null = searcher.next(text);
 		if (m) {
 			return createFindMatch(
 				new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length),
@@ -342,7 +365,7 @@ export class TextModelSearch {
 		return null;
 	}
 
-	public static findPreviousMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch {
+	public static findPreviousMatch(model: TextModel, searchParams: SearchParams, searchStart: Position, captureMatches: boolean): FindMatch | null {
 		const searchData = searchParams.parseSearchRequest();
 		if (!searchData) {
 			return null;
@@ -356,7 +379,7 @@ export class TextModelSearch {
 		return this._doFindPreviousMatchLineByLine(model, searchStart, searcher, captureMatches);
 	}
 
-	private static _doFindPreviousMatchMultiline(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch {
+	private static _doFindPreviousMatchMultiline(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
 		const matches = this._doFindMatchesMultiline(model, new Range(1, 1, searchStart.lineNumber, searchStart.column), searcher, captureMatches, 10 * LIMIT_FIND_COUNT);
 		if (matches.length > 0) {
 			return matches[matches.length - 1];
@@ -371,7 +394,7 @@ export class TextModelSearch {
 		return null;
 	}
 
-	private static _doFindPreviousMatchLineByLine(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch {
+	private static _doFindPreviousMatchLineByLine(model: TextModel, searchStart: Position, searcher: Searcher, captureMatches: boolean): FindMatch | null {
 		const lineCount = model.getLineCount();
 		const startLineNumber = searchStart.lineNumber;
 
@@ -394,9 +417,9 @@ export class TextModelSearch {
 		return null;
 	}
 
-	private static _findLastMatchInLine(searcher: Searcher, text: string, lineNumber: number, captureMatches: boolean): FindMatch {
-		let bestResult: FindMatch = null;
-		let m: RegExpExecArray;
+	private static _findLastMatchInLine(searcher: Searcher, text: string, lineNumber: number, captureMatches: boolean): FindMatch | null {
+		let bestResult: FindMatch | null = null;
+		let m: RegExpExecArray | null;
 		searcher.reset(0);
 		while ((m = searcher.next(text))) {
 			bestResult = createFindMatch(new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length), m, captureMatches);
@@ -414,6 +437,11 @@ function leftIsWordBounday(wordSeparators: WordCharacterClassifier, text: string
 	const charBefore = text.charCodeAt(matchStartIndex - 1);
 	if (wordSeparators.get(charBefore) !== WordCharacterClass.Regular) {
 		// The character before the match is a word separator
+		return true;
+	}
+
+	if (charBefore === CharCode.CarriageReturn || charBefore === CharCode.LineFeed) {
+		// The character before the match is line break or carriage return.
 		return true;
 	}
 
@@ -440,6 +468,11 @@ function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: strin
 		return true;
 	}
 
+	if (charAfter === CharCode.CarriageReturn || charAfter === CharCode.LineFeed) {
+		// The character after the match is line break or carriage return.
+		return true;
+	}
+
 	if (matchLength > 0) {
 		const lastCharInMatch = text.charCodeAt(matchStartIndex + matchLength - 1);
 		if (wordSeparators.get(lastCharInMatch) !== WordCharacterClass.Regular) {
@@ -451,20 +484,20 @@ function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: strin
 	return false;
 }
 
-function isValidMatch(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
+export function isValidMatch(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
 	return (
 		leftIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
 		&& rightIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
 	);
 }
 
-class Searcher {
-	private _wordSeparators: WordCharacterClassifier;
-	private _searchRegex: RegExp;
+export class Searcher {
+	public readonly _wordSeparators: WordCharacterClassifier | null;
+	private readonly _searchRegex: RegExp;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
 
-	constructor(wordSeparators: WordCharacterClassifier, searchRegex: RegExp, ) {
+	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
 		this._prevMatchStartIndex = -1;
@@ -477,10 +510,10 @@ class Searcher {
 		this._prevMatchLength = 0;
 	}
 
-	public next(text: string): RegExpExecArray {
+	public next(text: string): RegExpExecArray | null {
 		const textLength = text.length;
 
-		let m: RegExpExecArray;
+		let m: RegExpExecArray | null;
 		do {
 			if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
 				// Reached the end of the line
@@ -495,6 +528,16 @@ class Searcher {
 			const matchStartIndex = m.index;
 			const matchLength = m[0].length;
 			if (matchStartIndex === this._prevMatchStartIndex && matchLength === this._prevMatchLength) {
+				if (matchLength === 0) {
+					// the search result is an empty string and won't advance `regex.lastIndex`, so `regex.exec` will stuck here
+					// we attempt to recover from that by advancing by two if surrogate pair found and by one otherwise
+					if (strings.getNextCodePoint(text, textLength, this._searchRegex.lastIndex) > 0xFFFF) {
+						this._searchRegex.lastIndex += 2;
+					} else {
+						this._searchRegex.lastIndex += 1;
+					}
+					continue;
+				}
 				// Exit early if the regex matches the same range twice
 				return null;
 			}

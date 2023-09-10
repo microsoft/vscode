@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "language-php",
+					"repositoryUrl": "https://github.com/KapitanOczywisty/language-php",
+					"commitHash": "5e8f000cb5a20f44f7a7a89d07ad0774031c53f3"
+				}
+			},
+			"license": "MIT",
+			"version": "0.49.0"
+		}
+	],
+	"version": 1
+}

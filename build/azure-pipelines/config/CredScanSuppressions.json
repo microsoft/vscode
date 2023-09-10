@@ -1,0 +1,11 @@
+{
+	"tool": "Credential Scanner",
+	"suppressions": [
+		{
+			"file": [
+				"src/vs/base/test/common/uri.test.ts"
+			],
+			"_justification": "These are not passwords, they are URIs."
+		}
+	]
+}

@@ -1,5 +1,7 @@
 src/**
 test/**
-out/test/**
+out/**
 tsconfig.json
-npm-shrinkwrap.json
+build/**
+extension.webpack.config.js
+yarn.lock

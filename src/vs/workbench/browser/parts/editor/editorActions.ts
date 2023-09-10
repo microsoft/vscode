@@ -2,1528 +2,2402 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { mixin } from 'vs/base/common/objects';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
-import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { firstOrDefault } from 'vs/base/common/arrays';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
+import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorGroupEmptyContext } from 'vs/workbench/common/contextkeys';
 
-export class SplitEditorAction extends Action {
-
-	public static ID = 'workbench.action.splitEditor';
-	public static LABEL = nls.localize('splitEditor', "Split Editor");
+class ExecuteCommandAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		desc: Readonly<IAction2Options>,
+		private readonly commandId: string,
+		private readonly commandArgs?: unknown
 	) {
-		super(id, label, 'split-editor-action');
+		super(desc);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
-		let editorToSplit: IEditor;
-		if (context) {
-			editorToSplit = this.editorService.getVisibleEditors()[this.editorGroupService.getStacksModel().positionOfGroup(context.group)];
-		} else {
-			editorToSplit = this.editorService.getActiveEditor();
-		}
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
 
-		// Can only split with target editor
-		if (!editorToSplit) {
-			return TPromise.as(true);
-		}
-
-		// Return if the editor to split does not support split editing
-		if (editorToSplit.input instanceof EditorInput && !(<EditorInput>editorToSplit.input).supportsSplitEditor()) {
-			return TPromise.as(true);
-		}
-
-		// Options
-		let options: EditorOptions;
-		const codeEditor = getCodeEditor(editorToSplit);
-		if (codeEditor) {
-			options = TextEditorOptions.fromEditor(codeEditor);
-		} else {
-			options = new EditorOptions();
-		}
-		options.pinned = true;
-
-		// Count editors
-		const visibleEditors = this.editorService.getVisibleEditors();
-		const editorCount = visibleEditors.length;
-		let targetPosition: Position;
-
-		switch (editorCount) {
-
-			// Open split editor to the right/bottom of left/top one
-			case 1:
-				targetPosition = Position.TWO;
-				break;
-
-			// Special case two editors opened
-			case 2:
-
-				// Continue splitting to the right/bottom
-				if (editorToSplit.position === Position.TWO) {
-					targetPosition = Position.THREE;
-				}
-
-				// Push the second group to the right/bottom to make room for the splitted input
-				else if (editorToSplit.position === Position.ONE) {
-					options.preserveFocus = true;
-
-					return this.editorService.openEditor(editorToSplit.input, options, Position.THREE).then(() => {
-						this.editorGroupService.moveGroup(Position.THREE, Position.TWO);
-						this.editorGroupService.focusGroup(Position.TWO);
-					});
-				}
-		}
-
-		// Only split if we have a target position to split to
-		if (typeof targetPosition === 'number') {
-			return this.editorService.openEditor(editorToSplit.input, options, targetPosition);
-		}
-
-		return TPromise.as(true);
+		return commandService.executeCommand(this.commandId, this.commandArgs);
 	}
 }
 
-export class JoinTwoGroupsAction extends Action {
+abstract class AbstractSplitEditorAction extends Action2 {
 
-	public static ID = 'workbench.action.joinTwoGroups';
-	public static LABEL = nls.localize('joinTwoGroups', "Join Editors of Two Groups");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
-	) {
-		super(id, label);
+	protected getDirection(configurationService: IConfigurationService): GroupDirection {
+		return preferredSideBySideGroupDirection(configurationService);
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
+	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
 
-		const editorStacksModel = this.editorGroupService.getStacksModel();
+		splitEditor(editorGroupService, this.getDirection(configurationService), context);
+	}
+}
 
-		// Return if has no other group to join to
-		if (editorStacksModel.groups.length < 2) {
-			return TPromise.as(true);
-		}
+export class SplitEditorAction extends AbstractSplitEditorAction {
 
-		let fromPosition: number;
-		let toPosition: number;
+	static readonly ID = 'workbench.action.splitEditor';
 
-		// Joining group is from context, or the active group
-		if (context) {
-			fromPosition = editorStacksModel.positionOfGroup(context.group);
-		} else {
-			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.activeGroup);
-		}
-
-		// Target group is next group if joining from position one, otherwise it is the previous group
-		if (fromPosition === Position.ONE) {
-			toPosition = fromPosition + 1;
-		} else {
-			toPosition = fromPosition - 1;
-		}
-
-		const fromGroup = editorStacksModel.groupAt(fromPosition);
-		const toGroup = editorStacksModel.groupAt(toPosition);
-
-		const activeEditor = fromGroup.activeEditor;
-		const fromGroupEditors = fromGroup.getEditors();
-
-		// Insert the editors to the start if moving to the next group, otherwise insert to the end
-		// If an editor exists in both groups, its index is respected as in the joining group
-		const movingToNextGroup = fromPosition < toPosition;
-		let index = movingToNextGroup ? 0 : toGroup.count;
-
-		// Inactive and preserve focus options are used to prevent unnecessary switchings of active editor or group
-		fromGroupEditors.forEach(e => {
-			const inactive = e !== activeEditor;
-			this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index, inactive, preserveFocus: inactive });
-			index = movingToNextGroup ? index + 1 : toGroup.count;
+	constructor() {
+		super({
+			id: SplitEditorAction.ID,
+			title: { value: localize('splitEditor', "Split Editor"), original: 'Split Editor' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Backslash
+			},
+			category: Categories.View
 		});
-
-		// Focus may be lost when the joining group is closed, regain focus on the target group
-		this.editorGroupService.focusGroup(toGroup);
-
-		return TPromise.as(true);
 	}
 }
 
-export class NavigateBetweenGroupsAction extends Action {
+export class SplitEditorOrthogonalAction extends AbstractSplitEditorAction {
 
-	public static ID = 'workbench.action.navigateEditorGroups';
-	public static LABEL = nls.localize('navigateEditorGroups', "Navigate Between Editor Groups");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorOrthogonal',
+			title: { value: localize('splitEditorOrthogonal', "Split Editor Orthogonal"), original: 'Split Editor Orthogonal' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash)
+			},
+			category: Categories.View
+		});
 	}
 
-	public run(): TPromise<any> {
+	protected override getDirection(configurationService: IConfigurationService): GroupDirection {
+		const direction = preferredSideBySideGroupDirection(configurationService);
 
-		// Can cycle split with active editor
-		const activeEditor = this.editorService.getActiveEditor();
-		if (!activeEditor) {
-			return TPromise.as(false);
-		}
-
-		// Cycle to the left/top and use module to start at 0 again
-		const visibleEditors = this.editorService.getVisibleEditors();
-		const editorCount = visibleEditors.length;
-		const newIndex = (activeEditor.position + 1) % editorCount;
-
-		this.editorGroupService.focusGroup(<Position>newIndex);
-
-		return TPromise.as(true);
+		return direction === GroupDirection.RIGHT ? GroupDirection.DOWN : GroupDirection.RIGHT;
 	}
 }
 
-export class FocusActiveGroupAction extends Action {
+export class SplitEditorLeftAction extends ExecuteCommandAction {
 
-	public static ID = 'workbench.action.focusActiveEditorGroup';
-	public static LABEL = nls.localize('focusActiveEditorGroup', "Focus Active Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			activeEditor.focus();
-		}
-
-		return TPromise.as(true);
+	constructor() {
+		super({
+			id: SPLIT_EDITOR_LEFT,
+			title: { value: localize('splitEditorGroupLeft', "Split Editor Left"), original: 'Split Editor Left' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash)
+			},
+			category: Categories.View
+		}, SPLIT_EDITOR_LEFT);
 	}
 }
 
-export class FocusFirstGroupAction extends Action {
+export class SplitEditorRightAction extends ExecuteCommandAction {
 
-	public static ID = 'workbench.action.focusFirstEditorGroup';
-	public static LABEL = nls.localize('focusFirstEditorGroup', "Focus First Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IHistoryService private historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-
-		// Find left/top editor and focus it
-		const editors = this.editorService.getVisibleEditors();
-		for (let editor of editors) {
-			if (editor.position === Position.ONE) {
-				this.editorGroupService.focusGroup(Position.ONE);
-
-				return TPromise.as(true);
-			}
-		}
-
-		// Since no editor is currently opened, try to open last history entry to the target side
-		const history = this.historyService.getHistory();
-		if (history.length > 0) {
-			const input = history[0];
-			if (input instanceof EditorInput) {
-				return this.editorService.openEditor(input, null, Position.ONE);
-			}
-
-			return this.editorService.openEditor(input as IResourceInput, Position.ONE);
-		}
-
-		return TPromise.as(true);
+	constructor() {
+		super({
+			id: SPLIT_EDITOR_RIGHT,
+			title: { value: localize('splitEditorGroupRight', "Split Editor Right"), original: 'Split Editor Right' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash)
+			},
+			category: Categories.View
+		}, SPLIT_EDITOR_RIGHT);
 	}
 }
 
-export abstract class BaseFocusSideGroupAction extends Action {
+export class SplitEditorUpAction extends ExecuteCommandAction {
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IHistoryService private historyService: IHistoryService
-	) {
-		super(id, label);
+	static readonly LABEL = localize('splitEditorGroupUp', "Split Editor Up");
+
+	constructor() {
+		super({
+			id: SPLIT_EDITOR_UP,
+			title: { value: localize('splitEditorGroupUp', "Split Editor Up"), original: 'Split Editor Up' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash)
+			},
+			category: Categories.View
+		}, SPLIT_EDITOR_UP);
+	}
+}
+
+export class SplitEditorDownAction extends ExecuteCommandAction {
+
+	static readonly LABEL = localize('splitEditorGroupDown', "Split Editor Down");
+
+	constructor() {
+		super({
+			id: SPLIT_EDITOR_DOWN,
+			title: { value: localize('splitEditorGroupDown', "Split Editor Down"), original: 'Split Editor Down' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Backslash)
+			},
+			category: Categories.View
+		}, SPLIT_EDITOR_DOWN);
+	}
+}
+
+export class JoinTwoGroupsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.joinTwoGroups',
+			title: { value: localize('joinTwoGroups', "Join Editor Group with Next Group"), original: 'Join Editor Group with Next Group' },
+			f1: true,
+			category: Categories.View
+		});
 	}
 
-	protected abstract getReferenceEditorSide(): Position;
+	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
 
-	protected abstract getTargetEditorSide(): Position;
-
-	public run(): TPromise<any> {
-
-		// Require at least the reference editor to be visible
-		const editors = this.editorService.getVisibleEditors();
-		let referenceEditor: IEditor;
-		for (let i = 0; i < editors.length; i++) {
-			const editor = editors[i];
-
-			// Target editor exists so focus it
-			if (editor.position === this.getTargetEditorSide()) {
-				this.editorGroupService.focusGroup(editor.position);
-
-				return TPromise.as(true);
-			}
-
-			// Remember reference editor
-			if (editor.position === this.getReferenceEditorSide()) {
-				referenceEditor = editor;
-			}
+		let sourceGroup: IEditorGroup | undefined;
+		if (context && typeof context.groupId === 'number') {
+			sourceGroup = editorGroupService.getGroup(context.groupId);
+		} else {
+			sourceGroup = editorGroupService.activeGroup;
 		}
 
-		// Require the reference editor to be visible and supporting split editor
-		if (referenceEditor && (<EditorInput>referenceEditor.input).supportsSplitEditor()) {
+		if (sourceGroup) {
+			const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
+			for (const targetGroupDirection of targetGroupDirections) {
+				const targetGroup = editorGroupService.findGroup({ direction: targetGroupDirection }, sourceGroup);
+				if (targetGroup && sourceGroup !== targetGroup) {
+					editorGroupService.mergeGroup(sourceGroup, targetGroup);
 
-			// Options
-			let options: EditorOptions;
-			const codeEditor = getCodeEditor(referenceEditor);
-			if (codeEditor) {
-				options = TextEditorOptions.fromEditor(codeEditor, { pinned: true });
-			} else {
-				options = EditorOptions.create({ pinned: true });
-			}
-
-			return this.editorService.openEditor(referenceEditor.input, options, this.getTargetEditorSide());
-		}
-
-		// Otherwise try to find a history entry to open to the target editor side
-		else if (referenceEditor) {
-			const history = this.historyService.getHistory();
-			for (let input of history) {
-				if (input instanceof EditorInput && input.supportsSplitEditor()) {
-					return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+					break;
 				}
-
-				return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 			}
 		}
-
-		return TPromise.as(true);
 	}
 }
 
-export class FocusSecondGroupAction extends BaseFocusSideGroupAction {
+export class JoinAllGroupsAction extends Action2 {
 
-	public static ID = 'workbench.action.focusSecondEditorGroup';
-	public static LABEL = nls.localize('focusSecondEditorGroup', "Focus Second Editor Group");
+	constructor() {
+		super({
+			id: 'workbench.action.joinAllGroups',
+			title: { value: localize('joinAllGroups', "Join All Editor Groups"), original: 'Join All Editor Groups' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.mergeAllGroups();
+	}
+}
+
+export class NavigateBetweenGroupsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateEditorGroups',
+			title: { value: localize('navigateEditorGroups', "Navigate Between Editor Groups"), original: 'Navigate Between Editor Groups' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const nextGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, editorGroupService.activeGroup, true);
+		nextGroup?.focus();
+	}
+}
+
+export class FocusActiveGroupAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.focusActiveEditorGroup',
+			title: { value: localize('focusActiveEditorGroup', "Focus Active Editor Group"), original: 'Focus Active Editor Group' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.activeGroup.focus();
+	}
+}
+
+abstract class AbstractFocusGroupAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IHistoryService historyService: IHistoryService
+		desc: Readonly<IAction2Options>,
+		private readonly scope: IFindGroupScope
 	) {
-		super(id, label, editorService, editorGroupService, historyService);
+		super(desc);
 	}
 
-	protected getReferenceEditorSide(): Position {
-		return Position.ONE;
-	}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
 
-	protected getTargetEditorSide(): Position {
-		return Position.TWO;
+		const group = editorGroupService.findGroup(this.scope, editorGroupService.activeGroup, true);
+		group?.focus();
 	}
 }
 
-export class FocusThirdGroupAction extends BaseFocusSideGroupAction {
+export class FocusFirstGroupAction extends AbstractFocusGroupAction {
 
-	public static ID = 'workbench.action.focusThirdEditorGroup';
-	public static LABEL = nls.localize('focusThirdEditorGroup', "Focus Third Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IHistoryService historyService: IHistoryService
-	) {
-		super(id, label, editorService, editorGroupService, historyService);
-	}
-
-	protected getReferenceEditorSide(): Position {
-		return Position.TWO;
-	}
-
-	protected getTargetEditorSide(): Position {
-		return Position.THREE;
+	constructor() {
+		super({
+			id: 'workbench.action.focusFirstEditorGroup',
+			title: { value: localize('focusFirstEditorGroup', "Focus First Editor Group"), original: 'Focus First Editor Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Digit1
+			},
+			category: Categories.View
+		}, { location: GroupLocation.FIRST });
 	}
 }
 
-export class FocusPreviousGroup extends Action {
+export class FocusLastGroupAction extends AbstractFocusGroupAction {
 
-	public static ID = 'workbench.action.focusPreviousGroup';
-	public static LABEL = nls.localize('focusPreviousGroup', "Focus Previous Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-
-		// Require an active editor
-		const activeEditor = this.editorService.getActiveEditor();
-		if (!activeEditor) {
-			return TPromise.as(true);
-		}
-
-		const stacks = this.editorGroupService.getStacksModel();
-		const groupCount = stacks.groups.length;
-
-		// Nothing to do if the only group
-		if (groupCount === 1) {
-			return TPromise.as(true);
-		}
-
-		// Nevigate to the previous group or to the last group if the first group is active
-		const newPositionIndex = (activeEditor.position + groupCount - 1) % groupCount;
-		this.editorGroupService.focusGroup(<Position>newPositionIndex);
-
-		return TPromise.as(true);
+	constructor() {
+		super({
+			id: 'workbench.action.focusLastEditorGroup',
+			title: { value: localize('focusLastEditorGroup', "Focus Last Editor Group"), original: 'Focus Last Editor Group' },
+			f1: true,
+			category: Categories.View
+		}, { location: GroupLocation.LAST });
 	}
 }
 
-export class FocusNextGroup extends Action {
+export class FocusNextGroup extends AbstractFocusGroupAction {
 
-	public static ID = 'workbench.action.focusNextGroup';
-	public static LABEL = nls.localize('focusNextGroup', "Focus Next Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-
-		const activeEditor = this.editorService.getActiveEditor();
-
-		if (!activeEditor) {
-			return TPromise.as(true);
-		}
-
-		const stacks = this.editorGroupService.getStacksModel();
-		const groupCount = stacks.groups.length;
-
-		// Nowhere to switch if the only group
-		if (groupCount === 1) {
-			return TPromise.as(true);
-		}
-
-		// Nevigate to the next group or to the first group if the last group is active
-		const newPositionIndex = (activeEditor.position + 1) % groupCount;
-		this.editorGroupService.focusGroup(<Position>newPositionIndex);
-
-		return TPromise.as(true);
+	constructor() {
+		super({
+			id: 'workbench.action.focusNextGroup',
+			title: { value: localize('focusNextGroup', "Focus Next Editor Group"), original: 'Focus Next Editor Group' },
+			f1: true,
+			category: Categories.View
+		}, { location: GroupLocation.NEXT });
 	}
 }
 
-export class OpenToSideAction extends Action {
+export class FocusPreviousGroup extends AbstractFocusGroupAction {
 
-	public static OPEN_TO_SIDE_ID = 'workbench.action.openToSide';
-	public static OPEN_TO_SIDE_LABEL = nls.localize('openToSide', "Open to the Side");
-
-	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
-	) {
-		super(OpenToSideAction.OPEN_TO_SIDE_ID, OpenToSideAction.OPEN_TO_SIDE_LABEL);
-
-		this.updateEnablement();
-		this.updateClass();
-	}
-
-	public updateClass(): void {
-		const editorGroupLayoutVertical = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
-
-		this.class = editorGroupLayoutVertical ? 'quick-open-sidebyside-vertical' : 'quick-open-sidebyside-horizontal';
-	}
-
-	private updateEnablement(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
-	}
-
-	public run(context: any): TPromise<any> {
-		let entry = toEditorQuickOpenEntry(context);
-		if (entry) {
-			const input = entry.getInput();
-			if (input instanceof EditorInput) {
-				return this.editorService.openEditor(input, entry.getOptions(), true);
-			}
-
-			const resourceInput = input as IResourceInput;
-			resourceInput.options = mixin(resourceInput.options, entry.getOptions());
-
-			return this.editorService.openEditor(resourceInput, true);
-		}
-
-		return TPromise.as(false);
+	constructor() {
+		super({
+			id: 'workbench.action.focusPreviousGroup',
+			title: { value: localize('focusPreviousGroup', "Focus Previous Editor Group"), original: 'Focus Previous Editor Group' },
+			f1: true,
+			category: Categories.View
+		}, { location: GroupLocation.PREVIOUS });
 	}
 }
 
-export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
+export class FocusLeftGroup extends AbstractFocusGroupAction {
 
-	// QuickOpenEntryGroup
-	if (element instanceof QuickOpenEntryGroup) {
-		const group = <QuickOpenEntryGroup>element;
-		if (group.getEntry()) {
-			element = group.getEntry();
-		}
+	constructor() {
+		super({
+			id: 'workbench.action.focusLeftGroup',
+			title: { value: localize('focusLeftGroup', "Focus Left Editor Group"), original: 'Focus Left Editor Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.LeftArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.LEFT });
 	}
+}
 
-	// EditorQuickOpenEntry or EditorQuickOpenEntryGroup both implement IEditorQuickOpenEntry
-	if (element instanceof EditorQuickOpenEntry || element instanceof EditorQuickOpenEntryGroup) {
-		return element;
+export class FocusRightGroup extends AbstractFocusGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.focusRightGroup',
+			title: { value: localize('focusRightGroup', "Focus Right Editor Group"), original: 'Focus Right Editor Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.RightArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.RIGHT });
 	}
+}
 
-	return null;
+export class FocusAboveGroup extends AbstractFocusGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.focusAboveGroup',
+			title: { value: localize('focusAboveGroup', "Focus Editor Group Above"), original: 'Focus Editor Group Above' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.UpArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.UP });
+	}
+}
+
+export class FocusBelowGroup extends AbstractFocusGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.focusBelowGroup',
+			title: { value: localize('focusBelowGroup', "Focus Editor Group Below"), original: 'Focus Editor Group Below' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.DownArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.DOWN });
+	}
 }
 
 export class CloseEditorAction extends Action {
 
-	public static ID = 'workbench.action.closeActiveEditor';
-	public static LABEL = nls.localize('closeEditor', "Close Editor");
+	static readonly ID = 'workbench.action.closeActiveEditor';
+	static readonly LABEL = localize('closeEditor', "Close Editor");
 
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'close-editor-action');
+		super(id, label, ThemeIcon.asClassName(Codicon.close));
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
-		const position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+	override run(context?: IEditorCommandsContext): Promise<void> {
+		return this.commandService.executeCommand(CLOSE_EDITOR_COMMAND_ID, undefined, context);
+	}
+}
 
-		// Close Active Editor
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
+export class UnpinEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.unpinActiveEditor';
+	static readonly LABEL = localize('unpinEditor', "Unpin Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super(id, label, ThemeIcon.asClassName(Codicon.pinned));
+	}
+
+	override run(context?: IEditorCommandsContext): Promise<void> {
+		return this.commandService.executeCommand(UNPIN_EDITOR_COMMAND_ID, undefined, context);
+	}
+}
+
+export class CloseOneEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.closeActiveEditor';
+	static readonly LABEL = localize('closeOneEditor', "Close");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, ThemeIcon.asClassName(Codicon.close));
+	}
+
+	override async run(context?: IEditorCommandsContext): Promise<void> {
+		let group: IEditorGroup | undefined;
+		let editorIndex: number | undefined;
+		if (context) {
+			group = this.editorGroupService.getGroup(context.groupId);
+
+			if (group) {
+				editorIndex = context.editorIndex; // only allow editor at index if group is valid
 			}
 		}
 
-		let input = context ? context.editor : null;
-		if (!input) {
+		if (!group) {
+			group = this.editorGroupService.activeGroup;
+		}
 
-			// Get Top Editor at Position
-			const visibleEditors = this.editorService.getVisibleEditors();
-			if (visibleEditors[position]) {
-				input = visibleEditors[position].input;
+		// Close specific editor in group
+		if (typeof editorIndex === 'number') {
+			const editorAtIndex = group.getEditorByIndex(editorIndex);
+			if (editorAtIndex) {
+				await group.closeEditor(editorAtIndex, { preserveFocus: context?.preserveFocus });
+				return;
 			}
 		}
 
-		if (input) {
-			return this.editorService.closeEditor(position, input);
+		// Otherwise close active editor in group
+		if (group.activeEditor) {
+			await group.closeEditor(group.activeEditor, { preserveFocus: context?.preserveFocus });
+			return;
 		}
-
-		return TPromise.as(false);
 	}
 }
 
-export class RevertAndCloseEditorAction extends Action {
+export class RevertAndCloseEditorAction extends Action2 {
 
-	public static ID = 'workbench.action.revertAndCloseActiveEditor';
-	public static LABEL = nls.localize('revertAndCloseActiveEditor', "Revert and Close Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.revertAndCloseActiveEditor',
+			title: { value: localize('revertAndCloseActiveEditor', "Revert and Close Editor"), original: 'Revert and Close Editor' },
+			f1: true,
+			category: Categories.View
+		});
 	}
 
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.input) {
-			const input = activeEditor.input;
-			const position = activeEditor.position;
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
 
-			return activeEditor.input.revert().then(ok =>
-				this.editorService.closeEditor(position, input)
-			);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (activeEditorPane) {
+			const editor = activeEditorPane.input;
+			const group = activeEditorPane.group;
+
+			// first try a normal revert where the contents of the editor are restored
+			try {
+				await editorService.revert({ editor, groupId: group.id });
+			} catch (error) {
+				logService.error(error);
+
+				// if that fails, since we are about to close the editor, we accept that
+				// the editor cannot be reverted and instead do a soft revert that just
+				// enables us to close the editor. With this, a user can always close a
+				// dirty editor even when reverting fails.
+
+				await editorService.revert({ editor, groupId: group.id }, { soft: true });
+			}
+
+			await group.closeEditor(editor);
 		}
-
-		return TPromise.as(false);
 	}
 }
 
-export class CloseLeftEditorsInGroupAction extends Action {
+export class CloseLeftEditorsInGroupAction extends Action2 {
 
-	public static ID = 'workbench.action.closeEditorsToTheLeft';
-	public static LABEL = nls.localize('closeEditorsToTheLeft', "Close Editors to the Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private groupService: IEditorGroupService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.closeEditorsToTheLeft',
+			title: { value: localize('closeEditorsToTheLeft', "Close Editors to the Left in Group"), original: 'Close Editors to the Left in Group' },
+			f1: true,
+			category: Categories.View
+		});
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
-		const editor = getTarget(this.editorService, this.groupService, context);
-		if (editor) {
-			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.LEFT });
+	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const { group, editor } = this.getTarget(editorGroupService, context);
+		if (group && editor) {
+			await group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
+		}
+	}
+
+	private getTarget(editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: EditorInput | null; group: IEditorGroup | undefined } {
+		if (context) {
+			return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
 		}
 
-		return TPromise.as(false);
+		// Fallback to active group
+		return { group: editorGroupService.activeGroup, editor: editorGroupService.activeGroup.activeEditor };
 	}
 }
 
-export class CloseRightEditorsInGroupAction extends Action {
+abstract class AbstractCloseAllAction extends Action2 {
 
-	public static ID = 'workbench.action.closeEditorsToTheRight';
-	public static LABEL = nls.localize('closeEditorsToTheRight', "Close Editors to the Right");
+	protected groupsToClose(editorGroupService: IEditorGroupsService): IEditorGroup[] {
+		const groupsToClose: IEditorGroup[] = [];
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private groupService: IEditorGroupService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const editor = getTarget(this.editorService, this.groupService, context);
-		if (editor) {
-			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: Direction.RIGHT });
+		// Close editors in reverse order of their grid appearance so that the editor
+		// group that is the first (top-left) remains. This helps to keep view state
+		// for editors around that have been opened in this visually first group.
+		const groups = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
+		for (let i = groups.length - 1; i >= 0; i--) {
+			groupsToClose.push(groups[i]);
 		}
 
-		return TPromise.as(false);
+		return groupsToClose;
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const filesConfigurationService = accessor.get(IFilesConfigurationService);
+		const fileDialogService = accessor.get(IFileDialogService);
+
+		// Depending on the editor and auto save configuration,
+		// split editors into buckets for handling confirmation
+
+		const dirtyEditorsWithDefaultConfirm = new Set<IEditorIdentifier>();
+		const dirtyAutoSaveOnFocusChangeEditors = new Set<IEditorIdentifier>();
+		const dirtyAutoSaveOnWindowChangeEditors = new Set<IEditorIdentifier>();
+		const editorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
+
+		for (const { editor, groupId } of editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
+			let confirmClose = false;
+			if (editor.closeHandler) {
+				confirmClose = editor.closeHandler.showConfirm(); // custom handling of confirmation on close
+			} else {
+				confirmClose = editor.isDirty() && !editor.isSaving(); // default confirm only when dirty and not saving
+			}
+
+			if (!confirmClose) {
+				continue;
+			}
+
+			// Editor has custom confirm implementation
+			if (typeof editor.closeHandler?.confirm === 'function') {
+				let customEditorsToConfirm = editorsWithCustomConfirm.get(editor.typeId);
+				if (!customEditorsToConfirm) {
+					customEditorsToConfirm = new Set();
+					editorsWithCustomConfirm.set(editor.typeId, customEditorsToConfirm);
+				}
+
+				customEditorsToConfirm.add({ editor, groupId });
+			}
+
+			// Editor will be saved on focus change when a
+			// dialog appears, so just track that separate
+			else if (filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+				dirtyAutoSaveOnFocusChangeEditors.add({ editor, groupId });
+			}
+
+			// Windows, Linux: editor will be saved on window change
+			// when a native dialog appears, so just track that separate
+			// (see https://github.com/microsoft/vscode/issues/134250)
+			else if ((isNative && (isWindows || isLinux)) && filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+				dirtyAutoSaveOnWindowChangeEditors.add({ editor, groupId });
+			}
+
+			// Editor will show in generic file based dialog
+			else {
+				dirtyEditorsWithDefaultConfirm.add({ editor, groupId });
+			}
+		}
+
+		// 1.) Show default file based dialog
+		if (dirtyEditorsWithDefaultConfirm.size > 0) {
+			const editors = Array.from(dirtyEditorsWithDefaultConfirm.values());
+
+			await this.revealEditorsToConfirm(editors, editorGroupService); // help user make a decision by revealing editors
+
+			const confirmation = await fileDialogService.showSaveConfirm(editors.map(({ editor }) => {
+				if (editor instanceof SideBySideEditorInput) {
+					return editor.primary.getName(); // prefer shorter names by using primary's name in this case
+				}
+
+				return editor.getName();
+			}));
+
+			switch (confirmation) {
+				case ConfirmResult.CANCEL:
+					return;
+				case ConfirmResult.DONT_SAVE:
+					await editorService.revert(editors, { soft: true });
+					break;
+				case ConfirmResult.SAVE:
+					await editorService.save(editors, { reason: SaveReason.EXPLICIT });
+					break;
+			}
+		}
+
+		// 2.) Show custom confirm based dialog
+		for (const [, editorIdentifiers] of editorsWithCustomConfirm) {
+			const editors = Array.from(editorIdentifiers.values());
+
+			await this.revealEditorsToConfirm(editors, editorGroupService); // help user make a decision by revealing editors
+
+			const confirmation = await firstOrDefault(editors)?.editor.closeHandler?.confirm?.(editors);
+			if (typeof confirmation === 'number') {
+				switch (confirmation) {
+					case ConfirmResult.CANCEL:
+						return;
+					case ConfirmResult.DONT_SAVE:
+						await editorService.revert(editors, { soft: true });
+						break;
+					case ConfirmResult.SAVE:
+						await editorService.save(editors, { reason: SaveReason.EXPLICIT });
+						break;
+				}
+			}
+		}
+
+		// 3.) Save autosaveable editors (focus change)
+		if (dirtyAutoSaveOnFocusChangeEditors.size > 0) {
+			const editors = Array.from(dirtyAutoSaveOnFocusChangeEditors.values());
+
+			await editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
+		}
+
+		// 4.) Save autosaveable editors (window change)
+		if (dirtyAutoSaveOnWindowChangeEditors.size > 0) {
+			const editors = Array.from(dirtyAutoSaveOnWindowChangeEditors.values());
+
+			await editorService.save(editors, { reason: SaveReason.WINDOW_CHANGE });
+		}
+
+		// 5.) Finally close all editors: even if an editor failed to
+		// save or revert and still reports dirty, the editor part makes
+		// sure to bring up another confirm dialog for those editors
+		// specifically.
+		return this.doCloseAll(editorGroupService);
+	}
+
+	private async revealEditorsToConfirm(editors: ReadonlyArray<IEditorIdentifier>, editorGroupService: IEditorGroupsService): Promise<void> {
+		try {
+			const handledGroups = new Set<GroupIdentifier>();
+			for (const { editor, groupId } of editors) {
+				if (handledGroups.has(groupId)) {
+					continue;
+				}
+
+				handledGroups.add(groupId);
+
+				const group = editorGroupService.getGroup(groupId);
+				await group?.openEditor(editor);
+			}
+		} catch (error) {
+			// ignore any error as the revealing is just convinience
+		}
+	}
+
+	protected abstract get excludeSticky(): boolean;
+
+	protected async doCloseAll(editorGroupService: IEditorGroupsService): Promise<void> {
+		await Promise.all(this.groupsToClose(editorGroupService).map(group => group.closeAllEditors({ excludeSticky: this.excludeSticky })));
 	}
 }
 
-export class CloseAllEditorsAction extends Action {
+export class CloseAllEditorsAction extends AbstractCloseAllAction {
 
-	public static ID = 'workbench.action.closeAllEditors';
-	public static LABEL = nls.localize('closeAllEditors', "Close All Editors");
+	static readonly ID = 'workbench.action.closeAllEditors';
+	static readonly LABEL = { value: localize('closeAllEditors', "Close All Editors"), original: 'Close All Editors' };
 
-	constructor(
-		id: string,
-		label: string,
-		@ITextFileService private textFileService: ITextFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label, 'action-close-all-files');
+	constructor() {
+		super({
+			id: CloseAllEditorsAction.ID,
+			title: CloseAllEditorsAction.LABEL,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyW)
+			},
+			icon: Codicon.closeAll,
+			category: Categories.View
+		});
 	}
 
-	public run(): TPromise<any> {
+	protected get excludeSticky(): boolean {
+		return true; // exclude sticky from this mass-closing operation
+	}
+}
 
-		// Just close all if there are no or one dirty editor
-		if (this.textFileService.getDirty().length < 2) {
-			return this.editorService.closeAllEditors();
+export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.closeAllGroups',
+			title: { value: localize('closeAllGroups', "Close All Editor Groups"), original: 'Close All Editor Groups' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyW)
+			},
+			category: Categories.View
+		});
+	}
+
+	protected get excludeSticky(): boolean {
+		return false; // the intent to close groups means, even sticky are included
+	}
+
+	protected override async doCloseAll(editorGroupService: IEditorGroupsService): Promise<void> {
+		await super.doCloseAll(editorGroupService);
+
+		for (const groupToClose of this.groupsToClose(editorGroupService)) {
+			editorGroupService.removeGroup(groupToClose);
 		}
+	}
+}
 
-		// Otherwise ask for combined confirmation
-		const confirm = this.textFileService.confirmSave();
-		if (confirm === ConfirmResult.CANCEL) {
-			return void 0;
+export class CloseEditorsInOtherGroupsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.closeEditorsInOtherGroups',
+			title: { value: localize('closeEditorsInOtherGroups', "Close Editors in Other Groups"), original: 'Close Editors in Other Groups' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const groupToSkip = context ? editorGroupService.getGroup(context.groupId) : editorGroupService.activeGroup;
+		await Promise.all(editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async group => {
+			if (groupToSkip && group.id === groupToSkip.id) {
+				return;
+			}
+
+			return group.closeAllEditors({ excludeSticky: true });
+		}));
+	}
+}
+
+export class CloseEditorInAllGroupsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.closeEditorInAllGroups',
+			title: { value: localize('closeEditorInAllGroups', "Close Editor in All Groups"), original: 'Close Editor in All Groups' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const activeEditor = editorService.activeEditor;
+		if (activeEditor) {
+			await Promise.all(editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.closeEditor(activeEditor)));
 		}
+	}
+}
 
-		let saveOrRevertPromise: TPromise<boolean>;
-		if (confirm === ConfirmResult.DONT_SAVE) {
-			saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
+abstract class AbstractMoveCopyGroupAction extends Action2 {
+
+	constructor(
+		desc: Readonly<IAction2Options>,
+		private readonly direction: GroupDirection,
+		private readonly isMove: boolean
+	) {
+		super(desc);
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		let sourceGroup: IEditorGroup | undefined;
+		if (context && typeof context.groupId === 'number') {
+			sourceGroup = editorGroupService.getGroup(context.groupId);
 		} else {
-			saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
+			sourceGroup = editorGroupService.activeGroup;
 		}
 
-		return saveOrRevertPromise.then(success => {
-			if (success) {
-				return this.editorService.closeAllEditors();
+		if (sourceGroup) {
+			let resultGroup: IEditorGroup | undefined = undefined;
+			if (this.isMove) {
+				const targetGroup = this.findTargetGroup(editorGroupService, sourceGroup);
+				if (targetGroup) {
+					resultGroup = editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+				}
+			} else {
+				resultGroup = editorGroupService.copyGroup(sourceGroup, sourceGroup, this.direction);
 			}
 
-			return void 0;
+			if (resultGroup) {
+				editorGroupService.activateGroup(resultGroup);
+			}
+		}
+	}
+
+	private findTargetGroup(editorGroupService: IEditorGroupsService, sourceGroup: IEditorGroup): IEditorGroup | undefined {
+		const targetNeighbours: GroupDirection[] = [this.direction];
+
+		// Allow the target group to be in alternative locations to support more
+		// scenarios of moving the group to the taret location.
+		// Helps for https://github.com/microsoft/vscode/issues/50741
+		switch (this.direction) {
+			case GroupDirection.LEFT:
+			case GroupDirection.RIGHT:
+				targetNeighbours.push(GroupDirection.UP, GroupDirection.DOWN);
+				break;
+			case GroupDirection.UP:
+			case GroupDirection.DOWN:
+				targetNeighbours.push(GroupDirection.LEFT, GroupDirection.RIGHT);
+				break;
+		}
+
+		for (const targetNeighbour of targetNeighbours) {
+			const targetNeighbourGroup = editorGroupService.findGroup({ direction: targetNeighbour }, sourceGroup);
+			if (targetNeighbourGroup) {
+				return targetNeighbourGroup;
+			}
+		}
+
+		return undefined;
+	}
+}
+
+abstract class AbstractMoveGroupAction extends AbstractMoveCopyGroupAction {
+
+	constructor(
+		desc: Readonly<IAction2Options>,
+		direction: GroupDirection
+	) {
+		super(desc, direction, true);
+	}
+}
+
+export class MoveGroupLeftAction extends AbstractMoveGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupLeft',
+			title: { value: localize('moveActiveGroupLeft', "Move Editor Group Left"), original: 'Move Editor Group Left' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.LeftArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.LEFT);
+	}
+}
+
+export class MoveGroupRightAction extends AbstractMoveGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupRight',
+			title: { value: localize('moveActiveGroupRight', "Move Editor Group Right"), original: 'Move Editor Group Right' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.RightArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.RIGHT);
+	}
+}
+
+export class MoveGroupUpAction extends AbstractMoveGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupUp',
+			title: { value: localize('moveActiveGroupUp', "Move Editor Group Up"), original: 'Move Editor Group Up' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.UpArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.UP);
+	}
+}
+
+export class MoveGroupDownAction extends AbstractMoveGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupDown',
+			title: { value: localize('moveActiveGroupDown', "Move Editor Group Down"), original: 'Move Editor Group Down' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.DownArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.DOWN);
+	}
+}
+
+abstract class AbstractDuplicateGroupAction extends AbstractMoveCopyGroupAction {
+
+	constructor(
+		desc: Readonly<IAction2Options>,
+		direction: GroupDirection
+	) {
+		super(desc, direction, false);
+	}
+}
+
+export class DuplicateGroupLeftAction extends AbstractDuplicateGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupLeft',
+			title: { value: localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left"), original: 'Duplicate Editor Group Left' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.LEFT);
+	}
+}
+
+export class DuplicateGroupRightAction extends AbstractDuplicateGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupRight',
+			title: { value: localize('duplicateActiveGroupRight', "Duplicate Editor Group Right"), original: 'Duplicate Editor Group Right' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.RIGHT);
+	}
+}
+
+export class DuplicateGroupUpAction extends AbstractDuplicateGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupUp',
+			title: { value: localize('duplicateActiveGroupUp', "Duplicate Editor Group Up"), original: 'Duplicate Editor Group Up' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.UP);
+	}
+}
+
+export class DuplicateGroupDownAction extends AbstractDuplicateGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupDown',
+			title: { value: localize('duplicateActiveGroupDown', "Duplicate Editor Group Down"), original: 'Duplicate Editor Group Down' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.DOWN);
+	}
+}
+
+export class MinimizeOtherGroupsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.minimizeOtherEditors',
+			title: { value: localize('minimizeOtherEditorGroups', "Maximize Editor Group"), original: 'Maximize Editor Group' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
+	}
+}
+
+export class ResetGroupSizesAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.evenEditorWidths',
+			title: { value: localize('evenEditorGroups', "Reset Editor Group Sizes"), original: 'Reset Editor Group Sizes' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.arrangeGroups(GroupsArrangement.EVEN);
+	}
+}
+
+export class ToggleGroupSizesAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.toggleEditorWidths',
+			title: { value: localize('toggleEditorWidths', "Toggle Editor Group Sizes"), original: 'Toggle Editor Group Sizes' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.arrangeGroups(GroupsArrangement.TOGGLE);
+	}
+}
+
+export class MaximizeGroupAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.maximizeEditor',
+			title: { value: localize('maximizeEditor', "Maximize Editor Group and Hide Side Bars"), original: 'Maximize Editor Group and Hide Side Bars' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+
+		if (editorService.activeEditor) {
+			layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
+		}
+	}
+}
+
+abstract class AbstractNavigateEditorAction extends Action2 {
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const result = this.navigate(editorGroupService);
+		if (!result) {
+			return;
+		}
+
+		const { groupId, editor } = result;
+		if (!editor) {
+			return;
+		}
+
+		const group = editorGroupService.getGroup(groupId);
+		if (group) {
+			await group.openEditor(editor);
+		}
+	}
+
+	protected abstract navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined;
+}
+
+export class OpenNextEditor extends AbstractNavigateEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.nextEditor',
+			title: { value: localize('openNextEditor', "Open Next Editor"), original: 'Open Next Editor' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight]
+				}
+			},
+			category: Categories.View
+		});
+	}
+
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined {
+
+		// Navigate in active group if possible
+		const activeGroup = editorGroupService.activeGroup;
+		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
+		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
+		if (activeEditorIndex + 1 < activeGroupEditors.length) {
+			return { editor: activeGroupEditors[activeEditorIndex + 1], groupId: activeGroup.id };
+		}
+
+		// Otherwise try in next group that has editors
+		const handledGroups = new Set<number>();
+		let currentGroup: IEditorGroup | undefined = editorGroupService.activeGroup;
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
+			currentGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, currentGroup, true);
+			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
+				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
+				if (groupEditors.length > 0) {
+					return { editor: groupEditors[0], groupId: currentGroup.id };
+				}
+			}
+		}
+
+		return undefined;
+	}
+}
+
+export class OpenPreviousEditor extends AbstractNavigateEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.previousEditor',
+			title: { value: localize('openPreviousEditor', "Open Previous Editor"), original: 'Open Previous Editor' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft]
+				}
+			},
+			category: Categories.View
+		});
+	}
+
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier | undefined {
+
+		// Navigate in active group if possible
+		const activeGroup = editorGroupService.activeGroup;
+		const activeGroupEditors = activeGroup.getEditors(EditorsOrder.SEQUENTIAL);
+		const activeEditorIndex = activeGroup.activeEditor ? activeGroupEditors.indexOf(activeGroup.activeEditor) : -1;
+		if (activeEditorIndex > 0) {
+			return { editor: activeGroupEditors[activeEditorIndex - 1], groupId: activeGroup.id };
+		}
+
+		// Otherwise try in previous group that has editors
+		const handledGroups = new Set<number>();
+		let currentGroup: IEditorGroup | undefined = editorGroupService.activeGroup;
+		while (currentGroup && !handledGroups.has(currentGroup.id)) {
+			currentGroup = editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, currentGroup, true);
+			if (currentGroup) {
+				handledGroups.add(currentGroup.id);
+
+				const groupEditors = currentGroup.getEditors(EditorsOrder.SEQUENTIAL);
+				if (groupEditors.length > 0) {
+					return { editor: groupEditors[groupEditors.length - 1], groupId: currentGroup.id };
+				}
+			}
+		}
+
+		return undefined;
+	}
+}
+
+export class OpenNextEditorInGroup extends AbstractNavigateEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.nextEditorInGroup',
+			title: { value: localize('nextEditorInGroup', "Open Next Editor in Group"), original: 'Open Next Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.PageDown),
+				mac: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow)
+				}
+			},
+			category: Categories.View
+		});
+	}
+
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
+		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
+
+		return { editor: index + 1 < editors.length ? editors[index + 1] : editors[0], groupId: group.id };
+	}
+}
+
+export class OpenPreviousEditorInGroup extends AbstractNavigateEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.previousEditorInGroup',
+			title: { value: localize('openPreviousEditorInGroup', "Open Previous Editor in Group"), original: 'Open Previous Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.PageUp),
+				mac: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow)
+				}
+			},
+			category: Categories.View
+		});
+	}
+
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
+		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+		const index = group.activeEditor ? editors.indexOf(group.activeEditor) : -1;
+
+		return { editor: index > 0 ? editors[index - 1] : editors[editors.length - 1], groupId: group.id };
+	}
+}
+
+export class OpenFirstEditorInGroup extends AbstractNavigateEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.firstEditorInGroup',
+			title: { value: localize('firstEditorInGroup', "Open First Editor in Group"), original: 'Open First Editor in Group' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
+		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+
+		return { editor: editors[0], groupId: group.id };
+	}
+}
+
+export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.lastEditorInGroup',
+			title: { value: localize('lastEditorInGroup', "Open Last Editor in Group"), original: 'Open Last Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Alt | KeyCode.Digit0,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Digit9],
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.Digit0,
+					secondary: [KeyMod.CtrlCmd | KeyCode.Digit9]
+				}
+			},
+			category: Categories.View
+		});
+	}
+
+	protected navigate(editorGroupService: IEditorGroupsService): IEditorIdentifier {
+		const group = editorGroupService.activeGroup;
+		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+
+		return { editor: editors[editors.length - 1], groupId: group.id };
+	}
+}
+
+export class NavigateForwardAction extends Action2 {
+
+	static readonly ID = 'workbench.action.navigateForward';
+	static readonly LABEL = localize('navigateForward', "Go Forward");
+
+	constructor() {
+		super({
+			id: NavigateForwardAction.ID,
+			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward', mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward") },
+			f1: true,
+			icon: Codicon.arrowRight,
+			precondition: ContextKeyExpr.has('canNavigateForward'),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 2 },
+				{ id: MenuId.CommandCenter, order: 2 }
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goForward(GoFilter.NONE);
+	}
+}
+
+export class NavigateBackwardsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.navigateBack';
+	static readonly LABEL = localize('navigateBack', "Go Back");
+
+	constructor() {
+		super({
+			id: NavigateBackwardsAction.ID,
+			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back', mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back") },
+			f1: true,
+			precondition: ContextKeyExpr.has('canNavigateBack'),
+			icon: Codicon.arrowLeft,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus }
+			},
+			menu: [
+				{ id: MenuId.MenubarGoMenu, group: '1_history_nav', order: 1 },
+				{ id: MenuId.CommandCenter, order: 1 }
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goBack(GoFilter.NONE);
+	}
+}
+
+export class NavigatePreviousAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateLast',
+			title: { value: localize('navigatePrevious', "Go Previous"), original: 'Go Previous' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goPrevious(GoFilter.NONE);
+	}
+}
+
+export class NavigateForwardInEditsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateForwardInEditLocations',
+			title: { value: localize('navigateForwardInEdits', "Go Forward in Edit Locations"), original: 'Go Forward in Edit Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goForward(GoFilter.EDITS);
+	}
+}
+
+export class NavigateBackwardsInEditsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateBackInEditLocations',
+			title: { value: localize('navigateBackInEdits', "Go Back in Edit Locations"), original: 'Go Back in Edit Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goBack(GoFilter.EDITS);
+	}
+}
+
+export class NavigatePreviousInEditsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigatePreviousInEditLocations',
+			title: { value: localize('navigatePreviousInEdits', "Go Previous in Edit Locations"), original: 'Go Previous in Edit Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goPrevious(GoFilter.EDITS);
+	}
+}
+
+export class NavigateToLastEditLocationAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateToLastEditLocation',
+			title: { value: localize('navigateToLastEditLocation', "Go to Last Edit Location"), original: 'Go to Last Edit Location' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyQ)
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goLast(GoFilter.EDITS);
+	}
+}
+
+export class NavigateForwardInNavigationsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateForwardInNavigationLocations',
+			title: { value: localize('navigateForwardInNavigations', "Go Forward in Navigation Locations"), original: 'Go Forward in Navigation Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goForward(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateBackwardsInNavigationsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateBackInNavigationLocations',
+			title: { value: localize('navigateBackInNavigations', "Go Back in Navigation Locations"), original: 'Go Back in Navigation Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigatePreviousInNavigationsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigatePreviousInNavigationLocations',
+			title: { value: localize('navigatePreviousInNavigationLocations', "Go Previous in Navigation Locations"), original: 'Go Previous in Navigation Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateToLastNavigationLocationAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateToLastNavigationLocation',
+			title: { value: localize('navigateToLastNavigationLocation', "Go to Last Navigation Location"), original: 'Go to Last Navigation Location' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goLast(GoFilter.NAVIGATION);
+	}
+}
+
+export class ReopenClosedEditorAction extends Action2 {
+
+	static readonly ID = 'workbench.action.reopenClosedEditor';
+
+	constructor() {
+		super({
+			id: ReopenClosedEditorAction.ID,
+			title: { value: localize('reopenClosedEditor', "Reopen Closed Editor"), original: 'Reopen Closed Editor' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT
+			},
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.reopenLastClosedEditor();
+	}
+}
+
+export class ClearRecentFilesAction extends Action2 {
+
+	static readonly ID = 'workbench.action.clearRecentFiles';
+
+	constructor() {
+		super({
+			id: ClearRecentFilesAction.ID,
+			title: { value: localize('clearRecentFiles', "Clear Recently Opened"), original: 'Clear Recently Opened' },
+			f1: true,
+			category: Categories.File
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+		const workspacesService = accessor.get(IWorkspacesService);
+		const historyService = accessor.get(IHistoryService);
+
+		// Ask for confirmation
+		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
+			message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		// Clear global recently opened
+		workspacesService.clearRecentlyOpened();
+
+		// Clear workspace specific recently opened
+		historyService.clearRecentlyOpened();
+	}
+}
+
+export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends Action2 {
+
+	static readonly ID = 'workbench.action.showEditorsInActiveGroup';
+
+	constructor() {
+		super({
+			id: ShowEditorsInActiveGroupByMostRecentlyUsedAction.ID,
+			title: { value: localize('showEditorsInActiveGroup', "Show Editors in Active Group By Most Recently Used"), original: 'Show Editors in Active Group By Most Recently Used' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+	}
+}
+
+export class ShowAllEditorsByAppearanceAction extends Action2 {
+
+	static readonly ID = 'workbench.action.showAllEditors';
+
+	constructor() {
+		super({
+			id: ShowAllEditorsByAppearanceAction.ID,
+			title: { value: localize('showAllEditors', "Show All Editors By Appearance"), original: 'Show All Editors By Appearance' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab
+				}
+			},
+			category: Categories.File
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		quickInputService.quickAccess.show(AllEditorsByAppearanceQuickAccess.PREFIX);
+	}
+}
+
+export class ShowAllEditorsByMostRecentlyUsedAction extends Action2 {
+
+	static readonly ID = 'workbench.action.showAllEditorsByMostRecentlyUsed';
+
+	constructor() {
+		super({
+			id: ShowAllEditorsByMostRecentlyUsedAction.ID,
+			title: { value: localize('showAllEditorsByMostRecentlyUsed', "Show All Editors By Most Recently Used"), original: 'Show All Editors By Most Recently Used' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+
+		quickInputService.quickAccess.show(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX);
+	}
+}
+
+abstract class AbstractQuickAccessEditorAction extends Action2 {
+
+	constructor(
+		desc: Readonly<IAction2Options>,
+		private readonly prefix: string,
+		private readonly itemActivation: ItemActivation | undefined,
+	) {
+		super(desc);
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const keybindingService = accessor.get(IKeybindingService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const keybindings = keybindingService.lookupKeybindings(this.desc.id);
+
+		quickInputService.quickAccess.show(this.prefix, {
+			quickNavigateConfiguration: { keybindings },
+			itemActivation: this.itemActivation
 		});
 	}
 }
 
-export class CloseUnmodifiedEditorsInGroupAction extends Action {
+export class QuickAccessPreviousRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
 
-	public static ID = 'workbench.action.closeUnmodifiedEditors';
-	public static LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditor',
+			title: { value: localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor"), original: 'Quick Open Previous Recently Used Editor' },
+			f1: true,
+			category: Categories.View
+		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
+	}
+}
 
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
+export class QuickAccessLeastRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenLeastRecentlyUsedEditor',
+			title: { value: localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor"), original: 'Quick Open Least Recently Used Editor' },
+			f1: true,
+			category: Categories.View
+		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
+	}
+}
+
+export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
+			title: { value: localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group"), original: 'Quick Open Previous Recently Used Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Tab,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.Tab
+				}
+			},
+			precondition: ActiveEditorGroupEmptyContext.toNegated(),
+			category: Categories.View
+		}, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
+	}
+}
+
+export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
+			title: { value: localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group"), original: 'Quick Open Least Recently Used Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab
+				}
+			},
+			precondition: ActiveEditorGroupEmptyContext.toNegated(),
+			category: Categories.View
+		}, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, ItemActivation.LAST);
+	}
+}
+
+export class QuickAccessPreviousEditorFromHistoryAction extends Action2 {
+
+	private static readonly ID = 'workbench.action.openPreviousEditorFromHistory';
+
+	constructor() {
+		super({
+			id: QuickAccessPreviousEditorFromHistoryAction.ID,
+			title: { value: localize('navigateEditorHistoryByInput', "Quick Open Previous Editor from History"), original: 'Quick Open Previous Editor from History' },
+			f1: true
+		});
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const keybindingService = accessor.get(IKeybindingService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		// If position is not passed in take the position of the active editor.
-		if (typeof position !== 'number') {
-			const active = this.editorService.getActiveEditor();
-			if (active) {
-				position = active.position;
+		const keybindings = keybindingService.lookupKeybindings(QuickAccessPreviousEditorFromHistoryAction.ID);
+
+		// Enforce to activate the first item in quick access if
+		// the currently active editor group has n editor opened
+		let itemActivation: ItemActivation | undefined = undefined;
+		if (editorGroupService.activeGroup.count === 0) {
+			itemActivation = ItemActivation.FIRST;
+		}
+
+		quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
+	}
+}
+
+export class OpenNextRecentlyUsedEditorAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.openNextRecentlyUsedEditor',
+			title: { value: localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor"), original: 'Open Next Recently Used Editor' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		historyService.openNextRecentlyUsedEditor();
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.openPreviousRecentlyUsedEditor',
+			title: { value: localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor"), original: 'Open Previous Recently Used Editor' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		historyService.openPreviouslyUsedEditor();
+	}
+}
+
+export class OpenNextRecentlyUsedEditorInGroupAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
+			title: { value: localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor In Group"), original: 'Open Next Recently Used Editor In Group' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		historyService.openNextRecentlyUsedEditor(editorGroupsService.activeGroup.id);
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+			title: { value: localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor In Group"), original: 'Open Previous Recently Used Editor In Group' },
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		historyService.openPreviouslyUsedEditor(editorGroupsService.activeGroup.id);
+	}
+}
+
+export class ClearEditorHistoryAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.clearEditorHistory',
+			title: { value: localize('clearEditorHistory', "Clear Editor History"), original: 'Clear Editor History' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+		const historyService = accessor.get(IHistoryService);
+
+		// Ask for confirmation
+		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
+			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
+			detail: localize('confirmClearDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		// Clear editor history
+		historyService.clear();
+	}
+}
+
+export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorLeftInGroup',
+			title: { value: localize('moveEditorLeft', "Move Editor Left"), original: 'Move Editor Left' },
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp,
+				mac: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow)
+				}
+			},
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorRightInGroup',
+			title: { value: localize('moveEditorRight', "Move Editor Right"), original: 'Move Editor Right' },
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageDown,
+				mac: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow)
+				}
+			},
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToPreviousGroup',
+			title: { value: localize('moveEditorToPreviousGroup', "Move Editor into Previous Group"), original: 'Move Editor into Previous Group' },
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow
+				}
+			},
+			f1: true,
+			category: Categories.View,
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToNextGroup',
+			title: { value: localize('moveEditorToNextGroup', "Move Editor into Next Group"), original: 'Move Editor into Next Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow
+				}
+			},
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToAboveGroup',
+			title: { value: localize('moveEditorToAboveGroup', "Move Editor into Group Above"), original: 'Move Editor into Group Above' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToBelowGroup',
+			title: { value: localize('moveEditorToBelowGroup', "Move Editor into Group Below"), original: 'Move Editor into Group Below' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToLeftGroup',
+			title: { value: localize('moveEditorToLeftGroup', "Move Editor into Left Group"), original: 'Move Editor into Left Group' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToRightGroup',
+			title: { value: localize('moveEditorToRightGroup', "Move Editor into Right Group"), original: 'Move Editor into Right Group' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToFirstGroup',
+			title: { value: localize('moveEditorToFirstGroup', "Move Editor into First Group"), original: 'Move Editor into First Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit1,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Digit1
+				}
+			},
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToLastGroup',
+			title: { value: localize('moveEditorToLastGroup', "Move Editor into Last Group"), original: 'Move Editor into Last Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit9,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Digit9
+				}
+			},
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToPreviousGroup',
+			title: { value: localize('splitEditorToPreviousGroup', "Split Editor into Previous Group"), original: 'Split Editor into Previous Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToNextGroup',
+			title: { value: localize('splitEditorToNextGroup', "Split Editor into Next Group"), original: 'Split Editor into Next Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToAboveGroup',
+			title: { value: localize('splitEditorToAboveGroup', "Split Editor into Group Above"), original: 'Split Editor into Group Above' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToBelowGroup',
+			title: { value: localize('splitEditorToBelowGroup', "Split Editor into Group Below"), original: 'Split Editor into Group Below' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToLeftGroupAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.splitEditorToLeftGroup';
+	static readonly LABEL = localize('splitEditorToLeftGroup', "Split Editor into Left Group");
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToLeftGroup',
+			title: { value: localize('splitEditorToLeftGroup', "Split Editor into Left Group"), original: 'Split Editor into Left Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToRightGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToRightGroup',
+			title: { value: localize('splitEditorToRightGroup', "Split Editor into Right Group"), original: 'Split Editor into Right Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToFirstGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToFirstGroup',
+			title: { value: localize('splitEditorToFirstGroup', "Split Editor into First Group"), original: 'Split Editor into First Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToLastGroup',
+			title: { value: localize('splitEditorToLastGroup', "Split Editor into Last Group"), original: 'Split Editor into Last Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+	}
+}
+
+export class EditorLayoutSingleAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutSingle';
+
+	constructor() {
+		super({
+			id: EditorLayoutSingleAction.ID,
+			title: { value: localize('editorLayoutSingle', "Single Column Editor Layout"), original: 'Single Column Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}] } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutTwoColumns';
+
+	constructor() {
+		super({
+			id: EditorLayoutTwoColumnsAction.ID,
+			title: { value: localize('editorLayoutTwoColumns', "Two Columns Editor Layout"), original: 'Two Columns Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutThreeColumns';
+
+	constructor() {
+		super({
+			id: EditorLayoutThreeColumnsAction.ID,
+			title: { value: localize('editorLayoutThreeColumns', "Three Columns Editor Layout"), original: 'Three Columns Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutTwoRows';
+
+	constructor() {
+		super({
+			id: EditorLayoutTwoRowsAction.ID,
+			title: { value: localize('editorLayoutTwoRows', "Two Rows Editor Layout"), original: 'Two Rows Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutThreeRows';
+
+	constructor() {
+		super({
+			id: EditorLayoutThreeRowsAction.ID,
+			title: { value: localize('editorLayoutThreeRows', "Three Rows Editor Layout"), original: 'Three Rows Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutTwoByTwoGrid';
+
+	constructor() {
+		super({
+			id: EditorLayoutTwoByTwoGridAction.ID,
+			title: { value: localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout (2x2)"), original: 'Grid Editor Layout (2x2)' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutTwoColumnsBottom';
+
+	constructor() {
+		super({
+			id: EditorLayoutTwoColumnsBottomAction.ID,
+			title: { value: localize('editorLayoutTwoColumnsBottom', "Two Columns Bottom Editor Layout"), original: 'Two Columns Bottom Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
+
+	static readonly ID = 'workbench.action.editorLayoutTwoRowsRight';
+
+	constructor() {
+		super({
+			id: EditorLayoutTwoRowsRightAction.ID,
+			title: { value: localize('editorLayoutTwoRowsRight', "Two Rows Right Editor Layout"), original: 'Two Rows Right Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	}
+}
+
+abstract class AbstractCreateEditorGroupAction extends Action2 {
+
+	constructor(
+		desc: Readonly<IAction2Options>,
+		private readonly direction: GroupDirection
+	) {
+		super(desc);
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.addGroup(editorGroupService.activeGroup, this.direction, { activate: true });
+	}
+}
+
+export class NewEditorGroupLeftAction extends AbstractCreateEditorGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupLeft',
+			title: { value: localize('newGroupLeft', "New Editor Group to the Left"), original: 'New Editor Group to the Left' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.LEFT);
+	}
+}
+
+export class NewEditorGroupRightAction extends AbstractCreateEditorGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupRight',
+			title: { value: localize('newGroupRight', "New Editor Group to the Right"), original: 'New Editor Group to the Right' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.RIGHT);
+	}
+}
+
+export class NewEditorGroupAboveAction extends AbstractCreateEditorGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupAbove',
+			title: { value: localize('newGroupAbove', "New Editor Group Above"), original: 'New Editor Group Above' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.UP);
+	}
+}
+
+export class NewEditorGroupBelowAction extends AbstractCreateEditorGroupAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupBelow',
+			title: { value: localize('newGroupBelow', "New Editor Group Below"), original: 'New Editor Group Below' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.DOWN);
+	}
+}
+
+export class ToggleEditorTypeAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.toggleEditorType',
+			title: { value: localize('toggleEditorType', "Toggle Editor Type"), original: 'Toggle Editor Type' },
+			f1: true,
+			category: Categories.View,
+			precondition: ActiveEditorAvailableEditorIdsContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorResolverService = accessor.get(IEditorResolverService);
+
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const activeEditorResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input);
+		if (!activeEditorResource) {
+			return;
+		}
+
+		const editorIds = editorResolverService.getEditors(activeEditorResource).map(editor => editor.id).filter(id => id !== activeEditorPane.input.editorId);
+		if (editorIds.length === 0) {
+			return;
+		}
+
+		// Replace the current editor with the next avaiable editor type
+		await editorService.replaceEditors([
+			{
+				editor: activeEditorPane.input,
+				replacement: {
+					resource: activeEditorResource,
+					options: {
+						override: editorIds[0]
+					}
+				}
 			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(position, { unmodifiedOnly: true });
-		}
-
-		return TPromise.as(false);
+		], activeEditorPane.group);
 	}
 }
 
-export class CloseEditorsInOtherGroupsAction extends Action {
+export class ReOpenInTextEditorAction extends Action2 {
 
-	public static ID = 'workbench.action.closeEditorsInOtherGroups';
-	public static LABEL = nls.localize('closeEditorsInOtherGroups', "Close Editors in Other Groups");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.reopenTextEditor',
+			title: { value: localize('reopenTextEditor', "Reopen Editor With Text Editor"), original: 'Reopen Editor With Text Editor' },
+			f1: true,
+			category: Categories.View,
+			precondition: ActiveEditorAvailableEditorIdsContext
+		});
 	}
 
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				position = activeEditor.position;
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const activeEditorResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input);
+		if (!activeEditorResource) {
+			return;
+		}
+
+		// Replace the current editor with the text editor
+		await editorService.replaceEditors([
+			{
+				editor: activeEditorPane.input,
+				replacement: {
+					resource: activeEditorResource,
+					options: {
+						override: DEFAULT_EDITOR_ASSOCIATION.id
+					}
+				}
 			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeAllEditors(position);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class CloseOtherEditorsInGroupAction extends Action {
-
-	public static ID = 'workbench.action.closeOtherEditors';
-	public static LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		let input = context ? context.editor : null;
-
-		// If position or input are not passed in take the position and input of the active editor.
-		const active = this.editorService.getActiveEditor();
-		if (active) {
-			position = typeof position === 'number' ? position : active.position;
-			input = input ? input : <EditorInput>active.input;
-		}
-
-		if (typeof position === 'number' && input) {
-			return this.editorService.closeEditors(position, { except: input });
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class CloseEditorsInGroupAction extends Action {
-
-	public static ID = 'workbench.action.closeEditorsInGroup';
-	public static LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				position = activeEditor.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(position);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class MoveGroupLeftAction extends Action {
-
-	public static ID = 'workbench.action.moveActiveEditorGroupLeft';
-	public static LABEL = nls.localize('moveActiveGroupLeft', "Move Editor Group Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor && (activeEditor.position === Position.TWO || activeEditor.position === Position.THREE)) {
-				position = activeEditor.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			const newPosition = (position === Position.TWO) ? Position.ONE : Position.TWO;
-
-			// Move group
-			this.editorGroupService.moveGroup(position, newPosition);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class MoveGroupRightAction extends Action {
-
-	public static ID = 'workbench.action.moveActiveEditorGroupRight';
-	public static LABEL = nls.localize('moveActiveGroupRight', "Move Editor Group Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			const editors = this.editorService.getVisibleEditors();
-
-			if ((editors.length === 2 && activeEditor.position === Position.ONE) || (editors.length === 3 && activeEditor.position !== Position.THREE)) {
-				position = activeEditor.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			const newPosition = (position === Position.ONE) ? Position.TWO : Position.THREE;
-
-			// Move group
-			this.editorGroupService.moveGroup(position, newPosition);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class MinimizeOtherGroupsAction extends Action {
-
-	public static ID = 'workbench.action.minimizeOtherEditors';
-	public static LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
-
-	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
-
-		return TPromise.as(false);
-	}
-}
-
-export class EvenGroupWidthsAction extends Action {
-
-	public static ID = 'workbench.action.evenEditorWidths';
-	public static LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
-
-	constructor(id: string, label: string, @IEditorGroupService private editorGroupService: IEditorGroupService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.editorGroupService.arrangeGroups(GroupArrangement.EVEN);
-
-		return TPromise.as(false);
-	}
-}
-
-export class MaximizeGroupAction extends Action {
-
-	public static ID = 'workbench.action.maximizeEditor';
-	public static LABEL = nls.localize('maximizeEditor', "Maximize Editor Group and Hide Sidebar");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IPartService private partService: IPartService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		if (this.editorService.getActiveEditor()) {
-			this.editorGroupService.arrangeGroups(GroupArrangement.MINIMIZE_OTHERS);
-			return this.partService.setSideBarHidden(true);
-		}
-
-		return TPromise.as(false);
-	}
-}
-
-export class KeepEditorAction extends Action {
-
-	public static ID = 'workbench.action.keepEditor';
-	public static LABEL = nls.localize('keepEditor', "Keep Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const target = getTarget(this.editorService, this.editorGroupService, context);
-		if (target) {
-			this.editorGroupService.pinEditor(target.position, target.input);
-		}
-
-		return TPromise.as(true);
-	}
-}
-
-function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorContext): { input: IEditorInput, position: Position } {
-	if (context) {
-		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(context.group) };
-	}
-
-	const activeEditor = editorService.getActiveEditor();
-	if (activeEditor) {
-		return { input: activeEditor.input, position: activeEditor.position };
-	}
-
-	return null;
-}
-
-export abstract class BaseNavigateEditorAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		protected editorGroupService: IEditorGroupService,
-		protected editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const model = this.editorGroupService.getStacksModel();
-		const result = this.navigate();
-		if (result) {
-			return this.editorService.openEditor(result.editor, null, model.positionOfGroup(result.group));
-		}
-
-		return TPromise.as(false);
-	}
-
-	protected abstract navigate(): IEditorIdentifier;
-}
-
-export class OpenNextEditor extends BaseNavigateEditorAction {
-
-	public static ID = 'workbench.action.nextEditor';
-	public static LABEL = nls.localize('openNextEditor', "Open Next Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
-	}
-
-	protected navigate(): IEditorIdentifier {
-		return this.editorGroupService.getStacksModel().next(true /* jump groups */);
-	}
-}
-
-export class OpenPreviousEditor extends BaseNavigateEditorAction {
-
-	public static ID = 'workbench.action.previousEditor';
-	public static LABEL = nls.localize('openPreviousEditor', "Open Previous Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
-	}
-
-	protected navigate(): IEditorIdentifier {
-		return this.editorGroupService.getStacksModel().previous(true /* jump groups */);
-	}
-}
-
-export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
-
-	public static ID = 'workbench.action.nextEditorInGroup';
-	public static LABEL = nls.localize('nextEditorInGroup', "Open Next Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
-	}
-
-	protected navigate(): IEditorIdentifier {
-		return this.editorGroupService.getStacksModel().next(false /* do NOT jump groups */);
-	}
-}
-
-export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
-
-	public static ID = 'workbench.action.previousEditorInGroup';
-	public static LABEL = nls.localize('openPreviousEditorInGroup', "Open Previous Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
-	) {
-		super(id, label, editorGroupService, editorService);
-	}
-
-	protected navigate(): IEditorIdentifier {
-		return this.editorGroupService.getStacksModel().previous(false /* do NOT jump groups */);
-	}
-}
-
-export class NavigateForwardAction extends Action {
-
-	public static ID = 'workbench.action.navigateForward';
-	public static LABEL = nls.localize('navigateNext', "Go Forward");
-
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.historyService.forward();
-
-		return TPromise.as(null);
-	}
-}
-
-export class NavigateBackwardsAction extends Action {
-
-	public static ID = 'workbench.action.navigateBack';
-	public static LABEL = nls.localize('navigatePrevious', "Go Back");
-
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.historyService.back();
-
-		return TPromise.as(null);
-	}
-}
-
-export class NavigateLastAction extends Action {
-
-	public static ID = 'workbench.action.navigateLast';
-	public static LABEL = nls.localize('navigateLast', "Go Last");
-
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.historyService.last();
-
-		return TPromise.as(null);
-	}
-}
-
-export class ReopenClosedEditorAction extends Action {
-
-	public static ID = 'workbench.action.reopenClosedEditor';
-	public static LABEL = nls.localize('reopenClosedEditor', "Reopen Closed Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.historyService.reopenLastClosedEditor();
-
-		return TPromise.as(false);
-	}
-}
-
-export class ClearRecentFilesAction extends Action {
-
-	public static ID = 'workbench.action.clearRecentFiles';
-	public static LABEL = nls.localize('clearRecentFiles', "Clear Recently Opened");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWindowsService private windowsService: IWindowsService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.windowsService.clearRecentlyOpened();
-
-		return TPromise.as(false);
-	}
-}
-
-export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
-
-export class ShowEditorsInGroupOneAction extends QuickOpenAction {
-
-	public static ID = 'workbench.action.showEditorsInFirstGroup';
-	public static LABEL = nls.localize('showEditorsInFirstGroup', "Show Editors in First Group");
-
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
-	) {
-		super(actionId, actionLabel, NAVIGATE_IN_GROUP_ONE_PREFIX, quickOpenService);
-
-		this.class = 'show-group-editors-action';
-	}
-}
-
-export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
-
-export class ShowEditorsInGroupTwoAction extends QuickOpenAction {
-
-	public static ID = 'workbench.action.showEditorsInSecondGroup';
-	public static LABEL = nls.localize('showEditorsInSecondGroup', "Show Editors in Second Group");
-
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
-	) {
-		super(actionId, actionLabel, NAVIGATE_IN_GROUP_TWO_PREFIX, quickOpenService);
-
-		this.class = 'show-group-editors-action';
-	}
-}
-
-export const NAVIGATE_IN_GROUP_THREE_PREFIX = 'edt three ';
-
-export class ShowEditorsInGroupThreeAction extends QuickOpenAction {
-
-	public static ID = 'workbench.action.showEditorsInThirdGroup';
-	public static LABEL = nls.localize('showEditorsInThirdGroup', "Show Editors in Third Group");
-
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
-	) {
-		super(actionId, actionLabel, NAVIGATE_IN_GROUP_THREE_PREFIX, quickOpenService);
-
-		this.class = 'show-group-editors-action';
-	}
-}
-
-export class ShowEditorsInGroupAction extends Action {
-
-	public static ID = 'workbench.action.showEditorsInGroup';
-	public static LABEL = nls.localize('showEditorsInGroup', "Show Editors in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
-	) {
-		super(id, label);
-	}
-
-	public run(context?: IEditorContext): TPromise<any> {
-		const stacks = this.editorGroupService.getStacksModel();
-		const groupCount = stacks.groups.length;
-		if (groupCount <= 1 || !context) {
-			return this.quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
-		}
-
-		switch (stacks.positionOfGroup(context.group)) {
-			case Position.TWO:
-				return this.quickOpenService.show(NAVIGATE_IN_GROUP_TWO_PREFIX);
-			case Position.THREE:
-				return this.quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
-		}
-
-		return this.quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
-	}
-}
-
-export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
-
-export class ShowAllEditorsAction extends QuickOpenAction {
-
-	public static ID = 'workbench.action.showAllEditors';
-	public static LABEL = nls.localize('showAllEditors', "Show All Editors");
-
-	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, quickOpenService);
-	}
-}
-
-export class BaseQuickOpenEditorInGroupAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const keys = this.keybindingService.lookupKeybindings(this.id);
-
-		const stacks = this.editorGroupService.getStacksModel();
-		if (stacks.activeGroup) {
-			const activePosition = stacks.positionOfGroup(stacks.activeGroup);
-			let prefix = NAVIGATE_IN_GROUP_ONE_PREFIX;
-
-			if (activePosition === Position.TWO) {
-				prefix = NAVIGATE_IN_GROUP_TWO_PREFIX;
-			} else if (activePosition === Position.THREE) {
-				prefix = NAVIGATE_IN_GROUP_THREE_PREFIX;
-			}
-
-			this.quickOpenService.show(prefix, { quickNavigateConfiguration: { keybindings: keys } });
-		}
-
-		return TPromise.as(true);
-	}
-}
-
-export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
-
-	public static ID = 'workbench.action.openPreviousRecentlyUsedEditorInGroup';
-	public static LABEL = nls.localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
-	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService);
-	}
-}
-
-export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditorInGroupAction {
-
-	public static ID = 'workbench.action.openNextRecentlyUsedEditorInGroup';
-	public static LABEL = nls.localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
-	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService);
-	}
-}
-
-export class OpenPreviousEditorFromHistoryAction extends Action {
-
-	public static ID = 'workbench.action.openPreviousEditorFromHistory';
-	public static LABEL = nls.localize('navigateEditorHistoryByInput', "Open Previous Editor from History");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const keys = this.keybindingService.lookupKeybindings(this.id);
-
-		this.quickOpenService.show(null, { quickNavigateConfiguration: { keybindings: keys } });
-
-		return TPromise.as(true);
-	}
-}
-
-export class OpenNextRecentlyUsedEditorAction extends Action {
-
-	public static ID = 'workbench.action.openNextRecentlyUsedEditor';
-	public static LABEL = nls.localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
-
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.historyService.forward(true);
-
-		return TPromise.as(null);
-	}
-}
-
-export class OpenPreviousRecentlyUsedEditorAction extends Action {
-
-	public static ID = 'workbench.action.openPreviousRecentlyUsedEditor';
-	public static LABEL = nls.localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
-
-	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		this.historyService.back(true);
-
-		return TPromise.as(null);
-	}
-}
-
-export class ClearEditorHistoryAction extends Action {
-
-	public static ID = 'workbench.action.clearEditorHistory';
-	public static LABEL = nls.localize('clearEditorHistory', "Clear Editor History");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-
-		// Editor history
-		this.historyService.clear();
-
-		return TPromise.as(true);
-	}
-}
-
-export class FocusLastEditorInStackAction extends Action {
-
-	public static ID = 'workbench.action.openLastEditorInGroup';
-	public static LABEL = nls.localize('focusLastEditorInStack', "Open Last Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const active = this.editorService.getActiveEditor();
-		if (active) {
-			const group = this.editorGroupService.getStacksModel().groupAt(active.position);
-			const editor = group.getEditor(group.count - 1);
-
-			if (editor) {
-				return this.editorService.openEditor(editor);
-			}
-		}
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorLeftInGroupAction extends Action {
-
-	public static ID = 'workbench.action.moveEditorLeftInGroup';
-	public static LABEL = nls.localize('moveEditorLeft', "Move Editor Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = {
-			to: ActiveEditorMovePositioning.LEFT
-		};
-		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorRightInGroupAction extends Action {
-
-	public static ID = 'workbench.action.moveEditorRightInGroup';
-	public static LABEL = nls.localize('moveEditorRight', "Move Editor Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = {
-			to: ActiveEditorMovePositioning.RIGHT
-		};
-		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorToPreviousGroupAction extends Action {
-
-	public static ID = 'workbench.action.moveEditorToPreviousGroup';
-	public static LABEL = nls.localize('moveEditorToPreviousGroup', "Move Editor into Previous Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.ONE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position - 1);
-		}
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorToNextGroupAction extends Action {
-
-	public static ID = 'workbench.action.moveEditorToNextGroup';
-	public static LABEL = nls.localize('moveEditorToNextGroup', "Move Editor into Next Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.position !== Position.THREE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.position, activeEditor.position + 1);
-		}
-
-		return TPromise.as(true);
+		], activeEditorPane.group);
 	}
 }

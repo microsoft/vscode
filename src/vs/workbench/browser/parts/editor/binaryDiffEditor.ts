@@ -3,39 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import nls = require('vs/nls');
+import { localize } from 'vs/nls';
 import { BINARY_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * An implementation of editor for diffing binary files like images or videos.
  */
 export class BinaryResourceDiffEditor extends SideBySideEditor {
 
-	public static ID = BINARY_DIFF_EDITOR_ID;
+	static override readonly ID = BINARY_DIFF_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(telemetryService, instantiationService, themeService);
+		super(telemetryService, instantiationService, themeService, storageService, configurationService, textResourceConfigurationService, editorService, editorGroupService);
 	}
 
-	public getMetadata(): string {
-		const master = this.masterEditor;
-		const details = this.detailsEditor;
+	getMetadata(): string | undefined {
+		const primary = this.getPrimaryEditorPane();
+		const secondary = this.getSecondaryEditorPane();
 
-		if (master instanceof BaseBinaryResourceEditor && details instanceof BaseBinaryResourceEditor) {
-			return nls.localize('metadataDiff', "{0} ↔ {1}", details.getMetadata(), master.getMetadata());
+		if (primary instanceof BaseBinaryResourceEditor && secondary instanceof BaseBinaryResourceEditor) {
+			return localize('metadataDiff', "{0} ↔ {1}", secondary.getMetadata(), primary.getMetadata());
 		}
 
-		return null;
+		return undefined;
 	}
 }

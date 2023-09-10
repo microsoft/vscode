@@ -3,64 +3,89 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { Client, IChannel, IClientRouter, IConnectionHub, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IOpenURLOptions, IURLHandler } from 'vs/platform/url/common/url';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel, eventToCall, eventFromCall, Serializer, Deserializer } from 'vs/base/parts/ipc/common/ipc';
-import { IURLService } from './url';
-import Event, { filterEvent } from 'vs/base/common/event';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import URI from 'vs/base/common/uri';
+export class URLHandlerChannel implements IServerChannel {
 
-const URISerializer: Serializer<URI, any> = uri => uri.toJSON();
-const URIDeserializer: Deserializer<URI, any> = raw => URI.revive(raw);
+	constructor(private handler: IURLHandler) { }
 
-export interface IURLChannel extends IChannel {
-	call(command: 'event:onOpenURL'): TPromise<void>;
-	call(command: string, arg?: any): TPromise<any>;
+	listen<T>(_: unknown, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(_: unknown, command: string, arg?: any): Promise<any> {
+		switch (command) {
+			case 'handleURL': return this.handler.handleURL(URI.revive(arg[0]), arg[1]);
+		}
+
+		throw new Error(`Call not found: ${command}`);
+	}
 }
 
-export class URLChannel implements IURLChannel {
+export class URLHandlerChannelClient implements IURLHandler {
 
-	private focusedWindowId: number;
+	constructor(private channel: IChannel) { }
+
+	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+		return this.channel.call('handleURL', [uri.toJSON(), options]);
+	}
+}
+
+export class URLHandlerRouter implements IClientRouter<string> {
 
 	constructor(
-		private service: IURLService,
-		@IWindowsService windowsService: IWindowsService
-	) {
-		windowsService.onWindowFocus(id => this.focusedWindowId = id);
-	}
+		private next: IClientRouter<string>,
+		private readonly logService: ILogService
+	) { }
 
-	call(command: string, arg?: any): TPromise<any> {
-		switch (command) {
-			case 'event:onOpenURL': return eventToCall(filterEvent(this.service.onOpenURL, () => this.isWindowFocused(arg)), URISerializer);
+	async routeCall(hub: IConnectionHub<string>, command: string, arg?: any, cancellationToken?: CancellationToken): Promise<Client<string>> {
+		if (command !== 'handleURL') {
+			throw new Error(`Call not found: ${command}`);
 		}
-		return undefined;
+
+		if (Array.isArray(arg) && arg.length > 0) {
+			const uri = URI.revive(arg[0]);
+
+			this.logService.trace('URLHandlerRouter#routeCall() with URI argument', uri.toString(true));
+
+			if (uri.query) {
+				const match = /\bwindowId=(\d+)/.exec(uri.query);
+
+				if (match) {
+					const windowId = match[1];
+
+					this.logService.trace(`URLHandlerRouter#routeCall(): found windowId query parameter with value "${windowId}"`, uri.toString(true));
+
+					const regex = new RegExp(`window:${windowId}`);
+					const connection = hub.connections.find(c => {
+						this.logService.trace('URLHandlerRouter#routeCall(): testing connection', c.ctx);
+
+						return regex.test(c.ctx);
+					});
+					if (connection) {
+						this.logService.trace('URLHandlerRouter#routeCall(): found a connection to route', uri.toString(true));
+
+						return connection;
+					} else {
+						this.logService.trace('URLHandlerRouter#routeCall(): did not find a connection to route', uri.toString(true));
+					}
+				} else {
+					this.logService.trace('URLHandlerRouter#routeCall(): did not find windowId query parameter', uri.toString(true));
+				}
+			}
+		} else {
+			this.logService.trace('URLHandlerRouter#routeCall() without URI argument');
+		}
+
+		return this.next.routeCall(hub, command, arg, cancellationToken);
 	}
 
-	/**
-	 * We only want the focused window to get pinged with the onOpenUrl event.
-	 * The idea here is to filter the onOpenUrl event with the knowledge of which
-	 * was the last window to be focused. When first listening to the event,
-	 * each client sends its window ID via the arguments to `call(...)`.
-	 * When the event fires, the server has enough knowledge to filter the event
-	 * and fire it only to the focused window.
-	 */
-	private isWindowFocused(windowID: number): boolean {
-		return this.focusedWindowId === windowID;
-	}
-}
-
-export class URLChannelClient implements IURLService {
-
-	_serviceBrand: any;
-
-	constructor(private channel: IChannel, private windowID: number) { }
-
-	private _onOpenURL = eventFromCall<URI>(this.channel, 'event:onOpenURL', this.windowID, URIDeserializer);
-	get onOpenURL(): Event<URI> { return this._onOpenURL; }
-
-	open(url: string): void {
-		return; // not implemented
+	routeEvent(_: IConnectionHub<string>, event: string): Promise<Client<string>> {
+		throw new Error(`Event not found: ${event}`);
 	}
 }

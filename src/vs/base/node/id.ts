@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as getmac from 'getmac';
-import * as crypto from 'crypto';
-import { TPromise } from 'vs/base/common/winjs.base';
-import * as errors from 'vs/base/common/errors';
-import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import * as uuid from 'vs/base/common/uuid';
+import { getMac } from 'vs/base/node/macAddress';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
 // Microsoft Hyper-V, Virtual Server, Virtual PC	00-03-FF
-// Parallells Desktop, Workstation, Server, Virtuozzo	00-1C-42
+// Parallels Desktop, Workstation, Server, Virtuozzo	00-1C-42
 // Virtual Iron 4	00-0F-4B
 // Red Hat Xen	00-16-3E
 // Oracle VM	00-16-3E
@@ -23,10 +20,10 @@ import { TernarySearchTree } from 'vs/base/common/map';
 // Sun xVM VirtualBox	08-00-27
 export const virtualMachineHint: { value(): number } = new class {
 
-	private _virtualMachineOUIs: TernarySearchTree<boolean>;
-	private _value: number;
+	private _virtualMachineOUIs?: TernarySearchTree<string, boolean>;
+	private _value?: number;
 
-	private _isVirtualMachineMacAdress(mac: string): boolean {
+	private _isVirtualMachineMacAddress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {
 			this._virtualMachineOUIs = TernarySearchTree.forStrings<boolean>();
 
@@ -48,7 +45,7 @@ export const virtualMachineHint: { value(): number } = new class {
 			this._virtualMachineOUIs.set('00:16:3E', true);
 			this._virtualMachineOUIs.set('08:00:27', true);
 		}
-		return this._virtualMachineOUIs.findSubstr(mac);
+		return !!this._virtualMachineOUIs.findSubstr(mac);
 	}
 
 	value(): number {
@@ -57,12 +54,13 @@ export const virtualMachineHint: { value(): number } = new class {
 			let interfaceCount = 0;
 
 			const interfaces = networkInterfaces();
-			for (let name in interfaces) {
-				if (Object.prototype.hasOwnProperty.call(interfaces, name)) {
-					for (const { mac, internal } of interfaces[name]) {
+			for (const name in interfaces) {
+				const networkInterface = interfaces[name];
+				if (networkInterface) {
+					for (const { mac, internal } of networkInterface) {
 						if (!internal) {
 							interfaceCount += 1;
-							if (this._isVirtualMachineMacAdress(mac.toUpperCase())) {
+							if (this._isVirtualMachineMacAddress(mac.toUpperCase())) {
 								vmOui += 1;
 							}
 						}
@@ -78,25 +76,26 @@ export const virtualMachineHint: { value(): number } = new class {
 	}
 };
 
-let machineId: TPromise<string>;
-export function getMachineId(): TPromise<string> {
-	return machineId || (machineId = getMacMachineId()
-		.then(id => id || uuid.generateUuid())); // fallback, generate a UUID
+let machineId: Promise<string>;
+export async function getMachineId(errorLogger: (error: any) => void): Promise<string> {
+	if (!machineId) {
+		machineId = (async () => {
+			const id = await getMacMachineId(errorLogger);
+
+			return id || uuid.generateUuid(); // fallback, generate a UUID
+		})();
+	}
+
+	return machineId;
 }
 
-function getMacMachineId(): TPromise<string> {
-	return new TPromise<string>(resolve => {
-		try {
-			getmac.getMac((error, macAddress) => {
-				if (!error) {
-					resolve(crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex'));
-				} else {
-					resolve(undefined);
-				}
-			});
-		} catch (err) {
-			errors.onUnexpectedError(err);
-			resolve(undefined);
-		}
-	});
+async function getMacMachineId(errorLogger: (error: any) => void): Promise<string | undefined> {
+	try {
+		const crypto = await import('crypto');
+		const macAddress = getMac();
+		return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
+	} catch (err) {
+		errorLogger(err);
+		return undefined;
+	}
 }

@@ -1,0 +1,116 @@
+{
+	"original": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport { CompareResult } from 'vs/base/common/arrays';\nimport { autorun, derived } from 'vs/base/common/observable';\nimport { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';\nimport { localize } from 'vs/nls';\nimport { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\nimport { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';\nimport { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';\nimport { CodeEditorView } from './codeEditorView';\n\nexport class ResultCodeEditorView extends CodeEditorView {\n\tprivate readonly decorations = derived('result.decorations', reader => {\n\t\tconst viewModel = this.viewModel.read(reader);\n\t\tif (!viewModel) {\n\t\t\treturn [];\n\t\t}\n\t\tconst model = viewModel.model;\n\t\tconst result = new Array<IModelDeltaDecoration>();\n\n\t\tconst baseRangeWithStoreAndTouchingDiffs = join(\n\t\t\tmodel.modifiedBaseRanges.read(reader),\n\t\t\tmodel.resultDiffs.read(reader),\n\t\t\t(baseRange, diff) => baseRange.baseRange.touches(diff.inputRange)\n\t\t\t\t? CompareResult.neitherLessOrGreaterThan\n\t\t\t\t: LineRange.compareByStart(\n\t\t\t\t\tbaseRange.baseRange,\n\t\t\t\t\tdiff.inputRange\n\t\t\t\t)\n\t\t);\n\n\t\tconst activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);\n\n\t\tfor (const m of baseRangeWithStoreAndTouchingDiffs) {\n\t\t\tconst modifiedBaseRange = m.left;\n\n\t\t\tif (modifiedBaseRange) {\n\t\t\t\tconst range = model.getRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRange();\n\t\t\t\tif (range) {\n\t\t\t\t\tconst blockClassNames = ['merge-editor-block'];\n\t\t\t\t\tconst isHandled = model.isHandled(modifiedBaseRange).read(reader);\n\t\t\t\t\tif (isHandled) {\n\t\t\t\t\t\tblockClassNames.push('handled');\n\t\t\t\t\t}\n\t\t\t\t\tif (modifiedBaseRange === activeModifiedBaseRange) {\n\t\t\t\t\t\tblockClassNames.push('focused');\n\t\t\t\t\t}\n\t\t\t\t\tblockClassNames.push('result');\n\n\t\t\t\t\tresult.push({\n\t\t\t\t\t\trange,\n\t\t\t\t\t\toptions: {\n\t\t\t\t\t\t\tisWholeLine: true,\n\t\t\t\t\t\t\tblockClassName: blockClassNames.join(' '),\n\t\t\t\t\t\t\tdescription: 'Result Diff',\n\t\t\t\t\t\t\tminimap: {\n\t\t\t\t\t\t\t\tposition: MinimapPosition.Gutter,\n\t\t\t\t\t\t\t\tcolor: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\toverviewRuler: {\n\t\t\t\t\t\t\t\tposition: OverviewRulerLane.Center,\n\t\t\t\t\t\t\t\tcolor: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tfor (const diff of m.rights) {\n\t\t\t\tconst range = diff.outputRange.toInclusiveRange();\n\t\t\t\tif (range) {\n\t\t\t\t\tresult.push({\n\t\t\t\t\t\trange,\n\t\t\t\t\t\toptions: {\n\t\t\t\t\t\t\tclassName: `merge-editor-diff result`,\n\t\t\t\t\t\t\tdescription: 'Merge Editor',\n\t\t\t\t\t\t\tisWholeLine: true,\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t}\n\n\t\t\t\tif (diff.rangeMappings) {\n\t\t\t\t\tfor (const d of diff.rangeMappings) {\n\t\t\t\t\t\tresult.push({\n\t\t\t\t\t\t\trange: d.outputRange,\n\t\t\t\t\t\t\toptions: {\n\t\t\t\t\t\t\t\tclassName: `merge-editor-diff-word result`,\n\t\t\t\t\t\t\t\tdescription: 'Merge Editor'\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\treturn result;\n\t});\n\n\tconstructor(\n\t\t@IInstantiationService instantiationService: IInstantiationService\n\t) {\n\t\tsuper(instantiationService);\n\n\t\tthis._register(applyObservableDecorations(this.editor, this.decorations));\n\n\n\t\tthis._register(autorun('update remainingConflicts label', reader => {\n\t\t\tconst model = this.model.read(reader);\n\t\t\tif (!model) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tconst count = model.unhandledConflictsCount.read(reader);\n\n\t\t\tthis.htmlElements.detail.innerText = count === 1\n\t\t\t\t? localize(\n\t\t\t\t\t'mergeEditor.remainingConflicts',\n\t\t\t\t\t'{0} Conflict Remaining',\n\t\t\t\t\tcount\n\t\t\t\t)\n\t\t\t\t: localize(\n\t\t\t\t\t'mergeEditor.remainingConflict',\n\t\t\t\t\t'{0} Conflicts Remaining ',\n\t\t\t\t\tcount\n\t\t\t\t);\n\n\t\t}));\n\t}\n}\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "/*---------------------------------------------------------------------------------------------\n *  Copyright (c) Microsoft Corporation. All rights reserved.\n *  Licensed under the MIT License. See License.txt in the project root for license information.\n *--------------------------------------------------------------------------------------------*/\n\nimport { CompareResult } from 'vs/base/common/arrays';\nimport { autorun, derived } from 'vs/base/common/observable';\nimport { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';\nimport { localize } from 'vs/nls';\nimport { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\nimport { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';\nimport { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';\nimport { CodeEditorView } from './codeEditorView';\n\nexport class ResultCodeEditorView extends CodeEditorView {\n\tprivate readonly decorations = derived('result.decorations', reader => {\n\t\tconst viewModel = this.viewModel.read(reader);\n\t\tif (!viewModel) {\n\t\t\treturn [];\n\t\t}\n\t\tconst model = viewModel.model;\n\t\tconst result = new Array<IModelDeltaDecoration>();\n\n\t\tconst baseRangeWithStoreAndTouchingDiffs = join(\n\t\t\tmodel.modifiedBaseRanges.read(reader),\n\t\t\tmodel.resultDiffs.read(reader),\n\t\t\t(baseRange, diff) => baseRange.baseRange.touches(diff.inputRange)\n\t\t\t\t? CompareResult.neitherLessOrGreaterThan\n\t\t\t\t: LineRange.compareByStart(\n\t\t\t\t\tbaseRange.baseRange,\n\t\t\t\t\tdiff.inputRange\n\t\t\t\t)\n\t\t);\n\n\t\tconst activeModifiedBaseRange = viewModel.activeModifiedBaseRange.read(reader);\n\n\t\tfor (const m of baseRangeWithStoreAndTouchingDiffs) {\n\t\t\tconst modifiedBaseRange = m.left;\n\n\t\t\tif (modifiedBaseRange) {\n\t\t\t\tconst range = model.getRangeInResult(modifiedBaseRange.baseRange, reader).toInclusiveRange();\n\t\t\t\tif (range) {\n\t\t\t\t\tconst blockClassNames = ['merge-editor-block'];\n\t\t\t\t\tconst isHandled = model.isHandled(modifiedBaseRange).read(reader);\n\t\t\t\t\tif (isHandled) {\n\t\t\t\t\t\tblockClassNames.push('handled');\n\t\t\t\t\t}\n\t\t\t\t\tif (modifiedBaseRange === activeModifiedBaseRange) {\n\t\t\t\t\t\tblockClassNames.push('focused');\n\t\t\t\t\t}\n\t\t\t\t\tblockClassNames.push('result');\n\n\t\t\t\t\tresult.push({\n\t\t\t\t\t\trange,\n\t\t\t\t\t\toptions: {\n\t\t\t\t\t\t\tisWholeLine: true,\n\t\t\t\t\t\t\tblockClassName: blockClassNames.join(' '),\n\t\t\t\t\t\t\tdescription: 'Result Diff',\n\t\t\t\t\t\t\tminimap: {\n\t\t\t\t\t\t\t\tposition: MinimapPosition.Gutter,\n\t\t\t\t\t\t\t\tcolor: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },\n\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\toverviewRuler: {\n\t\t\t\t\t\t\t\tposition: OverviewRulerLane.Center,\n\t\t\t\t\t\t\t\tcolor: { id: isHandled ? handledConflictMinimapOverViewRulerColor : unhandledConflictMinimapOverViewRulerColor },\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t}\n\n\n\t\t\tif (!modifiedBaseRange || modifiedBaseRange.isConflicting) {\n\t\t\t\tfor (const diff of m.rights) {\n\t\t\t\t\tconst range = diff.outputRange.toInclusiveRange();\n\t\t\t\t\tif (range) {\n\t\t\t\t\t\tresult.push({\n\t\t\t\t\t\t\trange,\n\t\t\t\t\t\t\toptions: {\n\t\t\t\t\t\t\t\tclassName: `merge-editor-diff result`,\n\t\t\t\t\t\t\t\tdescription: 'Merge Editor',\n\t\t\t\t\t\t\t\tisWholeLine: true,\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t}\n\n\t\t\t\t\tif (diff.rangeMappings) {\n\t\t\t\t\t\tfor (const d of diff.rangeMappings) {\n\t\t\t\t\t\t\tresult.push({\n\t\t\t\t\t\t\t\trange: d.outputRange,\n\t\t\t\t\t\t\t\toptions: {\n\t\t\t\t\t\t\t\t\tclassName: `merge-editor-diff-word result`,\n\t\t\t\t\t\t\t\t\tdescription: 'Merge Editor'\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t});\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\treturn result;\n\t});\n\n\tconstructor(\n\t\t@IInstantiationService instantiationService: IInstantiationService\n\t) {\n\t\tsuper(instantiationService);\n\n\t\tthis._register(applyObservableDecorations(this.editor, this.decorations));\n\n\n\t\tthis._register(autorun('update remainingConflicts label', reader => {\n\t\t\tconst model = this.model.read(reader);\n\t\t\tif (!model) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\tconst count = model.unhandledConflictsCount.read(reader);\n\n\t\t\tthis.htmlElements.detail.innerText = count === 1\n\t\t\t\t? localize(\n\t\t\t\t\t'mergeEditor.remainingConflicts',\n\t\t\t\t\t'{0} Conflict Remaining',\n\t\t\t\t\tcount\n\t\t\t\t)\n\t\t\t\t: localize(\n\t\t\t\t\t'mergeEditor.remainingConflict',\n\t\t\t\t\t'{0} Conflicts Remaining ',\n\t\t\t\t\tcount\n\t\t\t\t);\n\n\t\t}));\n\t}\n}\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[73,85)",
+			"modifiedRange": "[73,87)",
+			"innerChanges": [
+				{
+					"originalRange": "[73,1 -> 73,1]",
+					"modifiedRange": "[73,1 -> 75,1]"
+				},
+				{
+					"originalRange": "[73,1 -> 73,1]",
+					"modifiedRange": "[75,1 -> 75,2]"
+				},
+				{
+					"originalRange": "[74,1 -> 74,1]",
+					"modifiedRange": "[76,1 -> 76,2]"
+				},
+				{
+					"originalRange": "[75,1 -> 75,1]",
+					"modifiedRange": "[77,1 -> 77,2]"
+				},
+				{
+					"originalRange": "[76,1 -> 76,1]",
+					"modifiedRange": "[78,1 -> 78,2]"
+				},
+				{
+					"originalRange": "[77,1 -> 77,1]",
+					"modifiedRange": "[79,1 -> 79,2]"
+				},
+				{
+					"originalRange": "[78,1 -> 78,1]",
+					"modifiedRange": "[80,1 -> 80,2]"
+				},
+				{
+					"originalRange": "[79,1 -> 79,1]",
+					"modifiedRange": "[81,1 -> 81,2]"
+				},
+				{
+					"originalRange": "[80,1 -> 80,1]",
+					"modifiedRange": "[82,1 -> 82,2]"
+				},
+				{
+					"originalRange": "[81,1 -> 81,1]",
+					"modifiedRange": "[83,1 -> 83,2]"
+				},
+				{
+					"originalRange": "[82,1 -> 82,1]",
+					"modifiedRange": "[84,1 -> 84,2]"
+				},
+				{
+					"originalRange": "[83,1 -> 83,1]",
+					"modifiedRange": "[85,1 -> 85,2]"
+				},
+				{
+					"originalRange": "[84,1 -> 84,1]",
+					"modifiedRange": "[86,1 -> 86,2]"
+				}
+			]
+		},
+		{
+			"originalRange": "[86,95)",
+			"modifiedRange": "[88,98)",
+			"innerChanges": [
+				{
+					"originalRange": "[86,1 -> 86,1]",
+					"modifiedRange": "[88,1 -> 88,2]"
+				},
+				{
+					"originalRange": "[87,1 -> 87,1]",
+					"modifiedRange": "[89,1 -> 89,2]"
+				},
+				{
+					"originalRange": "[88,1 -> 88,1]",
+					"modifiedRange": "[90,1 -> 90,2]"
+				},
+				{
+					"originalRange": "[89,1 -> 89,1]",
+					"modifiedRange": "[91,1 -> 91,2]"
+				},
+				{
+					"originalRange": "[90,1 -> 90,1]",
+					"modifiedRange": "[92,1 -> 92,2]"
+				},
+				{
+					"originalRange": "[91,1 -> 91,1]",
+					"modifiedRange": "[93,1 -> 93,2]"
+				},
+				{
+					"originalRange": "[92,1 -> 92,1]",
+					"modifiedRange": "[94,1 -> 94,2]"
+				},
+				{
+					"originalRange": "[93,1 -> 93,1]",
+					"modifiedRange": "[95,1 -> 95,2]"
+				},
+				{
+					"originalRange": "[94,1 -> 94,1]",
+					"modifiedRange": "[96,1 -> 96,2]"
+				},
+				{
+					"originalRange": "[95,1 -> 95,1]",
+					"modifiedRange": "[97,1 -> 98,1]"
+				}
+			]
+		}
+	]
+}

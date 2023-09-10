@@ -1,58 +1,86 @@
 {
-    "name": "scss",
-    "version": "0.1.0",
-    "publisher": "vscode",
-    "engines": { "vscode": "*" },
-    "scripts": {
-        "update-grammar": "node ../../build/npm/update-grammar.js atom/language-sass grammars/scss.cson ./syntaxes/scss.json"
-    },
-    "contributes": {
-        "languages": [{
-            "id": "scss",
-            "aliases": ["SCSS", "scss"],
-            "extensions": [".scss"],
-            "mimetypes": ["text/x-scss", "text/scss"],
-            "configuration": "./language-configuration.json"
-        }],
-        "grammars": [{
-            "language": "scss",
-            "scopeName": "source.css.scss",
-            "path": "./syntaxes/scss.json"
-        }],
-        "problemMatchers": [{
-            "name": "node-sass",
-            "label": "Node Sass Compiler",
-            "owner": "node-sass",
-            "fileLocation": "absolute",
-            "pattern": [{
-                    "regexp": "^{$"
-                },
-                {
-                    "regexp": "\\s*\"status\":\\s\\d+,"
-                },
-                {
-                    "regexp": "\\s*\"file\":\\s\"(.*)\",",
-                    "file": 1
-                },
-                {
-                    "regexp": "\\s*\"line\":\\s(\\d+),",
-                    "line": 1
-                },
-                {
-                    "regexp": "\\s*\"column\":\\s(\\d+),",
-                    "column": 1
-                },
-                {
-                    "regexp": "\\s*\"message\":\\s\"(.*)\",",
-                    "message": 1
-                },
-                {
-                    "regexp": "\\s*\"formatted\":\\s(.*)"
-                },
-                {
-                    "regexp": "^}$"
-                }
-            ]
-        }]
-    }
+  "name": "scss",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-sass grammars/scss.cson ./syntaxes/scss.tmLanguage.json grammars/sassdoc.cson ./syntaxes/sassdoc.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "scss",
+        "aliases": [
+          "SCSS",
+          "scss"
+        ],
+        "extensions": [
+          ".scss"
+        ],
+        "mimetypes": [
+          "text/x-scss",
+          "text/scss"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "scss",
+        "scopeName": "source.css.scss",
+        "path": "./syntaxes/scss.tmLanguage.json"
+      },
+      {
+        "scopeName": "source.sassdoc",
+        "path": "./syntaxes/sassdoc.tmLanguage.json"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "node-sass",
+        "label": "Node Sass Compiler",
+        "owner": "node-sass",
+        "fileLocation": "absolute",
+        "pattern": [
+          {
+            "regexp": "^{$"
+          },
+          {
+            "regexp": "\\s*\"status\":\\s\\d+,"
+          },
+          {
+            "regexp": "\\s*\"file\":\\s\"(.*)\",",
+            "file": 1
+          },
+          {
+            "regexp": "\\s*\"line\":\\s(\\d+),",
+            "line": 1
+          },
+          {
+            "regexp": "\\s*\"column\":\\s(\\d+),",
+            "column": 1
+          },
+          {
+            "regexp": "\\s*\"message\":\\s\"(.*)\",",
+            "message": 1
+          },
+          {
+            "regexp": "\\s*\"formatted\":\\s(.*)"
+          },
+          {
+            "regexp": "^}$"
+          }
+        ]
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

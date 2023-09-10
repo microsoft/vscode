@@ -3,41 +3,85 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var path = require('path');
-var loader = require('./vs/loader');
+//@ts-check
+'use strict';
 
-function uriFromPath(_path) {
-	var pathName = path.resolve(_path).replace(/\\/g, '/');
+// Store the node.js require function in a variable
+// before loading our AMD loader to avoid issues
+// when this file is bundled with other files.
+const nodeRequire = require;
 
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
+// VSCODE_GLOBALS: node_modules
+globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
 
-	return encodeURI('file://' + pathName);
+// VSCODE_GLOBALS: package/product.json
+/** @type Record<string, any> */
+globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+if (process.env['VSCODE_DEV']) {
+	// Patch product overrides when running out of sources
+	try {
+		// @ts-ignore
+		const overrides = require('../product.overrides.json');
+		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
+	} catch (error) { /* ignore */ }
 }
+globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
-var rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
-var nlsConfig = rawNlsConfig ? JSON.parse(rawNlsConfig) : { availableLanguages: {} };
+// @ts-ignore
+const loader = require('./vs/loader');
+const bootstrap = require('./bootstrap');
+const performance = require('./vs/base/common/performance');
 
+// Bootstrap: NLS
+const nlsConfig = bootstrap.setupNLS();
+
+// Bootstrap: Loader
 loader.config({
-	baseUrl: uriFromPath(__dirname),
+	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
 	catchError: true,
-	nodeRequire: require,
-	nodeMain: __filename,
+	nodeRequire,
 	'vs/nls': nlsConfig,
-	nodeCachedDataDir: process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid]
+	amdModulesPattern: /^vs\//,
+	recordStats: true
 });
 
-if (nlsConfig.pseudo) {
-	loader(['vs/nls'], function (nlsPlugin) {
-		nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+// Running in Electron
+if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+	loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
+		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
 	});
 }
 
-exports.bootstrap = function (entrypoint) {
+// Pseudo NLS support
+if (nlsConfig && nlsConfig.pseudo) {
+	loader(['vs/nls'], function (/** @type {import('vs/nls')} */nlsPlugin) {
+		nlsPlugin.setPseudoTranslation(!!nlsConfig.pseudo);
+	});
+}
+
+/**
+ * @param {string=} entrypoint
+ * @param {(value: any) => void=} onLoad
+ * @param {(err: Error) => void=} onError
+ */
+exports.load = function (entrypoint, onLoad, onError) {
 	if (!entrypoint) {
 		return;
 	}
 
-	loader([entrypoint], function () { }, function (err) { console.error(err); });
+	// code cache config
+	if (process.env['VSCODE_CODE_CACHE_PATH']) {
+		loader.config({
+			nodeCachedData: {
+				path: process.env['VSCODE_CODE_CACHE_PATH'],
+				seed: entrypoint
+			}
+		});
+	}
+
+	onLoad = onLoad || function () { };
+	onError = onError || function (err) { console.error(err); };
+
+	performance.mark('code/fork/willLoadCode');
+	loader([entrypoint], onLoad, onError);
 };

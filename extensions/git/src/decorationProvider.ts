@@ -3,110 +3,148 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
+import { window, workspace, Uri, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, ThemeColor } from 'vscode';
+import * as path from 'path';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
-import { filterEvent } from './util';
+import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource } from './util';
+import { GitErrorCodes, Status } from './api/git';
 
-class GitIgnoreDecorationProvider implements DecorationProvider {
+class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
-	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
-	readonly onDidChangeDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
+	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
 
-	private checkIgnoreQueue = new Map<string, { resolve: (status: boolean) => void, reject: (err: any) => void }>();
+	readonly onDidChangeFileDecorations: Event<Uri[]>;
+	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>> }>();
 	private disposables: Disposable[] = [];
 
-	constructor(private repository: Repository) {
-		this.disposables.push(
-			window.registerDecorationProvider(this),
-			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore'))(_ => this._onDidChangeDecorations.fire())
-			//todo@joh -> events when the ignore status actually changes, not only when the file changes
-		);
+	constructor(private model: Model) {
+		this.onDidChangeFileDecorations = fireEvent(anyEvent<any>(
+			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
+			model.onDidOpenRepository,
+			model.onDidCloseRepository
+		));
+
+		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
-	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
-		this.checkIgnoreQueue.clear();
-	}
+	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
+		const repository = this.model.getRepository(uri);
 
-	provideDecoration(uri: Uri): Promise<DecorationData | undefined> {
-		return new Promise<boolean>((resolve, reject) => {
-			this.checkIgnoreQueue.set(uri.fsPath, { resolve, reject });
+		if (!repository) {
+			return;
+		}
+
+		let queueItem = this.queue.get(repository.root);
+
+		if (!queueItem) {
+			queueItem = { repository, queue: new Map<string, PromiseSource<FileDecoration | undefined>>() };
+			this.queue.set(repository.root, queueItem);
+		}
+
+		let promiseSource = queueItem.queue.get(uri.fsPath);
+
+		if (!promiseSource) {
+			promiseSource = new PromiseSource();
+			queueItem!.queue.set(uri.fsPath, promiseSource);
 			this.checkIgnoreSoon();
-		}).then(ignored => {
-			if (ignored) {
-				return <DecorationData>{
-					priority: 3,
-					color: new ThemeColor('git.color.ignored')
-				};
-			}
-		});
+		}
+
+		return await promiseSource.promise;
 	}
 
 	@debounce(500)
 	private checkIgnoreSoon(): void {
-		const queue = new Map(this.checkIgnoreQueue.entries());
-		this.checkIgnoreQueue.clear();
-		this.repository.checkIgnore([...queue.keys()]).then(ignoreSet => {
-			for (const [key, value] of queue.entries()) {
-				value.resolve(ignoreSet.has(key));
-			}
-		}, err => {
-			console.error(err);
-			for (const [, value] of queue.entries()) {
-				value.reject(err);
-			}
-		});
+		const queue = new Map(this.queue.entries());
+		this.queue.clear();
+
+		for (const [, item] of queue) {
+			const paths = [...item.queue.keys()];
+
+			item.repository.checkIgnore(paths).then(ignoreSet => {
+				for (const [path, promiseSource] of item.queue.entries()) {
+					promiseSource.resolve(ignoreSet.has(path) ? GitIgnoreDecorationProvider.Decoration : undefined);
+				}
+			}, err => {
+				if (err.gitErrorCode !== GitErrorCodes.IsInSubmodule) {
+					console.error(err);
+				}
+
+				for (const [, promiseSource] of item.queue.entries()) {
+					promiseSource.reject(err);
+				}
+			});
+		}
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+		this.queue.clear();
 	}
 }
 
-class GitDecorationProvider implements DecorationProvider {
+class GitDecorationProvider implements FileDecorationProvider {
+
+	private static SubmoduleDecorationData: FileDecoration = {
+		tooltip: 'Submodule',
+		badge: 'S',
+		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
+	};
 
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
-	readonly onDidChangeDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
+	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private disposables: Disposable[] = [];
-	private decorations = new Map<string, DecorationData>();
+	private decorations = new Map<string, FileDecoration>();
 
 	constructor(private repository: Repository) {
 		this.disposables.push(
-			window.registerDecorationProvider(this),
-			repository.onDidRunOperation(this.onDidRunOperation, this)
+			window.registerFileDecorationProvider(this),
+			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
 		);
 	}
 
-	private onDidRunOperation(): void {
-		let newDecorations = new Map<string, DecorationData>();
+	private onDidRunGitStatus(): void {
+		const newDecorations = new Map<string, FileDecoration>();
+
+		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
+		this.collectDecorationData(this.repository.untrackedGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
+		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
 
-		let uris: Uri[] = [];
-		newDecorations.forEach((value, uriString) => {
-			if (this.decorations.has(uriString)) {
-				this.decorations.delete(uriString);
-			} else {
-				uris.push(Uri.parse(uriString));
-			}
-		});
-		this.decorations.forEach((value, uriString) => {
-			uris.push(Uri.parse(uriString));
-		});
+		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 		this.decorations = newDecorations;
-		this._onDidChangeDecorations.fire(uris);
+		this._onDidChangeDecorations.fire([...uris.values()].map(value => Uri.parse(value, true)));
 	}
 
-	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, DecorationData>): void {
-		group.resourceStates.forEach(r => {
-			if (r.resourceDecoration) {
-				bucket.set(r.original.toString(), r.resourceDecoration);
+	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, FileDecoration>): void {
+		for (const r of group.resourceStates) {
+			const decoration = r.resourceDecoration;
+
+			if (decoration) {
+				// not deleted and has a decoration
+				bucket.set(r.original.toString(), decoration);
+
+				if (r.type === Status.DELETED && r.rightUri) {
+					bucket.set(r.rightUri.toString(), decoration);
+				}
+
+				if (r.type === Status.INDEX_RENAMED || r.type === Status.INTENT_TO_RENAME) {
+					bucket.set(r.resourceUri.toString(), decoration);
+				}
 			}
-		});
+		}
 	}
 
-	provideDecoration(uri: Uri): DecorationData | undefined {
+	private collectSubmoduleDecorationData(bucket: Map<string, FileDecoration>): void {
+		for (const submodule of this.repository.submodules) {
+			bucket.set(Uri.file(path.join(this.repository.root, submodule.path)).toString(), GitDecorationProvider.SubmoduleDecorationData);
+		}
+	}
+
+	provideFileDecoration(uri: Uri): FileDecoration | undefined {
 		return this.decorations.get(uri.toString());
 	}
 
@@ -119,24 +157,47 @@ class GitDecorationProvider implements DecorationProvider {
 export class GitDecorations {
 
 	private disposables: Disposable[] = [];
+	private modelDisposables: Disposable[] = [];
 	private providers = new Map<Repository, Disposable>();
 
 	constructor(private model: Model) {
-		this.disposables.push(
-			model.onDidOpenRepository(this.onDidOpenRepository, this),
-			model.onDidCloseRepository(this.onDidCloseRepository, this)
-		);
-		model.repositories.forEach(this.onDidOpenRepository, this);
+		this.disposables.push(new GitIgnoreDecorationProvider(model));
+
+		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.decorations.enabled'));
+		onEnablementChange(this.update, this, this.disposables);
+		this.update();
+	}
+
+	private update(): void {
+		const enabled = workspace.getConfiguration('git').get('decorations.enabled');
+
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
+		this.model.onDidOpenRepository(this.onDidOpenRepository, this, this.modelDisposables);
+		this.model.onDidCloseRepository(this.onDidCloseRepository, this, this.modelDisposables);
+		this.model.repositories.forEach(this.onDidOpenRepository, this);
+	}
+
+	private disable(): void {
+		this.modelDisposables = dispose(this.modelDisposables);
+		this.providers.forEach(value => value.dispose());
+		this.providers.clear();
 	}
 
 	private onDidOpenRepository(repository: Repository): void {
 		const provider = new GitDecorationProvider(repository);
-		const ignoreProvider = new GitIgnoreDecorationProvider(repository);
-		this.providers.set(repository, Disposable.from(provider, ignoreProvider));
+		this.providers.set(repository, provider);
 	}
 
 	private onDidCloseRepository(repository: Repository): void {
 		const provider = this.providers.get(repository);
+
 		if (provider) {
 			provider.dispose();
 			this.providers.delete(repository);
@@ -144,8 +205,7 @@ export class GitDecorations {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
-		this.providers.forEach(value => value.dispose);
-		this.providers.clear();
+		this.disable();
+		this.disposables = dispose(this.disposables);
 	}
 }

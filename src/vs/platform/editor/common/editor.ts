@@ -2,34 +2,31 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-
-export const IEditorService = createDecorator<IEditorService>('editorService');
-
-export interface IEditorService {
-
-	_serviceBrand: any;
-
-	/**
-	 * Specific overload to open an instance of IResourceInput.
-	 */
-	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
-}
+import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export interface IEditorModel {
 
-	onDispose: Event<void>;
+	/**
+	 * Emitted when the model is about to be disposed.
+	 */
+	readonly onWillDispose: Event<void>;
 
 	/**
-	 * Loads the model.
+	 * Resolves the model.
 	 */
-	load(): TPromise<IEditorModel>;
+	resolve(): Promise<void>;
+
+	/**
+	 * Find out if the editor model was resolved or not.
+	 */
+	isResolved(): boolean;
+
+	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean;
 
 	/**
 	 * Dispose associated resources
@@ -37,7 +34,41 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceInput {
+export interface IBaseUntypedEditorInput {
+
+	/**
+	 * Optional options to use when opening the input.
+	 */
+	options?: IEditorOptions;
+
+	/**
+	 * Label to show for the input.
+	 */
+	readonly label?: string;
+
+	/**
+	 * Description to show for the input.
+	 */
+	readonly description?: string;
+}
+
+export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
+
+	/**
+	 * Hint to indicate that this input should be treated as a
+	 * untitled file.
+	 *
+	 * Without this hint, the editor service will make a guess by
+	 * looking at the scheme of the resource(s).
+	 *
+	 * Use `forceUntitled: true` when you pass in a `resource` that
+	 * does not use the `untitled` scheme. The `resource` will then
+	 * be used as associated path when saving the untitled file.
+	 */
+	readonly forceUntitled?: boolean;
+}
+
+export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * Optional options to use when opening the text input.
@@ -45,223 +76,157 @@ export interface IBaseResourceInput {
 	options?: ITextEditorOptions;
 
 	/**
-	 * Label to show for the diff editor
+	 * The contents of the text input if known. If provided,
+	 * the input will not attempt to load the contents from
+	 * disk and may appear dirty.
 	 */
-	label?: string;
-
-	/**
-	 * Description to show for the diff editor
-	 */
-	description?: string;
-}
-
-export interface IResourceInput extends IBaseResourceInput {
-
-	/**
-	 * The resource URL of the resource to open.
-	 */
-	resource: URI;
+	contents?: string;
 
 	/**
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;
+
+	/**
+	 * The identifier of the language id of the text input
+	 * if known to use when displaying the contents.
+	 */
+	languageId?: string;
 }
 
-export interface IUntitledResourceInput extends IBaseResourceInput {
+export interface IResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
-	 * Optional resource. If the resource is not provided a new untitled file is created.
+	 * The resource URI of the resource to open.
 	 */
-	resource?: URI;
-
-	/**
-	 * Optional file path. Using the file resource will associate the file to the untitled resource.
-	 */
-	filePath?: string;
-
-	/**
-	 * Optional language of the untitled resource.
-	 */
-	language?: string;
-
-	/**
-	 * Optional contents of the untitled resource.
-	 */
-	contents?: string;
-
-	/**
-	 * Optional encoding of the untitled resource.
-	 */
-	encoding?: string;
+	readonly resource: URI;
 }
 
-export interface IResourceDiffInput extends IBaseResourceInput {
+export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
 
 	/**
-	 * The left hand side URI to open inside a diff editor.
+	 * Optional options to use when opening the text input.
 	 */
-	leftResource: URI;
-
-	/**
-	 * The right hand side URI to open inside a diff editor.
-	 */
-	rightResource: URI;
-}
-
-export interface IResourceSideBySideInput extends IBaseResourceInput {
-
-	/**
-	 * The right hand side URI to open inside a side by side editor.
-	 */
-	masterResource: URI;
-
-	/**
-	 * The left hand side URI to open inside a side by side editor.
-	 */
-	detailResource: URI;
-}
-
-export interface IEditorControl {
-
-}
-
-export interface IEditor {
-
-	/**
-	 * The assigned input of this editor.
-	 */
-	input: IEditorInput;
-
-	/**
-	 * The assigned options of this editor.
-	 */
-	options: IEditorOptions;
-
-	/**
-	 * The assigned position of this editor.
-	 */
-	position: Position;
-
-	/**
-	 * Returns the unique identifier of this editor.
-	 */
-	getId(): string;
-
-	/**
-	 * Returns the underlying control of this editor.
-	 */
-	getControl(): IEditorControl;
-
-	/**
-	 * Asks the underlying control to focus.
-	 */
-	focus(): void;
-
-	/**
-	 * Finds out if this editor is visible or not.
-	 */
-	isVisible(): boolean;
+	options?: ITextEditorOptions;
 }
 
 /**
- * Possible locations for opening an editor.
+ * This identifier allows to uniquely identify an editor with a
+ * resource, type and editor identifier.
  */
-export enum Position {
+export interface IResourceEditorInputIdentifier {
 
-	/** Opens the editor in the first position replacing the input currently showing */
-	ONE = 0,
+	/**
+	 * The type of the editor.
+	 */
+	readonly typeId: string;
 
-	/** Opens the editor in the second position replacing the input currently showing */
-	TWO = 1,
+	/**
+	 * The identifier of the editor if provided.
+	 */
+	readonly editorId: string | undefined;
 
-	/** Opens the editor in the third most position replacing the input currently showing */
-	THREE = 2
+	/**
+	 * The resource URI of the editor.
+	 */
+	readonly resource: URI;
 }
 
-export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
+export enum EditorActivation {
 
-export enum Direction {
-	LEFT,
-	RIGHT
+	/**
+	 * Activate the editor after it opened. This will automatically restore
+	 * the editor if it is minimized.
+	 */
+	ACTIVATE = 1,
+
+	/**
+	 * Only restore the editor if it is minimized but do not activate it.
+	 *
+	 * Note: will only work in combination with the `preserveFocus: true` option.
+	 * Otherwise, if focus moves into the editor, it will activate and restore
+	 * automatically.
+	 */
+	RESTORE,
+
+	/**
+	 * Preserve the current active editor.
+	 *
+	 * Note: will only work in combination with the `preserveFocus: true` option.
+	 * Otherwise, if focus moves into the editor, it will activate and restore
+	 * automatically.
+	 */
+	PRESERVE
 }
 
-export enum Verbosity {
-	SHORT,
-	MEDIUM,
-	LONG
+export enum EditorResolution {
+
+	/**
+	 * Displays a picker and allows the user to decide which editor to use.
+	 */
+	PICK,
+
+	/**
+	 * Only exclusive editors are considered.
+	 */
+	EXCLUSIVE_ONLY
 }
 
-export interface IEditorInput extends IDisposable {
+export enum EditorOpenSource {
 
 	/**
-	 * Triggered when this input is disposed.
+	 * Default: the editor is opening via a programmatic call
+	 * to the editor service API.
 	 */
-	onDispose: Event<void>;
+	API,
 
 	/**
-	 * Returns the associated resource of this input.
+	 * Indicates that a user action triggered the opening, e.g.
+	 * via mouse or keyboard use.
 	 */
-	getResource(): URI;
-
-	/**
-	 * Returns the display name of this input.
-	 */
-	getName(): string;
-
-	/**
-	 * Returns the display description of this input.
-	 */
-	getDescription(verbosity?: Verbosity): string;
-
-	/**
-	 * Returns the display title of this input.
-	 */
-	getTitle(verbosity?: Verbosity): string;
-
-	/**
-	 * Resolves the input.
-	 */
-	resolve(): TPromise<IEditorModel>;
-
-	/**
-	 * Returns if this input is dirty or not.
-	 */
-	isDirty(): boolean;
-
-	/**
-	 * Reverts this input.
-	 */
-	revert(): TPromise<boolean>;
-
-	/**
-	 * Returns if the other object matches this input.
-	 */
-	matches(other: any): boolean;
+	USER
 }
 
 export interface IEditorOptions {
 
 	/**
-	 * Tells the editor to not receive keyboard focus when the editor is being opened. By default,
-	 * the editor will receive keyboard focus on open.
+	 * Tells the editor to not receive keyboard focus when the editor is being opened.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	preserveFocus?: boolean;
 
 	/**
-	 * Tells the editor to replace the editor input in the editor even if it is identical to the one
-	 * already showing. By default, the editor will not replace the input if it is identical to the
+	 * This option is only relevant if an editor is opened into a group that is not active
+	 * already and allows to control if the inactive group should become active, restored
+	 * or preserved.
+	 *
+	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
+	 * is specified.
+	 */
+	activation?: EditorActivation;
+
+	/**
+	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
+	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.
 	 */
-	forceOpen?: boolean;
+	forceReload?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * to the side of another one or into a specific editor group.
 	 */
 	revealIfVisible?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 *
+	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
+	 * to the side of another one or into a specific editor group.
 	 */
 	revealIfOpened?: boolean;
 
@@ -272,22 +237,120 @@ export interface IEditorOptions {
 	pinned?: boolean;
 
 	/**
+	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
+	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
+	 */
+	sticky?: boolean;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	index?: number;
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
-	 * in the background.
+	 * in the background without loading its contents.
+	 *
+	 * Will also not activate the group the editor opens in unless the group is already
+	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
 	inactive?: boolean;
+
+	/**
+	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
+	 * message as needed. By default, an error will be presented as notification if opening was not possible.
+	 */
+
+	/**
+	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
+	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
+	 * in that case.
+	 *
+	 * By default, an error when opening an editor will result in a placeholder editor that shows the error.
+	 * In certain cases a modal dialog may be presented to ask the user for further action.
+	 */
+	ignoreError?: boolean;
+
+	/**
+	 * Allows to override the editor that should be used to display the input:
+	 * - `undefined`: let the editor decide for itself
+	 * - `string`: specific override by id
+	 * - `EditorResolution`: specific override handling
+	 */
+	override?: string | EditorResolution;
+
+	/**
+	 * A optional hint to signal in which context the editor opens.
+	 *
+	 * If configured to be `EditorOpenSource.USER`, this hint can be
+	 * used in various places to control the experience. For example,
+	 * if the editor to open fails with an error, a notification could
+	 * inform about this in a modal dialog. If the editor opened through
+	 * some background task, the notification would show in the background,
+	 * not as a modal dialog.
+	 */
+	source?: EditorOpenSource;
+
+	/**
+	 * An optional property to signal that certain view state should be
+	 * applied when opening the editor.
+	 */
+	viewState?: object;
 }
 
 export interface ITextEditorSelection {
-	startLineNumber: number;
-	startColumn: number;
-	endLineNumber?: number;
-	endColumn?: number;
+	readonly startLineNumber: number;
+	readonly startColumn: number;
+	readonly endLineNumber?: number;
+	readonly endColumn?: number;
+}
+
+export const enum TextEditorSelectionRevealType {
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
+	 */
+	Center = 0,
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	CenterIfOutsideViewport = 1,
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 */
+	NearTop = 2,
+
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 * Only if it lies outside the viewport
+	 */
+	NearTopIfOutsideViewport = 3,
+}
+
+export const enum TextEditorSelectionSource {
+
+	/**
+	 * Programmatic source indicates a selection change that
+	 * was not triggered by the user via keyboard or mouse
+	 * but through text editor APIs.
+	 */
+	PROGRAMMATIC = 'api',
+
+	/**
+	 * Navigation source indicates a selection change that
+	 * was caused via some command or UI component such as
+	 * an outline tree.
+	 */
+	NAVIGATION = 'code.navigation',
+
+	/**
+	 * Jump source indicates a selection change that
+	 * was caused from within the text editor to another
+	 * location in the same or different text editor such
+	 * as "Go to definition".
+	 */
+	JUMP = 'code.jump'
 }
 
 export interface ITextEditorOptions extends IEditorOptions {
@@ -298,12 +361,13 @@ export interface ITextEditorOptions extends IEditorOptions {
 	selection?: ITextEditorSelection;
 
 	/**
-	 * Text editor view state.
+	 * Option to control the text editor selection reveal type.
+	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
-	viewState?: object;
+	selectionRevealType?: TextEditorSelectionRevealType;
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * Source of the call that caused the selection.
 	 */
-	revealInCenterIfOutsideViewport?: boolean;
+	selectionSource?: TextEditorSelectionSource | string;
 }

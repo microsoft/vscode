@@ -1,15 +1,13 @@
 {
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"target": "es6",
-		"lib": [
-			"es2016"
-		],
-		"module": "commonjs",
 		"outDir": "./out",
-		"strictNullChecks": true,
-		"experimentalDecorators": true
+		"types": [
+			"node"
+		]
 	},
 	"include": [
-		"src/**/*"
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts"
 	]
 }

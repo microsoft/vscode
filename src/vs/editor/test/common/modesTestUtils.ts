@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
-import { StandardTokenType, MetadataConsts } from 'vs/editor/common/modes';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/languages/supports';
+import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 export interface TokenText {
 	text: string;
@@ -14,14 +14,14 @@ export interface TokenText {
 }
 
 export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTokens {
-	let tokens = new Uint32Array(rawTokens.length << 1);
+	const tokens = new Uint32Array(rawTokens.length << 1);
 	let line = '';
 
 	for (let i = 0, len = rawTokens.length; i < len; i++) {
-		let rawToken = rawTokens[i];
+		const rawToken = rawTokens[i];
 
-		let startOffset = line.length;
-		let metadata = (
+		const startOffset = line.length;
+		const metadata = (
 			(rawToken.type << MetadataConsts.TOKEN_TYPE_OFFSET)
 		) >>> 0;
 
@@ -30,5 +30,6 @@ export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTo
 		line += rawToken.text;
 	}
 
-	return createScopedLineTokens(new LineTokens(tokens, line), 0);
+	LineTokens.convertToEndOffset(tokens, line.length);
+	return createScopedLineTokens(new LineTokens(tokens, line, new LanguageIdCodec()), 0);
 }

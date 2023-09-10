@@ -1,4 +1,4 @@
-# EditorConfig is awesome: http://EditorConfig.org
+# EditorConfig is awesome: https://EditorConfig.org
 
 # top-most EditorConfig file
 root = true
@@ -6,11 +6,10 @@ root = true
 # Tab indentation
 [*]
 indent_style = tab
-indent_size = 4
 trim_trailing_whitespace = true
 
 # The indent size used in the `package.json` file cannot be changed
 # https://github.com/npm/npm/pull/3180#issuecomment-16336516
-[{*.yml,*.yaml,npm-shrinkwrap.json,package.json}]
+[{*.yml,*.yaml,package.json}]
 indent_style = space
 indent_size = 2

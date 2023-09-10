@@ -4,38 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Arrows */
-.monaco-scrollable-element > .scrollbar > .up-arrow {
-	background: url('arrow-up.svg');
+.monaco-scrollable-element > .scrollbar > .scra {
 	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .down-arrow {
-	background: url('arrow-down.svg');
-	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .left-arrow {
-	background: url('arrow-left.svg');
-	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .right-arrow {
-	background: url('arrow-right.svg');
-	cursor: pointer;
-}
-
-.hc-black .monaco-scrollable-element > .scrollbar > .up-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .up-arrow {
-	background: url('arrow-up-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .down-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .down-arrow {
-	background: url('arrow-down-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .left-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .left-arrow {
-	background: url('arrow-left-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .right-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .right-arrow {
-	background: url('arrow-right-dark.svg');
+	font-size: 11px !important;
 }
 
 .monaco-scrollable-element > .visible {
@@ -44,20 +15,15 @@
 	/* Background rule added for IE9 - to allow clicks on dom node */
 	background:rgba(0,0,0,0);
 
-	-webkit-transition: opacity 100ms linear;
-	-o-transition: opacity 100ms linear;
-	-moz-transition: opacity 100ms linear;
-	-ms-transition: opacity 100ms linear;
 	transition: opacity 100ms linear;
+	/* In front of peek view */
+	z-index: 11;
 }
 .monaco-scrollable-element > .invisible {
 	opacity: 0;
+	pointer-events: none;
 }
 .monaco-scrollable-element > .invisible.fade {
-	-webkit-transition: opacity 800ms linear;
-	-o-transition: opacity 800ms linear;
-	-moz-transition: opacity 800ms linear;
-	-ms-transition: opacity 800ms linear;
 	transition: opacity 800ms linear;
 }
 
@@ -72,7 +38,7 @@
 	left: 3px;
 	height: 3px;
 	width: 100%;
-	box-shadow: #DDD 0 6px 6px -6px inset;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.left {
 	display: block;
@@ -80,7 +46,7 @@
 	left: 0;
 	height: 100%;
 	width: 3px;
-	box-shadow: #DDD 6px 0 6px -6px inset;
+	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
 }
 .monaco-scrollable-element > .shadow.top-left-corner {
 	display: block;
@@ -90,58 +56,17 @@
 	width: 3px;
 }
 .monaco-scrollable-element > .shadow.top.left {
-	box-shadow: #DDD 6px 6px 6px -6px inset;
+	box-shadow: var(--vscode-scrollbar-shadow) 6px 0 6px -6px inset;
 }
 
-/* ---------- Default Style ---------- */
-
-.vs .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(100, 100, 100, .4);
-}
-.vs-dark .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(121, 121, 121, .4);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider {
-	background: rgba(111, 195, 223, .6);
+.monaco-scrollable-element > .scrollbar > .slider {
+	background: var(--vscode-scrollbarSlider-background);
 }
 
 .monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(100, 100, 100, .7);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider:hover {
-	background: rgba(111, 195, 223, .8);
+	background: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
 .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(0, 0, 0, .6);
-}
-.vs-dark .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(191, 191, 191, .4);
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .slider.active {
-	background: rgba(111, 195, 223, 1);
-}
-
-.vs-dark .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-.vs-dark .monaco-scrollable-element .shadow.left {
-	box-shadow: #000 6px 0 6px -6px inset;
-}
-
-.vs-dark .monaco-scrollable-element .shadow.top.left {
-	box-shadow: #000 6px 6px 6px -6px inset;
-}
-
-.hc-black .monaco-scrollable-element .shadow.top {
-	box-shadow: none;
-}
-
-.hc-black .monaco-scrollable-element .shadow.left {
-	box-shadow: none;
-}
-
-.hc-black .monaco-scrollable-element .shadow.top.left {
-	box-shadow: none;
+	background: var(--vscode-scrollbarSlider-activeBackground);
 }

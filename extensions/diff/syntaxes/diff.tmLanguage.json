@@ -5,14 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/diff.tmbundle/commit/0593bb775eab1824af97ef2172fd38822abd97d7",
-	"fileTypes": [
-		"patch",
-		"diff",
-		"rej"
-	],
-	"firstLineMatch": "(?x)^\n\t\t(===\\ modified\\ file\n\t\t|==== \\s* // .+ \\s - \\s .+ \\s+ ====\n\t\t|Index:\\ \n\t\t|---\\ [^%\\n]\n\t\t|\\*\\*\\*.*\\d{4}\\s*$\n\t\t|\\d+(,\\d+)* (a|d|c) \\d+(,\\d+)* $\n\t\t|diff\\ --git\\ \n\t\t|commit\\ [0-9a-f]{40}$\n\t\t)",
-	"keyEquivalent": "^~D",
 	"name": "Diff",
+	"scopeName": "source.diff",
 	"patterns": [
 		{
 			"captures": {
@@ -162,7 +156,5 @@
 			"match": "^Only in .*: .*$\\n?",
 			"name": "meta.diff.only-in"
 		}
-	],
-	"scopeName": "source.diff",
-	"uuid": "7E848FF4-708E-11D9-97B4-0011242E4184"
+	]
 }

@@ -4,18 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/0ad8c770ea3836b15bc121fff4161a794d3deeaa",
-	"fileTypes": [
-		"R",
-		"r",
-		"S",
-		"s",
-		"Rprofile"
-	],
-	"foldingStartMarker": "(\\(\\s*$|\\{\\s*$)",
-	"foldingStopMarker": "(^\\s*\\)|^\\s*\\})",
-	"keyEquivalent": "^~R",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/ff60e426f66503f3c9533c7a62a8fd3f9f6c53df",
 	"name": "R",
+	"scopeName": "source.r",
 	"patterns": [
 		{
 			"include": "#roxygen"
@@ -119,7 +110,7 @@
 					"name": "constant.numeric.integer.hexadecimal.r"
 				},
 				{
-					"match": "\\b(?:[0-9]+\\.?[0-9]*)L\\b",
+					"match": "\\b(?:[0-9]+\\.?[0-9]*)(?:(e|E)(\\+|-)?[0-9]+)?L\\b",
 					"name": "constant.numeric.integer.decimal.r"
 				},
 				{
@@ -150,6 +141,17 @@
 					"match": "([[:alpha:].][[:alnum:]._]*)\\s*(=)(?=[^=])"
 				},
 				{
+					"captures": {
+						"1": {
+							"name": "variable.parameter.r"
+						},
+						"2": {
+							"name": "keyword.operator.assignment.r"
+						}
+					},
+					"match": "(`[^`]+`)\\s*(=)(?=[^=])"
+				},
+				{
 					"match": "\\b([\\d_][[:alnum:]._]+)\\b",
 					"name": "invalid.illegal.variable.other.r"
 				},
@@ -159,6 +161,10 @@
 				},
 				{
 					"match": "\\b([[:alnum:]._]+)\\b",
+					"name": "variable.other.r"
+				},
+				{
+					"match": "(`[^`]+`)",
 					"name": "variable.other.r"
 				}
 			]
@@ -178,11 +184,11 @@
 					"name": "keyword.operator.arithmetic.r"
 				},
 				{
-					"match": "(=|<-|<<-|->|->>)",
+					"match": "(:=|<-|<<-|->|->>)",
 					"name": "keyword.operator.assignment.r"
 				},
 				{
-					"match": "(==|!=|<>|<|>|<=|>=)",
+					"match": "(==|<=|>=|!=|<>|<|>|%in%)",
 					"name": "keyword.operator.comparison.r"
 				},
 				{
@@ -190,7 +196,11 @@
 					"name": "keyword.operator.logical.r"
 				},
 				{
-					"match": "(%in%|:=|%between%|%chin%|%like%|%\\+%|%\\+replace%|%:%|%do%|%dopar%|%>%|%<>%|%T>%|%\\$%)",
+					"match": "(\\|>)",
+					"name": "keyword.operator.pipe.r"
+				},
+				{
+					"match": "(%between%|%chin%|%like%|%\\+%|%\\+replace%|%:%|%do%|%dopar%|%>%|%<>%|%T>%|%\\$%)",
 					"name": "keyword.operator.other.r"
 				},
 				{
@@ -209,6 +219,96 @@
 		},
 		"strings": {
 			"patterns": [
+				{
+					"begin": "[rR]\"(-*)\\[",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\]\\1\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.double.raw.r"
+				},
+				{
+					"begin": "[rR]'(-*)\\[",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\]\\1'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.single.raw.r"
+				},
+				{
+					"begin": "[rR]\"(-*)\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\}\\1\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.double.raw.r"
+				},
+				{
+					"begin": "[rR]'(-*)\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\}\\1'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.single.raw.r"
+				},
+				{
+					"begin": "[rR]\"(-*)\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\)\\1\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.double.raw.r"
+				},
+				{
+					"begin": "[rR]'(-*)\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\)\\1'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.single.raw.r"
+				},
 				{
 					"begin": "\"",
 					"beginCaptures": {
@@ -337,8 +437,8 @@
 		"function-declarations": {
 			"patterns": [
 				{
-					"begin": "^\\s*([a-zA-Z0-9._:]*)\\s*(<<?-|=)\\s*(?=function\\s*\\()",
-					"beginCaptures": {
+					"match": "((?:`[^`\\\\]*(?:\\\\.[^`\\\\]*)*`)|(?:[[:alpha:].][[:alnum:]._]*))\\s*(<?<-|=(?!=))\\s*(function|\\\\)(?!\\w)",
+					"captures": {
 						"1": {
 							"name": "entity.name.function.r"
 						},
@@ -349,7 +449,6 @@
 							"name": "keyword.control.r"
 						}
 					},
-					"end": "",
 					"name": "meta.function.r",
 					"patterns": [
 						{
@@ -384,8 +483,8 @@
 							"include": "#comments"
 						},
 						{
-							"match": "(?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`)",
-							"name": "variable.parameter.r"
+							"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)",
+							"name": "variable.other.r"
 						},
 						{
 							"begin": "(?==)",
@@ -405,7 +504,7 @@
 			]
 		},
 		"function-calls": {
-			"begin": "(?:\\b|(?=\\.))((?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`))\\s*(\\()",
+			"begin": "(?:\\b|(?=\\.))((?:[a-zA-Z._][\\w.]*|`[^`]+`))\\s*(\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "variable.function.r"
@@ -418,7 +517,7 @@
 			"end": "(\\))",
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.definition.parameters.r"
+					"name": "punctuation.section.parens.end.r"
 				}
 			},
 			"name": "meta.function-call.r",
@@ -435,8 +534,8 @@
 					"contentName": "meta.function-call.parameters.r"
 				},
 				{
-					"match": "(?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`)(?=\\s[^=])",
-					"name": "variable.parameter.r"
+					"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)(?=\\s[^=])",
+					"name": "variable.other.r"
 				},
 				{
 					"begin": "(?==)",
@@ -452,12 +551,6 @@
 					"name": "punctuation.separator.parameters.r"
 				},
 				{
-					"end": "\\)",
-					"endCaptures": {
-						"0": "punctuation.section.parens.end.r"
-					}
-				},
-				{
 					"include": "source.r"
 				}
 			]
@@ -465,7 +558,7 @@
 		"roxygen": {
 			"patterns": [
 				{
-					"begin": "^(#')\\s*",
+					"begin": "^\\s*(#')\\s*",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.comment.r"
@@ -483,7 +576,7 @@
 									"name": "variable.parameter.r"
 								}
 							},
-							"match": "(@param)\\s*((?:[a-zA-Z._][a-zA-Z0-9._]*|`[^`]+`))"
+							"match": "(@param)\\s*((?:[a-zA-Z._][\\w.]*|`[^`]+`))"
 						},
 						{
 							"match": "@[a-zA-Z0-9]+",
@@ -545,7 +638,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.r",
-	"uuid": "B2E6B78D-6E70-11D9-A369-000D93B3A10A"
+	}
 }

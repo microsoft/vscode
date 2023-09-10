@@ -2,89 +2,160 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as objects from 'vs/base/common/objects';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
+/**
+ * A range to be highlighted.
+ */
 export interface IHighlight {
 	start: number;
 	end: number;
+	readonly extraClasses?: readonly string[];
 }
 
-export class HighlightedLabel implements IDisposable {
+export interface IHighlightedLabelOptions {
 
-	private domNode: HTMLElement;
-	private text: string;
-	private highlights: IHighlight[];
-	private didEverRender: boolean;
+	/**
+	 * Whether the label supports rendering icons.
+	 */
+	readonly supportIcons?: boolean;
+}
 
-	constructor(container: HTMLElement) {
-		this.domNode = document.createElement('span');
-		this.domNode.className = 'monaco-highlighted-label';
-		this.didEverRender = false;
-		container.appendChild(this.domNode);
+/**
+ * A widget which can render a label with substring highlights, often
+ * originating from a filter function like the fuzzy matcher.
+ */
+export class HighlightedLabel {
+
+	private readonly domNode: HTMLElement;
+	private text: string = '';
+	private title: string = '';
+	private highlights: readonly IHighlight[] = [];
+	private supportIcons: boolean;
+	private didEverRender: boolean = false;
+
+	/**
+	 * Create a new {@link HighlightedLabel}.
+	 *
+	 * @param container The parent container to append to.
+	 */
+	constructor(container: HTMLElement, options?: IHighlightedLabelOptions) {
+		this.supportIcons = options?.supportIcons ?? false;
+		this.domNode = dom.append(container, dom.$('span.monaco-highlighted-label'));
 	}
 
+	/**
+	 * The label's DOM node.
+	 */
 	get element(): HTMLElement {
 		return this.domNode;
 	}
 
-	set(text: string, highlights: IHighlight[] = []) {
+	/**
+	 * Set the label and highlights.
+	 *
+	 * @param text The label to display.
+	 * @param highlights The ranges to highlight.
+	 * @param title An optional title for the hover tooltip.
+	 * @param escapeNewLines Whether to escape new lines.
+	 * @returns
+	 */
+	set(text: string | undefined, highlights: readonly IHighlight[] = [], title: string = '', escapeNewLines?: boolean) {
 		if (!text) {
 			text = '';
 		}
-		if (this.didEverRender && this.text === text && objects.equals(this.highlights, highlights)) {
+
+		if (escapeNewLines) {
+			// adjusts highlights inplace
+			text = HighlightedLabel.escapeNewLines(text, highlights);
+		}
+
+		if (this.didEverRender && this.text === text && this.title === title && objects.equals(this.highlights, highlights)) {
 			return;
 		}
 
-		if (!Array.isArray(highlights)) {
-			highlights = [];
-		}
-
 		this.text = text;
+		this.title = title;
 		this.highlights = highlights;
 		this.render();
 	}
 
-	private render() {
-		dom.clearNode(this.domNode);
+	private render(): void {
 
-		let htmlContent: string[] = [],
-			highlight: IHighlight,
-			pos = 0;
+		const children: Array<HTMLSpanElement | string> = [];
+		let pos = 0;
 
-		for (let i = 0; i < this.highlights.length; i++) {
-			highlight = this.highlights[i];
+		for (const highlight of this.highlights) {
 			if (highlight.end === highlight.start) {
 				continue;
 			}
+
 			if (pos < highlight.start) {
-				htmlContent.push('<span>');
-				htmlContent.push(renderOcticons(this.text.substring(pos, highlight.start)));
-				htmlContent.push('</span>');
-				pos = highlight.end;
+				const substring = this.text.substring(pos, highlight.start);
+				if (this.supportIcons) {
+					children.push(...renderLabelWithIcons(substring));
+				} else {
+					children.push(substring);
+				}
+				pos = highlight.start;
 			}
-			htmlContent.push('<span class="highlight">');
-			htmlContent.push(renderOcticons(this.text.substring(highlight.start, highlight.end)));
-			htmlContent.push('</span>');
+
+			const substring = this.text.substring(pos, highlight.end);
+			const element = dom.$('span.highlight', undefined, ...this.supportIcons ? renderLabelWithIcons(substring) : [substring]);
+
+			if (highlight.extraClasses) {
+				element.classList.add(...highlight.extraClasses);
+			}
+
+			children.push(element);
 			pos = highlight.end;
 		}
 
 		if (pos < this.text.length) {
-			htmlContent.push('<span>');
-			htmlContent.push(renderOcticons(this.text.substring(pos)));
-			htmlContent.push('</span>');
+			const substring = this.text.substring(pos,);
+			if (this.supportIcons) {
+				children.push(...renderLabelWithIcons(substring));
+			} else {
+				children.push(substring);
+			}
 		}
 
-		this.domNode.innerHTML = htmlContent.join('');
+		dom.reset(this.domNode, ...children);
+
+		if (this.title) {
+			this.domNode.title = this.title;
+		} else {
+			this.domNode.removeAttribute('title');
+		}
+
 		this.didEverRender = true;
 	}
 
-	dispose() {
-		this.text = null;
-		this.highlights = null;
+	static escapeNewLines(text: string, highlights: readonly IHighlight[]): string {
+		let total = 0;
+		let extra = 0;
+
+		return text.replace(/\r\n|\r|\n/g, (match, offset) => {
+			extra = match === '\r\n' ? -1 : 0;
+			offset += total;
+
+			for (const highlight of highlights) {
+				if (highlight.end <= offset) {
+					continue;
+				}
+				if (highlight.start >= offset) {
+					highlight.start += extra;
+				}
+				if (highlight.end >= offset) {
+					highlight.end += extra;
+				}
+			}
+
+			total += extra;
+			return '\u23CE';
+		});
 	}
 }

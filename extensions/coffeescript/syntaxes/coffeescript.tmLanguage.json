@@ -4,35 +4,30 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-coffee-script/commit/8873cbc4e2f3b790603cbe7102d60f41fc82f726",
-	"scopeName": "source.coffee",
+	"version": "https://github.com/atom/language-coffee-script/commit/0f6db9143663e18b1ad00667820f46747dba495e",
 	"name": "CoffeeScript",
-	"fileTypes": [
-		"coffee",
-		"Cakefile",
-		"coffee.erb",
-		"cson",
-		"_coffee"
-	],
-	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/)\n  coffee\n(?:$|\\s)\n|\n# Modeline\n(?i:\n  # Emacs\n  -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    coffee\n  (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n  # Vim\n  (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n    coffee\n  (?=\\s|:|$)\n)",
+	"scopeName": "source.coffee",
 	"patterns": [
 		{
+			"include": "#jsx"
+		},
+		{
+			"match": "(new)\\s+(?:(?:(class)\\s+(\\w+(?:\\.\\w*)*)?)|(\\w+(?:\\.\\w*)*))",
+			"name": "meta.class.instance.constructor.coffee",
 			"captures": {
 				"1": {
 					"name": "keyword.operator.new.coffee"
 				},
-				"4": {
+				"2": {
 					"name": "storage.type.class.coffee"
 				},
-				"6": {
+				"3": {
 					"name": "entity.name.type.instance.coffee"
 				},
-				"7": {
+				"4": {
 					"name": "entity.name.type.instance.coffee"
 				}
-			},
-			"match": "(new)\\s+(((class)(\\s+(\\w+(?:\\.\\w*)*))?)|(\\w+(?:\\.\\w*)*))",
-			"name": "meta.class.instance.constructor"
+			}
 		},
 		{
 			"begin": "'''",
@@ -47,7 +42,7 @@
 					"name": "punctuation.definition.string.end.coffee"
 				}
 			},
-			"name": "string.quoted.heredoc.coffee",
+			"name": "string.quoted.single.heredoc.coffee",
 			"patterns": [
 				{
 					"captures": {
@@ -143,7 +138,7 @@
 		{
 			"begin": "///",
 			"end": "(///)[gimuy]*",
-			"name": "string.regexp.coffee",
+			"name": "string.regexp.multiline.coffee",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.coffee"
@@ -556,7 +551,7 @@
 				},
 				{
 					"begin": "(?=(@|@?[\\w$]+|[=-]>|\\-\\d|\\[|{|\"|'))",
-					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\)|#|$))",
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
 					"name": "meta.arguments.coffee",
 					"patterns": [
 						{
@@ -637,7 +632,7 @@
 							]
 						}
 					},
-					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\)|#|$))",
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
 					"name": "meta.function-call.coffee",
 					"patterns": [
 						{
@@ -793,7 +788,7 @@
 							]
 						}
 					},
-					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\)|#|$))",
+					"end": "(?=\\s*(?<![\\w$])(of|in|then|is|isnt|and|or|for|else|when|if|unless|by|instanceof)(?![\\w$]))|(?=\\s*(}|\\]|\\)|#|$))",
 					"name": "meta.method-call.coffee",
 					"patterns": [
 						{
@@ -1219,6 +1214,101 @@
 				},
 				{
 					"include": "#embedded_comment"
+				}
+			]
+		},
+		"jsx": {
+			"patterns": [
+				{
+					"include": "#jsx-tag"
+				},
+				{
+					"include": "#jsx-end-tag"
+				}
+			]
+		},
+		"jsx-expression": {
+			"begin": "{",
+			"beginCaptures": {
+				"0": {
+					"name": "meta.brace.curly.coffee"
+				}
+			},
+			"end": "}",
+			"endCaptures": {
+				"0": {
+					"name": "meta.brace.curly.coffee"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#double_quoted_string"
+				},
+				{
+					"include": "$self"
+				}
+			]
+		},
+		"jsx-attribute": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "entity.other.attribute-name.coffee"
+						},
+						"2": {
+							"name": "keyword.operator.assignment.coffee"
+						}
+					},
+					"match": "(?:^|\\s+)([-\\w.]+)\\s*(=)"
+				},
+				{
+					"include": "#double_quoted_string"
+				},
+				{
+					"include": "#single_quoted_string"
+				},
+				{
+					"include": "#jsx-expression"
+				}
+			]
+		},
+		"jsx-tag": {
+			"patterns": [
+				{
+					"begin": "(<)([-\\w\\.]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.tag.coffee"
+						},
+						"2": {
+							"name": "entity.name.tag.coffee"
+						}
+					},
+					"end": "(/?>)",
+					"name": "meta.tag.coffee",
+					"patterns": [
+						{
+							"include": "#jsx-attribute"
+						}
+					]
+				}
+			]
+		},
+		"jsx-end-tag": {
+			"patterns": [
+				{
+					"begin": "(</)([-\\w\\.]+)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.tag.coffee"
+						},
+						"2": {
+							"name": "entity.name.tag.coffee"
+						}
+					},
+					"end": "(/?>)",
+					"name": "meta.tag.coffee"
 				}
 			]
 		}

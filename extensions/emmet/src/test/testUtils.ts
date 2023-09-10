@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as os from 'os';
 import { join } from 'path';
 
-function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+export function rndName() {
+	let name = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 10; i++) {
+		name += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return name;
 }
 
 export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {
@@ -50,7 +53,6 @@ export function deleteFile(file: vscode.Uri): Thenable<boolean> {
 
 export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
-
 }
 
 export function withRandomFileEditor(initialContents: string, fileExtension: string = 'txt', run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>): Thenable<boolean> {
@@ -59,7 +61,7 @@ export function withRandomFileEditor(initialContents: string, fileExtension: str
 			return vscode.window.showTextDocument(doc).then((editor) => {
 				return run(editor, doc).then(_ => {
 					if (doc.isDirty) {
-						return doc.save().then(saved => {
+						return doc.save().then(() => {
 							return deleteFile(file);
 						});
 					} else {

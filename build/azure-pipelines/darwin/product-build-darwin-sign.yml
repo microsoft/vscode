@@ -1,0 +1,60 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "18.x"
+
+  - task: UseDotNet@2
+    inputs:
+      version: 6.x
+
+  - task: EsrpClientTool@1
+    continueOnError: true
+    displayName: Download ESRPClient
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
+
+  - download: current
+    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+    displayName: Download $(VSCODE_ARCH) artifact
+
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+    displayName: Codesign
+
+  - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+    displayName: Notarize
+
+  - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+    displayName: Extract signed app
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      set -e
+      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      APP_PATH="$APP_ROOT/$APP_NAME"
+      codesign -dv --deep --verbose=4 "$APP_PATH"
+      "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+    displayName: Verify signature
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - script: |
+      # For legacy purposes, arch for x64 is just 'darwin'
+      case $VSCODE_ARCH in
+        x64) ASSET_ID="darwin" ;;
+        arm64) ASSET_ID="darwin-arm64" ;;
+        universal) ASSET_ID="darwin-universal" ;;
+      esac
+      echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
+    displayName: Set asset id variable
+
+  - script: mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-x64.zip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
+    displayName: Rename x64 build to its legacy name
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
+    artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive

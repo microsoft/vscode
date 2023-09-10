@@ -12,23 +12,19 @@ set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
 :: Download Electron if needed
-for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"electronVersion\":.*" package.json') do set DESIREDVERSION=%%~a
-set DESIREDVERSION=%DESIREDVERSION: "=%
-set DESIREDVERSION=v%DESIREDVERSION:"=%
-if exist .\.build\electron\version (set /p INSTALLEDVERSION=<.\.build\electron\version) else (set INSTALLEDVERSION="")
-
-if not exist %CODE% node .\node_modules\gulp\bin\gulp.js electron
-if not "%INSTALLEDVERSION%" == "%DESIREDVERSION%" node .\node_modules\gulp\bin\gulp.js electron
+call node build\lib\electron.js
+if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
 :: Run tests
-%CODE% .\test\electron\index.js %*
+set ELECTRON_ENABLE_LOGGING=1
+%CODE% .\test\unit\electron\index.js --crash-reporter-directory=%~dp0\..\.build\crashes %*
 
 popd
 
 endlocal
 
 :: app.exit(0) is exiting with code 255 in Electron 1.7.4.
-:: See https://github.com/Microsoft/vscode/issues/28582
+:: See https://github.com/microsoft/vscode/issues/28582
 echo errorlevel: %errorlevel%
 if %errorlevel% == 255 set errorlevel=0
 

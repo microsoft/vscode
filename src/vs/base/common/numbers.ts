@@ -3,55 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import types = require('vs/base/common/types');
-
-export type NumberCallback = (index: number) => void;
-
-export function count(to: number, callback: NumberCallback): void;
-export function count(from: number, to: number, callback: NumberCallback): void;
-export function count(fromOrTo: number, toOrCallback?: NumberCallback | number, callback?: NumberCallback): any {
-	let from: number;
-	let to: number;
-
-	if (types.isNumber(toOrCallback)) {
-		from = fromOrTo;
-		to = <number>toOrCallback;
-	} else {
-		from = 0;
-		to = fromOrTo;
-		callback = <NumberCallback>toOrCallback;
-	}
-
-	const op = from <= to ? (i: number) => i + 1 : (i: number) => i - 1;
-	const cmp = from <= to ? (a: number, b: number) => a < b : (a: number, b: number) => a > b;
-
-	for (let i = from; cmp(i, to); i = op(i)) {
-		callback(i);
-	}
-}
-
-export function countToArray(to: number): number[];
-export function countToArray(from: number, to: number): number[];
-export function countToArray(fromOrTo: number, to?: number): number[] {
-	const result: number[] = [];
-	const fn = (i: number) => result.push(i);
-
-	if (types.isUndefined(to)) {
-		count(fromOrTo, fn);
-	} else {
-		count(fromOrTo, to, fn);
-	}
-
-	return result;
-}
-
-
 export function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);
 }
 
 export function rot(index: number, modulo: number): number {
 	return (modulo + (index % modulo)) % modulo;
+}
+
+export class Counter {
+	private _next = 0;
+
+	getNext(): number {
+		return this._next++;
+	}
+}
+
+export class MovingAverage {
+
+	private _n = 1;
+	private _val = 0;
+
+	update(value: number): number {
+		this._val = this._val + (value - this._val) / this._n;
+		this._n += 1;
+		return this._val;
+	}
+
+	get value(): number {
+		return this._val;
+	}
+}
+
+export class SlidingWindowAverage {
+
+	private _n: number = 0;
+	private _val = 0;
+
+	private readonly _values: number[] = [];
+	private _index: number = 0;
+	private _sum = 0;
+
+	constructor(size: number) {
+		this._values = new Array(size);
+		this._values.fill(0, 0, size);
+	}
+
+	update(value: number): number {
+		const oldValue = this._values[this._index];
+		this._values[this._index] = value;
+		this._index = (this._index + 1) % this._values.length;
+
+		this._sum -= oldValue;
+		this._sum += value;
+
+		if (this._n < this._values.length) {
+			this._n += 1;
+		}
+
+		this._val = this._sum / this._n;
+		return this._val;
+	}
+
+	get value(): number {
+		return this._val;
+	}
 }

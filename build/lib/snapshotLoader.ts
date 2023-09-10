@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 namespace snaps {
 
 	const fs = require('fs');
@@ -30,6 +28,10 @@ namespace snaps {
 		case 'linux':
 			loaderFilepath = `VSCode-${process.platform}-${arch}/resources/app/out/vs/loader.js`;
 			startupBlobFilepath = `VSCode-${process.platform}-${arch}/snapshot_blob.bin`;
+			break;
+
+		default:
+			throw new Error('Unknown platform');
 	}
 
 	loaderFilepath = path.join(__dirname, '../../../', loaderFilepath);

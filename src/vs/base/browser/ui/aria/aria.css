@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-aria-container {
-	position: absolute; /* try to hide from workbench but not from screen readers */
+	position: absolute; /* try to hide from window but not from screen readers */
 	left:-999em;
 }

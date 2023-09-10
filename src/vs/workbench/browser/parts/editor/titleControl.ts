@@ -3,561 +3,458 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import 'vs/css!./media/titlecontrol';
-import nls = require('vs/nls');
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
-import { IAction, Action } from 'vs/base/common/actions';
-import errors = require('vs/base/common/errors');
-import DOM = require('vs/base/browser/dom');
-import { TPromise } from 'vs/base/common/winjs.base';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
-import arrays = require('vs/base/common/arrays');
-import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
-import { EventType as BaseEventType } from 'vs/base/common/events';
-import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { localize } from 'vs/nls';
+import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
+import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Themable } from 'vs/workbench/common/theme';
-import { IDraggedResource } from 'vs/base/browser/dnd';
-import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { extname } from 'vs/base/common/paths';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import URI from 'vs/base/common/uri';
+import { assertIsDefined } from 'vs/base/common/types';
+import { isFirefox } from 'vs/base/browser/browser';
+import { isCancellationError } from 'vs/base/common/errors';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export interface IToolbarActions {
 	primary: IAction[];
 	secondary: IAction[];
 }
 
-export interface ITitleAreaControl {
-	setContext(group: IEditorGroup): void;
-	hasContext(): boolean;
-	allowDragging(element: HTMLElement): boolean;
-	setDragged(dragged: boolean): void;
-	create(parent: HTMLElement): void;
-	getContainer(): HTMLElement;
-	refresh(instant?: boolean): void;
-	update(instant?: boolean): void;
-	updateEditorActionsToolbar(): void;
-	layout(): void;
-	dispose(): void;
+export interface ITitleControlDimensions {
+
+	/**
+	 * The size of the parent container the title control is layed out in.
+	 */
+	container: Dimension;
+
+	/**
+	 * The maximum size the title control is allowed to consume based on
+	 * other controls that are positioned inside the container.
+	 */
+	available: Dimension;
 }
 
-export abstract class TitleControl extends Themable implements ITitleAreaControl {
-
-	private static draggedEditor: IEditorIdentifier;
-
-	protected stacks: IEditorStacksModel;
-	protected context: IEditorGroup;
-
-	protected dragged: boolean;
-
-	protected closeEditorAction: CloseEditorAction;
-	protected pinEditorAction: KeepEditorAction;
-	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
-	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
-	protected closeUnmodifiedEditorsInGroupAction: CloseUnmodifiedEditorsInGroupAction;
-	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
-	protected splitEditorAction: SplitEditorAction;
-	protected showEditorsInGroupAction: ShowEditorsInGroupAction;
-
-	private parent: HTMLElement;
-
-	private currentPrimaryEditorActionIds: string[] = [];
-	private currentSecondaryEditorActionIds: string[] = [];
-	protected editorActionsToolbar: ToolBar;
-
-	private mapActionsToEditors: { [editorId: string]: IToolbarActions; };
-	private scheduler: RunOnceScheduler;
-	private refreshScheduled: boolean;
-
-	private resourceContext: ResourceContextKey;
-	private disposeOnEditorActions: IDisposable[] = [];
-
-	private contextMenu: IMenu;
+export class EditorCommandsContextActionRunner extends ActionRunner {
 
 	constructor(
-		@IContextMenuService protected contextMenuService: IContextMenuService,
+		private context: IEditorCommandsContext
+	) {
+		super();
+	}
+
+	override run(action: IAction, context?: { preserveFocus?: boolean }): Promise<void> {
+
+		// Even though we have a fixed context for editor commands,
+		// allow to preserve the context that is given to us in case
+		// it applies.
+
+		let mergedContext = this.context;
+		if (context?.preserveFocus) {
+			mergedContext = {
+				...this.context,
+				preserveFocus: true
+			};
+		}
+
+		return super.run(action, mergedContext);
+	}
+}
+
+export abstract class TitleControl extends Themable {
+
+	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	protected readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
+
+	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
+
+	private editorActionsToolbar: WorkbenchToolBar | undefined;
+
+	private resourceContext: ResourceContextKey;
+
+	private editorPinnedContext: IContextKey<boolean>;
+	private editorIsFirstContext: IContextKey<boolean>;
+	private editorIsLastContext: IContextKey<boolean>;
+	private editorStickyContext: IContextKey<boolean>;
+	private editorAvailableEditorIds: IContextKey<string>;
+
+	private editorCanSplitInGroupContext: IContextKey<boolean>;
+	private sideBySideEditorContext: IContextKey<boolean>;
+
+	private groupLockedContext: IContextKey<boolean>;
+
+	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
+
+	private renderDropdownAsChildElement: boolean;
+
+	constructor(
+		parent: HTMLElement,
+		protected accessor: IEditorGroupsAccessor,
+		protected group: IEditorGroupView,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEditorGroupService protected editorGroupService: IEditorGroupService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
-		@IMessageService protected messageService: IMessageService,
-		@IMenuService protected menuService: IMenuService,
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@IThemeService protected themeService: IThemeService
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IQuickInputService protected quickInputService: IQuickInputService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
 	) {
 		super(themeService);
 
-		this.stacks = editorGroupService.getStacksModel();
-		this.mapActionsToEditors = Object.create(null);
+		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 
-		this.scheduler = new RunOnceScheduler(() => this.onSchedule(), 0);
-		this.toUnbind.push(this.scheduler);
+		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
+		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(contextKeyService);
+		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(contextKeyService);
+		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
+		this.editorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.contextKeyService);
 
-		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(contextKeyService);
+		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(contextKeyService);
 
-		this.contextMenu = this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService);
-		this.toUnbind.push(this.contextMenu);
+		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(contextKeyService);
 
-		this.initActions(this.instantiationService);
-		this.registerListeners();
+		this.renderDropdownAsChildElement = false;
+
+		this.create(parent);
 	}
 
-	public static getDraggedEditor(): IEditorIdentifier {
-		return TitleControl.draggedEditor;
-	}
+	protected abstract create(parent: HTMLElement): void;
 
-	public setDragged(dragged: boolean): void {
-		this.dragged = dragged;
-	}
-
-	protected onEditorDragStart(editor: IEditorIdentifier): void {
-		TitleControl.draggedEditor = editor;
-	}
-
-	protected onEditorDragEnd(): void {
-		TitleControl.draggedEditor = void 0;
-	}
-
-	private registerListeners(): void {
-		this.toUnbind.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-	}
-
-	private onStacksChanged(e: IStacksModelChangeEvent): void {
-		if (e.structural) {
-			this.updateSplitActionEnablement();
-		}
-	}
-
-	private updateSplitActionEnablement(): void {
-		if (!this.context) {
-			return;
-		}
-
-		const groupCount = this.stacks.groups.length;
-
-		// Split editor
-		this.splitEditorAction.enabled = groupCount < 3;
-	}
-
-	protected updateStyles(): void {
-		super.updateStyles();
-
-		this.update(true); // run an update when the theme changes to new styles
-	}
-
-	private onSchedule(): void {
-		if (this.refreshScheduled) {
-			this.doRefresh();
-		} else {
-			this.doUpdate();
-		}
-
-		this.refreshScheduled = false;
-	}
-
-	public setContext(group: IEditorGroup): void {
-		this.context = group;
-	}
-
-	public hasContext(): boolean {
-		return !!this.context;
-	}
-
-	public update(instant?: boolean): void {
-		if (instant) {
-			this.scheduler.cancel();
-			this.onSchedule();
-		} else {
-			this.scheduler.schedule();
-		}
-	}
-
-	public refresh(instant?: boolean) {
-		this.refreshScheduled = true;
-
-		if (instant) {
-			this.scheduler.cancel();
-			this.onSchedule();
-		} else {
-			this.scheduler.schedule();
-		}
-	}
-
-	public create(parent: HTMLElement): void {
-		this.parent = parent;
-	}
-
-	public getContainer(): HTMLElement {
-		return this.parent;
-	}
-
-	protected abstract doRefresh(): void;
-
-	protected doUpdate(): void {
-		this.doRefresh();
-	}
-
-	public layout(): void {
-		// Subclasses can opt in to react on layout
-	}
-
-	public allowDragging(element: HTMLElement): boolean {
-		return !DOM.findParentWithClass(element, 'monaco-action-bar', 'one-editor-silo');
-	}
-
-	protected initActions(services: IInstantiationService): void {
-		this.closeEditorAction = services.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close"));
-		this.closeOtherEditorsAction = services.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
-		this.closeRightEditorsAction = services.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
-		this.closeEditorsInGroupAction = services.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
-		this.closeUnmodifiedEditorsInGroupAction = services.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified"));
-		this.pinEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
-		this.showEditorsInGroupAction = services.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, nls.localize('showOpenedEditors', "Show Opened Editors"));
-		this.splitEditorAction = services.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
-	}
-
-	protected createEditorActionsToolBar(container: HTMLElement): void {
-		this.editorActionsToolbar = new ToolBar(container, this.contextMenuService, {
-			actionItemProvider: (action: Action) => this.actionItemProvider(action),
-			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: nls.localize('araLabelEditorActions', "Editor actions"),
-			getKeyBinding: (action) => this.getKeybinding(action)
-		});
-
-		// Action Run Handling
-		this.toUnbind.push(this.editorActionsToolbar.actionRunner.addListener(BaseEventType.RUN, (e: any) => {
-
-			// Check for Error
-			if (e.error && !errors.isPromiseCanceledError(e.error)) {
-				this.messageService.show(Severity.Error, e.error);
+	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
+		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
+		this._register(config.onDidChange(() => {
+			const value = config.getValue();
+			if (!value && this.breadcrumbsControl) {
+				this.breadcrumbsControl.dispose();
+				this.breadcrumbsControl = undefined;
+				this.handleBreadcrumbsEnablementChange();
+			} else if (value && !this.breadcrumbsControl) {
+				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
+				this.breadcrumbsControl.update();
+				this.handleBreadcrumbsEnablementChange();
 			}
+		}));
 
-			// Log in telemetry
-			if (this.telemetryService) {
-				/* __GDPR__
-					"workbenchActionExecuted" : {
-						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'editorPart' });
+		if (config.getValue()) {
+			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
+		}
+
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
+				// ignore if the scheme of the breadcrumbs resource is not affected
+				return;
+			}
+			if (this.breadcrumbsControl?.update()) {
+				this.handleBreadcrumbsEnablementChange();
 			}
 		}));
 	}
 
-	protected actionItemProvider(action: Action): IActionItem {
-		if (!this.context) {
-			return null;
-		}
+	protected abstract handleBreadcrumbsEnablementChange(): void;
 
-		const group = this.context;
-		const position = this.stacks.positionOfGroup(group);
-		const editor = this.editorService.getVisibleEditors()[position];
+	protected createEditorActionsToolBar(container: HTMLElement): void {
+		const context: IEditorCommandsContext = { groupId: this.group.id };
 
-		let actionItem: IActionItem;
+		// Toolbar Widget
+
+		this.editorActionsToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
+			getKeyBinding: action => this.getKeybinding(action),
+			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
+			telemetrySource: 'editorPart',
+			resetMenu: MenuId.EditorTitle,
+			maxNumberOfItems: 9
+		}));
+
+		// Context
+		this.editorActionsToolbar.context = context;
+
+		// Action Run Handling
+		this._register(this.editorActionsToolbar.actionRunner.onDidRun(e => {
+
+			// Notify for Error
+			if (e.error && !isCancellationError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+		}));
+	}
+
+	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+		const activeEditorPane = this.group.activeEditorPane;
 
 		// Check Active Editor
-		if (editor instanceof BaseEditor) {
-			actionItem = editor.getActionItem(action);
-		}
+		if (activeEditorPane instanceof EditorPane) {
+			const result = activeEditorPane.getActionViewItem(action);
 
-		// Check Registry
-		if (!actionItem) {
-			const actionBarRegistry = Registry.as<IActionBarRegistry>(Extensions.Actionbar);
-			actionItem = actionBarRegistry.getActionItemForContext(Scope.EDITOR, { input: editor && editor.input, editor, position }, action);
+			if (result) {
+				return result;
+			}
 		}
 
 		// Check extensions
-		if (!actionItem) {
-			actionItem = createActionItem(action, this.keybindingService, this.messageService);
-		}
-
-		return actionItem;
+		return createActionViewItem(this.instantiationService, action, { menuAsChild: this.renderDropdownAsChildElement });
 	}
 
-	protected getEditorActions(identifier: IEditorIdentifier): IToolbarActions {
+	protected updateEditorActionsToolbar(): void {
+		const { primary, secondary } = this.prepareEditorActions(this.getEditorActions());
+
+		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
+	}
+
+	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
+
+	private getEditorActions(): IToolbarActions {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		const { group } = identifier;
-		const position = this.stacks.positionOfGroup(group);
+		// Dispose previous listeners
+		this.editorToolBarMenuDisposables.clear();
 
-		// Update the resource context
-		this.resourceContext.set(group && toResource(group.activeEditor, { supportSideBySide: true }));
+		// Update contexts
+		this.contextKeyService.bufferChangeEvents(() => {
+			const activeEditor = this.group.activeEditor;
+
+			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
+
+			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
+			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
+			this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
+			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
+			applyAvailableEditorIds(this.editorAvailableEditorIds, activeEditor, this.editorResolverService);
+
+			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
+
+			this.groupLockedContext.set(this.group.isLocked);
+		});
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
-		const control = this.editorService.getVisibleEditors()[position];
-		if (control instanceof BaseEditor && control.input && typeof control.position === 'number') {
+		const activeEditorPane = this.group.activeEditorPane;
+		if (activeEditorPane instanceof EditorPane) {
+			const scopedContextKeyService = this.getEditorPaneAwareContextKeyService();
+			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
+			this.editorToolBarMenuDisposables.add(titleBarMenu);
+			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
+				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
+			}));
 
-			// Editor Control Actions
-			let editorActions = this.mapActionsToEditors[control.getId()];
-			if (!editorActions) {
-				editorActions = { primary: control.getActions(), secondary: control.getSecondaryActions() };
-				this.mapActionsToEditors[control.getId()] = editorActions;
-			}
-			primary.push(...editorActions.primary);
-			secondary.push(...editorActions.secondary);
+			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
-			// MenuItems
-			// TODO This isn't very proper but needed as we have failed to
-			// use the correct context key service per editor only once. Don't
-			// take this code as sample of how to work with menus
-			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
-			const widget = control.getControl();
-			const codeEditor = isCommonCodeEditor(widget) && widget || isCommonDiffEditor(widget) && widget.getModifiedEditor();
-			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
-			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
-			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));
-
-			fillInActions(titleBarMenu, { arg: this.resourceContext.get() }, { primary, secondary });
+			createAndFillInActionBarActions(
+				titleBarMenu,
+				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
+				{ primary, secondary },
+				'navigation',
+				shouldInlineGroup
+			);
 		}
 
 		return { primary, secondary };
 	}
 
-	public updateEditorActionsToolbar(): void {
-		const group = this.context;
-		if (!group) {
-			return;
-		}
-
-		const editor = group && group.activeEditor;
-		const isActive = this.stacks.isActive(group);
-
-		// Update Editor Actions Toolbar
-		let primaryEditorActions: IAction[] = [];
-		let secondaryEditorActions: IAction[] = [];
-		if (isActive) {
-			const editorActions = this.getEditorActions({ group, editor });
-			primaryEditorActions = prepareActions(editorActions.primary);
-			if (isActive && editor instanceof EditorInput && editor.supportsSplitEditor()) {
-				this.updateSplitActionEnablement();
-				primaryEditorActions.push(this.splitEditorAction);
-			}
-			secondaryEditorActions = prepareActions(editorActions.secondary);
-		}
-
-		const tabOptions = this.editorGroupService.getTabOptions();
-		if (tabOptions.showTabs) {
-			if (secondaryEditorActions.length > 0) {
-				secondaryEditorActions.push(new Separator());
-			}
-			secondaryEditorActions.push(this.showEditorsInGroupAction);
-			secondaryEditorActions.push(new Separator());
-			secondaryEditorActions.push(this.closeUnmodifiedEditorsInGroupAction);
-			secondaryEditorActions.push(this.closeEditorsInGroupAction);
-		}
-
-		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
-		if (!tabOptions.showTabs) {
-			primaryEditorActionIds.push(this.closeEditorAction.id); // always show "Close" when tabs are disabled
-		}
-
-		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
-
-		if (
-			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
-			!arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
-			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
-			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
-		) {
-			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
-
-			if (!tabOptions.showTabs) {
-				this.editorActionsToolbar.addPrimaryAction(this.closeEditorAction)();
-			}
-
-			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
-			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
-		}
+	private getEditorPaneAwareContextKeyService(): IContextKeyService {
+		return this.group.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 	}
 
 	protected clearEditorActionsToolbar(): void {
-		this.editorActionsToolbar.setActions([], [])();
-
-		this.currentPrimaryEditorActionIds = [];
-		this.currentSecondaryEditorActionIds = [];
+		this.editorActionsToolbar?.setActions([], []);
 	}
 
-	protected onContextMenu(identifier: IEditorIdentifier, e: Event, node: HTMLElement): void {
+	protected enableGroupDragging(element: HTMLElement): void {
 
-		// Update the resource context
-		const currentContext = this.resourceContext.get();
-		this.resourceContext.set(toResource(identifier.editor, { supportSideBySide: true }));
+		// Drag start
+		this._register(addDisposableListener(element, EventType.DRAG_START, e => {
+			if (e.target !== element) {
+				return; // only if originating from tabs container
+			}
+
+			// Set editor group as transfer
+			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
+			if (e.dataTransfer) {
+				e.dataTransfer.effectAllowed = 'copyMove';
+			}
+
+			// Drag all tabs of the group if tabs are enabled
+			let hasDataTransfer = false;
+			if (this.accessor.partOptions.showTabs) {
+				hasDataTransfer = this.doFillResourceDataTransfers(this.group.getEditors(EditorsOrder.SEQUENTIAL), e);
+			}
+
+			// Otherwise only drag the active editor
+			else {
+				if (this.group.activeEditor) {
+					hasDataTransfer = this.doFillResourceDataTransfers([this.group.activeEditor], e);
+				}
+			}
+
+			// Firefox: requires to set a text data transfer to get going
+			if (!hasDataTransfer && isFirefox) {
+				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.group.label));
+			}
+
+			// Drag Image
+			if (this.group.activeEditor) {
+				let label = this.group.activeEditor.getName();
+				if (this.accessor.partOptions.showTabs && this.group.count > 1) {
+					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
+				}
+
+				applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+			}
+		}));
+
+		// Drag end
+		this._register(addDisposableListener(element, EventType.DRAG_END, () => {
+			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+		}));
+	}
+
+	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
+		if (editors.length) {
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.group.id })), e);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	protected onContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
+
+		// Update contexts based on editor picked and remember previous to restore
+		const currentResourceContext = this.resourceContext.get();
+		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
+		const currentPinnedContext = !!this.editorPinnedContext.get();
+		this.editorPinnedContext.set(this.group.isPinned(editor));
+		const currentEditorIsFirstContext = !!this.editorIsFirstContext.get();
+		this.editorIsFirstContext.set(this.group.isFirst(editor));
+		const currentEditorIsLastContext = !!this.editorIsLastContext.get();
+		this.editorIsLastContext.set(this.group.isLast(editor));
+		const currentStickyContext = !!this.editorStickyContext.get();
+		this.editorStickyContext.set(this.group.isSticky(editor));
+		const currentGroupLockedContext = !!this.groupLockedContext.get();
+		this.groupLockedContext.set(this.group.isLocked);
+		const currentEditorCanSplitContext = !!this.editorCanSplitInGroupContext.get();
+		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
+		const currentSideBySideEditorContext = !!this.sideBySideEditorContext.get();
+		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
+		const currentEditorAvailableEditorIds = this.editorAvailableEditorIds.get() ?? '';
+		applyAvailableEditorIds(this.editorAvailableEditorIds, editor, this.editorResolverService);
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number } = node;
+		let anchor: HTMLElement | StandardMouseEvent = node;
 		if (e instanceof MouseEvent) {
-			const event = new StandardMouseEvent(e);
-			anchor = { x: event.posx, y: event.posy };
+			anchor = new StandardMouseEvent(e);
 		}
 
+		// Show it
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
-			getActionsContext: () => identifier,
-			getKeyBinding: (action) => this.getKeybinding(action),
-			onHide: (cancel) => this.resourceContext.set(currentContext) // restore previous context
+			menuId: MenuId.EditorTitleContext,
+			menuActionOptions: { shouldForwardArgs: true, arg: this.resourceContext.get() },
+			contextKeyService: this.contextKeyService,
+			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
+			getKeyBinding: action => this.getKeybinding(action),
+			onHide: () => {
+
+				// restore previous contexts
+				this.resourceContext.set(currentResourceContext || null);
+				this.editorPinnedContext.set(currentPinnedContext);
+				this.editorIsFirstContext.set(currentEditorIsFirstContext);
+				this.editorIsLastContext.set(currentEditorIsLastContext);
+				this.editorStickyContext.set(currentStickyContext);
+				this.groupLockedContext.set(currentGroupLockedContext);
+				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);
+				this.sideBySideEditorContext.set(currentSideBySideEditorContext);
+				this.editorAvailableEditorIds.set(currentEditorAvailableEditorIds);
+
+				// restore focus to active group
+				this.accessor.activeGroup.focus();
+			}
 		});
 	}
 
-	protected getKeybinding(action: IAction): ResolvedKeybinding {
-		return this.keybindingService.lookupKeybinding(action.id);
+	protected getKeybinding(action: IAction): ResolvedKeybinding | undefined {
+		return this.keybindingService.lookupKeybinding(action.id, this.getEditorPaneAwareContextKeyService());
 	}
 
-	protected getKeybindingLabel(action: IAction): string {
+	protected getKeybindingLabel(action: IAction): string | undefined {
 		const keybinding = this.getKeybinding(action);
 
-		return keybinding ? keybinding.getLabel() : void 0;
+		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
 	}
 
-	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
-		const { editor, group } = identifier;
+	abstract openEditor(editor: EditorInput): void;
 
-		// Enablement
-		this.closeOtherEditorsAction.enabled = group.count > 1;
-		this.pinEditorAction.enabled = !group.isPinned(editor);
-		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
+	abstract openEditors(editors: EditorInput[]): void;
 
-		// Actions: For all editors
-		const actions: IAction[] = [
-			this.closeEditorAction,
-			this.closeOtherEditorsAction
-		];
-		const tabOptions = this.editorGroupService.getTabOptions();
+	abstract beforeCloseEditor(editor: EditorInput): void;
 
-		if (tabOptions.showTabs) {
-			actions.push(this.closeRightEditorsAction);
-		}
+	abstract closeEditor(editor: EditorInput): void;
 
-		actions.push(this.closeUnmodifiedEditorsInGroupAction);
-		actions.push(this.closeEditorsInGroupAction);
+	abstract closeEditors(editors: EditorInput[]): void;
 
-		if (tabOptions.previewEditors) {
-			actions.push(new Separator(), this.pinEditorAction);
-		}
+	abstract moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void;
 
-		// Fill in contributed actions
-		fillInActions(this.contextMenu, { arg: this.resourceContext.get() }, actions);
+	abstract pinEditor(editor: EditorInput): void;
 
-		return actions;
-	}
+	abstract stickEditor(editor: EditorInput): void;
 
-	public dispose(): void {
+	abstract unstickEditor(editor: EditorInput): void;
+
+	abstract setActive(isActive: boolean): void;
+
+	abstract updateEditorLabel(editor: EditorInput): void;
+
+	abstract updateEditorDirty(editor: EditorInput): void;
+
+	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
+
+	abstract layout(dimensions: ITitleControlDimensions): Dimension;
+
+	abstract getHeight(): IEditorGroupTitleHeight;
+
+	override dispose(): void {
+		dispose(this.breadcrumbsControl);
+		this.breadcrumbsControl = undefined;
+
 		super.dispose();
-
-		// Actions
-		[
-			this.splitEditorAction,
-			this.showEditorsInGroupAction,
-			this.closeEditorAction,
-			this.closeRightEditorsAction,
-			this.closeUnmodifiedEditorsInGroupAction,
-			this.closeOtherEditorsAction,
-			this.closeEditorsInGroupAction,
-			this.pinEditorAction
-		].forEach((action) => {
-			action.dispose();
-		});
-
-		// Toolbar
-		this.editorActionsToolbar.dispose();
 	}
-}
-
-/**
- * Shared function across some editor components to handle drag & drop of folders and workspace files
- * to open them in the window instead of the editor.
- */
-export function handleWorkspaceExternalDrop(
-	resources: IDraggedResource[],
-	fileService: IFileService,
-	messageService: IMessageService,
-	windowsService: IWindowsService,
-	windowService: IWindowService,
-	workspacesService: IWorkspacesService
-): TPromise<boolean /* handled */> {
-
-	// Return early if there are no external resources
-	const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-	if (!externalResources.length) {
-		return TPromise.as(false);
-	}
-
-	const externalWorkspaceResources: { workspaces: URI[], folders: URI[] } = {
-		workspaces: [],
-		folders: []
-	};
-
-	return TPromise.join(externalResources.map(resource => {
-
-		// Check for Workspace
-		if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-			externalWorkspaceResources.workspaces.push(resource);
-
-			return void 0;
-		}
-
-		// Check for Folder
-		return fileService.resolveFile(resource).then(stat => {
-			if (stat.isDirectory) {
-				externalWorkspaceResources.folders.push(stat.resource);
-			}
-		}, error => void 0);
-	})).then(_ => {
-		const { workspaces, folders } = externalWorkspaceResources;
-
-		// Return early if no external resource is a folder or workspace
-		if (workspaces.length === 0 && folders.length === 0) {
-			return false;
-		}
-
-		// Pass focus to window
-		windowService.focusWindow();
-
-		let workspacesToOpen: TPromise<string[]>;
-
-		// Open in separate windows if we drop workspaces or just one folder
-		if (workspaces.length > 0 || folders.length === 1) {
-			workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources.fsPath));
-		}
-
-		// Multiple folders: Create new workspace with folders and open
-		else if (folders.length > 1) {
-			workspacesToOpen = workspacesService.createWorkspace([...folders].map(folder => folder.fsPath)).then(workspace => [workspace.configPath]);
-		}
-
-		// Open
-		workspacesToOpen.then(workspaces => {
-			windowsService.openWindow(workspaces, { forceReuseWindow: true });
-		});
-
-		return true;
-	});
 }

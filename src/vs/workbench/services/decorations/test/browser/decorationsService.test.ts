@@ -3,105 +3,123 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
-import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import URI from 'vs/base/common/uri';
-import Event, { toPromise } from 'vs/base/common/event';
+import { DecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
+import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
+import { URI } from 'vs/base/common/uri';
+import { Event, Emitter } from 'vs/base/common/event';
+import * as resources from 'vs/base/common/resources';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { mock } from 'vs/base/test/common/mock';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('DecorationsService', function () {
 
-	let service: FileDecorationsService;
+	let service: DecorationsService;
 
 	setup(function () {
-		if (service) {
-			service.dispose();
-		}
-		service = new FileDecorationsService(new TestThemeService());
+		service?.dispose();
+		service = new DecorationsService(
+			new class extends mock<IUriIdentityService>() {
+				override extUri = resources.extUri;
+			},
+			new TestThemeService()
+		);
 	});
 
 	test('Async provider, async/evented result', function () {
 
-		let uri = URI.parse('foo:bar');
-		let callCounter = 0;
+		return runWithFakedTimers({}, async function () {
 
-		service.registerDecorationsProvider(new class implements IDecorationsProvider {
-			readonly label: string = 'Test';
-			readonly onDidChange: Event<URI[]> = Event.None;
-			provideDecorations(uri: URI) {
-				callCounter += 1;
-				return new Promise<IDecorationData>(resolve => {
-					setTimeout(() => resolve({
-						color: 'someBlue',
-						title: 'T'
-					}));
-				});
-			}
-		});
+			const uri = URI.parse('foo:bar');
+			let callCounter = 0;
 
-		// trigger -> async
-		assert.equal(service.getDecoration(uri, false), undefined);
-		assert.equal(callCounter, 1);
+			service.registerDecorationsProvider(new class implements IDecorationsProvider {
+				readonly label: string = 'Test';
+				readonly onDidChange: Event<readonly URI[]> = Event.None;
+				provideDecorations(uri: URI) {
+					callCounter += 1;
+					return new Promise<IDecorationData>(resolve => {
+						setTimeout(() => resolve({
+							color: 'someBlue',
+							tooltip: 'T',
+							strikethrough: true
+						}));
+					});
+				}
+			});
 
-		// event when result is computed
-		return toPromise(service.onDidChangeDecorations).then(e => {
-			assert.equal(e.affectsResource(uri), true);
+			// trigger -> async
+			assert.strictEqual(service.getDecoration(uri, false), undefined);
+			assert.strictEqual(callCounter, 1);
 
+			// event when result is computed
+			const e = await Event.toPromise(service.onDidChangeDecorations);
+			assert.strictEqual(e.affectsResource(uri), true);
 			// sync result
-			assert.deepEqual(service.getDecoration(uri, false).title, 'T');
-			assert.equal(callCounter, 1);
+			assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'T');
+			assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, true);
+			assert.strictEqual(callCounter, 1);
 		});
 	});
 
 	test('Sync provider, sync result', function () {
 
-		let uri = URI.parse('foo:bar');
+		const uri = URI.parse('foo:bar');
 		let callCounter = 0;
 
 		service.registerDecorationsProvider(new class implements IDecorationsProvider {
 			readonly label: string = 'Test';
-			readonly onDidChange: Event<URI[]> = Event.None;
+			readonly onDidChange: Event<readonly URI[]> = Event.None;
 			provideDecorations(uri: URI) {
 				callCounter += 1;
-				return { color: 'someBlue', title: 'Z' };
+				return { color: 'someBlue', tooltip: 'Z' };
 			}
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).title, 'Z');
-		assert.equal(callCounter, 1);
+		assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'Z');
+		assert.deepStrictEqual(service.getDecoration(uri, false)!.strikethrough, false);
+		assert.strictEqual(callCounter, 1);
 	});
 
-	test('Clear decorations on provider dispose', function () {
-		let uri = URI.parse('foo:bar');
-		let callCounter = 0;
+	test('Clear decorations on provider dispose', async function () {
+		return runWithFakedTimers({}, async function () {
 
-		let reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
-			readonly label: string = 'Test';
-			readonly onDidChange: Event<URI[]> = Event.None;
-			provideDecorations(uri: URI) {
-				callCounter += 1;
-				return { color: 'someBlue', title: 'J' };
-			}
+			const uri = URI.parse('foo:bar');
+			let callCounter = 0;
+
+			const reg = service.registerDecorationsProvider(new class implements IDecorationsProvider {
+				readonly label: string = 'Test';
+				readonly onDidChange: Event<readonly URI[]> = Event.None;
+				provideDecorations(uri: URI) {
+					callCounter += 1;
+					return { color: 'someBlue', tooltip: 'J' };
+				}
+			});
+
+			// trigger -> sync
+			assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'J');
+			assert.strictEqual(callCounter, 1);
+
+			// un-register -> ensure good event
+			let didSeeEvent = false;
+			const p = new Promise<void>(resolve => {
+				service.onDidChangeDecorations(e => {
+					assert.strictEqual(e.affectsResource(uri), true);
+					assert.deepStrictEqual(service.getDecoration(uri, false), undefined);
+					assert.strictEqual(callCounter, 1);
+					didSeeEvent = true;
+					resolve();
+				});
+			});
+			reg.dispose(); // will clear all data
+			await p;
+			assert.strictEqual(didSeeEvent, true);
+
 		});
-
-		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false).title, 'J');
-		assert.equal(callCounter, 1);
-
-		// un-register -> ensure good event
-		let didSeeEvent = false;
-		service.onDidChangeDecorations(e => {
-			assert.equal(e.affectsResource(uri), true);
-			assert.deepEqual(service.getDecoration(uri, false), undefined);
-			assert.equal(callCounter, 1);
-			didSeeEvent = true;
-		});
-		reg.dispose();
-		assert.equal(didSeeEvent, true);
 	});
 
 	test('No default bubbling', function () {
@@ -111,18 +129,18 @@ suite('DecorationsService', function () {
 			onDidChange: Event.None,
 			provideDecorations(uri: URI) {
 				return uri.path.match(/\.txt/)
-					? { title: '.txt' }
+					? { tooltip: '.txt', weight: 17 }
 					: undefined;
 			}
 		});
 
-		let childUri = URI.parse('file:///some/path/some/file.txt');
+		const childUri = URI.parse('file:///some/path/some/file.txt');
 
-		let deco = service.getDecoration(childUri, false);
-		assert.equal(deco.title, '.txt');
+		let deco = service.getDecoration(childUri, false)!;
+		assert.strictEqual(deco.tooltip, '.txt');
 
-		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
-		assert.equal(deco, undefined);
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
+		assert.strictEqual(deco, undefined);
 		reg.dispose();
 
 		// bubble
@@ -131,15 +149,191 @@ suite('DecorationsService', function () {
 			onDidChange: Event.None,
 			provideDecorations(uri: URI) {
 				return uri.path.match(/\.txt/)
-					? { title: '.txt.bubble', bubble: true }
+					? { tooltip: '.txt.bubble', weight: 71, bubble: true }
 					: undefined;
 			}
 		});
 
-		deco = service.getDecoration(childUri, false);
-		assert.equal(deco.title, '.txt.bubble');
+		deco = service.getDecoration(childUri, false)!;
+		assert.strictEqual(deco.tooltip, '.txt.bubble');
 
-		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true);
-		assert.equal(deco.title, '.txt.bubble');
+		deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
+		assert.strictEqual(typeof deco.tooltip, 'string');
+	});
+
+	test('Decorations not showing up for second root folder #48502', async function () {
+
+		let cancelCount = 0;
+		const winjsCancelCount = 0;
+		let callCount = 0;
+
+		const provider = new class implements IDecorationsProvider {
+
+			_onDidChange = new Emitter<URI[]>();
+			onDidChange: Event<readonly URI[]> = this._onDidChange.event;
+
+			label: string = 'foo';
+
+			provideDecorations(uri: URI, token: CancellationToken): Promise<IDecorationData> {
+
+				token.onCancellationRequested(() => {
+					cancelCount += 1;
+				});
+
+				return new Promise(resolve => {
+					callCount += 1;
+					setTimeout(() => {
+						resolve({ letter: 'foo' });
+					}, 10);
+				});
+			}
+		};
+
+		const reg = service.registerDecorationsProvider(provider);
+
+		const uri = URI.parse('foo://bar');
+		service.getDecoration(uri, false);
+
+		provider._onDidChange.fire([uri]);
+		service.getDecoration(uri, false);
+
+		assert.strictEqual(cancelCount, 1);
+		assert.strictEqual(winjsCancelCount, 0);
+		assert.strictEqual(callCount, 2);
+
+		reg.dispose();
+	});
+
+	test('Decorations not bubbling... #48745', function () {
+
+		const reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				if (uri.path.match(/hello$/)) {
+					return { tooltip: 'FOO', weight: 17, bubble: true };
+				} else {
+					return new Promise<IDecorationData>(_resolve => { });
+				}
+			}
+		});
+
+		const data1 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(!data1);
+
+		const data2 = service.getDecoration(URI.parse('a:b/c.hello'), false)!;
+		assert.ok(data2.tooltip);
+
+		const data3 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(data3);
+
+
+		reg.dispose();
+	});
+
+	test('Folder decorations don\'t go away when file with problems is deleted #61919 (part1)', function () {
+
+		const emitter = new Emitter<URI[]>();
+		let gone = false;
+		const reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: emitter.event,
+			provideDecorations(uri: URI) {
+				if (!gone && uri.path.match(/file.ts$/)) {
+					return { tooltip: 'FOO', weight: 17, bubble: true };
+				}
+				return undefined;
+			}
+		});
+
+		const uri = URI.parse('foo:/folder/file.ts');
+		const uri2 = URI.parse('foo:/folder/');
+		let data = service.getDecoration(uri, true)!;
+		assert.strictEqual(data.tooltip, 'FOO');
+
+		data = service.getDecoration(uri2, true)!;
+		assert.ok(data.tooltip); // emphazied items...
+
+		gone = true;
+		emitter.fire([uri]);
+
+		data = service.getDecoration(uri, true)!;
+		assert.strictEqual(data, undefined);
+
+		data = service.getDecoration(uri2, true)!;
+		assert.strictEqual(data, undefined);
+
+		reg.dispose();
+	});
+
+	test('Folder decorations don\'t go away when file with problems is deleted #61919 (part2)', function () {
+
+		return runWithFakedTimers({}, async function () {
+
+			const emitter = new Emitter<URI[]>();
+			let gone = false;
+			const reg = service.registerDecorationsProvider({
+				label: 'Test',
+				onDidChange: emitter.event,
+				provideDecorations(uri: URI) {
+					if (!gone && uri.path.match(/file.ts$/)) {
+						return { tooltip: 'FOO', weight: 17, bubble: true };
+					}
+					return undefined;
+				}
+			});
+
+			const uri = URI.parse('foo:/folder/file.ts');
+			const uri2 = URI.parse('foo:/folder/');
+			let data = service.getDecoration(uri, true)!;
+			assert.strictEqual(data.tooltip, 'FOO');
+
+			data = service.getDecoration(uri2, true)!;
+			assert.ok(data.tooltip); // emphazied items...
+
+			return new Promise<void>((resolve, reject) => {
+				const l = service.onDidChangeDecorations(e => {
+					l.dispose();
+					try {
+						assert.ok(e.affectsResource(uri));
+						assert.ok(e.affectsResource(uri2));
+						resolve();
+						reg.dispose();
+					} catch (err) {
+						reject(err);
+						reg.dispose();
+					}
+				});
+				gone = true;
+				emitter.fire([uri]);
+			});
+		});
+	});
+
+	test('FileDecorationProvider intermittently fails #133210', async function () {
+
+		const invokeOrder: string[] = [];
+
+		service.registerDecorationsProvider(new class {
+			label = 'Provider-1';
+			onDidChange = Event.None;
+			provideDecorations() {
+				invokeOrder.push(this.label);
+				return undefined;
+			}
+		});
+
+		service.registerDecorationsProvider(new class {
+			label = 'Provider-2';
+			onDidChange = Event.None;
+			provideDecorations() {
+				invokeOrder.push(this.label);
+				return undefined;
+			}
+		});
+
+		service.getDecoration(URI.parse('test://me/path'), false);
+
+		assert.deepStrictEqual(invokeOrder, ['Provider-2', 'Provider-1']);
 	});
 });

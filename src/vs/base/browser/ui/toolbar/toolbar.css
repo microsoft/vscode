@@ -3,20 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-toolbar .dropdown > .dropdown-label:not(:empty) {
-	padding: 0;
+.monaco-toolbar {
+	height: 100%;
 }
 
 .monaco-toolbar .toolbar-toggle-more {
 	display: inline-block;
 	padding: 0;
-}
-
-.vs .monaco-toolbar .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis.svg');
-}
-
-.hc-black .monaco-toolbar .action-label.toolbar-toggle-more,
-.vs-dark .monaco-toolbar .action-label.toolbar-toggle-more {
-	background-image: url('ellipsis-inverse.svg');
 }

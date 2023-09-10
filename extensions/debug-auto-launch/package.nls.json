@@ -1,0 +1,5 @@
+{
+	"displayName": "Node Debug Auto-attach",
+	"description": "Helper for auto-attach feature when node-debug extensions are not active.",
+	"toggle.auto.attach": "Toggle Auto Attach"
+}

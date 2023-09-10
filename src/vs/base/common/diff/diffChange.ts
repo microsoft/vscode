@@ -2,13 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
-export const DifferenceType = {
-	Add: 0,
-	Remove: 1,
-	Change: 2
-};
 
 /**
  * Represents information about a specific difference between two sequences.
@@ -49,19 +42,6 @@ export class DiffChange {
 		this.originalLength = originalLength;
 		this.modifiedStart = modifiedStart;
 		this.modifiedLength = modifiedLength;
-	}
-
-	/**
-	 * The type of difference.
-	 */
-	public getChangeType() {
-		if (this.originalLength === 0) {
-			return DifferenceType.Add;
-		} else if (this.modifiedLength === 0) {
-			return DifferenceType.Remove;
-		} else {
-			return DifferenceType.Change;
-		}
 	}
 
 	/**

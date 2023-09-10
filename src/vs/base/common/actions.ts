@@ -2,95 +2,71 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as Events from 'vs/base/common/events';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from 'vs/nls';
 
 export interface ITelemetryData {
-	from?: string;
-	target?: string;
-	[key: string]: any;
+	readonly from?: string;
+	readonly target?: string;
+	[key: string]: unknown;
 }
 
-export interface IAction extends IDisposable {
+export type WorkbenchActionExecutedClassification = {
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
+	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
+	detail?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Optional details about how the action was run, e.g which keybinding was used.' };
+	owner: 'bpasero';
+	comment: 'Provides insight into actions that are executed within the workbench.';
+};
+
+export type WorkbenchActionExecutedEvent = {
 	id: string;
+	from: string;
+	detail?: string;
+};
+
+export interface IAction {
+	readonly id: string;
 	label: string;
 	tooltip: string;
-	class: string;
+	class: string | undefined;
 	enabled: boolean;
-	checked: boolean;
-	radio: boolean;
-	run(event?: any): TPromise<any>;
+	checked?: boolean;
+	run(...args: unknown[]): unknown;
 }
 
-export interface IActionRunner extends IEventEmitter {
-	run(action: IAction, context?: any): TPromise<any>;
-}
+export interface IActionRunner extends IDisposable {
+	readonly onDidRun: Event<IRunEvent>;
+	readonly onWillRun: Event<IRunEvent>;
 
-export interface IActionItem extends IEventEmitter {
-	actionRunner: IActionRunner;
-	setActionContext(context: any): void;
-	render(element: any /* HTMLElement */): void;
-	isEnabled(): boolean;
-	focus(): void;
-	blur(): void;
-	dispose(): void;
-}
-
-/**
- * Checks if the provided object is compatible
- * with the IAction interface.
- * @param thing an object
- */
-export function isAction(thing: any): thing is IAction {
-	if (!thing) {
-		return false;
-	} else if (thing instanceof Action) {
-		return true;
-	} else if (typeof thing.id !== 'string') {
-		return false;
-	} else if (typeof thing.label !== 'string') {
-		return false;
-	} else if (typeof thing.class !== 'string') {
-		return false;
-	} else if (typeof thing.enabled !== 'boolean') {
-		return false;
-	} else if (typeof thing.checked !== 'boolean') {
-		return false;
-	} else if (typeof thing.run !== 'function') {
-		return false;
-	} else {
-		return true;
-	}
+	run(action: IAction, context?: unknown): unknown;
 }
 
 export interface IActionChangeEvent {
-	label?: string;
-	tooltip?: string;
-	class?: string;
-	enabled?: boolean;
-	checked?: boolean;
-	radio?: boolean;
+	readonly label?: string;
+	readonly tooltip?: string;
+	readonly class?: string;
+	readonly enabled?: boolean;
+	readonly checked?: boolean;
 }
 
-export class Action implements IAction {
+export class Action extends Disposable implements IAction {
 
-	protected _onDidChange = new Emitter<IActionChangeEvent>();
-	protected _id: string;
+	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
+	readonly onDidChange = this._onDidChange.event;
+
+	protected readonly _id: string;
 	protected _label: string;
-	protected _tooltip: string;
-	protected _cssClass: string;
-	protected _enabled: boolean;
-	protected _checked: boolean;
-	protected _radio: boolean;
-	protected _order: number;
-	protected _actionCallback: (event?: any) => TPromise<any>;
+	protected _tooltip: string | undefined;
+	protected _cssClass: string | undefined;
+	protected _enabled: boolean = true;
+	protected _checked?: boolean;
+	protected readonly _actionCallback?: (event?: unknown) => unknown;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => TPromise<any>) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => unknown) {
+		super();
 		this._id = id;
 		this._label = label;
 		this._cssClass = cssClass;
@@ -98,38 +74,30 @@ export class Action implements IAction {
 		this._actionCallback = actionCallback;
 	}
 
-	public dispose() {
-		this._onDidChange.dispose();
-	}
-
-	public get onDidChange(): Event<IActionChangeEvent> {
-		return this._onDidChange.event;
-	}
-
-	public get id(): string {
+	get id(): string {
 		return this._id;
 	}
 
-	public get label(): string {
+	get label(): string {
 		return this._label;
 	}
 
-	public set label(value: string) {
+	set label(value: string) {
 		this._setLabel(value);
 	}
 
-	protected _setLabel(value: string): void {
+	private _setLabel(value: string): void {
 		if (this._label !== value) {
 			this._label = value;
 			this._onDidChange.fire({ label: value });
 		}
 	}
 
-	public get tooltip(): string {
-		return this._tooltip;
+	get tooltip(): string {
+		return this._tooltip || '';
 	}
 
-	public set tooltip(value: string) {
+	set tooltip(value: string) {
 		this._setTooltip(value);
 	}
 
@@ -140,26 +108,26 @@ export class Action implements IAction {
 		}
 	}
 
-	public get class(): string {
+	get class(): string | undefined {
 		return this._cssClass;
 	}
 
-	public set class(value: string) {
+	set class(value: string | undefined) {
 		this._setClass(value);
 	}
 
-	protected _setClass(value: string): void {
+	protected _setClass(value: string | undefined): void {
 		if (this._cssClass !== value) {
 			this._cssClass = value;
 			this._onDidChange.fire({ class: value });
 		}
 	}
 
-	public get enabled(): boolean {
+	get enabled(): boolean {
 		return this._enabled;
 	}
 
-	public set enabled(value: boolean) {
+	set enabled(value: boolean) {
 		this._setEnabled(value);
 	}
 
@@ -170,75 +138,134 @@ export class Action implements IAction {
 		}
 	}
 
-	public get checked(): boolean {
+	get checked(): boolean | undefined {
 		return this._checked;
 	}
 
-	public set checked(value: boolean) {
+	set checked(value: boolean | undefined) {
 		this._setChecked(value);
 	}
 
-	public get radio(): boolean {
-		return this._radio;
-	}
-
-	public set radio(value: boolean) {
-		this._setRadio(value);
-	}
-
-	protected _setChecked(value: boolean): void {
+	protected _setChecked(value: boolean | undefined): void {
 		if (this._checked !== value) {
 			this._checked = value;
 			this._onDidChange.fire({ checked: value });
 		}
 	}
 
-	protected _setRadio(value: boolean): void {
-		if (this._radio !== value) {
-			this._radio = value;
-			this._onDidChange.fire({ radio: value });
+	async run(event?: unknown, data?: ITelemetryData): Promise<void> {
+		if (this._actionCallback) {
+			await this._actionCallback(event);
 		}
-	}
-
-	public get order(): number {
-		return this._order;
-	}
-
-	public set order(value: number) {
-		this._order = value;
-	}
-
-	public run(event?: any, data?: ITelemetryData): TPromise<any> {
-		if (this._actionCallback !== void 0) {
-			return this._actionCallback(event);
-		}
-		return TPromise.as(true);
 	}
 }
 
 export interface IRunEvent {
-	action: IAction;
-	result?: any;
-	error?: any;
+	readonly action: IAction;
+	readonly error?: Error;
 }
 
-export class ActionRunner extends EventEmitter implements IActionRunner {
+export class ActionRunner extends Disposable implements IActionRunner {
 
-	public run(action: IAction, context?: any): TPromise<any> {
+	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
+	readonly onWillRun = this._onWillRun.event;
+
+	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
+	readonly onDidRun = this._onDidRun.event;
+
+	async run(action: IAction, context?: unknown): Promise<void> {
 		if (!action.enabled) {
-			return TPromise.as(null);
+			return;
 		}
 
-		this.emit(Events.EventType.BEFORE_RUN, { action: action });
+		this._onWillRun.fire({ action });
 
-		return this.runAction(action, context).then((result: any) => {
-			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, result: result });
-		}, (error: any) => {
-			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, error: error });
-		});
+		let error: Error | undefined = undefined;
+		try {
+			await this.runAction(action, context);
+		} catch (e) {
+			error = e;
+		}
+
+		this._onDidRun.fire({ action, error });
 	}
 
-	protected runAction(action: IAction, context?: any): TPromise<any> {
-		return TPromise.as(context ? action.run(context) : action.run());
+	protected async runAction(action: IAction, context?: unknown): Promise<void> {
+		await action.run(context);
 	}
+}
+
+export class Separator implements IAction {
+
+	/**
+	 * Joins all non-empty lists of actions with separators.
+	 */
+	public static join(...actionLists: readonly IAction[][]) {
+		let out: IAction[] = [];
+		for (const list of actionLists) {
+			if (!list.length) {
+				// skip
+			} else if (out.length) {
+				out = [...out, new Separator(), ...list];
+			} else {
+				out = list;
+			}
+		}
+
+		return out;
+	}
+
+	static readonly ID = 'vs.actions.separator';
+
+	readonly id: string = Separator.ID;
+
+	readonly label: string = '';
+	readonly tooltip: string = '';
+	readonly class: string = 'separator';
+	readonly enabled: boolean = false;
+	readonly checked: boolean = false;
+	async run() { }
+}
+
+export class SubmenuAction implements IAction {
+
+	readonly id: string;
+	readonly label: string;
+	readonly class: string | undefined;
+	readonly tooltip: string = '';
+	readonly enabled: boolean = true;
+	readonly checked: undefined = undefined;
+
+	private readonly _actions: readonly IAction[];
+	get actions(): readonly IAction[] { return this._actions; }
+
+	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string) {
+		this.id = id;
+		this.label = label;
+		this.class = cssClass;
+		this._actions = actions;
+	}
+
+	async run(): Promise<void> { }
+}
+
+export class EmptySubmenuAction extends Action {
+
+	static readonly ID = 'vs.actions.empty';
+
+	constructor() {
+		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
+	}
+}
+
+export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; run: Function }): IAction {
+	return {
+		id: props.id,
+		label: props.label,
+		class: undefined,
+		enabled: props.enabled ?? true,
+		checked: props.checked ?? false,
+		run: async () => props.run(),
+		tooltip: props.label
+	};
 }

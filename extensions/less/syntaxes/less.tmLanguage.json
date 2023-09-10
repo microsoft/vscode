@@ -4,17 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-less/commit/b0531d05ce01a1e04e0f086807b101a1fd31783f",
+	"version": "https://github.com/atom/language-less/commit/87d4d59e8de6796b506b81a16e1dc1fafc99d30f",
 	"name": "Less",
 	"scopeName": "source.css.less",
-	"fileTypes": [
-		"less",
-		"less.erb",
-		"rc",
-		"gtkrc",
-		"gtkrc-2.0",
-		"themerc"
-	],
 	"patterns": [
 		{
 			"include": "#strings"

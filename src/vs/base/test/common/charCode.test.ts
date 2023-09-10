@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
 import { CharCode } from 'vs/base/common/charCode';
@@ -11,7 +10,7 @@ suite('CharCode', () => {
 	test('has good values', () => {
 
 		function assertValue(actual: CharCode, expected: string): void {
-			assert.equal(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
+			assert.strictEqual(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
 		}
 
 		assertValue(CharCode.Tab, '\t');

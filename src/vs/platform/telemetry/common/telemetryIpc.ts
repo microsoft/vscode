@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryLog {
@@ -14,30 +12,33 @@ export interface ITelemetryLog {
 	data?: any;
 }
 
-export interface ITelemetryAppenderChannel extends IChannel {
-	call(command: 'log', data: ITelemetryLog): TPromise<void>;
-	call(command: string, arg: any): TPromise<any>;
-}
+export class TelemetryAppenderChannel implements IServerChannel {
 
-export class TelemetryAppenderChannel implements ITelemetryAppenderChannel {
+	constructor(private appenders: ITelemetryAppender[]) { }
 
-	constructor(private appender: ITelemetryAppender) { }
+	listen<T>(_: unknown, event: string): Event<T> {
+		throw new Error(`Event not found: ${event}`);
+	}
 
-	call(command: string, { eventName, data }: ITelemetryLog): TPromise<any> {
-		this.appender.log(eventName, data);
-		return TPromise.as(null);
+	call(_: unknown, command: string, { eventName, data }: ITelemetryLog): Promise<any> {
+		this.appenders.forEach(a => a.log(eventName, data));
+		return Promise.resolve(null);
 	}
 }
 
 export class TelemetryAppenderClient implements ITelemetryAppender {
 
-	constructor(private channel: ITelemetryAppenderChannel) { }
+	constructor(private channel: IChannel) { }
 
 	log(eventName: string, data?: any): any {
-		return this.channel.call('log', { eventName, data });
+		this.channel.call('log', { eventName, data })
+			.then(undefined, err => `Failed to log telemetry: ${console.warn(err)}`);
+
+		return Promise.resolve(null);
 	}
 
-	dispose(): any {
+	flush(): Promise<void> {
 		// TODO
+		return Promise.resolve();
 	}
 }

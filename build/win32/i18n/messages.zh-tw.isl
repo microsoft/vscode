@@ -6,3 +6,4 @@ AddToPath=加入 PATH 中 (重新啟動後生效)
 RunAfter=安裝後執行 %1
 Other=其他:
 SourceFile=%1 來源檔案
+OpenWithCodeContextMenu=以 %1 開啟

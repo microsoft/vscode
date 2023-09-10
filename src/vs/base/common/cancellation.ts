@@ -3,33 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import Event, { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CancellationToken {
-	readonly isCancellationRequested: boolean;
+
 	/**
-	 * An event emitted when cancellation is requested
+	 * A flag signalling is cancellation has been requested.
+	 */
+	readonly isCancellationRequested: boolean;
+
+	/**
+	 * An event which fires when cancellation is requested. This event
+	 * only ever fires `once` as cancellation can only happen once. Listeners
+	 * that are registered after cancellation will be called (next event loop run),
+	 * but also only once.
+	 *
 	 * @event
 	 */
-	readonly onCancellationRequested: Event<any>;
+	readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
 }
 
-const shortcutEvent = Object.freeze(function (callback, context?): IDisposable {
-	let handle = setTimeout(callback.bind(context), 0);
+const shortcutEvent: Event<any> = Object.freeze(function (callback, context?): IDisposable {
+	const handle = setTimeout(callback.bind(context), 0);
 	return { dispose() { clearTimeout(handle); } };
-} as Event<any>);
+});
 
 export namespace CancellationToken {
 
-	export const None: CancellationToken = Object.freeze({
+	export function isCancellationToken(thing: unknown): thing is CancellationToken {
+		if (thing === CancellationToken.None || thing === CancellationToken.Cancelled) {
+			return true;
+		}
+		if (thing instanceof MutableToken) {
+			return true;
+		}
+		if (!thing || typeof thing !== 'object') {
+			return false;
+		}
+		return typeof (thing as CancellationToken).isCancellationRequested === 'boolean'
+			&& typeof (thing as CancellationToken).onCancellationRequested === 'function';
+	}
+
+
+	export const None = Object.freeze<CancellationToken>({
 		isCancellationRequested: false,
 		onCancellationRequested: Event.None
 	});
 
-	export const Cancelled: CancellationToken = Object.freeze({
+	export const Cancelled = Object.freeze<CancellationToken>({
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});
@@ -38,14 +60,14 @@ export namespace CancellationToken {
 class MutableToken implements CancellationToken {
 
 	private _isCancelled: boolean = false;
-	private _emitter: Emitter<any>;
+	private _emitter: Emitter<any> | null = null;
 
 	public cancel() {
 		if (!this._isCancelled) {
 			this._isCancelled = true;
 			if (this._emitter) {
 				this._emitter.fire(undefined);
-				this._emitter = undefined;
+				this.dispose();
 			}
 		}
 	}
@@ -63,11 +85,23 @@ class MutableToken implements CancellationToken {
 		}
 		return this._emitter.event;
 	}
+
+	public dispose(): void {
+		if (this._emitter) {
+			this._emitter.dispose();
+			this._emitter = null;
+		}
+	}
 }
 
 export class CancellationTokenSource {
 
-	private _token: CancellationToken;
+	private _token?: CancellationToken = undefined;
+	private _parentListener?: IDisposable = undefined;
+
+	constructor(parent?: CancellationToken) {
+		this._parentListener = parent && parent.onCancellationRequested(this.cancel, this);
+	}
 
 	get token(): CancellationToken {
 		if (!this._token) {
@@ -91,7 +125,18 @@ export class CancellationTokenSource {
 		}
 	}
 
-	dispose(): void {
-		this.cancel();
+	dispose(cancel: boolean = false): void {
+		if (cancel) {
+			this.cancel();
+		}
+		this._parentListener?.dispose();
+		if (!this._token) {
+			// ensure to initialize with an empty token if we had none
+			this._token = CancellationToken.None;
+
+		} else if (this._token instanceof MutableToken) {
+			// actually dispose
+			this._token.dispose();
+		}
 	}
 }

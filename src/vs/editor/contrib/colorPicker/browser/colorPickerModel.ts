@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { Emitter } from 'vs/base/common/event';
 import { Color } from 'vs/base/common/color';
-import { IColorPresentation } from 'vs/editor/common/modes';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IColorPresentation } from 'vs/editor/common/languages';
 
 export class ColorPickerModel {
 
@@ -41,13 +41,13 @@ export class ColorPickerModel {
 		this._onDidChangePresentation.fire(this.presentation);
 	}
 
-	private _onColorFlushed = new Emitter<Color>();
+	private readonly _onColorFlushed = new Emitter<Color>();
 	readonly onColorFlushed: Event<Color> = this._onColorFlushed.event;
 
-	private _onDidChangeColor = new Emitter<Color>();
+	private readonly _onDidChangeColor = new Emitter<Color>();
 	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
 
-	private _onDidChangePresentation = new Emitter<IColorPresentation>();
+	private readonly _onDidChangePresentation = new Emitter<IColorPresentation>();
 	readonly onDidChangePresentation: Event<IColorPresentation> = this._onDidChangePresentation.event;
 
 	constructor(color: Color, availableColorPresentations: IColorPresentation[], private presentationIndex: number) {
@@ -63,12 +63,28 @@ export class ColorPickerModel {
 	}
 
 	guessColorPresentation(color: Color, originalText: string): void {
+		let presentationIndex = -1;
 		for (let i = 0; i < this.colorPresentations.length; i++) {
-			if (originalText === this.colorPresentations[i].label) {
-				this.presentationIndex = i;
-				this._onDidChangePresentation.fire(this.presentation);
+			if (originalText.toLowerCase() === this.colorPresentations[i].label) {
+				presentationIndex = i;
 				break;
 			}
+		}
+
+		if (presentationIndex === -1) {
+			// check which color presentation text has same prefix as original text's prefix
+			const originalTextPrefix = originalText.split('(')[0].toLowerCase();
+			for (let i = 0; i < this.colorPresentations.length; i++) {
+				if (this.colorPresentations[i].label.toLowerCase().startsWith(originalTextPrefix)) {
+					presentationIndex = i;
+					break;
+				}
+			}
+		}
+
+		if (presentationIndex !== -1 && presentationIndex !== this.presentationIndex) {
+			this.presentationIndex = presentationIndex;
+			this._onDidChangePresentation.fire(this.presentation);
 		}
 	}
 

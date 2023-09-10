@@ -2,204 +2,212 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
+import { URI } from 'vs/base/common/uri';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 
 suite('LanguagesRegistry', () => {
 
-	test('output mode does not have a name', () => {
-		let registry = new LanguagesRegistry(false);
+	test('output language does not have a name', () => {
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'outputModeId',
+			id: 'outputLangId',
 			extensions: [],
-			aliases: [null],
-			mimetypes: ['outputModeMimeType'],
+			aliases: [],
+			mimetypes: ['outputLanguageMimeType'],
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), []);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), []);
+
+		registry.dispose();
 	});
 
-	test('mode with alias does have a name', () => {
-		let registry = new LanguagesRegistry(false);
+	test('language with alias does have a name', () => {
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: [],
-			aliases: ['ModeName'],
+			aliases: ['LangName'],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
-		assert.deepEqual(registry.getLanguageName('modeId'), 'ModeName');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'LangName', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'LangName');
+
+		registry.dispose();
 	});
 
-	test('mode without alias gets a name', () => {
-		let registry = new LanguagesRegistry(false);
+	test('language without alias gets a name', () => {
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: [],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['modeId']);
-		assert.deepEqual(registry.getLanguageName('modeId'), 'modeId');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'langId', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'langId');
+
+		registry.dispose();
 	});
 
 	test('bug #4360: f# not shown in status bar', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext1'],
-			aliases: ['ModeName'],
+			aliases: ['LangName'],
 			mimetypes: ['bla'],
 		}]);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext2'],
 			aliases: [],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['ModeName']);
-		assert.deepEqual(registry.getLanguageName('modeId'), 'ModeName');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'LangName', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'LangName');
+
+		registry.dispose();
 	});
 
 	test('issue #5278: Extension cannot override language name anymore', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext1'],
-			aliases: ['ModeName'],
+			aliases: ['LangName'],
 			mimetypes: ['bla'],
 		}]);
 
 		registry._registerLanguages([{
-			id: 'modeId',
+			id: 'langId',
 			extensions: ['.ext2'],
-			aliases: ['BetterModeName'],
+			aliases: ['BetterLanguageName'],
 			mimetypes: ['bla'],
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['BetterModeName']);
-		assert.deepEqual(registry.getLanguageName('modeId'), 'BetterModeName');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'BetterLanguageName', languageId: 'langId' }]);
+		assert.deepStrictEqual(registry.getLanguageName('langId'), 'BetterLanguageName');
+
+		registry.dispose();
 	});
 
 	test('mimetypes are generated if necessary', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId'
+			id: 'langId'
 		}]);
 
-		assert.deepEqual(registry.getMimeForMode('modeId'), 'text/x-modeId');
+		assert.deepStrictEqual(registry.getMimeType('langId'), 'text/x-langId');
+
+		registry.dispose();
 	});
 
 	test('first mimetype wins', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId',
-			mimetypes: ['text/modeId', 'text/modeId2']
+			id: 'langId',
+			mimetypes: ['text/langId', 'text/langId2']
 		}]);
 
-		assert.deepEqual(registry.getMimeForMode('modeId'), 'text/modeId');
+		assert.deepStrictEqual(registry.getMimeType('langId'), 'text/langId');
+
+		registry.dispose();
 	});
 
 	test('first mimetype wins 2', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
-			id: 'modeId'
+			id: 'langId'
 		}]);
 
 		registry._registerLanguages([{
-			id: 'modeId',
-			mimetypes: ['text/modeId']
+			id: 'langId',
+			mimetypes: ['text/langId']
 		}]);
 
-		assert.deepEqual(registry.getMimeForMode('modeId'), 'text/x-modeId');
+		assert.deepStrictEqual(registry.getMimeType('langId'), 'text/x-langId');
+
+		registry.dispose();
 	});
 
 	test('aliases', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a'
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepEqual(registry.getLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 
 		registry._registerLanguages([{
 			id: 'a',
 			aliases: ['A1', 'A2']
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['A1']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('a'), []);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('A1'), ['a']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('A2'), []);
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a1'), 'a');
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a2'), 'a');
-		assert.deepEqual(registry.getLanguageName('a'), 'A1');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A1', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a1'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a2'), 'a');
+		assert.deepStrictEqual(registry.getLanguageName('a'), 'A1');
 
 		registry._registerLanguages([{
 			id: 'a',
 			aliases: ['A3', 'A4']
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['A3']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('a'), []);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('A1'), []);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('A2'), []);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('A3'), ['a']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('A4'), []);
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a1'), 'a');
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a2'), 'a');
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a3'), 'a');
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a4'), 'a');
-		assert.deepEqual(registry.getLanguageName('a'), 'A3');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'A3', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a1'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a2'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a3'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a4'), 'a');
+		assert.deepStrictEqual(registry.getLanguageName('a'), 'A3');
+
+		registry.dispose();
 	});
 
 	test('empty aliases array means no alias', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a'
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepEqual(registry.getLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
 
 		registry._registerLanguages([{
 			id: 'b',
 			aliases: []
 		}]);
 
-		assert.deepEqual(registry.getRegisteredLanguageNames(), ['a']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
-		assert.deepEqual(registry.getModeIdsFromLanguageName('b'), []);
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
-		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('b'), 'b');
-		assert.deepEqual(registry.getLanguageName('a'), 'a');
-		assert.deepEqual(registry.getLanguageName('b'), null);
+		assert.deepStrictEqual(registry.getSortedRegisteredLanguageNames(), [{ languageName: 'a', languageId: 'a' }]);
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageIdByLanguageName('b'), 'b');
+		assert.deepStrictEqual(registry.getLanguageName('a'), 'a');
+		assert.deepStrictEqual(registry.getLanguageName('b'), null);
+
+		registry.dispose();
 	});
 
 	test('extensions', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a',
@@ -207,22 +215,48 @@ suite('LanguagesRegistry', () => {
 			extensions: ['aExt']
 		}]);
 
-		assert.deepEqual(registry.getExtensions('a'), []);
-		assert.deepEqual(registry.getExtensions('aname'), []);
-		assert.deepEqual(registry.getExtensions('aName'), ['aExt']);
+		assert.deepStrictEqual(registry.getExtensions('a'), ['aExt']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			extensions: ['aExt2']
 		}]);
 
-		assert.deepEqual(registry.getExtensions('a'), []);
-		assert.deepEqual(registry.getExtensions('aname'), []);
-		assert.deepEqual(registry.getExtensions('aName'), ['aExt', 'aExt2']);
+		assert.deepStrictEqual(registry.getExtensions('a'), ['aExt', 'aExt2']);
+
+		registry.dispose();
+	});
+
+	test('extensions of primary language registration come first', () => {
+		const registry = new LanguagesRegistry(false);
+
+		registry._registerLanguages([{
+			id: 'a',
+			extensions: ['aExt3']
+		}]);
+
+		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt3');
+
+		registry._registerLanguages([{
+			id: 'a',
+			configuration: URI.file('conf.json'),
+			extensions: ['aExt']
+		}]);
+
+		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
+
+		registry._registerLanguages([{
+			id: 'a',
+			extensions: ['aExt2']
+		}]);
+
+		assert.deepStrictEqual(registry.getExtensions('a')[0], 'aExt');
+
+		registry.dispose();
 	});
 
 	test('filenames', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a',
@@ -230,40 +264,40 @@ suite('LanguagesRegistry', () => {
 			filenames: ['aFilename']
 		}]);
 
-		assert.deepEqual(registry.getFilenames('a'), []);
-		assert.deepEqual(registry.getFilenames('aname'), []);
-		assert.deepEqual(registry.getFilenames('aName'), ['aFilename']);
+		assert.deepStrictEqual(registry.getFilenames('a'), ['aFilename']);
 
 		registry._registerLanguages([{
 			id: 'a',
 			filenames: ['aFilename2']
 		}]);
 
-		assert.deepEqual(registry.getFilenames('a'), []);
-		assert.deepEqual(registry.getFilenames('aname'), []);
-		assert.deepEqual(registry.getFilenames('aName'), ['aFilename', 'aFilename2']);
+		assert.deepStrictEqual(registry.getFilenames('a'), ['aFilename', 'aFilename2']);
+
+		registry.dispose();
 	});
 
 	test('configuration', () => {
-		let registry = new LanguagesRegistry(false);
+		const registry = new LanguagesRegistry(false);
 
 		registry._registerLanguages([{
 			id: 'a',
 			aliases: ['aName'],
-			configuration: 'aFilename'
+			configuration: URI.file('/path/to/aFilename')
 		}]);
 
-		assert.deepEqual(registry.getConfigurationFiles('a'), ['aFilename']);
-		assert.deepEqual(registry.getConfigurationFiles('aname'), []);
-		assert.deepEqual(registry.getConfigurationFiles('aName'), []);
+		assert.deepStrictEqual(registry.getConfigurationFiles('a'), [URI.file('/path/to/aFilename')]);
+		assert.deepStrictEqual(registry.getConfigurationFiles('aname'), []);
+		assert.deepStrictEqual(registry.getConfigurationFiles('aName'), []);
 
 		registry._registerLanguages([{
 			id: 'a',
-			configuration: 'aFilename2'
+			configuration: URI.file('/path/to/aFilename2')
 		}]);
 
-		assert.deepEqual(registry.getConfigurationFiles('a'), ['aFilename', 'aFilename2']);
-		assert.deepEqual(registry.getConfigurationFiles('aname'), []);
-		assert.deepEqual(registry.getConfigurationFiles('aName'), []);
+		assert.deepStrictEqual(registry.getConfigurationFiles('a'), [URI.file('/path/to/aFilename'), URI.file('/path/to/aFilename2')]);
+		assert.deepStrictEqual(registry.getConfigurationFiles('aname'), []);
+		assert.deepStrictEqual(registry.getConfigurationFiles('aName'), []);
+
+		registry.dispose();
 	});
 });

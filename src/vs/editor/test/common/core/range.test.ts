@@ -2,60 +2,58 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 suite('Editor Core - Range', () => {
 	test('empty range', () => {
-		var s = new Range(1, 1, 1, 1);
-		assert.equal(s.startLineNumber, 1);
-		assert.equal(s.startColumn, 1);
-		assert.equal(s.endLineNumber, 1);
-		assert.equal(s.endColumn, 1);
-		assert.equal(s.isEmpty(), true);
+		const s = new Range(1, 1, 1, 1);
+		assert.strictEqual(s.startLineNumber, 1);
+		assert.strictEqual(s.startColumn, 1);
+		assert.strictEqual(s.endLineNumber, 1);
+		assert.strictEqual(s.endColumn, 1);
+		assert.strictEqual(s.isEmpty(), true);
 	});
 
 	test('swap start and stop same line', () => {
-		var s = new Range(1, 2, 1, 1);
-		assert.equal(s.startLineNumber, 1);
-		assert.equal(s.startColumn, 1);
-		assert.equal(s.endLineNumber, 1);
-		assert.equal(s.endColumn, 2);
-		assert.equal(s.isEmpty(), false);
+		const s = new Range(1, 2, 1, 1);
+		assert.strictEqual(s.startLineNumber, 1);
+		assert.strictEqual(s.startColumn, 1);
+		assert.strictEqual(s.endLineNumber, 1);
+		assert.strictEqual(s.endColumn, 2);
+		assert.strictEqual(s.isEmpty(), false);
 	});
 
 	test('swap start and stop', () => {
-		var s = new Range(2, 1, 1, 2);
-		assert.equal(s.startLineNumber, 1);
-		assert.equal(s.startColumn, 2);
-		assert.equal(s.endLineNumber, 2);
-		assert.equal(s.endColumn, 1);
-		assert.equal(s.isEmpty(), false);
+		const s = new Range(2, 1, 1, 2);
+		assert.strictEqual(s.startLineNumber, 1);
+		assert.strictEqual(s.startColumn, 2);
+		assert.strictEqual(s.endLineNumber, 2);
+		assert.strictEqual(s.endColumn, 1);
+		assert.strictEqual(s.isEmpty(), false);
 	});
 
 	test('no swap same line', () => {
-		var s = new Range(1, 1, 1, 2);
-		assert.equal(s.startLineNumber, 1);
-		assert.equal(s.startColumn, 1);
-		assert.equal(s.endLineNumber, 1);
-		assert.equal(s.endColumn, 2);
-		assert.equal(s.isEmpty(), false);
+		const s = new Range(1, 1, 1, 2);
+		assert.strictEqual(s.startLineNumber, 1);
+		assert.strictEqual(s.startColumn, 1);
+		assert.strictEqual(s.endLineNumber, 1);
+		assert.strictEqual(s.endColumn, 2);
+		assert.strictEqual(s.isEmpty(), false);
 	});
 
 	test('no swap', () => {
-		var s = new Range(1, 1, 2, 1);
-		assert.equal(s.startLineNumber, 1);
-		assert.equal(s.startColumn, 1);
-		assert.equal(s.endLineNumber, 2);
-		assert.equal(s.endColumn, 1);
-		assert.equal(s.isEmpty(), false);
+		const s = new Range(1, 1, 2, 1);
+		assert.strictEqual(s.startLineNumber, 1);
+		assert.strictEqual(s.startColumn, 1);
+		assert.strictEqual(s.endLineNumber, 2);
+		assert.strictEqual(s.endColumn, 1);
+		assert.strictEqual(s.isEmpty(), false);
 	});
 
 	test('compareRangesUsingEnds', () => {
-		var a, b;
+		let a: Range, b: Range;
 
 		a = new Range(1, 1, 1, 3);
 		b = new Range(1, 2, 1, 4);
@@ -89,32 +87,42 @@ suite('Editor Core - Range', () => {
 		b = new Range(1, 1, 1, 4);
 		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start = b.start, a.end > b.end');
 
-		a = new Range(1, 1, 5, 1);
+		a = new Range(1, 2, 5, 1);
 		b = new Range(1, 1, 1, 4);
-		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start = b.start, a.end > b.end');
+		assert.ok(Range.compareRangesUsingEnds(a, b) > 0, 'a.start > b.start, a.end > b.end');
 	});
 
 	test('containsPosition', () => {
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(1, 3)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(2, 1)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(2, 2)), true);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(2, 3)), true);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(3, 1)), true);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(5, 9)), true);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(5, 10)), true);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(5, 11)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsPosition(new Position(6, 1)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(1, 3)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(2, 1)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(2, 2)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(2, 3)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(3, 1)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(5, 9)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(5, 10)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(5, 11)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsPosition(new Position(6, 1)), false);
 	});
 
 	test('containsRange', () => {
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(1, 3, 2, 2)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(2, 1, 2, 2)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(2, 2, 5, 11)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(2, 2, 6, 1)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(5, 9, 6, 1)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(5, 10, 6, 1)), false);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(2, 2, 5, 10)), true);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(2, 3, 5, 9)), true);
-		assert.equal(new Range(2, 2, 5, 10).containsRange(new Range(3, 100, 4, 100)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(1, 3, 2, 2)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(2, 1, 2, 2)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(2, 2, 5, 11)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(2, 2, 6, 1)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(5, 9, 6, 1)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(5, 10, 6, 1)), false);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(2, 2, 5, 10)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(2, 3, 5, 9)), true);
+		assert.strictEqual(new Range(2, 2, 5, 10).containsRange(new Range(3, 100, 4, 100)), true);
+	});
+
+	test('areIntersecting', () => {
+		assert.strictEqual(Range.areIntersecting(new Range(2, 2, 3, 2), new Range(4, 2, 5, 2)), false);
+		assert.strictEqual(Range.areIntersecting(new Range(4, 2, 5, 2), new Range(2, 2, 3, 2)), false);
+		assert.strictEqual(Range.areIntersecting(new Range(4, 2, 5, 2), new Range(5, 2, 6, 2)), false);
+		assert.strictEqual(Range.areIntersecting(new Range(5, 2, 6, 2), new Range(4, 2, 5, 2)), false);
+		assert.strictEqual(Range.areIntersecting(new Range(2, 2, 2, 7), new Range(2, 4, 2, 6)), true);
+		assert.strictEqual(Range.areIntersecting(new Range(2, 2, 2, 7), new Range(2, 4, 2, 9)), true);
+		assert.strictEqual(Range.areIntersecting(new Range(2, 4, 2, 9), new Range(2, 2, 2, 7)), true);
 	});
 });

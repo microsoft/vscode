@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { toUint8 } from 'vs/editor/common/core/uint';
+import { toUint8 } from 'vs/base/common/uint';
 
 /**
  * A fast character classifier that uses a compact array for ASCII values.
@@ -13,17 +12,17 @@ export class CharacterClassifier<T extends number> {
 	/**
 	 * Maintain a compact (fully initialized ASCII map for quickly classifying ASCII characters - used more often in code).
 	 */
-	private _asciiMap: Uint8Array;
+	protected readonly _asciiMap: Uint8Array;
 
 	/**
 	 * The entire map (sparse array).
 	 */
-	private _map: Map<number, number>;
+	protected readonly _map: Map<number, number>;
 
-	private _defaultValue: number;
+	protected readonly _defaultValue: number;
 
 	constructor(_defaultValue: T) {
-		let defaultValue = toUint8(_defaultValue);
+		const defaultValue = toUint8(_defaultValue);
 
 		this._defaultValue = defaultValue;
 		this._asciiMap = CharacterClassifier._createAsciiMap(defaultValue);
@@ -31,15 +30,13 @@ export class CharacterClassifier<T extends number> {
 	}
 
 	private static _createAsciiMap(defaultValue: number): Uint8Array {
-		let asciiMap: Uint8Array = new Uint8Array(256);
-		for (let i = 0; i < 256; i++) {
-			asciiMap[i] = defaultValue;
-		}
+		const asciiMap = new Uint8Array(256);
+		asciiMap.fill(defaultValue);
 		return asciiMap;
 	}
 
 	public set(charCode: number, _value: T): void {
-		let value = toUint8(_value);
+		const value = toUint8(_value);
 
 		if (charCode >= 0 && charCode < 256) {
 			this._asciiMap[charCode] = value;
@@ -55,6 +52,11 @@ export class CharacterClassifier<T extends number> {
 			return <T>(this._map.get(charCode) || this._defaultValue);
 		}
 	}
+
+	public clear() {
+		this._asciiMap.fill(this._defaultValue);
+		this._map.clear();
+	}
 }
 
 const enum Boolean {
@@ -64,7 +66,7 @@ const enum Boolean {
 
 export class CharacterSet {
 
-	private _actual: CharacterClassifier<Boolean>;
+	private readonly _actual: CharacterClassifier<Boolean>;
 
 	constructor() {
 		this._actual = new CharacterClassifier<Boolean>(Boolean.False);
@@ -76,5 +78,9 @@ export class CharacterSet {
 
 	public has(charCode: number): boolean {
 		return (this._actual.get(charCode) === Boolean.True);
+	}
+
+	public clear(): void {
+		return this._actual.clear();
 	}
 }

@@ -1,0 +1,4 @@
+{
+	"displayName": "Configuration Editing",
+	"description": "Provides capabilities (advanced IntelliSense, auto-fixing) in configuration files like settings, launch, and extension recommendation files."
+}

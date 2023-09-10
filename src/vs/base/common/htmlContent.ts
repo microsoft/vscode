@@ -3,27 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import { illegalArgument } from 'vs/base/common/errors';
+import { escapeIcons } from 'vs/base/common/iconLabels';
+import { isEqual } from 'vs/base/common/resources';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
-import { equals } from 'vs/base/common/arrays';
+export interface MarkdownStringTrustedOptions {
+	readonly enabledCommands: readonly string[];
+}
 
 export interface IMarkdownString {
-	value: string;
-	isTrusted?: boolean;
+	readonly value: string;
+	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
+	readonly supportThemeIcons?: boolean;
+	readonly supportHtml?: boolean;
+	readonly baseUri?: UriComponents;
+	uris?: { [href: string]: UriComponents };
+}
+
+export const enum MarkdownStringTextNewlineStyle {
+	Paragraph = 0,
+	Break = 1,
 }
 
 export class MarkdownString implements IMarkdownString {
 
-	value: string;
-	isTrusted?: boolean;
+	public value: string;
+	public isTrusted?: boolean | MarkdownStringTrustedOptions;
+	public supportThemeIcons?: boolean;
+	public supportHtml?: boolean;
+	public baseUri?: URI;
 
-	constructor(value: string = '') {
+	constructor(
+		value: string = '',
+		isTrustedOrOptions: boolean | { isTrusted?: boolean | MarkdownStringTrustedOptions; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
+	) {
 		this.value = value;
+		if (typeof this.value !== 'string') {
+			throw illegalArgument('value');
+		}
+
+		if (typeof isTrustedOrOptions === 'boolean') {
+			this.isTrusted = isTrustedOrOptions;
+			this.supportThemeIcons = false;
+			this.supportHtml = false;
+		}
+		else {
+			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
+			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
+			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
+		}
 	}
 
-	appendText(value: string): MarkdownString {
-		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+	appendText(value: string, newlineStyle: MarkdownStringTextNewlineStyle = MarkdownStringTextNewlineStyle.Paragraph): MarkdownString {
+		this.value += escapeMarkdownSyntaxTokens(this.supportThemeIcons ? escapeIcons(value) : value)
+			.replace(/([ \t]+)/g, (_match, g1) => '&nbsp;'.repeat(g1.length)) // CodeQL [SM02383] The Markdown is fully sanitized after being rendered.
+			.replace(/\>/gm, '\\>') // CodeQL [SM02383] The Markdown is fully sanitized after being rendered.
+			.replace(/\n/g, newlineStyle === MarkdownStringTextNewlineStyle.Break ? '\\\n' : '\n\n'); // CodeQL [SM02383] The Markdown is fully sanitized after being rendered.
+
 		return this;
 	}
 
@@ -40,9 +78,32 @@ export class MarkdownString implements IMarkdownString {
 		this.value += '\n```\n';
 		return this;
 	}
+
+	appendLink(target: URI | string, label: string, title?: string): MarkdownString {
+		this.value += '[';
+		this.value += this._escape(label, ']');
+		this.value += '](';
+		this.value += this._escape(String(target), ')');
+		if (title) {
+			this.value += ` "${this._escape(this._escape(title, '"'), ')')}"`;
+		}
+		this.value += ')';
+		return this;
+	}
+
+	private _escape(value: string, ch: string): string {
+		const r = new RegExp(escapeRegExpCharacters(ch), 'g');
+		return value.replace(r, (match, offset) => {
+			if (value.charAt(offset - 1) !== '\\') {
+				return `\\${match}`;
+			} else {
+				return match;
+			}
+		});
+	}
 }
 
-export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[]): boolean {
+export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[] | null | undefined): boolean {
 	if (isMarkdownString(oneOrMany)) {
 		return !oneOrMany.value;
 	} else if (Array.isArray(oneOrMany)) {
@@ -57,38 +118,60 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 		return true;
 	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
-			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === void 0);
+			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || typeof (<IMarkdownString>thing).isTrusted === 'object' || (<IMarkdownString>thing).isTrusted === undefined)
+			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined);
 	}
 	return false;
 }
 
-export function markedStringsEquals(a: IMarkdownString | IMarkdownString[], b: IMarkdownString | IMarkdownString[]): boolean {
-	if (!a && !b) {
-		return true;
-	} else if (!a || !b) {
-		return false;
-	} else if (Array.isArray(a) && Array.isArray(b)) {
-		return equals(a, b, markdownStringEqual);
-	} else if (isMarkdownString(a) && isMarkdownString(b)) {
-		return markdownStringEqual(a, b);
-	} else {
-		return false;
-	}
-}
-
-function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
+export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	if (a === b) {
 		return true;
 	} else if (!a || !b) {
 		return false;
 	} else {
-		return a.value === b.value && a.isTrusted === b.isTrusted;
+		return a.value === b.value
+			&& a.isTrusted === b.isTrusted
+			&& a.supportThemeIcons === b.supportThemeIcons
+			&& a.supportHtml === b.supportHtml
+			&& (a.baseUri === b.baseUri || !!a.baseUri && !!b.baseUri && isEqual(URI.from(a.baseUri), URI.from(b.baseUri)));
 	}
+}
+
+export function escapeMarkdownSyntaxTokens(text: string): string {
+	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&'); // CodeQL [SM02383] Backslash is escaped in the character class
+}
+
+export function escapeDoubleQuotes(input: string) {
+	return input.replace(/"/g, '&quot;');
 }
 
 export function removeMarkdownEscapes(text: string): string {
 	if (!text) {
 		return text;
 	}
-	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
+	return text.replace(/\\([\\`*_{}[\]()#+\-.!~])/g, '$1');
+}
+
+export function parseHrefAndDimensions(href: string): { href: string; dimensions: string[] } {
+	const dimensions: string[] = [];
+	const splitted = href.split('|').map(s => s.trim());
+	href = splitted[0];
+	const parameters = splitted[1];
+	if (parameters) {
+		const heightFromParams = /height=(\d+)/.exec(parameters);
+		const widthFromParams = /width=(\d+)/.exec(parameters);
+		const height = heightFromParams ? heightFromParams[1] : '';
+		const width = widthFromParams ? widthFromParams[1] : '';
+		const widthIsFinite = isFinite(parseInt(width));
+		const heightIsFinite = isFinite(parseInt(height));
+		if (widthIsFinite) {
+			dimensions.push(`width="${width}"`);
+		}
+		if (heightIsFinite) {
+			dimensions.push(`height="${height}"`);
+		}
+	}
+	return { href, dimensions };
 }

@@ -4,13 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/436456ee5ce44e29cb1752c3b29f493b1de08c42",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/772323937fedd65c6dc1c8ce6ea41d97415ed7d1",
 	"name": "C#",
 	"scopeName": "source.cs",
-	"fileTypes": [
-		"cs"
-	],
-	"uuid": "f7de61e2-bdde-4e2a-a139-8221b179584e",
 	"patterns": [
 		{
 			"include": "#preprocessor"
@@ -61,10 +57,10 @@
 		"script-top-level": {
 			"patterns": [
 				{
-					"include": "#method-declaration"
+					"include": "#statement"
 				},
 				{
-					"include": "#statement"
+					"include": "#method-declaration"
 				},
 				{
 					"include": "#punctuation-semicolon"
@@ -98,6 +94,9 @@
 					"include": "#struct-declaration"
 				},
 				{
+					"include": "#record-declaration"
+				},
+				{
 					"include": "#attribute-section"
 				},
 				{
@@ -120,13 +119,13 @@
 					"include": "#type-declarations"
 				},
 				{
+					"include": "#property-declaration"
+				},
+				{
 					"include": "#field-declaration"
 				},
 				{
 					"include": "#event-declaration"
-				},
-				{
-					"include": "#property-declaration"
 				},
 				{
 					"include": "#indexer-declaration"
@@ -166,10 +165,10 @@
 					"include": "#comment"
 				},
 				{
-					"include": "#event-declaration"
+					"include": "#property-declaration"
 				},
 				{
-					"include": "#property-declaration"
+					"include": "#event-declaration"
 				},
 				{
 					"include": "#indexer-declaration"
@@ -248,6 +247,15 @@
 					"include": "#labeled-statement"
 				},
 				{
+					"include": "#object-creation-expression"
+				},
+				{
+					"include": "#array-creation-expression"
+				},
+				{
+					"include": "#anonymous-object-creation-expression"
+				},
+				{
 					"include": "#local-declaration"
 				},
 				{
@@ -279,7 +287,13 @@
 					"include": "#nameof-expression"
 				},
 				{
+					"include": "#default-literal-expression"
+				},
+				{
 					"include": "#throw-expression"
+				},
+				{
+					"include": "#raw-interpolated-string"
 				},
 				{
 					"include": "#interpolated-string"
@@ -288,7 +302,13 @@
 					"include": "#verbatim-interpolated-string"
 				},
 				{
+					"include": "#type-builtin"
+				},
+				{
 					"include": "#this-or-base-expression"
+				},
+				{
+					"include": "#switch-expression"
 				},
 				{
 					"include": "#conditional-operator"
@@ -350,7 +370,7 @@
 			]
 		},
 		"extern-alias-directive": {
-			"begin": "\\s*(extern)\\b\\s*(alias)\\b\\s*([_[:alpha:]][_[:alnum:]]*)",
+			"begin": "\\s*(extern)\\b\\s*(alias)\\b\\s*(@?[_[:alpha:]][_[:alnum:]]*)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.extern.cs"
@@ -367,13 +387,19 @@
 		"using-directive": {
 			"patterns": [
 				{
-					"begin": "\\b(using)\\b\\s+(static)\\s+",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(static)\\b\\s+(\\b(unsafe)\\b\\s+)?",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						},
-						"2": {
+						"4": {
 							"name": "keyword.other.static.cs"
+						},
+						"6": {
+							"name": "storage.modifier.cs"
 						}
 					},
 					"end": "(?=;)",
@@ -384,12 +410,18 @@
 					]
 				},
 				{
-					"begin": "\\b(using)\\s+(?=([_[:alpha:]][_[:alnum:]]*)\\s*=)",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(\\b(unsafe)\\b\\s+)?(?=(@?[_[:alpha:]][_[:alnum:]]*)\\s*=)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						},
-						"2": {
+						"5": {
+							"name": "storage.modifier.cs"
+						},
+						"6": {
 							"name": "entity.name.type.alias.cs"
 						}
 					},
@@ -407,9 +439,12 @@
 					]
 				},
 				{
-					"begin": "\\b(using)\\s*",
+					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\s*(?!\\(|\\s|var)",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.global.cs"
+						},
+						"3": {
 							"name": "keyword.other.using.cs"
 						}
 					},
@@ -420,7 +455,7 @@
 						},
 						{
 							"name": "entity.name.type.namespace.cs",
-							"match": "[_[:alpha:]][_[:alnum:]]*"
+							"match": "@?[_[:alpha:]][_[:alnum:]]*"
 						},
 						{
 							"include": "#operator-assignment"
@@ -496,7 +531,7 @@
 			]
 		},
 		"attribute-named-argument": {
-			"begin": "([_[:alpha:]][_[:alnum:]]*)\\s*(?==)",
+			"begin": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(?==)",
 			"beginCaptures": {
 				"1": {
 					"name": "entity.name.variable.property.cs"
@@ -519,14 +554,14 @@
 					"name": "keyword.other.namespace.cs"
 				}
 			},
-			"end": "(?<=\\})",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
 					"include": "#comment"
 				},
 				{
 					"name": "entity.name.type.namespace.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"match": "@?[_[:alpha:]][_[:alnum:]]*"
 				},
 				{
 					"include": "#punctuation-accessor"
@@ -560,29 +595,35 @@
 		},
 		"storage-modifier": {
 			"name": "storage.modifier.cs",
-			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe)\\b"
+			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref|required|file)\\b"
 		},
 		"class-declaration": {
-			"begin": "(?=\\bclass\\b)",
-			"end": "(?<=\\})",
+			"begin": "(?=(\\brecord\\b\\s+)?\\bclass\\b)",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"begin": "(?x)\n\\b(class)\\b\\s+\n([_[:alpha:]][_[:alnum:]]*)\\s*",
+					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n\\b(class)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*",
 					"beginCaptures": {
-						"1": {
+						"2": {
+							"name": "keyword.other.record.cs"
+						},
+						"3": {
 							"name": "keyword.other.class.cs"
 						},
-						"2": {
+						"4": {
 							"name": "entity.name.type.class.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -620,7 +661,7 @@
 			]
 		},
 		"delegate-declaration": {
-			"begin": "(?x)\n(?:\\b(delegate)\\b)\\s+\n(?<type-name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
+			"begin": "(?x)\n(?:\\b(delegate)\\b)\\s+\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.delegate.cs"
@@ -668,7 +709,7 @@
 							"include": "#comment"
 						},
 						{
-							"match": "(enum)\\s+([_[:alpha:]][_[:alnum:]]*)",
+							"match": "(enum)\\s+(@?[_[:alpha:]][_[:alnum:]]*)",
 							"captures": {
 								"1": {
 									"name": "keyword.other.enum.cs"
@@ -721,7 +762,7 @@
 							"include": "#punctuation-comma"
 						},
 						{
-							"begin": "[_[:alpha:]][_[:alnum:]]*",
+							"begin": "@?[_[:alpha:]][_[:alnum:]]*",
 							"beginCaptures": {
 								"0": {
 									"name": "entity.name.variable.enum-member.cs"
@@ -752,7 +793,7 @@
 			"end": "(?<=\\})",
 			"patterns": [
 				{
-					"begin": "(?x)\n(interface)\\b\\s+\n([_[:alpha:]][_[:alnum:]]*)",
+					"begin": "(?x)\n(interface)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.other.interface.cs"
@@ -804,27 +845,93 @@
 				}
 			]
 		},
-		"struct-declaration": {
-			"begin": "(?=\\bstruct\\b)",
-			"end": "(?<=\\})",
+		"record-declaration": {
+			"begin": "(?=\\brecord\\b)",
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"begin": "(?x)\n(struct)\\b\\s+\n([_[:alpha:]][_[:alnum:]]*)",
+					"begin": "(?x)\n(record)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
 					"beginCaptures": {
 						"1": {
-							"name": "keyword.other.struct.cs"
+							"name": "keyword.other.record.cs"
 						},
 						"2": {
-							"name": "entity.name.type.struct.cs"
+							"name": "entity.name.type.class.cs"
 						}
 					},
-					"end": "(?=\\{)",
+					"end": "(?=\\{)|(?=;)",
 					"patterns": [
 						{
 							"include": "#comment"
 						},
 						{
 							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
+						},
+						{
+							"include": "#base-types"
+						},
+						{
+							"include": "#generic-constraints"
+						}
+					]
+				},
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.cs"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#class-or-struct-members"
+						}
+					]
+				},
+				{
+					"include": "#preprocessor"
+				},
+				{
+					"include": "#comment"
+				}
+			]
+		},
+		"struct-declaration": {
+			"begin": "(?=(\\brecord\\b\\s+)?\\bstruct\\b)",
+			"end": "(?<=\\})|(?=;)",
+			"patterns": [
+				{
+					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n(struct)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
+					"beginCaptures": {
+						"2": {
+							"name": "keyword.other.record.cs"
+						},
+						"3": {
+							"name": "keyword.other.struct.cs"
+						},
+						"4": {
+							"name": "entity.name.type.struct.cs"
+						}
+					},
+					"end": "(?=\\{)|(?=;)",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#parenthesized-parameter-list"
 						},
 						{
 							"include": "#base-types"
@@ -884,7 +991,7 @@
 					}
 				},
 				{
-					"match": "\\b([_[:alpha:]][_[:alnum:]]*)\\b",
+					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\b",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.type-parameter.cs"
@@ -909,7 +1016,7 @@
 					"name": "punctuation.separator.colon.cs"
 				}
 			},
-			"end": "(?=\\{|where)",
+			"end": "(?=\\{|where|;)",
 			"patterns": [
 				{
 					"include": "#type"
@@ -923,19 +1030,19 @@
 			]
 		},
 		"generic-constraints": {
-			"begin": "(where)\\s+([_[:alpha:]][_[:alnum:]]*)\\s*(:)",
+			"begin": "(where)\\s+(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.where.cs"
 				},
 				"2": {
-					"name": "storage.type.cs"
+					"name": "entity.name.type.type-parameter.cs"
 				},
 				"3": {
 					"name": "punctuation.separator.colon.cs"
 				}
 			},
-			"end": "(?=\\{|where|;)",
+			"end": "(?=\\{|where|;|=>)",
 			"patterns": [
 				{
 					"name": "keyword.other.class.cs",
@@ -971,7 +1078,7 @@
 			]
 		},
 		"field-declaration": {
-			"begin": "(?x)\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s+\n(\\g<identifier>)\\s* # first field name\n(?!=>|==)(?=,|;|=|$)",
+			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s* # first field name\n(?!=>|==)(?=,|;|=|$)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -988,7 +1095,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.variable.field.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"match": "@?[_[:alpha:]][_[:alnum:]]*"
 				},
 				{
 					"include": "#punctuation-comma"
@@ -1005,7 +1112,7 @@
 			]
 		},
 		"property-declaration": {
-			"begin": "(?x)\n(?!.*\\b(?:class|interface|struct|enum|event)\\b)\\s*\n(?<return-type>\n  (?<type-name>\n    (?:\n      (?:ref\\s+)?   # ref return\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\\s+\n)\n(?<interface-name>\\g<type-name>\\s*\\.\\s*)?\n(?<property-name>\\g<identifier>)\\s*\n(?=\\{|=>|$)",
+			"begin": "(?x)\n\n# The negative lookahead below ensures that we don't match nested types\n# or other declarations as properties.\n(?![[:word:][:space:]]*\\b(?:class|interface|struct|enum|event)\\b)\n\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<property_name>\\g<identifier>)\\s*\n(?=\\{|=>|$)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1048,7 +1155,7 @@
 			]
 		},
 		"indexer-declaration": {
-			"begin": "(?x)\n(?<return-type>\n  (?<type-name>\n    (?:\n      (?:ref\\s+)?   # ref return\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\\s+\n)\n(?<interface-name>\\g<type-name>\\s*\\.\\s*)?\n(?<indexer-name>this)\\s*\n(?=\\[)",
+			"begin": "(?x)\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<indexer_name>this)\\s*\n(?=\\[)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1091,7 +1198,7 @@
 			]
 		},
 		"event-declaration": {
-			"begin": "(?x)\n\\b(event)\\b\\s*\n(?<return-type>\n  (?<type-name>\n    (?:\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\\s+\n)\n(?<interface-name>\\g<type-name>\\s*\\.\\s*)?\n(?<event-names>\\g<identifier>(?:\\s*,\\s*\\g<identifier>)*)\\s*\n(?=\\{|;|$)",
+			"begin": "(?x)\n\\b(event)\\b\\s*\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<event_names>\\g<identifier>(?:\\s*,\\s*\\g<identifier>)*)\\s*\n(?=\\{|;|$)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.event.cs"
@@ -1117,7 +1224,7 @@
 					"patterns": [
 						{
 							"name": "entity.name.variable.event.cs",
-							"match": "[_[:alpha:]][_[:alnum:]]*"
+							"match": "@?[_[:alpha:]][_[:alnum:]]*"
 						},
 						{
 							"include": "#punctuation-comma"
@@ -1163,6 +1270,10 @@
 				{
 					"name": "keyword.other.set.cs",
 					"match": "\\b(set)\\b"
+				},
+				{
+					"name": "keyword.other.init.cs",
+					"match": "\\b(init)\\b"
 				},
 				{
 					"include": "#comment"
@@ -1221,7 +1332,7 @@
 			]
 		},
 		"method-declaration": {
-			"begin": "(?x)\n(?<return-type>\n  (?<type-name>\n    (?:\n      (?:ref\\s+)?   # ref return\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\\s+\n)\n(?<interface-name>\\g<type-name>\\s*\\.\\s*)?\n(\\g<identifier>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
+			"begin": "(?x)\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(\\g<identifier>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1271,11 +1382,11 @@
 			]
 		},
 		"constructor-declaration": {
-			"begin": "(?=[_[:alpha:]][_[:alnum:]]*\\s*\\()",
+			"begin": "(?=@?[_[:alpha:]][_[:alnum:]]*\\s*\\()",
 			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"match": "\\b([_[:alpha:]][_[:alnum:]]*)\\b",
+					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\b",
 					"captures": {
 						"1": {
 							"name": "entity.name.function.cs"
@@ -1331,7 +1442,7 @@
 			]
 		},
 		"destructor-declaration": {
-			"begin": "(~)([_[:alpha:]][_[:alnum:]]*)\\s*(?=\\()",
+			"begin": "(~)(@?[_[:alpha:]][_[:alnum:]]*)\\s*(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.tilde.cs"
@@ -1357,7 +1468,7 @@
 			]
 		},
 		"operator-declaration": {
-			"begin": "(?x)\n(?<type-name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s*\n(?<operator-keyword>(?:\\b(?:operator)))\\s*\n(?<operator>(?:\\+|-|\\*|/|%|&|\\||\\^|\\<\\<|\\>\\>|==|!=|\\>|\\<|\\>=|\\<=|!|~|\\+\\+|--|true|false))\\s*\n(?=\\()",
+			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?<operator_keyword>(?:\\b(?:operator)))\\s*\n(?<operator>(?:\\+|-|\\*|/|%|&|\\||\\^|\\<\\<|\\>\\>|==|!=|\\>|\\<|\\>=|\\<=|!|~|\\+\\+|--|true|false))\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1390,7 +1501,7 @@
 			]
 		},
 		"conversion-operator-declaration": {
-			"begin": "(?x)\n(?<explicit-or-implicit-keyword>(?:\\b(?:explicit|implicit)))\\s*\n(?<operator-keyword>(?:\\b(?:operator)))\\s*\n(?<type-name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s*\n(?=\\()",
+			"begin": "(?x)\n(?<explicit_or_implicit_keyword>(?:\\b(?:explicit|implicit)))\\s*\n(?<operator_keyword>(?:\\b(?:operator)))\\s*\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1525,7 +1636,7 @@
 				},
 				{
 					"name": "entity.name.label.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"match": "@?[_[:alpha:]][_[:alnum:]]*"
 				}
 			]
 		},
@@ -1619,7 +1730,7 @@
 			"end": "(?=;)",
 			"patterns": [
 				{
-					"include": "#expression"
+					"include": "#statement"
 				}
 			]
 		},
@@ -1719,6 +1830,178 @@
 							"include": "#statement"
 						}
 					]
+				}
+			]
+		},
+		"switch-expression": {
+			"begin": "(?x) (?<!\\.)\\b(switch)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.switch.cs"
+				}
+			},
+			"end": "(?<=\\})",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.curlybrace.close.cs"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.cs"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#literal"
+						},
+						{
+							"include": "#switch-var-pattern"
+						},
+						{
+							"include": "#switch-property-expression"
+						},
+						{
+							"include": "#member-access-expression"
+						},
+						{
+							"include": "#switch-pattern"
+						},
+						{
+							"include": "#expression-body"
+						},
+						{
+							"include": "#punctuation-comma"
+						}
+					]
+				}
+			]
+		},
+		"switch-pattern": {
+			"begin": "(?x) # e.g. int x OR var x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#type"
+						}
+					]
+				},
+				"2": {
+					"name": "entity.name.variable.local.cs"
+				}
+			},
+			"end": "(?==>)",
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#switch-when-clause"
+				}
+			]
+		},
+		"switch-property-expression": {
+			"begin": "(?x) # e.g. int x OR var x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\\s*\n(\\{)",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#type"
+						}
+					]
+				},
+				"6": {
+					"name": "punctuation.curlybrace.open.cs"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.curlybrace.close.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#expression"
+				},
+				{
+					"include": "#punctuation-comma"
+				}
+			]
+		},
+		"switch-var-pattern": {
+			"begin": "(?x) # match foreach (var (x, y) in ...)\n(?:\\b(var)\\b\\s*)\n(?<tuple>\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s*",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.var.cs"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#tuple-declaration-deconstruction-element-list"
+						}
+					]
+				}
+			},
+			"end": "(?==>)",
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#switch-when-clause"
+				}
+			]
+		},
+		"switch-when-clause": {
+			"begin": "(?<!\\.)\\b(when)\\b\\s*(\\()?",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.try.when.cs"
+				},
+				"2": {
+					"name": "punctuation.parenthesis.open.cs"
+				}
+			},
+			"end": "(?==>)",
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#expression"
+				},
+				{
+					"include": "#punctuation-comma"
+				},
+				{
+					"match": "\\(",
+					"captures": {
+						"0": {
+							"name": "punctuation.parenthesis.open.cs"
+						}
+					}
+				},
+				{
+					"match": "\\)",
+					"captures": {
+						"0": {
+							"name": "punctuation.parenthesis.close.cs"
+						}
+					}
 				}
 			]
 		},
@@ -1869,7 +2152,7 @@
 					},
 					"patterns": [
 						{
-							"match": "(?x)\n(?:\n  (\\bvar\\b)|\n  (?<type-name>\n    (?:\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s+\n\\b(in)\\b",
+							"match": "(?x)\n(?:\n  (\\bvar\\b)|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s+\n\\b(in)\\b",
 							"captures": {
 								"1": {
 									"name": "keyword.other.var.cs"
@@ -1988,7 +2271,7 @@
 					},
 					"patterns": [
 						{
-							"match": "(?x)\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s*\n(?:\\b(\\g<identifier>)\\b)?",
+							"match": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?:(\\g<identifier>)\\b)?",
 							"captures": {
 								"1": {
 									"patterns": [
@@ -2054,6 +2337,9 @@
 			"patterns": [
 				{
 					"include": "#block"
+				},
+				{
+					"include": "#comment"
 				}
 			]
 		},
@@ -2127,7 +2413,7 @@
 			]
 		},
 		"labeled-statement": {
-			"match": "([_[:alpha:]][_[:alnum:]]*)\\s*(:)",
+			"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)",
 			"captures": {
 				"1": {
 					"name": "entity.name.label.cs"
@@ -2146,27 +2432,36 @@
 					"include": "#local-variable-declaration"
 				},
 				{
+					"include": "#local-function-declaration"
+				},
+				{
 					"include": "#local-tuple-var-deconstruction"
 				}
 			]
 		},
 		"local-variable-declaration": {
-			"begin": "(?x)\n(?:\n  (?:(\\bref)\\s+)?(\\bvar\\b)| # ref local\n  (?<type-name>\n    (?:\n      (?:ref\\s+)?   # ref local\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?=,|;|=|\\))",
+			"begin": "(?x)\n(?:\n  (?:(\\busing)\\s+)?\n  (?:(\\bref)\\s+(?:(\\breadonly)\\s+)?)?(\\bvar\\b)| # ref local\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref local\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?!=>)\n(?=,|;|=|\\))",
 			"beginCaptures": {
 				"1": {
-					"name": "storage.modifier.cs"
+					"name": "keyword.other.using.cs"
 				},
 				"2": {
-					"name": "keyword.other.var.cs"
+					"name": "storage.modifier.cs"
 				},
 				"3": {
+					"name": "storage.modifier.cs"
+				},
+				"4": {
+					"name": "keyword.other.var.cs"
+				},
+				"5": {
 					"patterns": [
 						{
 							"include": "#type"
 						}
 					]
 				},
-				"8": {
+				"10": {
 					"name": "entity.name.variable.local.cs"
 				}
 			},
@@ -2174,7 +2469,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.variable.local.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"match": "@?[_[:alpha:]][_[:alnum:]]*"
 				},
 				{
 					"include": "#punctuation-comma"
@@ -2188,7 +2483,7 @@
 			]
 		},
 		"local-constant-declaration": {
-			"begin": "(?x)\n(?<const-keyword>\\b(?:const)\\b)\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?=,|;|=)",
+			"begin": "(?x)\n(?<const_keyword>\\b(?:const)\\b)\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?=,|;|=)",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.modifier.cs"
@@ -2208,7 +2503,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.variable.local.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"match": "@?[_[:alpha:]][_[:alnum:]]*"
 				},
 				{
 					"include": "#punctuation-comma"
@@ -2218,6 +2513,13 @@
 				},
 				{
 					"include": "#variable-initializer"
+				}
+			]
+		},
+		"local-function-declaration": {
+			"patterns": [
+				{
+					"include": "#method-declaration"
 				}
 			]
 		},
@@ -2284,7 +2586,7 @@
 					"include": "#punctuation-comma"
 				},
 				{
-					"match": "(?x) # e.g. x\n\\b([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=[,)])",
+					"match": "(?x) # e.g. x\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=[,)])",
 					"captures": {
 						"1": {
 							"name": "entity.name.variable.tuple-element.cs"
@@ -2320,7 +2622,7 @@
 					"include": "#punctuation-comma"
 				},
 				{
-					"match": "(?x) # e.g. x\n\\b([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=[,)])",
+					"match": "(?x) # e.g. x\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(?=[,)])",
 					"captures": {
 						"1": {
 							"name": "variable.other.readwrite.cs"
@@ -2330,7 +2632,7 @@
 			]
 		},
 		"declaration-expression-local": {
-			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type-name>\n    (?:\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\n)\\s+\n\\b(\\g<identifier>)\\b\\s*\n(?=[,)\\]])",
+			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*\n(?=[,)\\]])",
 			"captures": {
 				"1": {
 					"name": "keyword.other.var.cs"
@@ -2348,7 +2650,7 @@
 			}
 		},
 		"declaration-expression-tuple": {
-			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type-name>\n    (?:\n      (?:\n        (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name-and-type-args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\*\\s*)* # pointer suffix?\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n    )\n  )\n)\\s+\n\\b(\\g<identifier>)\\b\\s*\n(?=[,)])",
+			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n                (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*\n(?=[,)])",
 			"captures": {
 				"1": {
 					"name": "keyword.other.var.cs"
@@ -2437,19 +2739,21 @@
 				}
 			]
 		},
+		"default-literal-expression": {
+			"match": "(?<!\\.)\\b(default)\\b",
+			"captures": {
+				"1": {
+					"name": "keyword.other.default.cs"
+				}
+			}
+		},
 		"throw-expression": {
-			"begin": "(?<!\\.)\\b(throw)\\b",
-			"beginCaptures": {
+			"match": "(?<!\\.)\\b(throw)\\b",
+			"captures": {
 				"1": {
 					"name": "keyword.control.flow.throw.cs"
 				}
-			},
-			"end": "(?=;)",
-			"patterns": [
-				{
-					"include": "#expression"
-				}
-			]
+			}
 		},
 		"interpolated-string": {
 			"name": "string.quoted.double.cs",
@@ -2479,7 +2783,7 @@
 		},
 		"verbatim-interpolated-string": {
 			"name": "string.quoted.double.cs",
-			"begin": "\\$@\"",
+			"begin": "(?:\\$@|@\\$)\"",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.cs"
@@ -2502,7 +2806,7 @@
 		},
 		"interpolation": {
 			"name": "meta.interpolation.cs",
-			"begin": "(?<=[^\\{])((?:\\{\\{)*)(\\{)(?=[^\\{])",
+			"begin": "(?<=[^\\{]|^)((?:\\{\\{)*)(\\{)(?=[^\\{])",
 			"beginCaptures": {
 				"1": {
 					"name": "string.quoted.double.cs"
@@ -2512,6 +2816,184 @@
 				}
 			},
 			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.interpolation.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"raw-interpolated-string": {
+			"patterns": [
+				{
+					"include": "#raw-interpolated-string-five-or-more-quote-one-or-more-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-three-or-more-quote-three-or-more-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-quadruple-quote-double-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-quadruple-quote-single-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-triple-quote-double-interpolation"
+				},
+				{
+					"include": "#raw-interpolated-string-triple-quote-single-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-triple-quote-single-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-triple-quote-double-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\\$\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#double-raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-quadruple-quote-single-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\"\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-quadruple-quote-double-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\\$\"\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#double-raw-interpolation"
+				}
+			]
+		},
+		"raw-interpolated-string-three-or-more-quote-three-or-more-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$\\$\\$+\"\"\"+",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"+",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-interpolated-string-five-or-more-quote-one-or-more-interpolation": {
+			"name": "string.quoted.double.cs",
+			"begin": "\\$+\"\"\"\"\"+",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"\"+",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-interpolation": {
+			"name": "meta.interpolation.cs",
+			"begin": "(?<=[^\\{]|^)((?:\\{)*)(\\{)(?=[^\\{])",
+			"beginCaptures": {
+				"1": {
+					"name": "string.quoted.double.cs"
+				},
+				"2": {
+					"name": "punctuation.definition.interpolation.begin.cs"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.interpolation.end.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"double-raw-interpolation": {
+			"name": "meta.interpolation.cs",
+			"begin": "(?<=[^\\{][^\\{]|^)((?:\\{)*)(\\{\\{)(?=[^\\{])",
+			"beginCaptures": {
+				"1": {
+					"name": "string.quoted.double.cs"
+				},
+				"2": {
+					"name": "punctuation.definition.interpolation.begin.cs"
+				}
+			},
+			"end": "\\}\\}",
 			"endCaptures": {
 				"0": {
 					"name": "punctuation.definition.interpolation.end.cs"
@@ -2536,6 +3018,9 @@
 				},
 				{
 					"include": "#char-literal"
+				},
+				{
+					"include": "#raw-string-literal"
 				},
 				{
 					"include": "#string-literal"
@@ -2565,32 +3050,160 @@
 			"match": "(?<!\\.)\\bnull\\b"
 		},
 		"numeric-literal": {
-			"patterns": [
-				{
-					"name": "constant.numeric.hex.cs",
-					"match": "\\b0(x|X)[0-9a-fA-F_]+(U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?\\b"
-				},
-				{
-					"name": "constant.numeric.binary.cs",
-					"match": "\\b0(b|B)[01_]+(U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b([0-9_]+)?\\.[0-9_]+((e|E)[0-9]+)?(F|f|D|d|M|m)?\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b[0-9_]+(e|E)[0-9_]+(F|f|D|d|M|m)?\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b[0-9_]+(F|f|D|d|M|m)\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b[0-9_]+(U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?\\b"
+			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_]|_)|(?<=[eE])[+-]|\\.\\d)*",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"begin": "(?=.)",
+							"end": "$",
+							"patterns": [
+								{
+									"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?((?:(?<=[0-9])|\\.(?=[0-9])))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?((?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?([fFdDmM](?!\\w))?$",
+									"captures": {
+										"2": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"4": {
+											"name": "constant.numeric.other.separator.decimals.cs"
+										},
+										"5": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"6": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"8": {
+											"name": "constant.numeric.other.exponent.cs"
+										},
+										"9": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"10": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"11": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"12": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(\\G0[bB])([01_](?:[01_]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captures": {
+										"1": {
+											"name": "constant.numeric.other.preffix.binary.cs"
+										},
+										"2": {
+											"name": "constant.numeric.binary.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"4": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captures": {
+										"1": {
+											"name": "constant.numeric.other.preffix.hex.cs"
+										},
+										"2": {
+											"name": "constant.numeric.hex.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"4": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captures": {
+										"2": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"5": {
+											"name": "constant.numeric.other.exponent.cs"
+										},
+										"6": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"7": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"8": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"9": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(?:(?:[0-9a-zA-Z_]|_)|(?<=[eE])[+-]|\\.\\d)+",
+									"name": "invalid.illegal.constant.numeric.cs"
+								}
+							]
+						}
+					]
 				}
-			]
+			}
 		},
 		"char-literal": {
 			"name": "string.quoted.single.cs",
@@ -2611,9 +3224,13 @@
 			},
 			"patterns": [
 				{
-					"include": "#string-character-escape"
+					"include": "#char-character-escape"
 				}
 			]
+		},
+		"char-character-escape": {
+			"name": "constant.character.escape.cs",
+			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})"
 		},
 		"string-literal": {
 			"name": "string.quoted.double.cs",
@@ -2640,7 +3257,7 @@
 		},
 		"string-character-escape": {
 			"name": "constant.character.escape.cs",
-			"match": "\\\\."
+			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4})"
 		},
 		"verbatim-string-literal": {
 			"name": "string.quoted.double.cs",
@@ -2666,6 +3283,64 @@
 			"name": "constant.character.escape.cs",
 			"match": "\"\""
 		},
+		"raw-string-literal": {
+			"patterns": [
+				{
+					"include": "#raw-string-literal-more"
+				},
+				{
+					"include": "#raw-string-literal-quadruple"
+				},
+				{
+					"include": "#raw-string-literal-triple"
+				}
+			]
+		},
+		"raw-string-literal-triple": {
+			"name": "string.quoted.double.cs",
+			"begin": "\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-string-literal-quadruple": {
+			"name": "string.quoted.double.cs",
+			"begin": "\"\"\"\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
+		"raw-string-literal-more": {
+			"name": "string.quoted.double.cs",
+			"begin": "\"\"\"\"\"+",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.cs"
+				}
+			},
+			"end": "\"\"\"\"\"+",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.cs"
+				}
+			}
+		},
 		"tuple-literal": {
 			"begin": "(\\()(?=.*[:,])",
 			"beginCaptures": {
@@ -2687,32 +3362,32 @@
 					"include": "#tuple-literal-element"
 				},
 				{
+					"include": "#expression"
+				},
+				{
 					"include": "#punctuation-comma"
 				}
 			]
 		},
 		"tuple-literal-element": {
-			"begin": "(?x)\n(?:([_[:alpha:]][_[:alnum:]]*)\\s*(:)\\s*)?\n(?![,)])",
+			"begin": "(?x)\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*\n(?=:)",
 			"beginCaptures": {
-				"0": {
-					"name": "entity.name.variable.tuple-element.cs"
-				},
 				"1": {
-					"name": "punctuation.separator.colon.cs"
+					"name": "entity.name.variable.tuple-element.cs"
 				}
 			},
-			"end": "(?=[,)])",
-			"patterns": [
-				{
-					"include": "#expression"
+			"end": "(:)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.separator.colon.cs"
 				}
-			]
+			}
 		},
 		"expression-operators": {
 			"patterns": [
 				{
 					"name": "keyword.operator.assignment.compound.cs",
-					"match": "\\*=|/=|%=|\\+=|-="
+					"match": "\\*=|/=|%=|\\+=|-=|\\?\\?="
 				},
 				{
 					"name": "keyword.operator.assignment.compound.bitwise.cs",
@@ -2760,8 +3435,28 @@
 				}
 			]
 		},
+		"switch-literal": {
+			"name": "constant.language.null.cs",
+			"match": "(?<!\\.)\\bnull\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "constant.language.null.cs"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#punctuation-comma"
+				},
+				{
+					"include": "#expression-body"
+				}
+			]
+		},
 		"conditional-operator": {
-			"begin": "(?<!\\?)\\?(?!\\?|\\.|\\[)",
+			"begin": "\\?(?!\\s*[?.\\[]|\\s*$)",
 			"beginCaptures": {
 				"0": {
 					"name": "keyword.operator.conditional.question-mark.cs"
@@ -2826,10 +3521,10 @@
 		},
 		"identifier": {
 			"name": "variable.other.readwrite.cs",
-			"match": "[_[:alpha:]][_[:alnum:]]*"
+			"match": "@?[_[:alpha:]][_[:alnum:]]*"
 		},
 		"cast-expression": {
-			"match": "(?x)\n(\\()\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s*\n(\\))(?=\\s*[_[:alnum:]\\(])",
+			"match": "(?x)\n(\\()\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(\\))(?=\\s*-*!*@?[_[:alnum:]\\(])",
 			"captures": {
 				"1": {
 					"name": "punctuation.parenthesis.open.cs"
@@ -2847,7 +3542,7 @@
 			}
 		},
 		"as-expression": {
-			"match": "(?x)\n(?<!\\.)\\b(as)\\b\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)?",
+			"match": "(?x)\n(?<!\\.)\\b(as)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?",
 			"captures": {
 				"1": {
 					"name": "keyword.other.as.cs"
@@ -2862,7 +3557,7 @@
 			}
 		},
 		"is-expression": {
-			"match": "(?x)\n(?<!\\.)\\b(is)\\b\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)?",
+			"match": "(?x)\n(?<!\\.)\\b(is)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?",
 			"captures": {
 				"1": {
 					"name": "keyword.other.is.cs"
@@ -2888,7 +3583,7 @@
 			}
 		},
 		"invocation-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                                     # preceding null-conditional operator?\n(?:(\\.)\\s*)?                                     # preceding dot?\n([_[:alpha:]][_[:alnum:]]*)\\s*                   # method name\n(?<type-args>\\s*<([^<>]|\\g<type-args>)+>\\s*)?\\s* # type arguments\n(?=\\()                                           # open paren of argument list",
+			"begin": "(?x)\n(?:(\\?)\\s*)?                                     # preceding null-conditional operator?\n(?:(\\.)\\s*)?                                     # preceding dot?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                   # method name\n(?<type_args>\\s*<([^<>]|\\g<type_args>)+>\\s*)?\\s* # type arguments\n(?=\\()                                           # open paren of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"
@@ -2915,7 +3610,7 @@
 			]
 		},
 		"element-access-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                        # preceding null-conditional operator?\n(?:(\\.)\\s*)?                        # preceding dot?\n(?:([_[:alpha:]][_[:alnum:]]*)\\s*)? # property name\n(?:(\\?)\\s*)?                        # null-conditional operator?\n(?=\\[)                              # open bracket of argument list",
+			"begin": "(?x)\n(?:(\\?)\\s*)?                        # preceding null-conditional operator?\n(?:(\\.)\\s*)?                        # preceding dot?\n(?:(@?[_[:alpha:]][_[:alnum:]]*)\\s*)? # property name\n(?:(\\?)\\s*)?                        # null-conditional operator?\n(?=\\[)                              # open bracket of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"
@@ -2940,7 +3635,7 @@
 		"member-access-expression": {
 			"patterns": [
 				{
-					"match": "(?x)\n(?:(\\?)\\s*)?                   # preceding null-conditional operator?\n(\\.)\\s*                        # preceding dot\n([_[:alpha:]][_[:alnum:]]*)\\s* # property name\n(?![_[:alnum:]]|\\(|(\\?)?\\[|<)  # next character is not alpha-numeric, nor a (, [, or <. Also, test for ?[",
+					"match": "(?x)\n(?:(\\?)\\s*)?                   # preceding null-conditional operator?\n(\\.)\\s*                        # preceding dot\n(@?[_[:alpha:]][_[:alnum:]]*)\\s* # property name\n(?![_[:alnum:]]|\\(|(\\?)?\\[|<)  # next character is not alpha-numeric, nor a (, [, or <. Also, test for ?[",
 					"captures": {
 						"1": {
 							"name": "keyword.operator.null-conditional.cs"
@@ -2954,7 +3649,7 @@
 					}
 				},
 				{
-					"match": "(?x)\n(\\.)?\\s*\n([_[:alpha:]][_[:alnum:]]*)\n(?<type-params>\\s*<([^<>]|\\g<type-params>)+>\\s*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*[_[:alpha:]][_[:alnum:]]*\n)",
+					"match": "(?x)\n(\\.)?\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?<type_params>\\s*<([^<>]|\\g<type_params>)+>\\s*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*@?[_[:alpha:]][_[:alnum:]]*\n)",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.cs"
@@ -2972,7 +3667,7 @@
 					}
 				},
 				{
-					"match": "(?x)\n([_[:alpha:]][_[:alnum:]]*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*[_[:alpha:]][_[:alnum:]]*\n)",
+					"match": "(?x)\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*@?[_[:alpha:]][_[:alnum:]]*\n)",
 					"captures": {
 						"1": {
 							"name": "variable.other.object.cs"
@@ -2992,7 +3687,7 @@
 			]
 		},
 		"object-creation-expression-with-parameters": {
-			"begin": "(?x)\n(new)\\s+\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s*\n(?=\\()",
+			"begin": "(?x)\n(new)(?:\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n))?\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.new.cs"
@@ -3013,7 +3708,7 @@
 			]
 		},
 		"object-creation-expression-with-no-parameters": {
-			"match": "(?x)\n(new)\\s+\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s*\n(?=\\{|$)",
+			"match": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\{|$)",
 			"captures": {
 				"1": {
 					"name": "keyword.other.new.cs"
@@ -3028,7 +3723,7 @@
 			}
 		},
 		"array-creation-expression": {
-			"begin": "(?x)\n\\b(new)\\b\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)?\\s*\n(?=\\[)",
+			"begin": "(?x)\n\\b(new|stackalloc)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\\s*\n(?=\\[)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.other.new.cs"
@@ -3055,7 +3750,7 @@
 					"name": "keyword.other.new.cs"
 				}
 			},
-			"end": "(?=\\)|;|})",
+			"end": "(?<=\\})",
 			"patterns": [
 				{
 					"include": "#initializer-expression"
@@ -3087,25 +3782,13 @@
 							"include": "#attribute-section"
 						},
 						{
-							"name": "storage.modifier.cs",
-							"match": "\\b(ref|params|out)\\b"
-						},
-						{
-							"match": "\\s+([_[:alpha:]][_[:alnum:]]*)\\s*(?=[=,\\]])",
-							"captures": {
-								"1": {
-									"name": "entity.name.variable.parameter.cs"
-								}
-							}
-						},
-						{
-							"include": "#variable-initializer"
-						},
-						{
-							"include": "#type"
+							"include": "#parameter"
 						},
 						{
 							"include": "#punctuation-comma"
+						},
+						{
+							"include": "#variable-initializer"
 						}
 					]
 				}
@@ -3132,27 +3815,33 @@
 					"include": "#attribute-section"
 				},
 				{
-					"name": "storage.modifier.cs",
-					"match": "\\b(ref|params|out|this)\\b"
-				},
-				{
-					"match": "\\b([_[:alpha:]][_[:alnum:]]*)\\s*(?=[=,)])",
-					"captures": {
-						"1": {
-							"name": "entity.name.variable.parameter.cs"
-						}
-					}
-				},
-				{
-					"include": "#variable-initializer"
-				},
-				{
-					"include": "#type"
+					"include": "#parameter"
 				},
 				{
 					"include": "#punctuation-comma"
+				},
+				{
+					"include": "#variable-initializer"
 				}
 			]
+		},
+		"parameter": {
+			"match": "(?x)\n(?:(?:\\b(ref|params|out|in|this)\\b)\\s+)?\n(?<type_name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)",
+			"captures": {
+				"1": {
+					"name": "storage.modifier.cs"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type"
+						}
+					]
+				},
+				"7": {
+					"name": "entity.name.variable.parameter.cs"
+				}
+			}
 		},
 		"argument-list": {
 			"begin": "\\(",
@@ -3205,7 +3894,7 @@
 			]
 		},
 		"named-argument": {
-			"begin": "([_[:alpha:]][_[:alnum:]]*)\\s*(:)",
+			"begin": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)",
 			"beginCaptures": {
 				"1": {
 					"name": "entity.name.variable.parameter.cs"
@@ -3225,7 +3914,7 @@
 			"patterns": [
 				{
 					"name": "storage.modifier.cs",
-					"match": "\\b(ref|out)\\b"
+					"match": "\\b(ref|out|in)\\b"
 				},
 				{
 					"include": "#declaration-expression-local"
@@ -3236,7 +3925,7 @@
 			]
 		},
 		"query-expression": {
-			"begin": "(?x)\n\\b(from)\\b\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)?\n\\b(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
+			"begin": "(?x)\n\\b(from)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.query.from.cs"
@@ -3288,7 +3977,7 @@
 			]
 		},
 		"let-clause": {
-			"begin": "(?x)\n\\b(let)\\b\\s*\n\\b([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=)\\s*",
+			"begin": "(?x)\n\\b(let)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=)\\s*",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.query.let.cs"
@@ -3328,7 +4017,7 @@
 			]
 		},
 		"join-clause": {
-			"begin": "(?x)\n\\b(join)\\b\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)?\n\\b(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
+			"begin": "(?x)\n\\b(join)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.query.join.cs"
@@ -3383,7 +4072,7 @@
 			}
 		},
 		"join-into": {
-			"match": "(?x)\n\\b(into)\\b\\s*\n\\b([_[:alpha:]][_[:alnum:]]*)\\b\\s*",
+			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*",
 			"captures": {
 				"1": {
 					"name": "keyword.query.into.cs"
@@ -3476,7 +4165,7 @@
 			}
 		},
 		"group-into": {
-			"match": "(?x)\n\\b(into)\\b\\s*\n\\b([_[:alpha:]][_[:alnum:]]*)\\b\\s*",
+			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*",
 			"captures": {
 				"1": {
 					"name": "keyword.query.into.cs"
@@ -3489,7 +4178,7 @@
 		"anonymous-method-expression": {
 			"patterns": [
 				{
-					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n\\b([_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=>)",
+					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=>)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.cs"
@@ -3598,7 +4287,7 @@
 			]
 		},
 		"lambda-parameter": {
-			"match": "(?x)\n(ref|out)?\\s*\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)?\n\\b(\\g<identifier>)\\b\\s*\n(?=[,)])",
+			"match": "(?x)\n(?:\\b(ref|out|in)\\b)?\\s*\n(?:(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+)?\n(\\g<identifier>)\\b\\s*\n(?=[,)])",
 			"captures": {
 				"1": {
 					"name": "storage.modifier.cs"
@@ -3625,6 +4314,9 @@
 					"include": "#ref-modifier"
 				},
 				{
+					"include": "#readonly-modifier"
+				},
+				{
 					"include": "#tuple-type"
 				},
 				{
@@ -3646,7 +4338,11 @@
 		},
 		"ref-modifier": {
 			"name": "storage.modifier.cs",
-			"match": "ref"
+			"match": "\\b(ref)\\b"
+		},
+		"readonly-modifier": {
+			"name": "storage.modifier.cs",
+			"match": "\\b(readonly)\\b"
 		},
 		"tuple-type": {
 			"begin": "\\(",
@@ -3671,7 +4367,7 @@
 			]
 		},
 		"tuple-element": {
-			"match": "(?x)\n(?<type-name>\n  (?:\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\n(?:\\b(?<tuple-name>\\g<identifier>)\\b)?",
+			"match": "(?x)\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\n(?:(?<tuple_name>\\g<identifier>)\\b)?",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -3686,7 +4382,7 @@
 			}
 		},
 		"type-builtin": {
-			"match": "\\b(bool|byte|char|decimal|double|float|int|long|object|sbyte|short|string|uint|ulong|ushort|void)\\b",
+			"match": "\\b(bool|byte|char|decimal|double|float|int|long|object|sbyte|short|string|uint|ulong|ushort|void|dynamic)\\b",
 			"captures": {
 				"1": {
 					"name": "keyword.type.cs"
@@ -3696,7 +4392,7 @@
 		"type-name": {
 			"patterns": [
 				{
-					"match": "([_[:alpha:]][_[:alnum:]]*)\\s*(\\:\\:)",
+					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(\\:\\:)",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.alias.cs"
@@ -3707,10 +4403,10 @@
 					}
 				},
 				{
-					"match": "([_[:alpha:]][_[:alnum:]]*)\\s*(\\.)",
+					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(\\.)",
 					"captures": {
 						"1": {
-							"name": "storage.type.cs"
+							"name": "entity.name.type.cs"
 						},
 						"2": {
 							"name": "punctuation.accessor.cs"
@@ -3718,19 +4414,19 @@
 					}
 				},
 				{
-					"match": "(\\.)\\s*([_[:alpha:]][_[:alnum:]]*)",
+					"match": "(\\.)\\s*(@?[_[:alpha:]][_[:alnum:]]*)",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.cs"
 						},
 						"2": {
-							"name": "storage.type.cs"
+							"name": "entity.name.type.cs"
 						}
 					}
 				},
 				{
-					"name": "storage.type.cs",
-					"match": "[_[:alpha:]][_[:alnum:]]*"
+					"name": "entity.name.type.cs",
+					"match": "@?[_[:alpha:]][_[:alnum:]]*"
 				}
 			]
 		},
@@ -4147,7 +4843,7 @@
 						},
 						{
 							"name": "comment.line.double-slash.cs",
-							"begin": "(?<!/)//(?!/)",
+							"begin": "(?<!/)//(?:(?!/)|(?=//))",
 							"beginCaptures": {
 								"0": {
 									"name": "punctuation.definition.comment.cs"

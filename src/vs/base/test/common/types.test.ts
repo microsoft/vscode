@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as assert from 'assert';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 
 suite('Types', () => {
+
 	test('isFunction', () => {
 		assert(!types.isFunction(undefined));
 		assert(!types.isFunction(null));
@@ -57,7 +57,7 @@ suite('Types', () => {
 		assert(!types.isObject(/test/));
 		assert(!types.isObject(new RegExp('')));
 		assert(!types.isFunction(new Date()));
-		assert(!types.isObject(assert));
+		assert.strictEqual(types.isObject(assert), false);
 		assert(!types.isObject(function foo() { }));
 
 		assert(types.isObject({}));
@@ -75,29 +75,11 @@ suite('Types', () => {
 		assert(!types.isEmptyObject(/test/));
 		assert(!types.isEmptyObject(new RegExp('')));
 		assert(!types.isEmptyObject(new Date()));
-		assert(!types.isEmptyObject(assert));
+		assert.strictEqual(types.isEmptyObject(assert), false);
 		assert(!types.isEmptyObject(function foo() { /**/ }));
 		assert(!types.isEmptyObject({ foo: 'bar' }));
 
 		assert(types.isEmptyObject({}));
-	});
-
-	test('isArray', () => {
-		assert(!types.isArray(undefined));
-		assert(!types.isArray(null));
-		assert(!types.isArray('foo'));
-		assert(!types.isArray(5));
-		assert(!types.isArray(true));
-		assert(!types.isArray({}));
-		assert(!types.isArray(/test/));
-		assert(!types.isArray(new RegExp('')));
-		assert(!types.isArray(new Date()));
-		assert(!types.isArray(assert));
-		assert(!types.isArray(function foo() { /**/ }));
-		assert(!types.isArray({ foo: 'bar' }));
-
-		assert(types.isArray([]));
-		assert(types.isArray([1, 2, '3']));
 	});
 
 	test('isString', () => {
@@ -171,6 +153,24 @@ suite('Types', () => {
 		assert(types.isUndefinedOrNull(null));
 	});
 
+	test('assertIsDefined / assertAreDefined', () => {
+		assert.throws(() => types.assertIsDefined(undefined));
+		assert.throws(() => types.assertIsDefined(null));
+		assert.throws(() => types.assertAllDefined(null, undefined));
+		assert.throws(() => types.assertAllDefined(true, undefined));
+		assert.throws(() => types.assertAllDefined(undefined, false));
+
+		assert.strictEqual(types.assertIsDefined(true), true);
+		assert.strictEqual(types.assertIsDefined(false), false);
+		assert.strictEqual(types.assertIsDefined('Hello'), 'Hello');
+		assert.strictEqual(types.assertIsDefined(''), '');
+
+		const res = types.assertAllDefined(1, true, 'Hello');
+		assert.strictEqual(res[0], 1);
+		assert.strictEqual(res[1], true);
+		assert.strictEqual(res[2], 'Hello');
+	});
+
 	test('validateConstraints', () => {
 		types.validateConstraints([1, 'test', true], [Number, String, Boolean]);
 		types.validateConstraints([1, 'test', true], ['number', 'string', 'boolean']);
@@ -178,42 +178,17 @@ suite('Types', () => {
 		types.validateConstraints([undefined], [types.isUndefined]);
 		types.validateConstraints([1], [types.isNumber]);
 
-		function foo() { }
-		types.validateConstraints([new foo()], [foo]);
+		class Foo { }
+		types.validateConstraints([new Foo()], [Foo]);
 
-		function isFoo(f) { }
-		assert.throws(() => types.validateConstraints([new foo()], [isFoo]));
+		function isFoo(f: any) { }
+		assert.throws(() => types.validateConstraints([new Foo()], [isFoo]));
 
-		function isFoo2(f) { return true; };
-		types.validateConstraints([new foo()], [isFoo2]);
+		function isFoo2(f: any) { return true; }
+		types.validateConstraints([new Foo()], [isFoo2]);
 
 		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));
 		assert.throws(() => types.validateConstraints(['2'], [types.isNumber]));
 		assert.throws(() => types.validateConstraints([1, 'test', true], [Number, String, Number]));
-	});
-
-	test('create', () => {
-		let zeroConstructor = function () { /**/ };
-
-		assert(types.create(zeroConstructor) instanceof zeroConstructor);
-		assert(types.isObject(types.create(zeroConstructor)));
-
-		let manyArgConstructor = function (foo, bar) {
-			this.foo = foo;
-			this.bar = bar;
-		};
-
-		let foo = {};
-		let bar = 'foo';
-
-		assert(types.create(manyArgConstructor) instanceof manyArgConstructor);
-		assert(types.isObject(types.create(manyArgConstructor)));
-
-		assert(types.create(manyArgConstructor, foo, bar) instanceof manyArgConstructor);
-		assert(types.isObject(types.create(manyArgConstructor, foo, bar)));
-
-		let obj = types.create(manyArgConstructor, foo, bar);
-		assert.strictEqual(obj.foo, foo);
-		assert.strictEqual(obj.bar, bar);
 	});
 });

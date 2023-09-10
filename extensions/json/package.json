@@ -1,22 +1,15 @@
 {
   "name": "json",
-  "version": "0.1.0",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
-  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
-  "activationEvents": [
-    "onLanguage:json"
-  ],
-  "enableProposedApi": true,
-  "main": "./client/out/jsonMain",
   "scripts": {
-    "compile": "gulp compile-extension:json-client && gulp compile-extension:json-server",
-    "postinstall": "cd server && npm install",
-    "install-client-next": "npm install vscode-languageclient@next -f -S",
-    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S",
-    "update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-JSON.tmLanguage JSON.tmLanguage ./syntaxes/JSON.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammars.js"
   },
   "contributes": {
     "languages": [
@@ -29,16 +22,73 @@
         "extensions": [
           ".json",
           ".bowerrc",
-          ".jshintrc",
           ".jscsrc",
-          ".eslintrc",
-          ".babelrc",
           ".webmanifest",
-          ".code-workspace"
+          ".js.map",
+          ".css.map",
+          ".ts.map",
+          ".har",
+          ".jslintrc",
+          ".jsonld",
+          ".geojson",
+          ".ipynb",
+          ".vuerc"
+        ],
+        "filenames": [
+          "composer.lock",
+          ".watchmanconfig"
         ],
         "mimetypes": [
           "application/json",
           "application/manifest+json"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "jsonc",
+        "aliases": [
+          "JSON with Comments"
+        ],
+        "extensions": [
+          ".jsonc",
+          ".eslintrc",
+          ".eslintrc.json",
+          ".jsfmtrc",
+          ".jshintrc",
+          ".swcrc",
+          ".hintrc",
+          ".babelrc"
+        ],
+        "filenames": [
+          "babel.config.json",
+          ".babelrc.json",
+          ".ember-cli",
+          "typedoc.json"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "jsonl",
+        "aliases": [
+          "JSON Lines"
+        ],
+        "extensions": [
+          ".jsonl"
+        ],
+        "filenames": [],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "snippets",
+        "aliases": [
+            "Code Snippets"
+        ],
+        "extensions": [
+          ".code-snippets"
+        ],
+        "filenamePatterns": [
+          "**/User/snippets/*.json",
+          "**/User/profiles/*/snippets/*.json"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -48,95 +98,26 @@
         "language": "json",
         "scopeName": "source.json",
         "path": "./syntaxes/JSON.tmLanguage.json"
-      }
-    ],
-    "jsonValidation": [
+      },
       {
-        "fileMatch": "*.schema.json",
-        "url": "http://json-schema.org/draft-04/schema#"
+        "language": "jsonc",
+        "scopeName": "source.json.comments",
+        "path": "./syntaxes/JSONC.tmLanguage.json"
+      },
+      {
+        "language": "jsonl",
+        "scopeName": "source.json.lines",
+        "path": "./syntaxes/JSONL.tmLanguage.json"
+      },
+      {
+        "language": "snippets",
+        "scopeName": "source.json.comments.snippets",
+        "path": "./syntaxes/snippets.tmLanguage.json"
       }
-    ],
-    "configuration": {
-      "id": "json",
-      "order": 20,
-      "type": "object",
-      "title": "JSON",
-      "properties": {
-        "json.schemas": {
-          "type": "array",
-          "scope": "resource",
-          "description": "%json.schemas.desc%",
-          "items": {
-            "type": "object",
-            "default": {
-              "fileMatch": [
-                "/myfile"
-              ],
-              "url": "schemaURL"
-            },
-            "properties": {
-              "url": {
-                "type": "string",
-                "default": "/user.schema.json",
-                "description": "%json.schemas.url.desc%"
-              },
-              "fileMatch": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "default": "MyFile.json",
-                  "description": "%json.schemas.fileMatch.item.desc%"
-                },
-                "minItems": 1,
-                "description": "%json.schemas.fileMatch.desc%"
-              },
-              "schema": {
-                "$ref": "http://json-schema.org/draft-04/schema#",
-                "description": "%json.schemas.schema.desc%"
-              }
-            }
-          }
-        },
-        "json.format.enable": {
-          "type": "boolean",
-          "scope": "window",
-          "default": true,
-          "description": "%json.format.enable.desc%"
-        },
-        "json.trace.server": {
-          "type": "string",
-          "scope": "window",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%json.tracing.desc%"
-        },
-        "json.colorDecorators.enable": {
-          "type": "boolean",
-          "scope": "window",
-          "default": true,
-          "description": "%json.colorDecorators.enable.desc%",
-          "deprecationMessage": "%json.colorDecorators.enable.deprecationMessage%"
-        }
-      }
-    },
-    "configurationDefaults": {
-      "[json]": {
-        "editor.quickSuggestions": {
-          "strings": true
-        }
-      }
-    }
+    ]
   },
-  "dependencies": {
-    "vscode-extension-telemetry": "0.0.8",
-    "vscode-languageclient": "^3.5.0-next.3",
-    "vscode-nls": "2.0.2"
-  },
-  "devDependencies": {
-    "@types/node": "7.0.43"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

@@ -2,16 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { Extensions as ThemeingExtensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
+import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
+import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
-let themingRegistry = <IColorRegistry>Registry.as(ThemeingExtensions.ColorContribution);
-let textMateScopes = [
+const textMateScopes = [
 	'comment',
 	'comment.block',
 	'comment.block.documentation',
@@ -114,91 +114,148 @@ let textMateScopes = [
 	'variable.parameter'
 ];
 
-export const tokenColorizationSettingSchema: IJSONSchema = {
-	type: 'object',
-	description: nls.localize('schema.token.settings', 'Colors and styles for the token.'),
-	properties: {
-		foreground: {
-			type: 'string',
-			description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
-			format: 'color-hex',
-			default: '#ff0000'
+export const textmateColorsSchemaId = 'vscode://schemas/textmate-colors';
+export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#/definitions/colorGroup`;
+
+const textmateColorSchema: IJSONSchema = {
+	type: 'array',
+	definitions: {
+		colorGroup: {
+			default: '#FF0000',
+			anyOf: [
+				{
+					type: 'string',
+					format: 'color-hex'
+				},
+				{
+					$ref: '#/definitions/settings'
+				}
+			]
 		},
-		background: {
-			type: 'string',
-			deprecationMessage: nls.localize('schema.token.background.warning', 'Token background colors are currently not supported.')
-		},
-		fontStyle: {
-			type: 'string',
-			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\''),
-			pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
-			patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be a combination of \'italic\', \'bold\' and \'underline\''),
-			defaultSnippets: [{ body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+		settings: {
+			type: 'object',
+			description: nls.localize('schema.token.settings', 'Colors and styles for the token.'),
+			properties: {
+				foreground: {
+					type: 'string',
+					description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
+					format: 'color-hex',
+					default: '#ff0000'
+				},
+				background: {
+					type: 'string',
+					deprecationMessage: nls.localize('schema.token.background.warning', 'Token background colors are currently not supported.')
+				},
+				fontStyle: {
+					type: 'string',
+					description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\', \'underline\', \'strikethrough\' or a combination. The empty string unsets inherited settings.'),
+					pattern: '^(\\s*\\b(italic|bold|underline|strikethrough))*\\s*$',
+					patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\', \'underline\', \'strikethrough\' or a combination or the empty string.'),
+					defaultSnippets: [
+						{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' },
+						{ body: 'italic' },
+						{ body: 'bold' },
+						{ body: 'underline' },
+						{ body: 'strikethrough' },
+						{ body: 'italic bold' },
+						{ body: 'italic underline' },
+						{ body: 'italic strikethrough' },
+						{ body: 'bold underline' },
+						{ body: 'bold strikethrough' },
+						{ body: 'underline strikethrough' },
+						{ body: 'italic bold underline' },
+						{ body: 'italic bold strikethrough' },
+						{ body: 'italic underline strikethrough' },
+						{ body: 'bold underline strikethrough' },
+						{ body: 'italic bold underline strikethrough' }
+					]
+				}
+			},
+			additionalProperties: false,
+			defaultSnippets: [{ body: { foreground: '${1:#FF0000}', fontStyle: '${2:bold}' } }]
 		}
 	},
-	defaultSnippets: [{ body: { foreground: '${1:#FF0000}', fontStyle: '${2:bold}' } }]
+	items: {
+		type: 'object',
+		defaultSnippets: [{ body: { scope: '${1:keyword.operator}', settings: { foreground: '${2:#FF0000}' } } }],
+		properties: {
+			name: {
+				type: 'string',
+				description: nls.localize('schema.properties.name', 'Description of the rule.')
+			},
+			scope: {
+				description: nls.localize('schema.properties.scope', 'Scope selector against which this rule matches.'),
+				anyOf: [
+					{
+						enum: textMateScopes
+					},
+					{
+						type: 'string'
+					},
+					{
+						type: 'array',
+						items: {
+							enum: textMateScopes
+						}
+					},
+					{
+						type: 'array',
+						items: {
+							type: 'string'
+						}
+					}
+				]
+			},
+			settings: {
+				$ref: '#/definitions/settings'
+			}
+		},
+		required: [
+			'settings'
+		],
+		additionalProperties: false
+	}
 };
 
-export const colorsSchema = themingRegistry.getColorSchema();
-export function tokenColorsSchema(description: string): IJSONSchema {
-	return {
-		type: 'array',
-		description,
-		items: {
-			type: 'object',
-			defaultSnippets: [{ body: { scope: '${1:keyword.operator}', settings: { foreground: '${2:#FF0000}' } } }],
-			properties: {
-				name: {
-					type: 'string',
-					description: nls.localize('schema.properties.name', 'Description of the rule.')
-				},
-				scope: {
-					description: nls.localize('schema.properties.scope', 'Scope selector against which this rule matches.'),
-					anyOf: [
-						{
-							enum: textMateScopes
-						},
-						{
-							type: 'string'
-						},
-						{
-							type: 'array',
-							items: {
-								enum: textMateScopes
-							}
-						},
-						{
-							type: 'array',
-							items: {
-								type: 'string'
-							}
-						}
-					]
-				},
-				settings: tokenColorizationSettingSchema
-			}
-		}
-	};
-}
+export const colorThemeSchemaId = 'vscode://schemas/color-theme';
 
-const schemaId = 'vscode://schemas/color-theme';
-const schema: IJSONSchema = {
+const colorThemeSchema: IJSONSchema = {
 	type: 'object',
+	allowComments: true,
+	allowTrailingCommas: true,
 	properties: {
-		colors: colorsSchema,
+		colors: {
+			description: nls.localize('schema.workbenchColors', 'Colors in the workbench'),
+			$ref: workbenchColorsSchemaId,
+			additionalProperties: false
+		},
 		tokenColors: {
 			anyOf: [{
 				type: 'string',
 				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file).')
 			},
-			tokenColorsSchema(nls.localize('schema.colors', 'Colors for syntax highlighting'))
+			{
+				description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
+				$ref: textmateColorsSchemaId
+			}
 			]
+		},
+		semanticHighlighting: {
+			type: 'boolean',
+			description: nls.localize('schema.supportsSemanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.')
+		},
+		semanticTokenColors: {
+			type: 'object',
+			description: nls.localize('schema.semanticTokenColors', 'Colors for semantic tokens'),
+			$ref: tokenStylingSchemaId
 		}
 	}
 };
 
-export function register() {
-	let schemaRegistry = <IJSONContributionRegistry>Registry.as(JSONExtensions.JSONContribution);
-	schemaRegistry.registerSchema(schemaId, schema);
-}
 
+
+export function registerColorThemeSchemas() {
+	const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+	schemaRegistry.registerSchema(colorThemeSchemaId, colorThemeSchema);
+	schemaRegistry.registerSchema(textmateColorsSchemaId, textmateColorSchema);
+}

@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Node } from 'EmmetNode';
-import { getNode, parseDocument, validate } from './util';
+import { Node } from 'EmmetFlatNode';
+import { getFlatNode, offsetRangeToVsRange, validate } from './util';
+import { getRootNode } from './parseDocument';
 
 export function mergeLines() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 
-	let rootNode = parseDocument(editor.document);
+	const editor = vscode.window.activeTextEditor;
+
+	const rootNode = getRootNode(editor.document, true);
 	if (!rootNode) {
 		return;
 	}
 
 	return editor.edit(editBuilder => {
-		editor.selections.reverse().forEach(selection => {
-			let textEdit = getRangesToReplace(editor.document, selection, rootNode);
+		Array.from(editor.selections).reverse().forEach(selection => {
+			const textEdit = getRangesToReplace(editor.document, selection, rootNode);
 			if (textEdit) {
 				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
@@ -28,24 +30,35 @@ export function mergeLines() {
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit {
-	let startNodeToUpdate: Node;
-	let endNodeToUpdate: Node;
+function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node): vscode.TextEdit | undefined {
+	let startNodeToUpdate: Node | undefined;
+	let endNodeToUpdate: Node | undefined;
 
+	const selectionStart = document.offsetAt(selection.start);
+	const selectionEnd = document.offsetAt(selection.end);
 	if (selection.isEmpty) {
-		startNodeToUpdate = endNodeToUpdate = getNode(rootNode, selection.start);
+		startNodeToUpdate = endNodeToUpdate = getFlatNode(rootNode, selectionStart, true);
 	} else {
-		startNodeToUpdate = getNode(rootNode, selection.start, true);
-		endNodeToUpdate = getNode(rootNode, selection.end, true);
+		startNodeToUpdate = getFlatNode(rootNode, selectionStart, true);
+		endNodeToUpdate = getFlatNode(rootNode, selectionEnd, true);
 	}
 
-	if (!startNodeToUpdate || !endNodeToUpdate || startNodeToUpdate.start.line === endNodeToUpdate.end.line) {
+	if (!startNodeToUpdate || !endNodeToUpdate) {
 		return;
 	}
 
-	let rangeToReplace = new vscode.Range(startNodeToUpdate.start, endNodeToUpdate.end);
-	let textToReplaceWith = document.lineAt(startNodeToUpdate.start.line).text.substr(startNodeToUpdate.start.character);
-	for (let i = startNodeToUpdate.start.line + 1; i <= endNodeToUpdate.end.line; i++) {
+	const startPos = document.positionAt(startNodeToUpdate.start);
+	const startLine = startPos.line;
+	const startChar = startPos.character;
+	const endPos = document.positionAt(endNodeToUpdate.end);
+	const endLine = endPos.line;
+	if (startLine === endLine) {
+		return;
+	}
+
+	const rangeToReplace = offsetRangeToVsRange(document, startNodeToUpdate.start, endNodeToUpdate.end);
+	let textToReplaceWith = document.lineAt(startLine).text.substr(startChar);
+	for (let i = startLine + 1; i <= endLine; i++) {
 		textToReplaceWith += document.lineAt(i).text.trim();
 	}
 

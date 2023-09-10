@@ -3,34 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.dropdown {
+.monaco-dropdown {
 	height: 100%;
-}
-
-.dropdown, .dropdown-group {
-	display: inline-block;
 	padding: 0;
 }
 
-.dropdown > .dropdown-label, .dropdown > .dropdown-action {
-	display: inline-block;
+.monaco-dropdown > .dropdown-label {
 	cursor: pointer;
 	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.dropdown > .dropdown-action {
-	vertical-align: top;
+.monaco-dropdown > .dropdown-label > .action-label.disabled {
+	cursor: default;
 }
 
-.dropdown > .dropdown-action > .action-label:hover {
-	color: inherit;
-	text-decoration: none;
+.monaco-dropdown-with-primary {
+	display: flex !important;
+	flex-direction: row;
+	border-radius: 5px;
 }
 
-.dropdown > .dropdown-action, .dropdown > .dropdown-action > .action-label {
-	display: inline-block;
+.monaco-dropdown-with-primary > .action-container > .action-label {
+	margin-right: 0;
 }
 
-.dropdown > .dropdown-label:not(:empty) {
-	padding: 0 .5em;
+.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
+	font-size: 12px;
+	padding-left: 0px;
+	padding-right: 0px;
+	line-height: 16px;
+	margin-left: -3px;
+}
+
+.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label {
+	display: block;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }

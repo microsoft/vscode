@@ -2,34 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { ResolvedKeybinding, ResolvedKeybindingPart, KeyCode, KeyCodeUtils, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode } from 'vs/base/common/keyCodes';
+import { SingleModifierChord, Chord, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
+import { toEmptyArrayIfContainsNull } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 /**
  * Do not instantiate. Use KeybindingService to get a ResolvedKeybinding seeded with information about the current kb layout.
  */
-export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
+export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<KeyCodeChord> {
 
-	private readonly _os: OperatingSystem;
-	private readonly _firstPart: SimpleKeybinding;
-	private readonly _chordPart: SimpleKeybinding;
-
-	constructor(actual: Keybinding, OS: OperatingSystem) {
-		super();
-		this._os = OS;
-		if (actual === null) {
-			this._firstPart = null;
-			this._chordPart = null;
-		} else if (actual.type === KeybindingType.Chord) {
-			this._firstPart = actual.firstPart;
-			this._chordPart = actual.chordPart;
-		} else {
-			this._firstPart = actual;
-			this._chordPart = null;
-		}
+	constructor(chords: KeyCodeChord[], os: OperatingSystem) {
+		super(os, chords);
 	}
 
 	private _keyCodeToUILabel(keyCode: KeyCode): string {
@@ -48,151 +34,161 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return KeyCodeUtils.toString(keyCode);
 	}
 
-	private _getUILabelForKeybinding(keybinding: SimpleKeybinding): string {
-		if (!keybinding) {
-			return null;
-		}
-		if (keybinding.isDuplicateModifierCase()) {
+	protected _getLabel(chord: KeyCodeChord): string | null {
+		if (chord.isDuplicateModifierCase()) {
 			return '';
 		}
-		return this._keyCodeToUILabel(keybinding.keyCode);
+		return this._keyCodeToUILabel(chord.keyCode);
 	}
 
-	public getLabel(): string {
-		let firstPart = this._getUILabelForKeybinding(this._firstPart);
-		let chordPart = this._getUILabelForKeybinding(this._chordPart);
-		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
-	}
-
-	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding): string {
-		if (!keybinding) {
-			return null;
-		}
-		if (keybinding.isDuplicateModifierCase()) {
+	protected _getAriaLabel(chord: KeyCodeChord): string | null {
+		if (chord.isDuplicateModifierCase()) {
 			return '';
 		}
-		return KeyCodeUtils.toString(keybinding.keyCode);
+		return KeyCodeUtils.toString(chord.keyCode);
 	}
 
-	public getAriaLabel(): string {
-		let firstPart = this._getAriaLabelForKeybinding(this._firstPart);
-		let chordPart = this._getAriaLabelForKeybinding(this._chordPart);
-		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
+	protected _getElectronAccelerator(chord: KeyCodeChord): string | null {
+		return KeyCodeUtils.toElectronAccelerator(chord.keyCode);
 	}
 
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		return KeyCodeUtils.toString(keyCode);
-	}
-
-	private _getElectronAcceleratorLabelForKeybinding(keybinding: SimpleKeybinding): string {
-		if (!keybinding) {
-			return null;
-		}
-		if (keybinding.isDuplicateModifierCase()) {
-			return null;
-		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
-	}
-
-	public getElectronAccelerator(): string {
-		if (this._chordPart !== null) {
-			// Electron cannot handle chords
-			return null;
-		}
-
-		let firstPart = this._getElectronAcceleratorLabelForKeybinding(this._firstPart);
-		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, this._os);
-	}
-
-	private _getUserSettingsLabelForKeybinding(keybinding: SimpleKeybinding): string {
-		if (!keybinding) {
-			return null;
-		}
-		if (keybinding.isDuplicateModifierCase()) {
+	protected _getUserSettingsLabel(chord: KeyCodeChord): string | null {
+		if (chord.isDuplicateModifierCase()) {
 			return '';
 		}
-		return KeyCodeUtils.toUserSettingsUS(keybinding.keyCode);
-	}
-
-	public getUserSettingsLabel(): string {
-		let firstPart = this._getUserSettingsLabelForKeybinding(this._firstPart);
-		let chordPart = this._getUserSettingsLabelForKeybinding(this._chordPart);
-		let result = UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
+		const result = KeyCodeUtils.toUserSettingsUS(chord.keyCode);
 		return (result ? result.toLowerCase() : result);
 	}
 
-	public isWYSIWYG(): boolean {
+	protected _isWYSIWYG(): boolean {
 		return true;
 	}
 
-	public isChord(): boolean {
-		return (this._chordPart ? true : false);
+	protected _getChordDispatch(chord: KeyCodeChord): string | null {
+		return USLayoutResolvedKeybinding.getDispatchStr(chord);
 	}
 
-	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart] {
-		return [
-			this._toResolvedKeybindingPart(this._firstPart),
-			this._toResolvedKeybindingPart(this._chordPart)
-		];
-	}
-
-	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
-		if (!keybinding) {
-			return null;
-		}
-
-		return new ResolvedKeybindingPart(
-			keybinding.ctrlKey,
-			keybinding.shiftKey,
-			keybinding.altKey,
-			keybinding.metaKey,
-			this._getUILabelForKeybinding(keybinding),
-			this._getAriaLabelForKeybinding(keybinding)
-		);
-	}
-
-	public getDispatchParts(): [string, string] {
-		let firstPart = this._firstPart ? USLayoutResolvedKeybinding.getDispatchStr(this._firstPart) : null;
-		let chordPart = this._chordPart ? USLayoutResolvedKeybinding.getDispatchStr(this._chordPart) : null;
-		return [firstPart, chordPart];
-	}
-
-	public static getDispatchStr(keybinding: SimpleKeybinding): string {
-		if (keybinding.isModifierKey()) {
+	public static getDispatchStr(chord: KeyCodeChord): string | null {
+		if (chord.isModifierKey()) {
 			return null;
 		}
 		let result = '';
 
-		if (keybinding.ctrlKey) {
+		if (chord.ctrlKey) {
 			result += 'ctrl+';
 		}
-		if (keybinding.shiftKey) {
+		if (chord.shiftKey) {
 			result += 'shift+';
 		}
-		if (keybinding.altKey) {
+		if (chord.altKey) {
 			result += 'alt+';
 		}
-		if (keybinding.metaKey) {
+		if (chord.metaKey) {
 			result += 'meta+';
 		}
-		result += KeyCodeUtils.toString(keybinding.keyCode);
+		result += KeyCodeUtils.toString(chord.keyCode);
 
 		return result;
+	}
+
+	protected _getSingleModifierChordDispatch(keybinding: KeyCodeChord): SingleModifierChord | null {
+		if (keybinding.keyCode === KeyCode.Ctrl && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'ctrl';
+		}
+		if (keybinding.keyCode === KeyCode.Shift && !keybinding.ctrlKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'shift';
+		}
+		if (keybinding.keyCode === KeyCode.Alt && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.metaKey) {
+			return 'alt';
+		}
+		if (keybinding.keyCode === KeyCode.Meta && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.altKey) {
+			return 'meta';
+		}
+		return null;
+	}
+
+	/**
+	 * *NOTE*: Check return value for `KeyCode.Unknown`.
+	 */
+	private static _scanCodeToKeyCode(scanCode: ScanCode): KeyCode {
+		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
+		if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
+			return immutableKeyCode;
+		}
+
+		switch (scanCode) {
+			case ScanCode.KeyA: return KeyCode.KeyA;
+			case ScanCode.KeyB: return KeyCode.KeyB;
+			case ScanCode.KeyC: return KeyCode.KeyC;
+			case ScanCode.KeyD: return KeyCode.KeyD;
+			case ScanCode.KeyE: return KeyCode.KeyE;
+			case ScanCode.KeyF: return KeyCode.KeyF;
+			case ScanCode.KeyG: return KeyCode.KeyG;
+			case ScanCode.KeyH: return KeyCode.KeyH;
+			case ScanCode.KeyI: return KeyCode.KeyI;
+			case ScanCode.KeyJ: return KeyCode.KeyJ;
+			case ScanCode.KeyK: return KeyCode.KeyK;
+			case ScanCode.KeyL: return KeyCode.KeyL;
+			case ScanCode.KeyM: return KeyCode.KeyM;
+			case ScanCode.KeyN: return KeyCode.KeyN;
+			case ScanCode.KeyO: return KeyCode.KeyO;
+			case ScanCode.KeyP: return KeyCode.KeyP;
+			case ScanCode.KeyQ: return KeyCode.KeyQ;
+			case ScanCode.KeyR: return KeyCode.KeyR;
+			case ScanCode.KeyS: return KeyCode.KeyS;
+			case ScanCode.KeyT: return KeyCode.KeyT;
+			case ScanCode.KeyU: return KeyCode.KeyU;
+			case ScanCode.KeyV: return KeyCode.KeyV;
+			case ScanCode.KeyW: return KeyCode.KeyW;
+			case ScanCode.KeyX: return KeyCode.KeyX;
+			case ScanCode.KeyY: return KeyCode.KeyY;
+			case ScanCode.KeyZ: return KeyCode.KeyZ;
+			case ScanCode.Digit1: return KeyCode.Digit1;
+			case ScanCode.Digit2: return KeyCode.Digit2;
+			case ScanCode.Digit3: return KeyCode.Digit3;
+			case ScanCode.Digit4: return KeyCode.Digit4;
+			case ScanCode.Digit5: return KeyCode.Digit5;
+			case ScanCode.Digit6: return KeyCode.Digit6;
+			case ScanCode.Digit7: return KeyCode.Digit7;
+			case ScanCode.Digit8: return KeyCode.Digit8;
+			case ScanCode.Digit9: return KeyCode.Digit9;
+			case ScanCode.Digit0: return KeyCode.Digit0;
+			case ScanCode.Minus: return KeyCode.Minus;
+			case ScanCode.Equal: return KeyCode.Equal;
+			case ScanCode.BracketLeft: return KeyCode.BracketLeft;
+			case ScanCode.BracketRight: return KeyCode.BracketRight;
+			case ScanCode.Backslash: return KeyCode.Backslash;
+			case ScanCode.IntlHash: return KeyCode.Unknown; // missing
+			case ScanCode.Semicolon: return KeyCode.Semicolon;
+			case ScanCode.Quote: return KeyCode.Quote;
+			case ScanCode.Backquote: return KeyCode.Backquote;
+			case ScanCode.Comma: return KeyCode.Comma;
+			case ScanCode.Period: return KeyCode.Period;
+			case ScanCode.Slash: return KeyCode.Slash;
+			case ScanCode.IntlBackslash: return KeyCode.IntlBackslash;
+		}
+		return KeyCode.Unknown;
+	}
+
+	private static _toKeyCodeChord(chord: Chord | null): KeyCodeChord | null {
+		if (!chord) {
+			return null;
+		}
+		if (chord instanceof KeyCodeChord) {
+			return chord;
+		}
+		const keyCode = this._scanCodeToKeyCode(chord.scanCode);
+		if (keyCode === KeyCode.Unknown) {
+			return null;
+		}
+		return new KeyCodeChord(chord.ctrlKey, chord.shiftKey, chord.altKey, chord.metaKey, keyCode);
+	}
+
+	public static resolveKeybinding(keybinding: Keybinding, os: OperatingSystem): USLayoutResolvedKeybinding[] {
+		const chords: KeyCodeChord[] = toEmptyArrayIfContainsNull(keybinding.chords.map(chord => this._toKeyCodeChord(chord)));
+		if (chords.length > 0) {
+			return [new USLayoutResolvedKeybinding(chords, os)];
+		}
+		return [];
 	}
 }

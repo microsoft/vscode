@@ -4,28 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .parameter-hints-widget {
-	z-index: 10;
+	/* Must be higher than the sash's z-index and terminal canvases but lower than the suggest widget */
+	z-index: 39;
 	display: flex;
 	flex-direction: column;
 	line-height: 1.5em;
+	cursor: default;
+	color: var(--vscode-editorHoverWidget-foreground);
+	background-color: var(--vscode-editorHoverWidget-background);
+	border: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
-.monaco-editor .parameter-hints-widget > .wrapper {
+.hc-black .monaco-editor .parameter-hints-widget,
+.hc-light .monaco-editor .parameter-hints-widget {
+	border-width: 2px;
+}
+
+.monaco-editor .parameter-hints-widget > .phwrapper {
 	max-width: 440px;
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 }
 
 .monaco-editor .parameter-hints-widget.multiple {
 	min-height: 3.3em;
-	padding: 0 0 0 1.9em;
+	padding: 0;
 }
 
-.monaco-editor .parameter-hints-widget.visible {
-	-webkit-transition: left .05s ease-in-out;
-	-moz-transition: left .05s ease-in-out;
-	-o-transition: left .05s ease-in-out;
-	transition: left .05s ease-in-out;
+.monaco-editor .parameter-hints-widget.multiple .body::before {
+	content: "";
+	display: block;
+	height: 100%;
+	position: absolute;
+	opacity: 0.5;
+	border-left: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
 .monaco-editor .parameter-hints-widget p,
@@ -36,11 +48,25 @@
 .monaco-editor .parameter-hints-widget .monaco-scrollable-element,
 .monaco-editor .parameter-hints-widget .body {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
+	min-height: 100%;
 }
 
 .monaco-editor .parameter-hints-widget .signature {
 	padding: 4px 5px;
+	position: relative;
+}
+
+.monaco-editor .parameter-hints-widget .signature.has-docs::after {
+	content: "";
+	display: block;
+	position: absolute;
+	left: 0;
+	width: 100%;
+	padding-top: 4px;
+	opacity: 0.5;
+	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
 .monaco-editor .parameter-hints-widget .docs {
@@ -48,33 +74,49 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .parameter-hints-widget .docs.markdown-docs {
+.monaco-editor .parameter-hints-widget .docs.empty {
+	display: none;
+}
+
+.monaco-editor .parameter-hints-widget .docs a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-editor .parameter-hints-widget .docs a:hover {
+	color: var(--vscode-textLink-activeForeground);
+	cursor: pointer;
+}
+
+.monaco-editor .parameter-hints-widget .docs .markdown-docs {
 	white-space: initial;
 }
 
+.monaco-editor .parameter-hints-widget .docs code {
+	font-family: var(--monaco-monospace-font);
+	border-radius: 3px;
+	padding: 0 0.4em;
+	background-color: var(--vscode-textCodeBlock-background);
+}
+
+.monaco-editor .parameter-hints-widget .docs .monaco-tokenized-source,
 .monaco-editor .parameter-hints-widget .docs .code {
 	white-space: pre-wrap;
 }
 
-.monaco-editor .parameter-hints-widget .docs code {
-	border-radius: 3px;
-	padding: 0 0.4em;
-}
-
-.monaco-editor .parameter-hints-widget .buttons {
-	position: absolute;
+.monaco-editor .parameter-hints-widget .controls {
 	display: none;
-	bottom: 0;
-	left: 0;
+	flex-direction: column;
+	align-items: center;
+	min-width: 22px;
+	justify-content: flex-end;
 }
 
-.monaco-editor .parameter-hints-widget.multiple .buttons {
-	display: block;
+.monaco-editor .parameter-hints-widget.multiple .controls {
+	display: flex;
+	padding: 0 2px;
 }
 
 .monaco-editor .parameter-hints-widget.multiple .button {
-	position: absolute;
-	left: 2px;
 	width: 16px;
 	height: 16px;
 	background-repeat: no-repeat;
@@ -83,52 +125,21 @@
 
 .monaco-editor .parameter-hints-widget .button.previous {
 	bottom: 24px;
-	background-image: url('arrow-up.svg');
-}
-
-.monaco-editor .parameter-hints-widget .button.next {
-	bottom: 0;
-	background-image: url('arrow-down.svg');
 }
 
 .monaco-editor .parameter-hints-widget .overloads {
-	position: absolute;
-	display: none;
 	text-align: center;
-	bottom: 14px;
-	left: 0;
-	width: 22px;
 	height: 12px;
 	line-height: 12px;
-	opacity: 0.5;
-}
-
-.monaco-editor .parameter-hints-widget.multiple .overloads {
-	display: block;
-}
-
-.monaco-editor .parameter-hints-widget .signature .parameter {
-	display: inline-block;
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
+	color: var(--vscode-editorHoverWidget-highlightForeground);
 	font-weight: bold;
-	text-decoration: underline;
 }
 
 .monaco-editor .parameter-hints-widget .documentation-parameter > .parameter {
 	font-weight: bold;
 	margin-right: 0.5em;
-}
-
-/*** VS Dark & High Contrast*/
-
-.monaco-editor.hc-black .parameter-hints-widget .button.previous,
-.monaco-editor.vs-dark .parameter-hints-widget .button.previous {
-	background-image: url('arrow-up-dark.svg');
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button.next,
-.monaco-editor.vs-dark .parameter-hints-widget .button.next {
-	background-image: url('arrow-down-dark.svg');
 }

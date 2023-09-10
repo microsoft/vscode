@@ -1,18 +1,35 @@
 {
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"module": "amd",
-		"moduleResolution": "classic",
-		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es5",
 		"sourceMap": false,
-		"experimentalDecorators": true,
-		"declaration": true,
-		"noImplicitReturns": true,
-		"baseUrl": ".",
-		"typeRoots": [
-			"typings"
+		"allowJs": true,
+		"resolveJsonModule": true,
+		"outDir": "../out/vs",
+		"types": [
+			"keytar",
+			"mocha",
+			"semver",
+			"sinon",
+			"winreg",
+			"trusted-types",
+			"wicg-file-system-access"
+		],
+		"plugins": [
+			{
+				"name": "tsec",
+				"exemptionConfig": "./tsec.exemptions.json"
+			}
 		]
-	}
+	},
+	"include": [
+		"./bootstrap.js",
+		"./bootstrap-amd.js",
+		"./server-main.js",
+		"./typings",
+		"./vs/**/*.ts",
+		"vscode-dts/vscode.proposed.*.d.ts",
+		"vscode-dts/vscode.d.ts"
+	]
 }

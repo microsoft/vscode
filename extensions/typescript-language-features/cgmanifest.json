@@ -1,0 +1,138 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "TypeScript-TmLanguage",
+					"repositoryUrl": "https://github.com/microsoft/TypeScript-TmLanguage",
+					"commitHash": "3133e3d914db9a2bb8812119f9273727a305f16b"
+				}
+			},
+			"license": "MIT",
+			"version": "0.1.8"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "definitelytyped",
+					"repositoryUrl": "https://github.com/DefinitelyTyped/DefinitelyTyped",
+					"commitHash": "69e3ac6bec3008271f76bbfa7cf69aa9198c4ff0"
+				}
+			},
+			"license": "MIT"
+		},
+		{
+			"component": {
+				"type": "other",
+				"other": {
+					"name": "Unicode",
+					"downloadUrl": "https://home.unicode.org/",
+					"version": "12.0.0"
+				}
+			},
+			"licenseDetail": [
+				"Unicode Data Files include all data files under the directories",
+				"https://www.unicode.org/Public/, https://www.unicode.org/reports/,",
+				"https://cldr.unicode.org, https://github.com/unicode-org/icu, and",
+				"https://www.unicode.org/utility/trac/browser/.",
+				"",
+				"Unicode Data Files do not include PDF online code charts under the",
+				"directory https://www.unicode.org/Public/.",
+				"",
+				"Software includes any source code published in the Unicode Standard",
+				"or under the directories",
+				"https://www.unicode.org/Public/, https://www.unicode.org/reports/,",
+				"https://cldr.unicode.org, https://github.com/unicode-org/icu, and",
+				"https://www.unicode.org/utility/trac/browser/.",
+				"",
+				"NOTICE TO USER: Carefully read the following legal agreement.",
+				"BY DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING UNICODE INC.'S",
+				"DATA FILES (\"DATA FILES\"), AND/OR SOFTWARE (\"SOFTWARE\"),",
+				"YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE",
+				"TERMS AND CONDITIONS OF THIS AGREEMENT.",
+				"IF YOU DO NOT AGREE, DO NOT DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE",
+				"THE DATA FILES OR SOFTWARE.",
+				"",
+				"COPYRIGHT AND PERMISSION NOTICE",
+				"",
+				"Copyright (c) 1991-2017 Unicode, Inc. All rights reserved.",
+				"Distributed under the Terms of Use in http://www.unicode.org/copyright.html.",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining",
+				"a copy of the Unicode data files and any associated documentation",
+				"(the \"Data Files\") or Unicode software and any associated documentation",
+				"(the \"Software\") to deal in the Data Files or Software",
+				"without restriction, including without limitation the rights to use,",
+				"copy, modify, merge, publish, distribute, and/or sell copies of",
+				"the Data Files or Software, and to permit persons to whom the Data Files",
+				"or Software are furnished to do so, provided that either",
+				"(a) this copyright and permission notice appear with all copies",
+				"of the Data Files or Software, or",
+				"(b) this copyright and permission notice appear in associated",
+				"Documentation.",
+				"",
+				"THE DATA FILES AND SOFTWARE ARE PROVIDED \"AS IS\", WITHOUT WARRANTY OF",
+				"ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE",
+				"WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND",
+				"NONINFRINGEMENT OF THIRD PARTY RIGHTS.",
+				"IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS",
+				"NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL",
+				"DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,",
+				"DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER",
+				"TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR",
+				"PERFORMANCE OF THE DATA FILES OR SOFTWARE.",
+				"",
+				"Except as contained in this notice, the name of a copyright holder",
+				"shall not be used in advertising or otherwise to promote the sale,",
+				"use or other dealings in these Data Files or Software without prior",
+				"written authorization of the copyright holder."
+			],
+			"version": "12.0.0",
+			"license": "UNICODE, INC. LICENSE AGREEMENT - DATA FILES AND SOFTWARE"
+		},
+		{
+			"component": {
+				"type": "other",
+				"other": {
+					"name": "Document Object Model",
+					"downloadUrl": "https://www.w3.org/DOM/",
+					"version": "4.0.0"
+				}
+			},
+			"licenseDetail": [
+				"W3C License",
+				"This work is being provided by the copyright holders under the following license.",
+				"By obtaining and/or copying this work, you (the licensee) agree that you have read, understood, and will comply with the following terms and conditions.",
+				"Permission to copy, modify, and distribute this work, with or without modification, for any purpose and without fee or royalty is hereby granted, provided that you include the following ",
+				"on ALL copies of the work or portions thereof, including modifications:",
+				"* The full text of this NOTICE in a location viewable to users of the redistributed or derivative work.",
+				"* Any pre-existing intellectual property disclaimers, notices, or terms and conditions. If none exist, the W3C Software and Document Short Notice should be included.",
+				"* Notice of any changes or modifications, through a copyright statement on the new code or document such as \"This software or document includes material copied from or derived ",
+				"from Document Object Model. Copyright © 2015 W3C® (MIT, ERCIM, Keio, Beihang).\" ",
+				"Disclaimers",
+				"THIS WORK IS PROVIDED \"AS IS",
+				" AND COPYRIGHT HOLDERS MAKE NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO, WARRANTIES OF MERCHANTABILITY OR ",
+				"FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE SOFTWARE OR DOCUMENT WILL NOT INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.",
+				"COPYRIGHT HOLDERS WILL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF ANY USE OF THE SOFTWARE OR DOCUMENT.",
+				"The name and trademarks of copyright holders may NOT be used in advertising or publicity pertaining to the work without specific, written prior permission. ",
+				"Title to copyright in this work will at all times remain with copyright holders."
+			],
+			"license": "W3C License",
+			"version": "4.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "Web Background Synchronization",
+					"repositoryUrl": "https://github.com/WICG/BackgroundSync",
+					"commitHash": "10778afe95b5d46c99f7a77565328b7108091510"
+				}
+			},
+			"license": "Apache2"
+		}
+	],
+	"version": 1
+}

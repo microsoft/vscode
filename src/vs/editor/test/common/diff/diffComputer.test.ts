@@ -2,122 +2,206 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-
 import * as assert from 'assert';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import { IChange, ICharChange, ILineChange } from 'vs/editor/common/editorCommon';
+import { Constants } from 'vs/base/common/uint';
+import { Range } from 'vs/editor/common/core/range';
+import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
-function extractCharChangeRepresentation(change: ICharChange, expectedChange: ICharChange): ICharChange {
-	var hasOriginal = expectedChange && expectedChange.originalStartLineNumber > 0;
-	var hasModified = expectedChange && expectedChange.modifiedStartLineNumber > 0;
-	return {
-		originalStartLineNumber: hasOriginal ? change.originalStartLineNumber : 0,
-		originalStartColumn: hasOriginal ? change.originalStartColumn : 0,
-		originalEndLineNumber: hasOriginal ? change.originalEndLineNumber : 0,
-		originalEndColumn: hasOriginal ? change.originalEndColumn : 0,
-
-		modifiedStartLineNumber: hasModified ? change.modifiedStartLineNumber : 0,
-		modifiedStartColumn: hasModified ? change.modifiedStartColumn : 0,
-		modifiedEndLineNumber: hasModified ? change.modifiedEndLineNumber : 0,
-		modifiedEndColumn: hasModified ? change.modifiedEndColumn : 0,
-	};
-}
-
-function extractLineChangeRepresentation(change: ILineChange, expectedChange: ILineChange): IChange | ILineChange {
-	if (change.charChanges) {
-		let charChanges: ICharChange[] = [];
-		for (let i = 0; i < change.charChanges.length; i++) {
-			charChanges.push(
-				extractCharChangeRepresentation(
-					change.charChanges[i],
-					expectedChange && expectedChange.charChanges && i < expectedChange.charChanges.length ? expectedChange.charChanges[i] : null
-				)
-			);
-		}
-		return {
-			originalStartLineNumber: change.originalStartLineNumber,
-			originalEndLineNumber: change.originalEndLineNumber,
-			modifiedStartLineNumber: change.modifiedStartLineNumber,
-			modifiedEndLineNumber: change.modifiedEndLineNumber,
-			charChanges: charChanges
-		};
-	}
-	return {
-		originalStartLineNumber: change.originalStartLineNumber,
-		originalEndLineNumber: change.originalEndLineNumber,
-		modifiedStartLineNumber: change.modifiedStartLineNumber,
-		modifiedEndLineNumber: change.modifiedEndLineNumber
-	};
-}
-
-function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: IChange[], shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
-	var diffComputer = new DiffComputer(originalLines, modifiedLines, {
-		shouldPostProcessCharChanges: shouldPostProcessCharChanges || false,
-		shouldIgnoreTrimWhitespace: shouldIgnoreTrimWhitespace || false,
-		shouldConsiderTrimWhitespaceInEmptyCase: true,
-		shouldMakePrettyDiff: true
+function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: ILineChange[], shouldComputeCharChanges: boolean = true, shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
+	const diffComputer = new DiffComputer(originalLines, modifiedLines, {
+		shouldComputeCharChanges,
+		shouldPostProcessCharChanges,
+		shouldIgnoreTrimWhitespace,
+		shouldMakePrettyDiff: true,
+		maxComputationTime: 0
 	});
-	var changes = diffComputer.computeDiff();
+	const changes = diffComputer.computeDiff().changes;
 
-	var extracted = [];
-	for (var i = 0; i < changes.length; i++) {
-		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
+	const mapCharChange = (charChange: ICharChange) => {
+		return {
+			originalStartLineNumber: charChange.originalStartLineNumber,
+			originalStartColumn: charChange.originalStartColumn,
+			originalEndLineNumber: charChange.originalEndLineNumber,
+			originalEndColumn: charChange.originalEndColumn,
+			modifiedStartLineNumber: charChange.modifiedStartLineNumber,
+			modifiedStartColumn: charChange.modifiedStartColumn,
+			modifiedEndLineNumber: charChange.modifiedEndLineNumber,
+			modifiedEndColumn: charChange.modifiedEndColumn,
+		};
+	};
+
+	const actual = changes.map((lineChange) => {
+		return {
+			originalStartLineNumber: lineChange.originalStartLineNumber,
+			originalEndLineNumber: lineChange.originalEndLineNumber,
+			modifiedStartLineNumber: lineChange.modifiedStartLineNumber,
+			modifiedEndLineNumber: lineChange.modifiedEndLineNumber,
+			charChanges: (lineChange.charChanges ? lineChange.charChanges.map(mapCharChange) : undefined)
+		};
+	});
+
+	assert.deepStrictEqual(actual, expectedChanges);
+
+	if (!shouldIgnoreTrimWhitespace) {
+		// The diffs should describe how to apply edits to the original text model to get to the modified text model.
+
+		const modifiedTextModel = createTextModel(modifiedLines.join('\n'));
+		const expectedValue = modifiedTextModel.getValue();
+
+		{
+			// Line changes:
+			const originalTextModel = createTextModel(originalLines.join('\n'));
+			originalTextModel.applyEdits(changes.map(c => getLineEdit(c, modifiedTextModel)));
+			assert.deepStrictEqual(originalTextModel.getValue(), expectedValue);
+			originalTextModel.dispose();
+		}
+
+		if (shouldComputeCharChanges) {
+			// Char changes:
+			const originalTextModel = createTextModel(originalLines.join('\n'));
+			originalTextModel.applyEdits(changes.flatMap(c => getCharEdits(c, modifiedTextModel)));
+			assert.deepStrictEqual(originalTextModel.getValue(), expectedValue);
+			originalTextModel.dispose();
+		}
+
+		modifiedTextModel.dispose();
 	}
-	assert.deepEqual(extracted, expectedChanges);
 }
 
-function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): IChange {
+function getCharEdits(lineChange: ILineChange, modifiedTextModel: ITextModel): IIdentifiedSingleEditOperation[] {
+	if (!lineChange.charChanges) {
+		return [getLineEdit(lineChange, modifiedTextModel)];
+	}
+	return lineChange.charChanges.map(c => {
+		const originalRange = new Range(c.originalStartLineNumber, c.originalStartColumn, c.originalEndLineNumber, c.originalEndColumn);
+		const modifiedRange = new Range(c.modifiedStartLineNumber, c.modifiedStartColumn, c.modifiedEndLineNumber, c.modifiedEndColumn);
+		return {
+			range: originalRange,
+			text: modifiedTextModel.getValueInRange(modifiedRange)
+		};
+	});
+}
+
+function getLineEdit(lineChange: ILineChange, modifiedTextModel: ITextModel): IIdentifiedSingleEditOperation {
+	let originalRange: LineRange;
+	if (lineChange.originalEndLineNumber === 0) {
+		// Insertion
+		originalRange = new LineRange(lineChange.originalStartLineNumber + 1, 0);
+	} else {
+		originalRange = new LineRange(lineChange.originalStartLineNumber, lineChange.originalEndLineNumber - lineChange.originalStartLineNumber + 1);
+	}
+
+	let modifiedRange: LineRange;
+	if (lineChange.modifiedEndLineNumber === 0) {
+		// Deletion
+		modifiedRange = new LineRange(lineChange.modifiedStartLineNumber + 1, 0);
+	} else {
+		modifiedRange = new LineRange(lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber - lineChange.modifiedStartLineNumber + 1);
+	}
+
+	const [r1, r2] = diffFromLineRanges(originalRange, modifiedRange);
+	return {
+		range: r1,
+		text: modifiedTextModel.getValueInRange(r2),
+	};
+}
+
+function diffFromLineRanges(originalRange: LineRange, modifiedRange: LineRange): [Range, Range] {
+	if (originalRange.startLineNumber === 1 || modifiedRange.startLineNumber === 1) {
+		if (!originalRange.isEmpty && !modifiedRange.isEmpty) {
+			return [
+				new Range(
+					originalRange.startLineNumber,
+					1,
+					originalRange.endLineNumberExclusive - 1,
+					Constants.MAX_SAFE_SMALL_INTEGER,
+				),
+				new Range(
+					modifiedRange.startLineNumber,
+					1,
+					modifiedRange.endLineNumberExclusive - 1,
+					Constants.MAX_SAFE_SMALL_INTEGER,
+				)
+			];
+		}
+
+		// When one of them is one and one of them is empty, the other cannot be the last line of the document
+		return [
+			new Range(
+				originalRange.startLineNumber,
+				1,
+				originalRange.endLineNumberExclusive,
+				1,
+			),
+			new Range(
+				modifiedRange.startLineNumber,
+				1,
+				modifiedRange.endLineNumberExclusive,
+				1,
+			)
+		];
+	}
+
+	return [
+		new Range(
+			originalRange.startLineNumber - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+			originalRange.endLineNumberExclusive - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+		),
+		new Range(
+			modifiedRange.startLineNumber - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+			modifiedRange.endLineNumberExclusive - 1,
+			Constants.MAX_SAFE_SMALL_INTEGER,
+		)
+	];
+}
+
+class LineRange {
+	public constructor(
+		public readonly startLineNumber: number,
+		public readonly lineCount: number
+	) { }
+
+	public get isEmpty(): boolean {
+		return this.lineCount === 0;
+	}
+
+	public get endLineNumberExclusive(): number {
+		return this.startLineNumber + this.lineCount;
+	}
+}
+
+function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): ILineChange {
 	return {
 		originalStartLineNumber: startLineNumber,
 		originalEndLineNumber: endLineNumber,
 		modifiedStartLineNumber: modifiedLineNumber,
-		modifiedEndLineNumber: 0
+		modifiedEndLineNumber: 0,
+		charChanges: undefined
 	};
 }
 
-function createLineInsertion(startLineNumber: number, endLineNumber: number, originalLineNumber: number): IChange {
+function createLineInsertion(startLineNumber: number, endLineNumber: number, originalLineNumber: number): ILineChange {
 	return {
 		originalStartLineNumber: originalLineNumber,
 		originalEndLineNumber: 0,
 		modifiedStartLineNumber: startLineNumber,
-		modifiedEndLineNumber: endLineNumber
+		modifiedEndLineNumber: endLineNumber,
+		charChanges: undefined
 	};
 }
 
-function createLineChange(originalStartLineNumber: number, originalEndLineNumber: number, modifiedStartLineNumber: number, modifiedEndLineNumber: number, charChanges: ICharChange[]): ILineChange {
+function createLineChange(originalStartLineNumber: number, originalEndLineNumber: number, modifiedStartLineNumber: number, modifiedEndLineNumber: number, charChanges?: ICharChange[]): ILineChange {
 	return {
 		originalStartLineNumber: originalStartLineNumber,
 		originalEndLineNumber: originalEndLineNumber,
 		modifiedStartLineNumber: modifiedStartLineNumber,
 		modifiedEndLineNumber: modifiedEndLineNumber,
 		charChanges: charChanges
-	};
-}
-
-function createCharInsertion(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
-	return {
-		originalStartLineNumber: 0,
-		originalStartColumn: 0,
-		originalEndLineNumber: 0,
-		originalEndColumn: 0,
-		modifiedStartLineNumber: startLineNumber,
-		modifiedStartColumn: startColumn,
-		modifiedEndLineNumber: endLineNumber,
-		modifiedEndColumn: endColumn
-	};
-}
-
-function createCharDeletion(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number) {
-	return {
-		originalStartLineNumber: startLineNumber,
-		originalStartColumn: startColumn,
-		originalEndLineNumber: endLineNumber,
-		originalEndColumn: endColumn,
-		modifiedStartLineNumber: 0,
-		modifiedStartColumn: 0,
-		modifiedEndLineNumber: 0,
-		modifiedEndColumn: 0
 	};
 }
 
@@ -142,179 +226,179 @@ suite('Editor Diff - DiffComputer', () => {
 	// ---- insertions
 
 	test('one inserted line below', () => {
-		var original = ['line'];
-		var modified = ['line', 'new line'];
-		var expected = [createLineInsertion(2, 2, 1)];
+		const original = ['line'];
+		const modified = ['line', 'new line'];
+		const expected = [createLineInsertion(2, 2, 1)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two inserted lines below', () => {
-		var original = ['line'];
-		var modified = ['line', 'new line', 'another new line'];
-		var expected = [createLineInsertion(2, 3, 1)];
+		const original = ['line'];
+		const modified = ['line', 'new line', 'another new line'];
+		const expected = [createLineInsertion(2, 3, 1)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one inserted line above', () => {
-		var original = ['line'];
-		var modified = ['new line', 'line'];
-		var expected = [createLineInsertion(1, 1, 0)];
+		const original = ['line'];
+		const modified = ['new line', 'line'];
+		const expected = [createLineInsertion(1, 1, 0)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two inserted lines above', () => {
-		var original = ['line'];
-		var modified = ['new line', 'another new line', 'line'];
-		var expected = [createLineInsertion(1, 2, 0)];
+		const original = ['line'];
+		const modified = ['new line', 'another new line', 'line'];
+		const expected = [createLineInsertion(1, 2, 0)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one inserted line in middle', () => {
-		var original = ['line1', 'line2', 'line3', 'line4'];
-		var modified = ['line1', 'line2', 'new line', 'line3', 'line4'];
-		var expected = [createLineInsertion(3, 3, 2)];
+		const original = ['line1', 'line2', 'line3', 'line4'];
+		const modified = ['line1', 'line2', 'new line', 'line3', 'line4'];
+		const expected = [createLineInsertion(3, 3, 2)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two inserted lines in middle', () => {
-		var original = ['line1', 'line2', 'line3', 'line4'];
-		var modified = ['line1', 'line2', 'new line', 'another new line', 'line3', 'line4'];
-		var expected = [createLineInsertion(3, 4, 2)];
+		const original = ['line1', 'line2', 'line3', 'line4'];
+		const modified = ['line1', 'line2', 'new line', 'another new line', 'line3', 'line4'];
+		const expected = [createLineInsertion(3, 4, 2)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two inserted lines in middle interrupted', () => {
-		var original = ['line1', 'line2', 'line3', 'line4'];
-		var modified = ['line1', 'line2', 'new line', 'line3', 'another new line', 'line4'];
-		var expected = [createLineInsertion(3, 3, 2), createLineInsertion(5, 5, 3)];
+		const original = ['line1', 'line2', 'line3', 'line4'];
+		const modified = ['line1', 'line2', 'new line', 'line3', 'another new line', 'line4'];
+		const expected = [createLineInsertion(3, 3, 2), createLineInsertion(5, 5, 3)];
 		assertDiff(original, modified, expected);
 	});
 
 	// ---- deletions
 
 	test('one deleted line below', () => {
-		var original = ['line', 'new line'];
-		var modified = ['line'];
-		var expected = [createLineDeletion(2, 2, 1)];
+		const original = ['line', 'new line'];
+		const modified = ['line'];
+		const expected = [createLineDeletion(2, 2, 1)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two deleted lines below', () => {
-		var original = ['line', 'new line', 'another new line'];
-		var modified = ['line'];
-		var expected = [createLineDeletion(2, 3, 1)];
+		const original = ['line', 'new line', 'another new line'];
+		const modified = ['line'];
+		const expected = [createLineDeletion(2, 3, 1)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one deleted lines above', () => {
-		var original = ['new line', 'line'];
-		var modified = ['line'];
-		var expected = [createLineDeletion(1, 1, 0)];
+		const original = ['new line', 'line'];
+		const modified = ['line'];
+		const expected = [createLineDeletion(1, 1, 0)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two deleted lines above', () => {
-		var original = ['new line', 'another new line', 'line'];
-		var modified = ['line'];
-		var expected = [createLineDeletion(1, 2, 0)];
+		const original = ['new line', 'another new line', 'line'];
+		const modified = ['line'];
+		const expected = [createLineDeletion(1, 2, 0)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one deleted line in middle', () => {
-		var original = ['line1', 'line2', 'new line', 'line3', 'line4'];
-		var modified = ['line1', 'line2', 'line3', 'line4'];
-		var expected = [createLineDeletion(3, 3, 2)];
+		const original = ['line1', 'line2', 'new line', 'line3', 'line4'];
+		const modified = ['line1', 'line2', 'line3', 'line4'];
+		const expected = [createLineDeletion(3, 3, 2)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two deleted lines in middle', () => {
-		var original = ['line1', 'line2', 'new line', 'another new line', 'line3', 'line4'];
-		var modified = ['line1', 'line2', 'line3', 'line4'];
-		var expected = [createLineDeletion(3, 4, 2)];
+		const original = ['line1', 'line2', 'new line', 'another new line', 'line3', 'line4'];
+		const modified = ['line1', 'line2', 'line3', 'line4'];
+		const expected = [createLineDeletion(3, 4, 2)];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two deleted lines in middle interrupted', () => {
-		var original = ['line1', 'line2', 'new line', 'line3', 'another new line', 'line4'];
-		var modified = ['line1', 'line2', 'line3', 'line4'];
-		var expected = [createLineDeletion(3, 3, 2), createLineDeletion(5, 5, 3)];
+		const original = ['line1', 'line2', 'new line', 'line3', 'another new line', 'line4'];
+		const modified = ['line1', 'line2', 'line3', 'line4'];
+		const expected = [createLineDeletion(3, 3, 2), createLineDeletion(5, 5, 3)];
 		assertDiff(original, modified, expected);
 	});
 
 	// ---- changes
 
 	test('one line changed: chars inserted at the end', () => {
-		var original = ['line'];
-		var modified = ['line changed'];
-		var expected = [
+		const original = ['line'];
+		const modified = ['line changed'];
+		const expected = [
 			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 5, 1, 13)
+				createCharChange(1, 5, 1, 5, 1, 5, 1, 13)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one line changed: chars inserted at the beginning', () => {
-		var original = ['line'];
-		var modified = ['my line'];
-		var expected = [
+		const original = ['line'];
+		const modified = ['my line'];
+		const expected = [
 			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 1, 1, 4)
+				createCharChange(1, 1, 1, 1, 1, 1, 1, 4)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one line changed: chars inserted in the middle', () => {
-		var original = ['abba'];
-		var modified = ['abzzba'];
-		var expected = [
+		const original = ['abba'];
+		const modified = ['abzzba'];
+		const expected = [
 			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 3, 1, 5)
+				createCharChange(1, 3, 1, 3, 1, 3, 1, 5)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one line changed: chars inserted in the middle (two spots)', () => {
-		var original = ['abba'];
-		var modified = ['abzzbzza'];
-		var expected = [
+		const original = ['abba'];
+		const modified = ['abzzbzza'];
+		const expected = [
 			createLineChange(1, 1, 1, 1, [
-				createCharInsertion(1, 3, 1, 5),
-				createCharInsertion(1, 6, 1, 8)
+				createCharChange(1, 3, 1, 3, 1, 3, 1, 5),
+				createCharChange(1, 4, 1, 4, 1, 6, 1, 8)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one line changed: chars deleted 1', () => {
-		var original = ['abcdefg'];
-		var modified = ['abcfg'];
-		var expected = [
+		const original = ['abcdefg'];
+		const modified = ['abcfg'];
+		const expected = [
 			createLineChange(1, 1, 1, 1, [
-				createCharDeletion(1, 4, 1, 6)
+				createCharChange(1, 4, 1, 6, 1, 4, 1, 4)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('one line changed: chars deleted 2', () => {
-		var original = ['abcdefg'];
-		var modified = ['acfg'];
-		var expected = [
+		const original = ['abcdefg'];
+		const modified = ['acfg'];
+		const expected = [
 			createLineChange(1, 1, 1, 1, [
-				createCharDeletion(1, 2, 1, 3),
-				createCharDeletion(1, 4, 1, 6)
+				createCharChange(1, 2, 1, 3, 1, 2, 1, 2),
+				createCharChange(1, 4, 1, 6, 1, 3, 1, 3)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('two lines changed 1', () => {
-		var original = ['abcd', 'efgh'];
-		var modified = ['abcz'];
-		var expected = [
+		const original = ['abcd', 'efgh'];
+		const modified = ['abcz'];
+		const expected = [
 			createLineChange(1, 2, 1, 1, [
 				createCharChange(1, 4, 2, 5, 1, 4, 1, 5)
 			])
@@ -323,9 +407,9 @@ suite('Editor Diff - DiffComputer', () => {
 	});
 
 	test('two lines changed 2', () => {
-		var original = ['foo', 'abcd', 'efgh', 'BAR'];
-		var modified = ['foo', 'abcz', 'BAR'];
-		var expected = [
+		const original = ['foo', 'abcd', 'efgh', 'BAR'];
+		const modified = ['foo', 'abcz', 'BAR'];
+		const expected = [
 			createLineChange(2, 3, 2, 2, [
 				createCharChange(2, 4, 3, 5, 2, 4, 2, 5)
 			])
@@ -334,49 +418,72 @@ suite('Editor Diff - DiffComputer', () => {
 	});
 
 	test('two lines changed 3', () => {
-		var original = ['foo', 'abcd', 'efgh', 'BAR'];
-		var modified = ['foo', 'abcz', 'zzzzefgh', 'BAR'];
-		var expected = [
+		const original = ['foo', 'abcd', 'efgh', 'BAR'];
+		const modified = ['foo', 'abcz', 'zzzzefgh', 'BAR'];
+		const expected = [
 			createLineChange(2, 3, 2, 3, [
-				createCharChange(2, 4, 2, 5, 2, 4, 3, 5)
+				createCharChange(2, 4, 2, 5, 2, 4, 2, 5),
+				createCharChange(3, 1, 3, 1, 3, 1, 3, 5)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
+	test('two lines changed 4', () => {
+		const original = ['abc'];
+		const modified = ['', '', 'axc', ''];
+		const expected = [
+			createLineChange(1, 1, 1, 4, [
+				createCharChange(1, 1, 1, 1, 1, 1, 3, 1),
+				createCharChange(1, 2, 1, 3, 3, 2, 3, 3),
+				createCharChange(1, 4, 1, 4, 3, 4, 4, 1)
+			])
+		];
+		assertDiff(original, modified, expected);
+	});
+
+	test('empty original sequence in char diff', () => {
+		const original = ['abc', '', 'xyz'];
+		const modified = ['abc', 'qwe', 'rty', 'xyz'];
+		const expected = [
+			createLineChange(2, 2, 2, 3)
+		];
+		assertDiff(original, modified, expected);
+	});
+
 	test('three lines changed', () => {
-		var original = ['foo', 'abcd', 'efgh', 'BAR'];
-		var modified = ['foo', 'zzzefgh', 'xxx', 'BAR'];
-		var expected = [
+		const original = ['foo', 'abcd', 'efgh', 'BAR'];
+		const modified = ['foo', 'zzzefgh', 'xxx', 'BAR'];
+		const expected = [
 			createLineChange(2, 3, 2, 3, [
-				createCharChange(2, 1, 2, 5, 2, 1, 2, 4),
-				createCharInsertion(3, 1, 3, 4)
+				createCharChange(2, 1, 3, 1, 2, 1, 2, 4),
+				createCharChange(3, 5, 3, 5, 2, 8, 3, 4),
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('big change part 1', () => {
-		var original = ['foo', 'abcd', 'efgh', 'BAR'];
-		var modified = ['hello', 'foo', 'zzzefgh', 'xxx', 'BAR'];
-		var expected = [
+		const original = ['foo', 'abcd', 'efgh', 'BAR'];
+		const modified = ['hello', 'foo', 'zzzefgh', 'xxx', 'BAR'];
+		const expected = [
 			createLineInsertion(1, 1, 0),
 			createLineChange(2, 3, 3, 4, [
-				createCharChange(2, 1, 2, 5, 3, 1, 3, 4),
-				createCharInsertion(4, 1, 4, 4)
+				createCharChange(2, 1, 3, 1, 3, 1, 3, 4),
+				createCharChange(3, 5, 3, 5, 3, 8, 4, 4)
 			])
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('big change part 2', () => {
-		var original = ['foo', 'abcd', 'efgh', 'BAR', 'RAB'];
-		var modified = ['hello', 'foo', 'zzzefgh', 'xxx', 'BAR'];
-		var expected = [
+		const original = ['foo', 'abcd', 'efgh', 'BAR', 'RAB'];
+		const modified = ['hello', 'foo', 'zzzefgh', 'xxx', 'BAR'];
+		const expected = [
 			createLineInsertion(1, 1, 0),
 			createLineChange(2, 3, 3, 4, [
-				createCharChange(2, 1, 2, 5, 3, 1, 3, 4),
-				createCharInsertion(4, 1, 4, 4)
+				createCharChange(2, 1, 3, 1, 3, 1, 3, 4),
+				createCharChange(3, 5, 3, 5, 3, 8, 4, 4)
 			]),
 			createLineDeletion(5, 5, 5)
 		];
@@ -384,84 +491,83 @@ suite('Editor Diff - DiffComputer', () => {
 	});
 
 	test('char change postprocessing merges', () => {
-		var original = ['abba'];
-		var modified = ['azzzbzzzbzzza'];
-		var expected = [
+		const original = ['abba'];
+		const modified = ['azzzbzzzbzzza'];
+		const expected = [
 			createLineChange(1, 1, 1, 1, [
 				createCharChange(1, 2, 1, 4, 1, 2, 1, 13)
 			])
 		];
-		assertDiff(original, modified, expected, true);
+		assertDiff(original, modified, expected, true, true);
 	});
 
 	test('ignore trim whitespace', () => {
-		var original = ['\t\t foo ', 'abcd', 'efgh', '\t\t BAR\t\t'];
-		var modified = ['  hello\t', '\t foo   \t', 'zzzefgh', 'xxx', '   BAR   \t'];
-		var expected = [
+		const original = ['\t\t foo ', 'abcd', 'efgh', '\t\t BAR\t\t'];
+		const modified = ['  hello\t', '\t foo   \t', 'zzzefgh', 'xxx', '   BAR   \t'];
+		const expected = [
 			createLineInsertion(1, 1, 0),
 			createLineChange(2, 3, 3, 4, [
 				createCharChange(2, 1, 2, 5, 3, 1, 3, 4),
-				createCharInsertion(4, 1, 4, 4)
+				createCharChange(3, 5, 3, 5, 4, 1, 4, 4)
 			])
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('issue #12122 r.hasOwnProperty is not a function', () => {
-		var original = ['hasOwnProperty'];
-		var modified = ['hasOwnProperty', 'and another line'];
-		var expected = [
+		const original = ['hasOwnProperty'];
+		const modified = ['hasOwnProperty', 'and another line'];
+		const expected = [
 			createLineInsertion(2, 2, 1)
 		];
 		assertDiff(original, modified, expected);
 	});
 
 	test('empty diff 1', () => {
-		var original = [''];
-		var modified = ['something'];
-		var expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+		const original = [''];
+		const modified = ['something'];
+		const expected = [
+			createLineChange(1, 1, 1, 1, undefined)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('empty diff 2', () => {
-		var original = [''];
-		var modified = ['something', 'something else'];
-		var expected = [
-			createLineChange(1, 1, 1, 2, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+		const original = [''];
+		const modified = ['something', 'something else'];
+		const expected = [
+			createLineChange(1, 1, 1, 2, undefined)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('empty diff 3', () => {
-		var original = ['something', 'something else'];
-		var modified = [''];
-		var expected = [
-			createLineChange(1, 2, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+		const original = ['something', 'something else'];
+		const modified = [''];
+		const expected = [
+			createLineChange(1, 2, 1, 1, undefined)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('empty diff 4', () => {
-		var original = ['something'];
-		var modified = [''];
-		var expected = [
-			createLineChange(1, 1, 1, 1, [
-				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
-			])
+		const original = ['something'];
+		const modified = [''];
+		const expected = [
+			createLineChange(1, 1, 1, 1, undefined)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
+	});
+
+	test('empty diff 5', () => {
+		const original = [''];
+		const modified = [''];
+		const expected: ILineChange[] = [];
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('pretty diff 1', () => {
-		var original = [
+		const original = [
 			'suite(function () {',
 			'	test1() {',
 			'		assert.ok(true);',
@@ -473,7 +579,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'});',
 			'',
 		];
-		var modified = [
+		const modified = [
 			'// An insertion',
 			'suite(function () {',
 			'	test1() {',
@@ -490,15 +596,15 @@ suite('Editor Diff - DiffComputer', () => {
 			'});',
 			'',
 		];
-		var expected = [
+		const expected = [
 			createLineInsertion(1, 1, 0),
 			createLineInsertion(10, 13, 8)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('pretty diff 2', () => {
-		var original = [
+		const original = [
 			'// Just a comment',
 			'',
 			'function compute(a, b, c, d) {',
@@ -516,7 +622,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'	}',
 			'}',
 		];
-		var modified = [
+		const modified = [
 			'// Here is an inserted line',
 			'// and another inserted line',
 			'// and another one',
@@ -533,15 +639,15 @@ suite('Editor Diff - DiffComputer', () => {
 			'	}',
 			'}',
 		];
-		var expected = [
+		const expected = [
 			createLineInsertion(1, 3, 0),
 			createLineDeletion(10, 13, 12),
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('pretty diff 3', () => {
-		var original = [
+		const original = [
 			'class A {',
 			'	/**',
 			'	 * m1',
@@ -554,7 +660,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'	method3() {}',
 			'}',
 		];
-		var modified = [
+		const modified = [
 			'class A {',
 			'	/**',
 			'	 * m1',
@@ -572,14 +678,14 @@ suite('Editor Diff - DiffComputer', () => {
 			'	method3() {}',
 			'}',
 		];
-		var expected = [
+		const expected = [
 			createLineInsertion(7, 11, 6)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('issue #23636', () => {
-		let original = [
+		const original = [
 			'if(!TextDrawLoad[playerid])',
 			'{',
 			'',
@@ -608,7 +714,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'	}',
 			'}',
 		];
-		let modified = [
+		const modified = [
 			'	if(!TextDrawLoad[playerid])',
 			'	{',
 			'	',
@@ -637,7 +743,7 @@ suite('Editor Diff - DiffComputer', () => {
 			'		}',
 			'	}',
 		];
-		var expected = [
+		const expected = [
 			createLineChange(
 				1, 27, 1, 27,
 				[
@@ -672,6 +778,311 @@ suite('Editor Diff - DiffComputer', () => {
 			)
 			// createLineInsertion(7, 11, 6)
 		];
-		assertDiff(original, modified, expected, true, false);
+		assertDiff(original, modified, expected, true, true, false);
+	});
+
+	test('issue #43922', () => {
+		const original = [
+			' * `yarn [install]` -- Install project NPM dependencies. This is automatically done when you first create the project. You should only need to run this if you add dependencies in `package.json`.',
+		];
+		const modified = [
+			' * `yarn` -- Install project NPM dependencies. You should only need to run this if you add dependencies in `package.json`.',
+		];
+		const expected = [
+			createLineChange(
+				1, 1, 1, 1,
+				[
+					createCharChange(1, 9, 1, 19, 1, 9, 1, 9),
+					createCharChange(1, 58, 1, 120, 1, 48, 1, 48),
+				]
+			)
+		];
+		assertDiff(original, modified, expected, true, true, false);
+	});
+
+	test('issue #42751', () => {
+		const original = [
+			'    1',
+			'  2',
+		];
+		const modified = [
+			'    1',
+			'   3',
+		];
+		const expected = [
+			createLineChange(
+				2, 2, 2, 2,
+				[
+					createCharChange(2, 3, 2, 4, 2, 3, 2, 5)
+				]
+			)
+		];
+		assertDiff(original, modified, expected, true, true, false);
+	});
+
+	test('does not give character changes', () => {
+		const original = [
+			'    1',
+			'  2',
+			'A',
+		];
+		const modified = [
+			'    1',
+			'   3',
+			' A',
+		];
+		const expected = [
+			createLineChange(
+				2, 3, 2, 3
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #44422: Less than ideal diff results', () => {
+		const original = [
+			'export class C {',
+			'',
+			'	public m1(): void {',
+			'		{',
+			'		//2',
+			'		//3',
+			'		//4',
+			'		//5',
+			'		//6',
+			'		//7',
+			'		//8',
+			'		//9',
+			'		//10',
+			'		//11',
+			'		//12',
+			'		//13',
+			'		//14',
+			'		//15',
+			'		//16',
+			'		//17',
+			'		//18',
+			'		}',
+			'	}',
+			'',
+			'	public m2(): void {',
+			'		if (a) {',
+			'			if (b) {',
+			'				//A1',
+			'				//A2',
+			'				//A3',
+			'				//A4',
+			'				//A5',
+			'				//A6',
+			'				//A7',
+			'				//A8',
+			'			}',
+			'		}',
+			'',
+			'		//A9',
+			'		//A10',
+			'		//A11',
+			'		//A12',
+			'		//A13',
+			'		//A14',
+			'		//A15',
+			'	}',
+			'',
+			'	public m3(): void {',
+			'		if (a) {',
+			'			//B1',
+			'		}',
+			'		//B2',
+			'		//B3',
+			'	}',
+			'',
+			'	public m4(): boolean {',
+			'		//1',
+			'		//2',
+			'		//3',
+			'		//4',
+			'	}',
+			'',
+			'}',
+		];
+		const modified = [
+			'export class C {',
+			'',
+			'	constructor() {',
+			'',
+			'',
+			'',
+			'',
+			'	}',
+			'',
+			'	public m1(): void {',
+			'		{',
+			'		//2',
+			'		//3',
+			'		//4',
+			'		//5',
+			'		//6',
+			'		//7',
+			'		//8',
+			'		//9',
+			'		//10',
+			'		//11',
+			'		//12',
+			'		//13',
+			'		//14',
+			'		//15',
+			'		//16',
+			'		//17',
+			'		//18',
+			'		}',
+			'	}',
+			'',
+			'	public m4(): boolean {',
+			'		//1',
+			'		//2',
+			'		//3',
+			'		//4',
+			'	}',
+			'',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				2, 0, 3, 9
+			),
+			createLineChange(
+				25, 55, 31, 0
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('gives preference to matching longer lines', () => {
+		const original = [
+			'A',
+			'A',
+			'BB',
+			'C',
+		];
+		const modified = [
+			'A',
+			'BB',
+			'A',
+			'D',
+			'E',
+			'A',
+			'C',
+		];
+		const expected = [
+			createLineChange(
+				2, 2, 1, 0
+			),
+			createLineChange(
+				3, 0, 3, 6
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #119051: gives preference to fewer diff hunks', () => {
+		const original = [
+			'1',
+			'',
+			'',
+			'2',
+			'',
+		];
+		const modified = [
+			'1',
+			'',
+			'1.5',
+			'',
+			'',
+			'2',
+			'',
+			'3',
+			'',
+		];
+		const expected = [
+			createLineChange(
+				2, 0, 3, 4
+			),
+			createLineChange(
+				5, 0, 8, 9
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 1', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 0, 4, 4
+			)
+		];
+		assertDiff(original, modified, expected, false, false, true);
+	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 2', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 2, 3, 3
+			),
+			createLineChange(
+				2, 0, 4, 4
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #169552: Assertion error when having both leading and trailing whitespace diffs', () => {
+		const original = [
+			'if True:',
+			'    print(2)',
+		];
+		const modified = [
+			'if True:',
+			'\tprint(2) ',
+		];
+		const expected = [
+			createLineChange(
+				2, 2, 2, 2,
+				[
+					createCharChange(2, 1, 2, 5, 2, 1, 2, 2),
+					createCharChange(2, 13, 2, 13, 2, 10, 2, 11),
+				]
+			),
+		];
+		assertDiff(original, modified, expected, true, false, false);
 	});
 });

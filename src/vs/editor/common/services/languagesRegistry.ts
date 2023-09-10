@@ -2,61 +2,131 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as mime from 'vs/base/common/mime';
-import * as strings from 'vs/base/common/strings';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
+import { URI } from 'vs/base/common/uri';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
+import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
+import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/languages/language';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
-var hasOwnProperty = Object.prototype.hasOwnProperty;
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+const NULL_LANGUAGE_ID = 'vs.editor.nullLanguage';
 
-export interface IResolvedLanguage {
-	identifier: LanguageIdentifier;
-	name: string;
+interface IResolvedLanguage {
+	identifier: string;
+	name: string | null;
 	mimetypes: string[];
 	aliases: string[];
 	extensions: string[];
 	filenames: string[];
-	configurationFiles: string[];
+	configurationFiles: URI[];
+	icons: ILanguageIcon[];
 }
 
-export class LanguagesRegistry {
+export class LanguageIdCodec implements ILanguageIdCodec {
 
 	private _nextLanguageId: number;
-	private _languages: { [id: string]: IResolvedLanguage; };
-	private _languageIds: string[];
+	private readonly _languageIdToLanguage: string[] = [];
+	private readonly _languageToLanguageId = new Map<string, number>();
 
-	private _mimeTypesMap: { [mimeType: string]: LanguageIdentifier; };
-	private _nameMap: { [name: string]: LanguageIdentifier; };
-	private _lowercaseNameMap: { [name: string]: LanguageIdentifier; };
+	constructor() {
+		this._register(NULL_LANGUAGE_ID, LanguageId.Null);
+		this._register(PLAINTEXT_LANGUAGE_ID, LanguageId.PlainText);
+		this._nextLanguageId = 2;
+	}
 
-	constructor(useModesRegistry = true) {
-		this._nextLanguageId = 1;
+	private _register(language: string, languageId: LanguageId): void {
+		this._languageIdToLanguage[languageId] = language;
+		this._languageToLanguageId.set(language, languageId);
+	}
+
+	public register(language: string): void {
+		if (this._languageToLanguageId.has(language)) {
+			return;
+		}
+		const languageId = this._nextLanguageId++;
+		this._register(language, languageId);
+	}
+
+	public encodeLanguageId(languageId: string): LanguageId {
+		return this._languageToLanguageId.get(languageId) || LanguageId.Null;
+	}
+
+	public decodeLanguageId(languageId: LanguageId): string {
+		return this._languageIdToLanguage[languageId] || NULL_LANGUAGE_ID;
+	}
+}
+
+export class LanguagesRegistry extends Disposable {
+
+	static instanceCount = 0;
+
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private readonly _warnOnOverwrite: boolean;
+	public readonly languageIdCodec: LanguageIdCodec;
+	private _dynamicLanguages: ILanguageExtensionPoint[];
+	private _languages: { [id: string]: IResolvedLanguage };
+	private _mimeTypesMap: { [mimeType: string]: string };
+	private _nameMap: { [name: string]: string };
+	private _lowercaseNameMap: { [name: string]: string };
+
+	constructor(useModesRegistry = true, warnOnOverwrite = false) {
+		super();
+		LanguagesRegistry.instanceCount++;
+
+		this._warnOnOverwrite = warnOnOverwrite;
+		this.languageIdCodec = new LanguageIdCodec();
+		this._dynamicLanguages = [];
 		this._languages = {};
 		this._mimeTypesMap = {};
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
-		this._languageIds = [];
 
 		if (useModesRegistry) {
-			this._registerLanguages(ModesRegistry.getLanguages());
-			ModesRegistry.onDidAddLanguages((m) => this._registerLanguages(m));
+			this._initializeFromRegistry();
+			this._register(ModesRegistry.onDidChangeLanguages((m) => {
+				this._initializeFromRegistry();
+			}));
 		}
 	}
 
-	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
-		if (desc.length === 0) {
-			return;
-		}
+	override dispose() {
+		LanguagesRegistry.instanceCount--;
+		super.dispose();
+	}
 
-		for (let i = 0; i < desc.length; i++) {
-			this._registerLanguage(desc[i]);
+	public setDynamicLanguages(def: ILanguageExtensionPoint[]): void {
+		this._dynamicLanguages = def;
+		this._initializeFromRegistry();
+	}
+
+	private _initializeFromRegistry(): void {
+		this._languages = {};
+		this._mimeTypesMap = {};
+		this._nameMap = {};
+		this._lowercaseNameMap = {};
+
+		clearPlatformLanguageAssociations();
+		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
+		this._registerLanguages(desc);
+	}
+
+	registerLanguage(desc: ILanguageExtensionPoint): IDisposable {
+		return ModesRegistry.registerLanguage(desc);
+	}
+
+	_registerLanguages(desc: ILanguageExtensionPoint[]): void {
+
+		for (const d of desc) {
+			this._registerLanguage(d);
 		}
 
 		// Rebuild fast path maps
@@ -64,7 +134,7 @@ export class LanguagesRegistry {
 		this._nameMap = {};
 		this._lowercaseNameMap = {};
 		Object.keys(this._languages).forEach((langId) => {
-			let language = this._languages[langId];
+			const language = this._languages[langId];
 			if (language.name) {
 				this._nameMap[language.name] = language.identifier;
 			}
@@ -76,45 +146,43 @@ export class LanguagesRegistry {
 			});
 		});
 
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(ModesRegistry.getLanguages().map(language => language.id));
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerOverrideIdentifiers(this.getRegisteredLanguageIds());
+
+		this._onDidChange.fire();
 	}
 
 	private _registerLanguage(lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
 
-		let resolvedLanguage: IResolvedLanguage = null;
+		let resolvedLanguage: IResolvedLanguage;
 		if (hasOwnProperty.call(this._languages, langId)) {
 			resolvedLanguage = this._languages[langId];
 		} else {
-			let languageId = this._nextLanguageId++;
+			this.languageIdCodec.register(langId);
 			resolvedLanguage = {
-				identifier: new LanguageIdentifier(langId, languageId),
+				identifier: langId,
 				name: null,
 				mimetypes: [],
 				aliases: [],
 				extensions: [],
 				filenames: [],
-				configurationFiles: []
+				configurationFiles: [],
+				icons: []
 			};
-			this._languageIds[languageId] = langId;
 			this._languages[langId] = resolvedLanguage;
 		}
 
-		LanguagesRegistry._mergeLanguage(resolvedLanguage, lang);
+		this._mergeLanguage(resolvedLanguage, lang);
 	}
 
-	private static _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
+	private _mergeLanguage(resolvedLanguage: IResolvedLanguage, lang: ILanguageExtensionPoint): void {
 		const langId = lang.id;
 
-		let primaryMime: string = null;
+		let primaryMime: string | null = null;
 
-		if (typeof lang.mimetypes !== 'undefined' && Array.isArray(lang.mimetypes)) {
-			for (let i = 0; i < lang.mimetypes.length; i++) {
-				if (!primaryMime) {
-					primaryMime = lang.mimetypes[i];
-				}
-				resolvedLanguage.mimetypes.push(lang.mimetypes[i]);
-			}
+		if (Array.isArray(lang.mimetypes) && lang.mimetypes.length > 0) {
+			resolvedLanguage.mimetypes.push(...lang.mimetypes);
+			primaryMime = lang.mimetypes[0];
 		}
 
 		if (!primaryMime) {
@@ -123,22 +191,27 @@ export class LanguagesRegistry {
 		}
 
 		if (Array.isArray(lang.extensions)) {
-			for (let extension of lang.extensions) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, extension: extension });
-				resolvedLanguage.extensions.push(extension);
+			if (lang.configuration) {
+				// insert first as this appears to be the 'primary' language definition
+				resolvedLanguage.extensions = lang.extensions.concat(resolvedLanguage.extensions);
+			} else {
+				resolvedLanguage.extensions = resolvedLanguage.extensions.concat(lang.extensions);
+			}
+			for (const extension of lang.extensions) {
+				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, extension: extension }, this._warnOnOverwrite);
 			}
 		}
 
 		if (Array.isArray(lang.filenames)) {
-			for (let filename of lang.filenames) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filename: filename });
+			for (const filename of lang.filenames) {
+				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filename: filename }, this._warnOnOverwrite);
 				resolvedLanguage.filenames.push(filename);
 			}
 		}
 
 		if (Array.isArray(lang.filenamePatterns)) {
-			for (let filenamePattern of lang.filenamePatterns) {
-				mime.registerTextMime({ id: langId, mime: primaryMime, filepattern: filenamePattern });
+			for (const filenamePattern of lang.filenamePatterns) {
+				registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, filepattern: filenamePattern }, this._warnOnOverwrite);
 			}
 		}
 
@@ -148,19 +221,19 @@ export class LanguagesRegistry {
 				firstLineRegexStr = '^' + firstLineRegexStr;
 			}
 			try {
-				let firstLineRegex = new RegExp(firstLineRegexStr);
-				if (!strings.regExpLeadsToEndlessLoop(firstLineRegex)) {
-					mime.registerTextMime({ id: langId, mime: primaryMime, firstline: firstLineRegex });
+				const firstLineRegex = new RegExp(firstLineRegexStr);
+				if (!regExpLeadsToEndlessLoop(firstLineRegex)) {
+					registerPlatformLanguageAssociation({ id: langId, mime: primaryMime, firstline: firstLineRegex }, this._warnOnOverwrite);
 				}
 			} catch (err) {
 				// Most likely, the regex was bad
-				onUnexpectedError(err);
+				console.warn(`[${lang.id}]: Invalid regular expression \`${firstLineRegexStr}\`: `, err);
 			}
 		}
 
 		resolvedLanguage.aliases.push(langId);
 
-		let langAliases: string[] = null;
+		let langAliases: Array<string | null> | null = null;
 		if (typeof lang.aliases !== 'undefined' && Array.isArray(lang.aliases)) {
 			if (lang.aliases.length === 0) {
 				// signal that this language should not get a name
@@ -171,148 +244,124 @@ export class LanguagesRegistry {
 		}
 
 		if (langAliases !== null) {
-			for (let i = 0; i < langAliases.length; i++) {
-				if (!langAliases[i] || langAliases[i].length === 0) {
+			for (const langAlias of langAliases) {
+				if (!langAlias || langAlias.length === 0) {
 					continue;
 				}
-				resolvedLanguage.aliases.push(langAliases[i]);
+				resolvedLanguage.aliases.push(langAlias);
 			}
 		}
 
-		let containsAliases = (langAliases !== null && langAliases.length > 0);
-		if (containsAliases && langAliases[0] === null) {
+		const containsAliases = (langAliases !== null && langAliases.length > 0);
+		if (containsAliases && langAliases![0] === null) {
 			// signal that this language should not get a name
 		} else {
-			let bestName = (containsAliases ? langAliases[0] : null) || langId;
+			const bestName = (containsAliases ? langAliases![0] : null) || langId;
 			if (containsAliases || !resolvedLanguage.name) {
 				resolvedLanguage.name = bestName;
 			}
 		}
 
-		if (typeof lang.configuration === 'string') {
+		if (lang.configuration) {
 			resolvedLanguage.configurationFiles.push(lang.configuration);
 		}
-	}
 
-	public isRegisteredMode(mimetypeOrModeId: string): boolean {
-		// Is this a known mime type ?
-		if (hasOwnProperty.call(this._mimeTypesMap, mimetypeOrModeId)) {
-			return true;
+		if (lang.icon) {
+			resolvedLanguage.icons.push(lang.icon);
 		}
-		// Is this a known mode id ?
-		return hasOwnProperty.call(this._languages, mimetypeOrModeId);
 	}
 
-	public getRegisteredModes(): string[] {
+	public isRegisteredLanguageId(languageId: string | null | undefined): boolean {
+		if (!languageId) {
+			return false;
+		}
+		return hasOwnProperty.call(this._languages, languageId);
+	}
+
+	public getRegisteredLanguageIds(): string[] {
 		return Object.keys(this._languages);
 	}
 
-	public getRegisteredLanguageNames(): string[] {
-		return Object.keys(this._nameMap);
+	public getSortedRegisteredLanguageNames(): ILanguageNameIdPair[] {
+		const result: ILanguageNameIdPair[] = [];
+		for (const languageName in this._nameMap) {
+			if (hasOwnProperty.call(this._nameMap, languageName)) {
+				result.push({
+					languageName: languageName,
+					languageId: this._nameMap[languageName]
+				});
+			}
+		}
+		result.sort((a, b) => compareIgnoreCase(a.languageName, b.languageName));
+		return result;
 	}
 
-	public getLanguageName(modeId: string): string {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
+	public getLanguageName(languageId: string): string | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}
-		return this._languages[modeId].name;
+		return this._languages[languageId].name;
 	}
 
-	public getModeIdForLanguageNameLowercase(languageNameLower: string): string {
-		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
+	public getMimeType(languageId: string): string | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}
-		return this._lowercaseNameMap[languageNameLower].language;
-	}
-
-	public getConfigurationFiles(modeId: string): string[] {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
-			return [];
-		}
-		return this._languages[modeId].configurationFiles || [];
-	}
-
-	public getMimeForMode(modeId: string): string {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
-			return null;
-		}
-		const language = this._languages[modeId];
+		const language = this._languages[languageId];
 		return (language.mimetypes[0] || null);
 	}
 
-	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string): string[] {
-		if (!commaSeparatedMimetypesOrCommaSeparatedIds) {
+	public getExtensions(languageId: string): ReadonlyArray<string> {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return [];
 		}
-
-		return (
-			commaSeparatedMimetypesOrCommaSeparatedIds.
-				split(',').
-				map((mimeTypeOrId) => mimeTypeOrId.trim()).
-				map((mimeTypeOrId) => {
-					if (hasOwnProperty.call(this._mimeTypesMap, mimeTypeOrId)) {
-						return this._mimeTypesMap[mimeTypeOrId].language;
-					}
-					return mimeTypeOrId;
-				}).
-				filter((modeId) => {
-					return hasOwnProperty.call(this._languages, modeId);
-				})
-		);
+		return this._languages[languageId].extensions;
 	}
 
-	public getLanguageIdentifier(_modeId: string | LanguageId): LanguageIdentifier {
-		if (_modeId === NULL_MODE_ID || _modeId === LanguageId.Null) {
-			return NULL_LANGUAGE_IDENTIFIER;
+	public getFilenames(languageId: string): ReadonlyArray<string> {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
+			return [];
 		}
+		return this._languages[languageId].filenames;
+	}
 
-		let modeId: string;
-		if (typeof _modeId === 'string') {
-			modeId = _modeId;
-		} else {
-			modeId = this._languageIds[_modeId];
-			if (!modeId) {
-				return null;
-			}
-		}
-
-		if (!hasOwnProperty.call(this._languages, modeId)) {
+	public getIcon(languageId: string): ILanguageIcon | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}
-		return this._languages[modeId].identifier;
+		const language = this._languages[languageId];
+		return (language.icons[0] || null);
 	}
 
-	public getModeIdsFromLanguageName(languageName: string): string[] {
-		if (!languageName) {
+	public getConfigurationFiles(languageId: string): ReadonlyArray<URI> {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return [];
 		}
-		if (hasOwnProperty.call(this._nameMap, languageName)) {
-			return [this._nameMap[languageName].language];
-		}
-		return [];
+		return this._languages[languageId].configurationFiles || [];
 	}
 
-	public getModeIdsFromFilenameOrFirstLine(filename: string, firstLine?: string): string[] {
-		if (!filename && !firstLine) {
-			return [];
+	public getLanguageIdByLanguageName(languageName: string): string | null {
+		const languageNameLower = languageName.toLowerCase();
+		if (!hasOwnProperty.call(this._lowercaseNameMap, languageNameLower)) {
+			return null;
 		}
-		var mimeTypes = mime.guessMimeTypes(filename, firstLine);
-		return this.extractModeIds(mimeTypes.join(','));
+		return this._lowercaseNameMap[languageNameLower];
 	}
 
-	public getExtensions(languageName: string): string[] {
-		if (!hasOwnProperty.call(this._nameMap, languageName)) {
-			return [];
+	public getLanguageIdByMimeType(mimeType: string | null | undefined): string | null {
+		if (!mimeType) {
+			return null;
 		}
-		const languageId = this._nameMap[languageName];
-		return this._languages[languageId.language].extensions;
+		if (hasOwnProperty.call(this._mimeTypesMap, mimeType)) {
+			return this._mimeTypesMap[mimeType];
+		}
+		return null;
 	}
 
-	public getFilenames(languageName: string): string[] {
-		if (!hasOwnProperty.call(this._nameMap, languageName)) {
+	public guessLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string[] {
+		if (!resource && !firstLine) {
 			return [];
 		}
-		const languageId = this._nameMap[languageName];
-		return this._languages[languageId.language].filenames;
+		return getLanguageIds(resource, firstLine);
 	}
 }

@@ -2,18 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as platform from 'vs/platform/registry/common/platform';
-import Event, { Emitter } from 'vs/base/common/event';
 
 export const Extensions = {
 	JSONContribution: 'base.contributions.json'
 };
 
 export interface ISchemaContributions {
-	schemas?: { [id: string]: IJSONSchema };
+	schemas: { [id: string]: IJSONSchema };
 }
 
 export interface IJSONContributionRegistry {
@@ -25,15 +24,20 @@ export interface IJSONContributionRegistry {
 	 */
 	registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void;
 
+
+	/**
+	 * Notifies all listeners that the content of the given schema has changed.
+	 * @param uri The id of the schema
+	 */
+	notifySchemaChanged(uri: string): void;
+
 	/**
 	 * Get all schemas
 	 */
 	getSchemaContributions(): ISchemaContributions;
 }
 
-export interface IJSONContributionRegistryEvent {
 
-}
 
 function normalizeId(id: string) {
 	if (id.length > 0 && id.charAt(id.length - 1) === '#') {
@@ -48,7 +52,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 
 	private schemasById: { [id: string]: IJSONSchema };
 
-	private _onDidChangeSchema: Emitter<string> = new Emitter<string>();
+	private readonly _onDidChangeSchema = new Emitter<string>();
 	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
 	constructor() {
@@ -57,6 +61,10 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 
 	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void {
 		this.schemasById[normalizeId(uri)] = unresolvedSchemaContent;
+		this._onDidChangeSchema.fire(uri);
+	}
+
+	public notifySchemaChanged(uri: string): void {
 		this._onDidChangeSchema.fire(uri);
 	}
 

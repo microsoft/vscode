@@ -1,0 +1,32 @@
+[
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "#### Config"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$repo=repo:microsoft/vscode\n$milestone=milestone:\"August 2023\""
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "### Finalization"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$repo $milestone label:api-finalization"
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
+    "value": "### Proposals"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$repo $milestone is:open label:api-proposal sort:created-asc"
+  }
+]

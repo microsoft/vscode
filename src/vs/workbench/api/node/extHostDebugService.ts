@@ -2,197 +2,226 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
-import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { SignService } from 'vs/platform/sign/node/signService';
+import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
+import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
+import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
+import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
+import { ExecutableDebugAdapter, NamedPipeDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import type * as vscode from 'vscode';
+import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
 
-import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
+	override readonly _serviceBrand: undefined;
 
-export class ExtHostDebugService implements ExtHostDebugServiceShape {
+	private _integratedTerminalInstances = new DebugTerminalCollection();
+	private _terminalDisposedListener: IDisposable | undefined;
 
-	private _workspace: ExtHostWorkspace;
-
-	private _handleCounter: number;
-	private _handlers: Map<number, vscode.DebugConfigurationProvider>;
-
-	private _debugServiceProxy: MainThreadDebugServiceShape;
-	private _debugSessions: Map<DebugSessionUUID, ExtHostDebugSession> = new Map<DebugSessionUUID, ExtHostDebugSession>();
-
-	private _onDidStartDebugSession: Emitter<vscode.DebugSession>;
-	get onDidStartDebugSession(): Event<vscode.DebugSession> { return this._onDidStartDebugSession.event; }
-
-	private _onDidTerminateDebugSession: Emitter<vscode.DebugSession>;
-	get onDidTerminateDebugSession(): Event<vscode.DebugSession> { return this._onDidTerminateDebugSession.event; }
-
-	private _onDidChangeActiveDebugSession: Emitter<vscode.DebugSession | undefined>;
-	get onDidChangeActiveDebugSession(): Event<vscode.DebugSession | undefined> { return this._onDidChangeActiveDebugSession.event; }
-
-	private _activeDebugSession: ExtHostDebugSession | undefined;
-	get activeDebugSession(): ExtHostDebugSession | undefined { return this._activeDebugSession; }
-
-	private _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
-	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
-
-
-	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace) {
-
-		this._workspace = workspace;
-
-		this._handleCounter = 0;
-		this._handlers = new Map<number, vscode.DebugConfigurationProvider>();
-
-		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
-
-		this._debugServiceProxy = mainContext.get(MainContext.MainThreadDebugService);
+	constructor(
+		@IExtHostRpcService extHostRpcService: IExtHostRpcService,
+		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
+		@IExtHostExtensionService extensionService: IExtHostExtensionService,
+		@IExtHostConfiguration configurationService: IExtHostConfiguration,
+		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
+		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
+	) {
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver);
 	}
 
-	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
-		if (!provider) {
-			return new types.Disposable(() => { });
+	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
+		switch (adapter.type) {
+			case 'server':
+				return new SocketDebugAdapter(adapter);
+			case 'pipeServer':
+				return new NamedPipeDebugAdapter(adapter);
+			case 'executable':
+				return new ExecutableDebugAdapter(adapter, session.type);
 		}
-
-		let handle = this.nextHandle();
-		this._handlers.set(handle, provider);
-		this._debugServiceProxy.$registerDebugConfigurationProvider(type, !!provider.provideDebugConfigurations, !!provider.resolveDebugConfiguration, handle);
-
-		return new types.Disposable(() => {
-			this._handlers.delete(handle);
-			this._debugServiceProxy.$unregisterDebugConfigurationProvider(handle);
-		});
+		return super.createDebugAdapter(adapter, session);
 	}
 
-	public $provideDebugConfigurations(handle: number, folderUri: URI | undefined): TPromise<vscode.DebugConfiguration[]> {
-		let handler = this._handlers.get(handle);
-		if (!handler) {
-			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('no handler found'));
-		}
-		if (!handler.provideDebugConfigurations) {
-			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('handler has no method provideDebugConfigurations'));
-		}
-		return asWinJsPromise(token => handler.provideDebugConfigurations(this.getFolder(folderUri), token));
-	}
-
-
-	public $resolveDebugConfiguration(handle: number, folderUri: URI | undefined, debugConfiguration: vscode.DebugConfiguration): TPromise<vscode.DebugConfiguration> {
-		let handler = this._handlers.get(handle);
-		if (!handler) {
-			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('no handler found'));
-		}
-		if (!handler.resolveDebugConfiguration) {
-			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('handler has no method resolveDebugConfiguration'));
-		}
-		return asWinJsPromise(token => handler.resolveDebugConfiguration(this.getFolder(folderUri), debugConfiguration, token));
-	}
-
-	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean> {
-		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig);
-	}
-
-	public $acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void {
-
-		let debugSession = this._debugSessions.get(id);
-		if (!debugSession) {
-			debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
-			this._debugSessions.set(id, debugSession);
-		}
-		this._onDidStartDebugSession.fire(debugSession);
-	}
-
-	public $acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void {
-
-		let debugSession = this._debugSessions.get(id);
-		if (!debugSession) {
-			debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
-			this._debugSessions.set(id, debugSession);
-		}
-		this._onDidTerminateDebugSession.fire(debugSession);
-		this._debugSessions.delete(id);
-	}
-
-	public $acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void {
-
-		if (id) {
-			this._activeDebugSession = this._debugSessions.get(id);
-			if (!this._activeDebugSession) {
-				this._activeDebugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
-				this._debugSessions.set(id, this._activeDebugSession);
-			}
-		} else {
-			this._activeDebugSession = undefined;
-		}
-		this._onDidChangeActiveDebugSession.fire(this._activeDebugSession);
-	}
-
-	public $acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void {
-
-		let debugSession = this._debugSessions.get(id);
-		if (!debugSession) {
-			debugSession = new ExtHostDebugSession(this._debugServiceProxy, id, type, name);
-			this._debugSessions.set(id, debugSession);
-		}
-		const ee: vscode.DebugSessionCustomEvent = {
-			session: debugSession,
-			event: event.event,
-			body: event.body
-		};
-		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
-	}
-
-	private getFolder(folderUri: URI | undefined) {
-		if (folderUri) {
-			const folders = this._workspace.getWorkspaceFolders();
-			const found = folders.filter(f => f.uri.toString() === folderUri.toString());
-			if (found && found.length > 0) {
-				return found[0];
-			}
+	protected override daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
+		const dae = ExecutableDebugAdapter.platformAdapterExecutable(extensionRegistry.getAllExtensionDescriptions(), session.type);
+		if (dae) {
+			return new DebugAdapterExecutable(dae.command, dae.args, dae.options);
 		}
 		return undefined;
 	}
 
-	private nextHandle(): number {
-		return this._handleCounter++;
+	protected override createSignService(): ISignService | undefined {
+		return new SignService();
+	}
+
+	public override async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+
+		if (args.kind === 'integrated') {
+
+			if (!this._terminalDisposedListener) {
+				// React on terminal disposed and check if that is the debug terminal #12956
+				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
+					this._integratedTerminalInstances.onTerminalClosed(terminal);
+				});
+			}
+
+			const configProvider = await this._configurationService.getConfigProvider();
+			const shell = this._terminalService.getDefaultShell(true);
+			const shellArgs = this._terminalService.getDefaultShellArgs(true);
+
+			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
+
+			const shellConfig = JSON.stringify({ shell, shellArgs });
+			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
+
+			let cwdForPrepareCommand: string | undefined;
+			let giveShellTimeToInitialize = false;
+
+			if (!terminal) {
+				const options: vscode.TerminalOptions = {
+					shellPath: shell,
+					shellArgs: shellArgs,
+					cwd: args.cwd,
+					name: terminalName,
+					iconPath: new ThemeIcon('debug'),
+				};
+				giveShellTimeToInitialize = true;
+				terminal = this._terminalService.createTerminalFromOptions(options, {
+					isFeatureTerminal: true,
+					useShellEnvironment: true
+				});
+				this._integratedTerminalInstances.insert(terminal, shellConfig);
+
+			} else {
+				cwdForPrepareCommand = args.cwd;
+			}
+
+			terminal.show(true);
+
+			const shellProcessId = await terminal.processId;
+
+			if (giveShellTimeToInitialize) {
+				// give a new terminal some time to initialize the shell
+				await new Promise(resolve => setTimeout(resolve, 1000));
+			} else {
+				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
+					// clear terminal before reusing it
+					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
+						terminal.sendText('cls');
+					} else if (shell.indexOf('bash') >= 0) {
+						terminal.sendText('clear');
+					} else if (platform.isWindows) {
+						terminal.sendText('cls');
+					} else {
+						terminal.sendText('clear');
+					}
+				}
+			}
+
+			const command = prepareCommand(shell, args.args, !!args.argsCanBeInterpretedByShell, cwdForPrepareCommand, args.env);
+			terminal.sendText(command);
+
+			// Mark terminal as unused when its session ends, see #112055
+			const sessionListener = this.onDidTerminateDebugSession(s => {
+				if (s.id === sessionId) {
+					this._integratedTerminalInstances.free(terminal!);
+					sessionListener.dispose();
+				}
+			});
+
+			return shellProcessId;
+
+		} else if (args.kind === 'external') {
+			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+		}
+		return super.$runInTerminal(args, sessionId);
 	}
 }
 
-export class ExtHostDebugSession implements vscode.DebugSession {
+let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
-	private _debugServiceProxy: MainThreadDebugServiceShape;
+function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+	if (!externalTerminalService) {
+		if (platform.isWindows) {
+			externalTerminalService = new WindowsExternalTerminalService();
+		} else if (platform.isMacintosh) {
+			externalTerminalService = new MacExternalTerminalService();
+		} else if (platform.isLinux) {
+			externalTerminalService = new LinuxExternalTerminalService();
+		} else {
+			throw new Error('external terminals not supported on this platform');
+		}
+	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
+}
 
-	private _id: DebugSessionUUID;
+class DebugTerminalCollection {
+	/**
+	 * Delay before a new terminal is a candidate for reuse. See #71850
+	 */
+	private static minUseDelay = 1000;
 
-	private _type: string;
-	private _name: string;
+	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
-	constructor(proxy: MainThreadDebugServiceShape, id: DebugSessionUUID, type: string, name: string) {
-		this._debugServiceProxy = proxy;
-		this._id = id;
-		this._type = type;
-		this._name = name;
-	};
+	public async checkout(config: string, name: string) {
+		const entries = [...this._terminalInstances.entries()];
+		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
 
-	public get id(): string {
-		return this._id;
+			// Only allow terminals that match the title.  See #123189
+			if (terminal.name !== name) {
+				return null;
+			}
+
+			if (termInfo.lastUsedAt !== -1 && await hasChildProcesses(await terminal.processId)) {
+				return null;
+			}
+
+			// important: date check and map operations must be synchronous
+			const now = Date.now();
+			if (termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
+				return null;
+			}
+
+			if (termInfo.config !== config) {
+				return null;
+			}
+
+			termInfo.lastUsedAt = now;
+			return terminal;
+		}));
+
+		return await firstParallel(promises, (t): t is vscode.Terminal => !!t);
 	}
 
-	public get type(): string {
-		return this._type;
+	public insert(terminal: vscode.Terminal, termConfig: string) {
+		this._terminalInstances.set(terminal, { lastUsedAt: Date.now(), config: termConfig });
 	}
 
-	public get name(): string {
-		return this._name;
+	public free(terminal: vscode.Terminal) {
+		const info = this._terminalInstances.get(terminal);
+		if (info) {
+			info.lastUsedAt = -1;
+		}
 	}
 
-	public customRequest(command: string, args: any): Thenable<any> {
-		return this._debugServiceProxy.$customDebugAdapterRequest(this._id, command, args);
+	public onTerminalClosed(terminal: vscode.Terminal) {
+		this._terminalInstances.delete(terminal);
 	}
 }

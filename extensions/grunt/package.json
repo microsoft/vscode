@@ -1,9 +1,11 @@
 {
   "name": "grunt",
   "publisher": "vscode",
-  "description": "Extension to add Grunt capabilities to VSCode.",
-  "displayName": "Grunt support for VSCode",
-  "version": "0.0.1",
+  "description": "Extension to add Grunt capabilities to VS Code.",
+  "displayName": "Grunt support for VS Code",
+  "version": "1.0.0",
+  "icon": "images/grunt.png",
+  "license": "MIT",
   "engines": {
     "vscode": "*"
   },
@@ -14,16 +16,20 @@
     "compile": "gulp compile-extension:grunt",
     "watch": "gulp watch-extension:grunt"
   },
-  "dependencies": {
-    "vscode-nls": "^2.0.2"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "18.x"
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onTaskType:grunt"
   ],
+  "capabilities": {
+    "virtualWorkspaces": false,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "configuration": {
       "id": "grunt",
@@ -31,13 +37,13 @@
       "title": "Grunt",
       "properties": {
         "grunt.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.grunt.autoDetect%"
         }
       }
@@ -45,18 +51,29 @@
     "taskDefinitions": [
       {
         "type": "grunt",
-        "required": ["task"],
+        "required": [
+          "task"
+        ],
         "properties": {
           "task": {
             "type": "string",
-            "description": "The Grunt task to customize"
+            "description": "%grunt.taskDefinition.type.description%"
+          },
+          "args": {
+            "type": "array",
+            "description": "%grunt.taskDefinition.args.description%"
           },
           "file": {
             "type": "string",
-            "description": "The Grunt file that provides the task. Can be omitted."
+            "description": "%grunt.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

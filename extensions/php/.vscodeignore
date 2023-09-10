@@ -3,4 +3,5 @@ build/**
 out/test/**
 src/**
 tsconfig.json
-npm-shrinkwrap.json
+cgmanifest.json
+.vscode
