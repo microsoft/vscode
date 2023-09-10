@@ -41,6 +41,8 @@
 	text-align: left;
 	width: 1px;
 	overflow: hidden;
+	border-bottom-left-radius: 3px;
+	border-bottom-right-radius: 3px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {

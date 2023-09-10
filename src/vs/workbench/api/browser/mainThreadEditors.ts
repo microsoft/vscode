@@ -23,10 +23,12 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IEditorControl } from 'vs/workbench/common/editor';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DirtyDiffContribution } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -51,6 +53,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -125,7 +128,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: EditorResolution.DISABLED
+			override: EditorResolution.EXCLUSIVE_ONLY
 		};
 
 		const input: IResourceEditorInput = {
@@ -133,11 +136,14 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, options.position));
+		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, this._configurationService, options.position));
 		if (!editor) {
 			return undefined;
 		}
-		return this._editorLocator.findTextEditorIdFor(editor);
+		// Composite editors are made up of many editors so we return the active one at the time of opening
+		const editorControl = editor.getControl();
+		const codeEditor = getCodeEditor(editorControl);
+		return codeEditor ? this._editorLocator.getIdOfCodeEditor(codeEditor) : undefined;
 	}
 
 	async $tryShowEditor(id: string, position?: EditorGroupColumn): Promise<void> {
@@ -147,7 +153,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			await this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, columnToEditorGroup(this._editorGroupService, position));
+			}, columnToEditorGroup(this._editorGroupService, this._configurationService, position));
 			return;
 		}
 	}
@@ -240,7 +246,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	$getDiffInformation(id: string): Promise<ILineChange[]> {
+	$getDiffInformation(id: string): Promise<IChange[]> {
 		const editor = this._editorLocator.getEditor(id);
 
 		if (!editor) {
@@ -263,7 +269,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
 
 		if (dirtyDiffContribution) {
-			return Promise.resolve((dirtyDiffContribution as any).getChanges());
+			return Promise.resolve((dirtyDiffContribution as DirtyDiffContribution).getChanges());
 		}
 
 		return Promise.resolve([]);

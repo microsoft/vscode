@@ -6,8 +6,10 @@
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
+import * as dns from 'dns';
 import * as performance from 'vs/base/common/performance';
-import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import type { MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
+import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
@@ -23,7 +25,6 @@ import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { MessagePortMain } from 'electron';
 import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
 
 import 'vs/workbench/api/common/extHost.common.services';
@@ -46,6 +47,15 @@ interface ParsedExtHostArgs {
 	}
 })();
 
+// TODO(deepak1556): Remove this once
+// https://github.com/electron/electron/pull/39376
+// is available. The following API call is needed to get our
+// remote integration tests to pass.
+(function configureDnsResultOrder() {
+	// Refs https://github.com/microsoft/vscode/issues/189805
+	dns.setDefaultResultOrder('ipv4first');
+})();
+
 const args = minimist(process.argv.slice(2), {
 	boolean: [
 		'transformURIs',
@@ -62,7 +72,7 @@ const args = minimist(process.argv.slice(2), {
 // happening we essentially blocklist this module from getting loaded in any
 // extension by patching the node require() function.
 (function () {
-	const Module = require.__$__nodeRequire('module') as any;
+	const Module = globalThis._VSCODE_NODE_MODULES.module as any;
 	const originalLoad = Module._load;
 
 	Module._load = function (request: string) {
@@ -132,14 +142,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 				});
 			};
 
-			if ((<any>global).vscodePorts) {
-				const ports = (<any>global).vscodePorts;
-				delete (<any>global).vscodePorts;
-				withPorts(ports);
-			} else {
-				(<any>global).vscodePortsCallback = withPorts;
-			}
-
+			process.parentPort.on('message', (e: Electron.MessageEvent) => withPorts(e.ports));
 		});
 
 	} else if (extHostConnection.type === ExtHostConnectionType.Socket) {
@@ -180,7 +183,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 						protocol.sendResume();
 					} else {
 						clearTimeout(timer);
-						protocol = new PersistentProtocol(socket, initialDataChunk);
+						protocol = new PersistentProtocol({ socket, initialChunk: initialDataChunk });
 						protocol.sendResume();
 						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
 						resolve(protocol);
@@ -217,7 +220,7 @@ function _createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 			const socket = net.createConnection(pipeName, () => {
 				socket.removeListener('error', reject);
-				const protocol = new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer'));
+				const protocol = new PersistentProtocol({ socket: new NodeSocket(socket, 'extHost-renderer') });
 				protocol.sendResume();
 				resolve(protocol);
 			});
@@ -286,37 +289,39 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 				}
 			}
 
-			// Kill oneself if one's parent dies. Much drama.
-			let epermErrors = 0;
-			setInterval(function () {
-				try {
-					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-					epermErrors = 0;
-				} catch (e) {
-					if (e && e.code === 'EPERM') {
-						// Even if the parent process is still alive,
-						// some antivirus software can lead to an EPERM error to be thrown here.
-						// Let's terminate only if we get 3 consecutive EPERM errors.
-						epermErrors++;
-						if (epermErrors >= 3) {
-							onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+			if (initData.parentPid) {
+				// Kill oneself if one's parent dies. Much drama.
+				let epermErrors = 0;
+				setInterval(function () {
+					try {
+						process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
+						epermErrors = 0;
+					} catch (e) {
+						if (e && e.code === 'EPERM') {
+							// Even if the parent process is still alive,
+							// some antivirus software can lead to an EPERM error to be thrown here.
+							// Let's terminate only if we get 3 consecutive EPERM errors.
+							epermErrors++;
+							if (epermErrors >= 3) {
+								onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+							}
+						} else {
+							onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
 						}
-					} else {
-						onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
 					}
-				}
-			}, 1000);
+				}, 1000);
 
-			// In certain cases, the event loop can become busy and never yield
-			// e.g. while-true or process.nextTick endless loops
-			// So also use the native node module to do it from a separate thread
-			let watchdog: typeof nativeWatchdog;
-			try {
-				watchdog = require.__$__nodeRequire('native-watchdog');
-				watchdog.start(initData.parentPid);
-			} catch (err) {
-				// no problem...
-				onUnexpectedError(err);
+				// In certain cases, the event loop can become busy and never yield
+				// e.g. while-true or process.nextTick endless loops
+				// So also use the native node module to do it from a separate thread
+				let watchdog: typeof nativeWatchdog;
+				try {
+					watchdog = globalThis._VSCODE_NODE_MODULES['native-watchdog'];
+					watchdog.start(initData.parentPid);
+				} catch (err) {
+					// no problem...
+					onUnexpectedError(err);
+				}
 			}
 
 			// Tell the outside that we are initialized
@@ -330,7 +335,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-export async function startExtensionHostProcess(): Promise<void> {
+async function startExtensionHostProcess(): Promise<void> {
 
 	// Print a console message when rejection isn't handled within N seconds. For details:
 	// see https://nodejs.org/api/process.html#process_event_unhandledrejection
@@ -366,7 +371,9 @@ export async function startExtensionHostProcess(): Promise<void> {
 
 	// Print a console message when an exception isn't handled.
 	process.on('uncaughtException', function (err: Error) {
-		onUnexpectedError(err);
+		if (!isSigPipeError(err)) {
+			onUnexpectedError(err);
+		}
 	});
 
 	performance.mark(`code/extHost/willConnectToRenderer`);
@@ -385,8 +392,8 @@ export async function startExtensionHostProcess(): Promise<void> {
 		declare readonly _serviceBrand: undefined;
 		public readonly pid = process.pid;
 		exit(code: number) { nativeExit(code); }
-		exists(path: string) { return Promises.exists(path); }
-		realpath(path: string) { return realpath(path); }
+		fsExists(path: string) { return Promises.exists(path); }
+		fsRealpath(path: string) { return realpath(path); }
 	};
 
 	// Attempt to load uri transformer

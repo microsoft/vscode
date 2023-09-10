@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon, getCodiconFontCharacters } from 'vs/base/common/codicons';
+import { ThemeIcon, IconIdentifier } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { isString } from 'vs/base/common/types';
@@ -12,11 +13,9 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 //  ------ API types
 
-export type IconIdentifier = string;
 
 // icon registry
 export const Extensions = {
@@ -166,7 +165,7 @@ class IconRegistry implements IIconRegistry {
 		type: 'object',
 		properties: {}
 	};
-	private iconReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
+	private iconReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', pattern: `^${ThemeIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
 
 	private iconFontsById: { [key: string]: IconFontDefinition };
 
@@ -298,8 +297,10 @@ export function getIconRegistry(): IIconRegistry {
 }
 
 function initialize() {
-	for (const icon of Codicon.getAll()) {
-		iconRegistry.registerIcon(icon.id, icon.definition, icon.description);
+	const codiconFontCharacters = getCodiconFontCharacters();
+	for (const icon in codiconFontCharacters) {
+		const fontCharacter = '\\' + codiconFontCharacters[icon].toString(16);
+		iconRegistry.registerIcon(icon, { fontCharacter });
 	}
 }
 initialize();

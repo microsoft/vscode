@@ -10,9 +10,14 @@ import { localize } from 'vs/nls';
  */
 export const terminalStrings = {
 	terminal: localize('terminal', "Terminal"),
+	new: localize('terminal.new', "New Terminal"),
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
+	actionCategory: {
+		value: localize('terminalCategory', "Terminal"),
+		original: 'Terminal'
+	},
 	focus: {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'
@@ -54,5 +59,21 @@ export const terminalStrings = {
 	toggleSizeToContentWidth: {
 		value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
 		original: 'Toggle Size to Content Width'
+	},
+	focusHover: {
+		value: localize('workbench.action.terminal.focusHover', "Focus Hover"),
+		original: 'Focus Hover'
+	},
+	sendSequence: {
+		value: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
+		original: 'Send Custom Sequence To Terminal'
+	},
+	newWithCwd: {
+		value: localize('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
+		original: 'Create New Terminal Starting in a Custom Working Directory'
+	},
+	renameWithArgs: {
+		value: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
+		original: 'Rename the Currently Active Terminal'
 	}
 };

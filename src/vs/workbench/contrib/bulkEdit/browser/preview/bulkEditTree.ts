@@ -21,15 +21,17 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { Iterable } from 'vs/base/common/iterator';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 
 // --- VIEW MODEL
 
@@ -38,12 +40,32 @@ export interface ICheckable {
 	setChecked(value: boolean): void;
 }
 
-export class CategoryElement {
+export class CategoryElement implements ICheckable {
 
 	constructor(
 		readonly parent: BulkFileOperations,
 		readonly category: BulkCategory
 	) { }
+
+	isChecked(): boolean {
+		const model = this.parent;
+		let checked = true;
+		for (const file of this.category.fileOperations) {
+			for (const edit of file.originalEdits.values()) {
+				checked = checked && model.checked.isChecked(edit);
+			}
+		}
+		return checked;
+	}
+
+	setChecked(value: boolean): void {
+		const model = this.parent;
+		for (const file of this.category.fileOperations) {
+			for (const edit of file.originalEdits.values()) {
+				model.checked.updateChecked(edit, value);
+			}
+		}
+	}
 }
 
 export class FileElement implements ICheckable {
@@ -206,7 +228,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		// category
 		if (element instanceof CategoryElement) {
-			return [...Iterable.map(element.category.fileOperations, op => new FileElement(element, op))];
+			return Array.from(element.category.fileOperations, op => new FileElement(element, op));
 		}
 
 		// file: text edit
@@ -246,7 +268,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
-					edit.textEdit.textEdit.text,
+					!edit.textEdit.textEdit.insertAsSnippet ? edit.textEdit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.textEdit.text),
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
@@ -285,7 +307,7 @@ export class BulkEditAccessibilityProvider implements IListAccessibilityProvider
 		return localize('bulkEdit', "Bulk Edit");
 	}
 
-	getRole(_element: BulkEditElement): string {
+	getRole(_element: BulkEditElement): AriaRole {
 		return 'checkbox';
 	}
 

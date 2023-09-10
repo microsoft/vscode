@@ -61,12 +61,11 @@ export interface IEnvironmentService {
 
 	// --- settings sync
 	userDataSyncHome: URI;
-	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
 
 	// --- continue edit session
+	continueOn?: string;
 	editSessionId?: string;
-	editSessionsLogResource: URI;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -78,14 +77,14 @@ export interface IEnvironmentService {
 	extensionTestsLocationURI?: URI;
 
 	// --- logging
-	logsPath: string;
+	logsHome: URI;
 	logLevel?: string;
+	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
 
 	// --- telemetry
 	disableTelemetry: boolean;
-	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
 
 	// --- Policy
@@ -123,21 +122,29 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	args: NativeParsedArgs;
 
 	// --- data paths
+	/**
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
+	 */
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
 	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
-	installSourcePath: string;
 
 	// --- extensions
 	extensionsPath: string;
-	extensionsDownloadPath: string;
+	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
 	// --- use keytar for credentials
 	disableKeytar?: boolean;
+
+	crossOriginIsolated?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

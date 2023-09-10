@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { isMacintosh } from 'vs/base/common/platform';
 import 'vs/css!./aria';
 
 // Use a max length since we are inserting the whole msg in the DOM and that can cause browsers to freeze for long messages #94233
@@ -32,7 +31,6 @@ export function setARIAContainer(parent: HTMLElement) {
 	const createStatusContainer = () => {
 		const element = document.createElement('div');
 		element.className = 'monaco-status';
-		element.setAttribute('role', 'complementary');
 		element.setAttribute('aria-live', 'polite');
 		element.setAttribute('aria-atomic', 'true');
 		ariaContainer.appendChild(element);
@@ -69,16 +67,12 @@ export function status(msg: string): void {
 		return;
 	}
 
-	if (isMacintosh) {
-		alert(msg); // VoiceOver does not seem to support status role
+	if (statusContainer.textContent !== msg) {
+		dom.clearNode(statusContainer2);
+		insertMessage(statusContainer, msg);
 	} else {
-		if (statusContainer.textContent !== msg) {
-			dom.clearNode(statusContainer2);
-			insertMessage(statusContainer, msg);
-		} else {
-			dom.clearNode(statusContainer);
-			insertMessage(statusContainer2, msg);
-		}
+		dom.clearNode(statusContainer);
+		insertMessage(statusContainer2, msg);
 	}
 }
 
@@ -93,3 +87,77 @@ function insertMessage(target: HTMLElement, msg: string): void {
 	target.style.visibility = 'hidden';
 	target.style.visibility = 'visible';
 }
+
+// Copied from @types/react which original came from https://www.w3.org/TR/wai-aria-1.1/#role_definitions
+export type AriaRole =
+	| 'alert'
+	| 'alertdialog'
+	| 'application'
+	| 'article'
+	| 'banner'
+	| 'button'
+	| 'cell'
+	| 'checkbox'
+	| 'columnheader'
+	| 'combobox'
+	| 'complementary'
+	| 'contentinfo'
+	| 'definition'
+	| 'dialog'
+	| 'directory'
+	| 'document'
+	| 'feed'
+	| 'figure'
+	| 'form'
+	| 'grid'
+	| 'gridcell'
+	| 'group'
+	| 'heading'
+	| 'img'
+	| 'link'
+	| 'list'
+	| 'listbox'
+	| 'listitem'
+	| 'log'
+	| 'main'
+	| 'marquee'
+	| 'math'
+	| 'menu'
+	| 'menubar'
+	| 'menuitem'
+	| 'menuitemcheckbox'
+	| 'menuitemradio'
+	| 'navigation'
+	| 'none'
+	| 'note'
+	| 'option'
+	| 'presentation'
+	| 'progressbar'
+	| 'radio'
+	| 'radiogroup'
+	| 'region'
+	| 'row'
+	| 'rowgroup'
+	| 'rowheader'
+	| 'scrollbar'
+	| 'search'
+	| 'searchbox'
+	| 'separator'
+	| 'slider'
+	| 'spinbutton'
+	| 'status'
+	| 'switch'
+	| 'tab'
+	| 'table'
+	| 'tablist'
+	| 'tabpanel'
+	| 'term'
+	| 'textbox'
+	| 'timer'
+	| 'toolbar'
+	| 'tooltip'
+	| 'tree'
+	| 'treegrid'
+	| 'treeitem'
+	| (string & {}) // Prevent type collapsing to `string`
+	;

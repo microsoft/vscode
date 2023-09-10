@@ -24,6 +24,7 @@ import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers'
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * Register information about a new language.
@@ -49,20 +50,42 @@ export function getEncodedLanguageId(languageId: string): number {
 }
 
 /**
- * An event emitted when a language is needed for the first time (e.g. a model has it set).
+ * An event emitted when a language is associated for the first time with a text model.
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	const languageService = StandaloneServices.get(ILanguageService);
-	const disposable = languageService.onDidEncounterLanguage((encounteredLanguageId) => {
-		if (encounteredLanguageId === languageId) {
-			// stop listening
-			disposable.dispose();
-			// invoke actual listener
-			callback();
-		}
+	return StandaloneServices.withServices(() => {
+		const languageService = StandaloneServices.get(ILanguageService);
+		const disposable = languageService.onDidRequestRichLanguageFeatures((encounteredLanguageId) => {
+			if (encounteredLanguageId === languageId) {
+				// stop listening
+				disposable.dispose();
+				// invoke actual listener
+				callback();
+			}
+		});
+		return disposable;
 	});
-	return disposable;
+}
+
+/**
+ * An event emitted when a language is associated for the first time with a text model or
+ * whena language is encountered during the tokenization of another language.
+ * @event
+ */
+export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable {
+	return StandaloneServices.withServices(() => {
+		const languageService = StandaloneServices.get(ILanguageService);
+		const disposable = languageService.onDidRequestBasicLanguageFeatures((encounteredLanguageId) => {
+			if (encounteredLanguageId === languageId) {
+				// stop listening
+				disposable.dispose();
+				// invoke actual listener
+				callback();
+			}
+		});
+		return disposable;
+	});
 }
 
 /**
@@ -80,7 +103,7 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 /**
  * @internal
  */
-export class EncodedTokenizationSupportAdapter implements languages.ITokenizationSupport {
+export class EncodedTokenizationSupportAdapter implements languages.ITokenizationSupport, IDisposable {
 
 	private readonly _languageId: string;
 	private readonly _actual: EncodedTokensProvider;
@@ -88,6 +111,10 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 	constructor(languageId: string, actual: EncodedTokensProvider) {
 		this._languageId = languageId;
 		this._actual = actual;
+	}
+
+	dispose(): void {
+		// NOOP
 	}
 
 	public getInitialState(): languages.IState {
@@ -110,7 +137,7 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 /**
  * @internal
  */
-export class TokenizationSupportAdapter implements languages.ITokenizationSupport {
+export class TokenizationSupportAdapter implements languages.ITokenizationSupport, IDisposable {
 
 	constructor(
 		private readonly _languageId: string,
@@ -118,6 +145,10 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 		private readonly _languageService: ILanguageService,
 		private readonly _standaloneThemeService: IStandaloneThemeService,
 	) {
+	}
+
+	dispose(): void {
+		// NOOP
 	}
 
 	public getInitialState(): languages.IState {
@@ -175,7 +206,7 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const t = tokens[i];
-			const metadata = tokenTheme.match(languageId, t.scopes);
+			const metadata = tokenTheme.match(languageId, t.scopes) | MetadataConsts.BALANCED_BRACKETS_MASK;
 			if (resultLen > 0 && result[resultLen - 1] === metadata) {
 				// same metadata
 				continue;
@@ -366,18 +397,16 @@ function createTokenizationSupportAdapter(languageId: string, provider: TokensPr
  * with a tokens provider set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function registerTokensProviderFactory(languageId: string, factory: TokensProviderFactory): IDisposable {
-	const adaptedFactory: languages.ITokenizationSupportFactory = {
-		createTokenizationSupport: async (): Promise<languages.ITokenizationSupport | null> => {
-			const result = await Promise.resolve(factory.create());
-			if (!result) {
-				return null;
-			}
-			if (isATokensProvider(result)) {
-				return createTokenizationSupportAdapter(languageId, result);
-			}
-			return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result), StandaloneServices.get(IConfigurationService));
+	const adaptedFactory = new languages.LazyTokenizationSupport(async () => {
+		const result = await Promise.resolve(factory.create());
+		if (!result) {
+			return null;
 		}
-	};
+		if (isATokensProvider(result)) {
+			return createTokenizationSupportAdapter(languageId, result);
+		}
+		return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result), StandaloneServices.get(IConfigurationService));
+	});
 	return languages.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
 }
 
@@ -526,12 +555,13 @@ export function registerCodeActionProvider(languageSelector: LanguageSelector, p
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
 	return languageFeaturesService.codeActionProvider.register(languageSelector, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
+		documentation: metadata?.documentation,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: languages.CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList> => {
 			const markerService = StandaloneServices.get(IMarkerService);
 			const markers = markerService.read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
-			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
+			return provider.provideCodeActions(model, range, { markers, only: context.only, trigger: context.trigger }, token);
 		},
 		resolveCodeAction: provider.resolveCodeAction
 	});
@@ -664,6 +694,11 @@ export interface CodeActionContext {
 	 * Requested kind of actions to return.
 	 */
 	readonly only?: string;
+
+	/**
+	 * The reason why code actions were requested.
+	 */
+	readonly trigger: languages.CodeActionTriggerType;
 }
 
 /**
@@ -697,6 +732,8 @@ export interface CodeActionProviderMetadata {
 	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
 	 */
 	readonly providedCodeActionKinds?: readonly string[];
+
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: languages.Command }>;
 }
 
 /**
@@ -707,6 +744,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		register: <any>register,
 		getLanguages: <any>getLanguages,
 		onLanguage: <any>onLanguage,
+		onLanguageEncountered: <any>onLanguageEncountered,
 		getEncodedLanguageId: <any>getEncodedLanguageId,
 
 		// provider methods
@@ -753,8 +791,10 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
+		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,
+		SelectedSuggestionInfo: <any>languages.SelectedSuggestionInfo,
 	};
 }

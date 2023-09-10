@@ -5,8 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -19,24 +17,27 @@ import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewIte
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-export interface IRemoteSelectItem extends ISelectOptionItem {
+interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];
+	virtualWorkspace?: string;
 }
 
-export class SwitchRemoteViewItem extends SelectActionViewItem {
+export class SwitchRemoteViewItem extends SelectActionViewItem<IRemoteSelectItem> {
 
 	constructor(
 		action: IAction,
 		private readonly optionsItems: IRemoteSelectItem[],
-		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IRemoteExplorerService private remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
-		super(null, action, optionsItems, 0, contextViewService, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
-		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+		super(null, action, optionsItems, 0, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('remotes', 'Switch Remote') });
 	}
 
 	public setSelectionForConnection(): boolean {
@@ -44,9 +45,14 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		if (this.optionsItems.length > 0) {
 			let index = 0;
 			const remoteAuthority = this.environmentService.remoteAuthority;
+			let virtualWorkspace: string | undefined;
+			if (!remoteAuthority) {
+				virtualWorkspace = getVirtualWorkspaceLocation(this.workspaceContextService.getWorkspace())?.scheme;
+			}
 			isSetForConnection = true;
-			const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] :
-				this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.PROFILE)?.split(',');
+			const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]]
+				: (virtualWorkspace ? [virtualWorkspace]
+					: (this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.PROFILE)?.split(',')));
 			if (explorerType !== undefined) {
 				index = this.getOptionIndexForExplorerType(explorerType);
 			}
@@ -69,6 +75,9 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 					if (this.optionsItems[optionIterator].authority[authorityIterator] === explorerType[i]) {
 						index = optionIterator;
 						break;
+					} else if (this.optionsItems[optionIterator].virtualWorkspace === explorerType[i]) {
+						index = optionIterator;
+						break;
 					}
 				}
 			}
@@ -83,7 +92,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		}
 	}
 
-	protected override getActionContext(_: string, index: number): any {
+	protected override getActionContext(_: string, index: number): IRemoteSelectItem {
 		return this.optionsItems[index];
 	}
 
@@ -91,7 +100,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		const options: IRemoteSelectItem[] = [];
 		views.forEach(view => {
 			if (view.group && view.group.startsWith('targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
-				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority] });
+				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority], virtualWorkspace: view.virtualWorkspace });
 			}
 		});
 		return options;

@@ -6,10 +6,10 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService, TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -21,10 +21,10 @@ import { hash } from 'vs/base/common/hash';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { flatten } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { deepClone } from 'vs/base/common/objects';
+import { debounce } from 'vs/base/common/decorators';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -35,12 +35,19 @@ export const PORT_AUTO_FORWARD_SETTING = 'remote.autoForwardPorts';
 export const PORT_AUTO_SOURCE_SETTING = 'remote.autoForwardPortsSource';
 export const PORT_AUTO_SOURCE_SETTING_PROCESS = 'process';
 export const PORT_AUTO_SOURCE_SETTING_OUTPUT = 'output';
+export const PORT_AUTO_SOURCE_SETTING_HYBRID = 'hybrid';
 
 export enum TunnelType {
 	Candidate = 'Candidate',
 	Detected = 'Detected',
 	Forwarded = 'Forwarded',
 	Add = 'Add'
+}
+
+export enum TunnelCloseReason {
+	Other = 'Other',
+	User = 'User',
+	AutoForwardEnd = 'AutoForwardEnd',
 }
 
 export interface ITunnelItem {
@@ -422,8 +429,10 @@ export class TunnelModel extends Disposable {
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	public readonly configPortsAttributes: PortsAttributes;
-	private restoreListener: IDisposable | undefined;
+	private restoreListener: DisposableStore | undefined = undefined;
 	private knownPortsRestoreValue: string | undefined;
+	private unrestoredExtensionTunnels: Map<string, Tunnel> = new Map();
+	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -473,6 +482,7 @@ export class TunnelModel extends Disposable {
 		this._register(this.tunnelService.onTunnelOpened(async (tunnel) => {
 			const key = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 			if (!mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
+				&& !mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
 				&& !mapHasAddressLocalhostOrAllInterfaces(this.inProgress, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
 				&& tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
@@ -497,11 +507,11 @@ export class TunnelModel extends Disposable {
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
 		this._register(this.tunnelService.onTunnelClosed(address => {
-			return this.onTunnelClosed(address);
+			return this.onTunnelClosed(address, TunnelCloseReason.Other);
 		}));
 	}
 
-	private async onTunnelClosed(address: { host: string; port: number }) {
+	private async onTunnelClosed(address: { host: string; port: number }, reason: TunnelCloseReason) {
 		const key = makeAddress(address.host, address.port);
 		if (this.forwarded.has(key)) {
 			this.forwarded.delete(key);
@@ -518,9 +528,13 @@ export class TunnelModel extends Disposable {
 		return URI.parse(`${protocol}://${localAddress}`);
 	}
 
-	private async getStorageKey(): Promise<string> {
+	private async getStorageKey(): Promise<string | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(workspace.folders[0].uri.path) : undefined);
+		if (workspaceHash === undefined) {
+			this.logService.debug('Could not get workspace hash for forwarded ports storage key.');
+			return undefined;
+		}
 		return `${TUNNELS_TO_RESTORE}.${this.environmentService.remoteAuthority}.${workspaceHash}`;
 	}
 
@@ -531,8 +545,11 @@ export class TunnelModel extends Disposable {
 			await this.storeForwarded();
 			return deprecatedValue;
 		}
-
-		return this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE);
+		const storageKey = await this.getStorageKey();
+		if (!storageKey) {
+			return undefined;
+		}
+		return this.storageService.get(storageKey, StorageScope.PROFILE);
 	}
 
 	async restoreForwarded() {
@@ -542,7 +559,9 @@ export class TunnelModel extends Disposable {
 				const tunnels = <Tunnel[] | undefined>JSON.parse(tunnelRestoreValue) ?? [];
 				this.logService.trace(`ForwardedPorts: (TunnelModel) restoring ports ${tunnels.map(tunnel => tunnel.remotePort).join(', ')}`);
 				for (const tunnel of tunnels) {
-					if (!mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort)) {
+					const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort);
+					// Extension forwarded ports should only be updated, not restored.
+					if ((tunnel.source.source === TunnelSource.User && !alreadyForwarded) || (tunnel.source.source === TunnelSource.Extension && alreadyForwarded)) {
 						await this.forward({
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
@@ -550,6 +569,8 @@ export class TunnelModel extends Disposable {
 							privacy: tunnel.privacy,
 							elevateIfNeeded: true
 						});
+					} else if (tunnel.source.source === TunnelSource.Extension && !alreadyForwarded) {
+						this.unrestoredExtensionTunnels.set(makeAddress(tunnel.remoteHost, tunnel.remotePort), tunnel);
 					}
 				}
 			}
@@ -558,21 +579,26 @@ export class TunnelModel extends Disposable {
 		if (!this.restoreListener) {
 			// It's possible that at restore time the value hasn't synced.
 			const key = await this.getStorageKey();
-			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+			this.restoreListener = this._register(new DisposableStore());
+			this.restoreListener.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this.restoreListener)(async (e) => {
 				if (e.key === key) {
-					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE));
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(key, StorageScope.PROFILE));
 					await this.restoreForwarded();
 				}
 			}));
 		}
 	}
 
+	@debounce(1000)
 	private async storeForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source === TunnelSource.User));
+			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source !== TunnelSource.Auto));
 			if (valueToStore !== this.knownPortsRestoreValue) {
 				this.knownPortsRestoreValue = valueToStore;
-				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
+				const key = await this.getStorageKey();
+				if (key) {
+					this.storageService.store(key, this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
+				}
 			}
 		}
 	}
@@ -593,10 +619,10 @@ export class TunnelModel extends Disposable {
 		this.mismatchCooldown = newCooldown;
 		const mismatchString = nls.localize('remote.localPortMismatch.single', "Local port {0} could not be used for forwarding to remote port {1}.\n\nThis usually happens when there is already another process using local port {0}.\n\nPort number {2} has been used instead.",
 			expectedLocal, tunnel.tunnelRemotePort, tunnel.tunnelLocalPort);
-		return this.dialogService.show(Severity.Info, mismatchString);
+		return this.dialogService.info(mismatchString);
 	}
 
-	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
+	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
 		attributes = attributes ??
 			((attributes !== null)
@@ -612,7 +638,9 @@ export class TunnelModel extends Disposable {
 
 			const key = makeAddress(tunnelProperties.remote.host, tunnelProperties.remote.port);
 			this.inProgress.set(key, true);
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.privacy, attributes?.protocol);
+			tunnelProperties = this.mergeCachedAndUnrestoredProperties(key, tunnelProperties);
+
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, undefined, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.privacy, attributes?.protocol);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), tunnelProperties.remote.host, tunnelProperties.remote.port);
 				const protocol = (tunnel.protocol ?
@@ -641,19 +669,61 @@ export class TunnelModel extends Disposable {
 				this._onForwardPort.fire(newForward);
 				return tunnel;
 			}
+			this.inProgress.delete(key);
 		} else {
-			const newName = attributes?.label ?? tunnelProperties.name;
-			if (newName !== existingTunnel.name) {
-				existingTunnel.name = newName;
-				this._onForwardPort.fire();
+			return this.mergeAttributesIntoExistingTunnel(existingTunnel, tunnelProperties, attributes);
+		}
+
+		return undefined;
+	}
+
+	private mergeCachedAndUnrestoredProperties(key: string, tunnelProperties: TunnelProperties): TunnelProperties {
+		const map = this.unrestoredExtensionTunnels.has(key) ? this.unrestoredExtensionTunnels : (this.sessionCachedProperties.has(key) ? this.sessionCachedProperties : undefined);
+		if (map) {
+			const updateProps = map.get(key)!;
+			map.delete(key);
+			if (updateProps) {
+				tunnelProperties.name = updateProps.name ?? tunnelProperties.name;
+				tunnelProperties.local = (('local' in updateProps) ? updateProps.local : (('localPort' in updateProps) ? updateProps.localPort : undefined)) ?? tunnelProperties.local;
+				tunnelProperties.privacy = updateProps.privacy ?? tunnelProperties.privacy;
 			}
-			if ((attributes?.protocol || (existingTunnel.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== existingTunnel.protocol)) {
-				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
-				tunnelProperties.source = existingTunnel.source;
+		}
+		return tunnelProperties;
+	}
+
+	private async mergeAttributesIntoExistingTunnel(existingTunnel: Tunnel, tunnelProperties: TunnelProperties, attributes: Attributes | undefined) {
+		const newName = attributes?.label ?? tunnelProperties.name;
+		enum MergedAttributeAction {
+			None = 0,
+			Fire = 1,
+			Reopen = 2
+		}
+		let mergedAction = MergedAttributeAction.None;
+		if (newName !== existingTunnel.name) {
+			existingTunnel.name = newName;
+			mergedAction = MergedAttributeAction.Fire;
+		}
+		// Source of existing tunnel wins so that original source is maintained
+		if ((attributes?.protocol || (existingTunnel.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== existingTunnel.protocol)) {
+			tunnelProperties.source = existingTunnel.source;
+			mergedAction = MergedAttributeAction.Reopen;
+		}
+		// New privacy value wins
+		if (tunnelProperties.privacy && (existingTunnel.privacy !== tunnelProperties.privacy)) {
+			mergedAction = MergedAttributeAction.Reopen;
+		}
+		switch (mergedAction) {
+			case MergedAttributeAction.Fire: {
+				this._onForwardPort.fire();
+				break;
+			}
+			case MergedAttributeAction.Reopen: {
+				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort, TunnelCloseReason.User);
 				await this.forward(tunnelProperties, attributes);
 			}
-			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, tunnelProperties.remote.host, tunnelProperties.remote.port);
 		}
+
+		return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, tunnelProperties.remote.host, tunnelProperties.remote.port);
 	}
 
 	async name(host: string, port: number, name: string) {
@@ -670,9 +740,18 @@ export class TunnelModel extends Disposable {
 		}
 	}
 
-	async close(host: string, port: number): Promise<void> {
+	async close(host: string, port: number, reason: TunnelCloseReason): Promise<void> {
+		const key = makeAddress(host, port);
+		const oldTunnel = this.forwarded.get(key)!;
+		if ((reason === TunnelCloseReason.AutoForwardEnd) && oldTunnel && (oldTunnel.source.source === TunnelSource.Auto)) {
+			this.sessionCachedProperties.set(key, {
+				local: oldTunnel.localPort,
+				name: oldTunnel.name,
+				privacy: oldTunnel.privacy,
+			});
+		}
 		await this.tunnelService.closeTunnel(host, port);
-		return this.onTunnelClosed({ host, port });
+		return this.onTunnelClosed({ host, port }, reason);
 	}
 
 	address(host: string, port: number): string | undefined {
@@ -705,6 +784,7 @@ export class TunnelModel extends Disposable {
 						description: nls.localize('tunnel.staticallyForwarded', "Statically Forwarded")
 					}
 				});
+				this.tunnelService.setEnvironmentTunnel(tunnel.remoteAddress.host, tunnel.remoteAddress.port, localAddress, TunnelPrivacyId.ConstantPrivate, TunnelProtocol.Http);
 			}
 		}
 		this._environmentTunnelsSet = true;
@@ -814,13 +894,14 @@ export class TunnelModel extends Disposable {
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
 		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
 		forwardedPorts.forEach(forwardedPort => {
-			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port);
+			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port) ?? forwardedPort;
 			if (matchingCandidate) {
 				matchingCandidates.set(forwardedPort.port, matchingCandidate);
-				if (!pidToPortsMapping.has(matchingCandidate.pid)) {
-					pidToPortsMapping.set(matchingCandidate.pid, []);
+				const pid = isCandidatePort(matchingCandidate) ? matchingCandidate.pid : undefined;
+				if (!pidToPortsMapping.has(pid)) {
+					pidToPortsMapping.set(pid, []);
 				}
-				pidToPortsMapping.get(matchingCandidate.pid)?.push(forwardedPort.port);
+				pidToPortsMapping.get(pid)?.push(forwardedPort.port);
 			}
 		});
 
@@ -884,6 +965,13 @@ export interface CandidatePort {
 	pid?: number;
 }
 
+export function isCandidatePort(candidate: any): candidate is CandidatePort {
+	return candidate && 'host' in candidate && typeof candidate.host === 'string'
+		&& 'port' in candidate && typeof candidate.port === 'number'
+		&& (!('detail' in candidate) || typeof candidate.detail === 'string')
+		&& (!('pid' in candidate) || typeof candidate.pid === 'string');
+}
+
 export interface IRemoteExplorerService {
 	readonly _serviceBrand: undefined;
 	onDidChangeTargetType: Event<string[]>;
@@ -892,8 +980,8 @@ export interface IRemoteExplorerService {
 	onDidChangeEditable: Event<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined>;
 	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void;
 	getEditableData(tunnelItem: ITunnelItem | undefined, editId?: TunnelEditId): IEditableData | undefined;
-	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void>;
-	close(remote: { host: string; port: number }): Promise<void>;
+	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined>;
+	close(remote: { host: string; port: number }, reason: TunnelCloseReason): Promise<void>;
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
 	setCandidateFilter(filter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined): IDisposable;
 	onFoundNewCandidates(candidates: CandidatePort[]): void;
@@ -938,7 +1026,7 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		const newName: string = name.length > 0 ? name[0] : '';
 		if (current !== newName) {
 			this._targetType = name;
-			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.WORKSPACE, StorageTarget.USER);
+			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			this.storageService.store(REMOTE_EXPLORER_TYPE_KEY, this._targetType.toString(), StorageScope.PROFILE, StorageTarget.USER);
 			this._onDidChangeTargetType.fire(this._targetType);
 		}
@@ -951,12 +1039,12 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this._tunnelModel;
 	}
 
-	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
+	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined> {
 		return this.tunnelModel.forward(tunnelProperties, attributes);
 	}
 
-	close(remote: { host: string; port: number }): Promise<void> {
-		return this.tunnelModel.close(remote.host, remote.port);
+	close(remote: { host: string; port: number }, reason: TunnelCloseReason): Promise<void> {
+		return this.tunnelModel.close(remote.host, remote.port, reason);
 	}
 
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void {
@@ -1015,4 +1103,4 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	}
 }
 
-registerSingleton(IRemoteExplorerService, RemoteExplorerService, true);
+registerSingleton(IRemoteExplorerService, RemoteExplorerService, InstantiationType.Delayed);

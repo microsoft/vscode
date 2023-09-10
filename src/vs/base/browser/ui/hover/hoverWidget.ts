@@ -9,6 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./hover';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -72,9 +73,9 @@ export class HoverAction extends Disposable {
 			actionOptions.run(this.actionContainer);
 		}));
 
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_UP, e => {
+		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter)) {
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				e.stopPropagation();
 				e.preventDefault();
 				actionOptions.run(this.actionContainer);
@@ -93,4 +94,8 @@ export class HoverAction extends Disposable {
 			this.actionContainer.setAttribute('aria-disabled', 'true');
 		}
 	}
+}
+
+export function getHoverAriaLabel(shouldHaveHint?: boolean, keybinding?: string | null): string | undefined {
+	return shouldHaveHint ? localize('acessibleViewHint', "Inspect this in the accessible view with {0}.", keybinding) : localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
 }

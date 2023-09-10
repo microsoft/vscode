@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MemoryRangeType } from 'vs/workbench/contrib/debug/common/debug';
 import { MemoryRegion } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockSession } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 suite('Debug - Memory', () => {
 	const dapResponseCommon = {

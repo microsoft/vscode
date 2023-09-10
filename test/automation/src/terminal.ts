@@ -10,9 +10,9 @@ import { IElement } from './driver';
 
 export enum Selector {
 	TerminalView = `#terminal`,
-	CommandDecorationPlaceholder = `.terminal-command-decoration.codicon-circle-outline`,
-	CommandDecorationSuccess = `.terminal-command-decoration.codicon-primitive-dot`,
-	CommandDecorationError = `.terminal-command-decoration.codicon-error-small`,
+	CommandDecorationPlaceholder = `.terminal-command-decoration.codicon-terminal-decoration-incomplete`,
+	CommandDecorationSuccess = `.terminal-command-decoration.codicon-terminal-decoration-success`,
+	CommandDecorationError = `.terminal-command-decoration.codicon-terminal-decoration-error`,
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
@@ -93,7 +93,14 @@ export class Terminal {
 				await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
 				break;
 			case TerminalCommandId.KillAll:
-				await this.code.waitForElements(Selector.Xterm, true, e => e.length === 0);
+				// HACK: Attempt to kill all terminals to clean things up, this is known to be flaky
+				// but the reason why isn't known. This is typically called in the after each hook,
+				// Since it's not actually required that all terminals are killed just continue on
+				// after 2 seconds.
+				await Promise.race([
+					this.code.waitForElements(Selector.Xterm, true, e => e.length === 0),
+					new Promise<void>(r => setTimeout(r, 2000))
+				]);
 				break;
 		}
 	}

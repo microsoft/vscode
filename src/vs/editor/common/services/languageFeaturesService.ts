@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { LanguageFeatureRegistry, NotebookInfo, NotebookInfoResolver } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DocumentPasteEditProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentOnDropEditProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class LanguageFeaturesService implements ILanguageFeaturesService {
 
@@ -55,4 +55,4 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 
 }
 
-registerSingleton(ILanguageFeaturesService, LanguageFeaturesService, true);
+registerSingleton(ILanguageFeaturesService, LanguageFeaturesService, InstantiationType.Delayed);

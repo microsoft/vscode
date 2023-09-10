@@ -7,7 +7,7 @@ import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { $, addDisposableListener, append, EventHelper, EventType } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
-import { AnchorAlignment, IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
@@ -19,12 +19,12 @@ export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
 }
 
-export interface IBaseDropdownOptions {
+interface IBaseDropdownOptions {
 	label?: string;
 	labelRenderer?: ILabelRenderer;
 }
 
-export class BaseDropdown extends ActionRunner {
+class BaseDropdown extends ActionRunner {
 	private _element: HTMLElement;
 	private boxContainer?: HTMLElement;
 	private _label?: HTMLElement;
@@ -148,60 +148,6 @@ export class BaseDropdown extends ActionRunner {
 	}
 }
 
-export interface IDropdownOptions extends IBaseDropdownOptions {
-	contextViewProvider: IContextViewProvider;
-}
-
-export class Dropdown extends BaseDropdown {
-	private contextViewProvider: IContextViewProvider;
-
-	constructor(container: HTMLElement, options: IDropdownOptions) {
-		super(container, options);
-
-		this.contextViewProvider = options.contextViewProvider;
-	}
-
-	override show(): void {
-		super.show();
-
-		this.element.classList.add('active');
-
-		this.contextViewProvider.showContextView({
-			getAnchor: () => this.getAnchor(),
-
-			render: (container) => {
-				return this.renderContents(container);
-			},
-
-			onDOMEvent: (e, activeElement) => {
-				this.onEvent(e, activeElement);
-			},
-
-			onHide: () => this.onHide()
-		});
-	}
-
-	protected getAnchor(): HTMLElement | IAnchor {
-		return this.element;
-	}
-
-	protected onHide(): void {
-		this.element.classList.remove('active');
-	}
-
-	override hide(): void {
-		super.hide();
-
-		if (this.contextViewProvider) {
-			this.contextViewProvider.hideContextView();
-		}
-	}
-
-	protected renderContents(container: HTMLElement): IDisposable | null {
-		return null;
-	}
-}
-
 export interface IActionProvider {
 	getActions(): readonly IAction[];
 }
@@ -212,24 +158,17 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	readonly actionProvider?: IActionProvider;
 	menuClassName?: string;
 	menuAsChild?: boolean; // scope down for #99448
+	readonly skipTelemetry?: boolean;
 }
 
 export class DropdownMenu extends BaseDropdown {
-	private _contextMenuProvider: IContextMenuProvider;
 	private _menuOptions: IMenuOptions | undefined;
 	private _actions: readonly IAction[] = [];
-	private actionProvider?: IActionProvider;
-	private menuClassName: string;
-	private menuAsChild?: boolean;
 
-	constructor(container: HTMLElement, options: IDropdownMenuOptions) {
-		super(container, options);
+	constructor(container: HTMLElement, private readonly _options: IDropdownMenuOptions) {
+		super(container, _options);
 
-		this._contextMenuProvider = options.contextMenuProvider;
-		this.actions = options.actions || [];
-		this.actionProvider = options.actionProvider;
-		this.menuClassName = options.menuClassName || '';
-		this.menuAsChild = !!options.menuAsChild;
+		this.actions = _options.actions || [];
 	}
 
 	set menuOptions(options: IMenuOptions | undefined) {
@@ -241,8 +180,8 @@ export class DropdownMenu extends BaseDropdown {
 	}
 
 	private get actions(): readonly IAction[] {
-		if (this.actionProvider) {
-			return this.actionProvider.getActions();
+		if (this._options.actionProvider) {
+			return this._options.actionProvider.getActions();
 		}
 
 		return this._actions;
@@ -257,17 +196,18 @@ export class DropdownMenu extends BaseDropdown {
 
 		this.element.classList.add('active');
 
-		this._contextMenuProvider.showContextMenu({
+		this._options.contextMenuProvider.showContextMenu({
 			getAnchor: () => this.element,
 			getActions: () => this.actions,
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
-			getActionViewItem: action => this.menuOptions && this.menuOptions.actionViewItemProvider ? this.menuOptions.actionViewItemProvider(action) : undefined,
+			getActionViewItem: (action, options) => this.menuOptions && this.menuOptions.actionViewItemProvider ? this.menuOptions.actionViewItemProvider(action, options) : undefined,
 			getKeyBinding: action => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : undefined,
-			getMenuClassName: () => this.menuClassName,
+			getMenuClassName: () => this._options.menuClassName || '',
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
 			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT,
-			domForShadowRoot: this.menuAsChild ? this.element : undefined
+			domForShadowRoot: this._options.menuAsChild ? this.element : undefined,
+			skipTelemetry: this._options.skipTelemetry
 		});
 	}
 

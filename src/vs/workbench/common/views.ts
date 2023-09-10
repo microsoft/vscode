@@ -10,7 +10,7 @@ import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -28,6 +28,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
@@ -54,7 +55,7 @@ export function ViewContainerLocationToString(viewContainerLocation: ViewContain
 
 type OpenCommandActionDescriptor = {
 	readonly id: string;
-	readonly title?: string;
+	readonly title?: ILocalizedString | string;
 	readonly mnemonicTitle?: string;
 	readonly order?: number;
 	readonly keybindings?: IKeybindings & { when?: ContextKeyExpression };
@@ -74,7 +75,7 @@ export interface IViewContainerDescriptor {
 	/**
 	 * The title of the view container
 	 */
-	readonly title: string;
+	readonly title: ILocalizedString | string;
 
 	/**
 	 * Icon representation of the View container
@@ -95,7 +96,7 @@ export interface IViewContainerDescriptor {
 	 * Descriptor for open view container command
 	 * If not provided, view container info (id, title) is used.
 	 *
-	 * Note: To prevent registering open command, use `donotRegisterOpenCommand` flag while registering the view container
+	 * Note: To prevent registering open command, use `doNotRegisterOpenCommand` flag while registering the view container
 	 */
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 
@@ -149,7 +150,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean; donotRegisterOpenCommand?: boolean }): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -206,14 +207,14 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return flatten([...this.viewContainers.values()]);
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; donotRegisterOpenCommand?: boolean }): ViewContainer {
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer {
 		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
 		}
 
 		const viewContainer: RelaxedViewContainer = viewContainerDescriptor;
-		viewContainer.openCommandActionDescriptor = options?.donotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
+		viewContainer.openCommandActionDescriptor = options?.doNotRegisterOpenCommand ? undefined : (viewContainer.openCommandActionDescriptor ?? { id: viewContainer.id });
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
 		if (options?.isDefault) {
@@ -294,6 +295,7 @@ export interface IViewDescriptor {
 	readonly group?: string;
 
 	readonly remoteAuthority?: string | string[];
+	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 }
@@ -333,7 +335,7 @@ export interface IViewContainerModel {
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
 	readonly keybindingId: string | undefined;
-	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean }>;
+	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean; badgeEnablement?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
@@ -619,6 +621,9 @@ export interface IViewDescriptorService {
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>;
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void;
 
+	getViewContainerBadgeEnablementState(id: string): boolean;
+	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;
+
 	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;
 	getViewContainerByViewId(id: string): ViewContainer | null;
@@ -646,7 +651,9 @@ export interface ITreeView extends IDisposable {
 
 	canSelectMany: boolean;
 
-	message?: string;
+	manuallyManageCheckboxes: boolean;
+
+	message?: string | IMarkdownString;
 
 	title: string;
 
@@ -660,7 +667,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
 
-	readonly onDidChangeSelection: Event<ITreeItem[]>;
+	readonly onDidChangeSelectionAndFocus: Event<{ selection: readonly ITreeItem[]; focus: ITreeItem }>;
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
@@ -672,9 +679,11 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
+	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
+
 	readonly container: any | undefined;
 
-	refresh(treeItems?: ITreeItem[]): Promise<void>;
+	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -688,9 +697,13 @@ export interface ITreeView extends IDisposable {
 
 	expand(itemOrItems: ITreeItem | ITreeItem[]): Promise<void>;
 
+	isCollapsed(item: ITreeItem): boolean;
+
 	setSelection(items: ITreeItem[]): void;
 
-	setFocus(item: ITreeItem): void;
+	getSelection(): ITreeItem[];
+
+	setFocus(item?: ITreeItem): void;
 
 	show(container: any): void;
 }
@@ -708,6 +721,12 @@ export interface IRevealOptions {
 export interface ITreeViewDescriptor extends IViewDescriptor {
 	treeView: ITreeView;
 }
+
+export type TreeViewPaneHandleArg = {
+	$treeViewId: string;
+	$selectedTreeItems?: boolean;
+	$focusedTreeItem?: boolean;
+};
 
 export type TreeViewItemHandleArg = {
 	$treeViewId: string;
@@ -728,6 +747,14 @@ export interface ITreeItemLabel {
 
 	strikethrough?: boolean;
 
+}
+
+export type TreeCommand = Command & { originalId?: string };
+
+export interface ITreeItemCheckboxState {
+	isChecked: boolean;
+	tooltip?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 export interface ITreeItem {
@@ -754,11 +781,15 @@ export interface ITreeItem {
 
 	contextValue?: string;
 
-	command?: Command;
+	command?: TreeCommand;
 
 	children?: ITreeItem[];
 
+	parent?: ITreeItem;
+
 	accessibilityInformation?: IAccessibilityInformation;
+
+	checkbox?: ITreeItemCheckboxState;
 }
 
 export class ResolvableTreeItem implements ITreeItem {
@@ -773,7 +804,7 @@ export class ResolvableTreeItem implements ITreeItem {
 	resourceUri?: UriComponents;
 	tooltip?: string | IMarkdownString;
 	contextValue?: string;
-	command?: Command;
+	command?: Command & { originalId?: string };
 	children?: ITreeItem[];
 	accessibilityInformation?: IAccessibilityInformation;
 	resolve: (token: CancellationToken) => Promise<void>;
@@ -822,6 +853,16 @@ export class ResolvableTreeItem implements ITreeItem {
 	}
 }
 
+export class NoTreeViewError extends Error {
+	override readonly name = 'NoTreeViewError';
+	constructor(treeViewId: string) {
+		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	}
+	static is(err: Error): err is NoTreeViewError {
+		return err.name === 'NoTreeViewError';
+	}
+}
+
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
@@ -855,7 +896,6 @@ export interface IViewPaneContainer {
 	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;
-	saveState(): void;
 }
 
 export interface IViewBadge {

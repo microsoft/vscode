@@ -11,10 +11,22 @@ const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my curr
 const sendWorkspaceInfoLabel = escape(localize('sendWorkspaceInfo', "Include my workspace metadata"));
 const sendExtensionsLabel = escape(localize('sendExtensions', "Include my enabled extensions"));
 const sendExperimentsLabel = escape(localize('sendExperiments', "Include A/B experiment info"));
+const reviewGuidanceLabel = localize( // intentionally not escaped because of its embedded tags
+	{
+		key: 'reviewGuidanceLabel',
+		comment: [
+			'{Locked="<a href=\"https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions\" target=\"_blank\">"}',
+			'{Locked="</a>"}'
+		]
+	},
+	'Before you report an issue here please <a href="https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions" target="_blank">review the guidance we provide</a>.'
+);
 
 export default (): string => `
 <div id="issue-reporter">
 	<div id="english" class="input-group hidden">${escape(localize('completeInEnglish', "Please complete the form in English."))}</div>
+
+	<div id="review-guidance-help-text" class="input-group">${reviewGuidanceLabel}</div>
 
 	<div class="section">
 		<div class="input-group">
@@ -25,13 +37,13 @@ export default (): string => `
 		</div>
 
 		<div class="input-group" id="problem-source">
-			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))}<span class="required-input">*</span></label>
+			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))} <span class="required-input">*</span></label>
 			<select id="issue-source" class="inline-form-control" required>
 				<!-- To be dynamically filled -->
 			</select>
 			<div id="issue-source-empty-error" class="validation-error hidden" role="alert">${escape(localize('issueSourceEmptyValidation', "An issue source is required."))}</div>
 			<div id="problem-source-help-text" class="instructions hidden">${escape(localize('disableExtensionsLabelText', "Try to reproduce the problem after {0}. If the problem only reproduces when extensions are active, it is likely an issue with an extension."))
-		.replace('{0}', `<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>`)}
+		.replace('{0}', () => `<span tabIndex=0 role="button" id="disableExtensions" class="workbenchCommand">${escape(localize('disableExtensions', "disabling all extensions and reloading the window"))}</span>`)}
 			</div>
 
 			<div id="extension-selection">
@@ -40,14 +52,14 @@ export default (): string => `
 					<!-- To be dynamically filled -->
 				</select>
 				<div id="extension-selection-validation-error" class="validation-error hidden" role="alert">${escape(localize('extensionWithNonstandardBugsUrl', "The issue reporter is unable to create issues for this extension. Please visit {0} to report an issue."))
-		.replace('{0}', `<span tabIndex=0 role="button" id="extensionBugsLink" class="workbenchCommand"><!-- To be dynamically filled --></span>`)}</div>
+		.replace('{0}', () => `<span tabIndex=0 role="button" id="extensionBugsLink" class="workbenchCommand"><!-- To be dynamically filled --></span>`)}</div>
 				<div id="extension-selection-validation-error-no-url" class="validation-error hidden" role="alert">
 					${escape(localize('extensionWithNoBugsUrl', "The issue reporter is unable to create issues for this extension, as it does not specify a URL for reporting issues. Please check the marketplace page of this extension to see if other instructions are available."))}
 				</div>
 			</div>
 		</div>
 
-		<div class="input-group">
+		<div id="issue-title-container" class="input-group">
 			<label class="inline-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
 			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required>
 			<div id="issue-title-empty-error" class="validation-error hidden" role="alert">${escape(localize('titleEmptyValidation', "A title is required."))}</div>

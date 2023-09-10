@@ -8,7 +8,7 @@ import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
@@ -207,10 +207,14 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.onConfigurationUpdated()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
 
-	private onConfigurationUpdated(): void {
+	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('workbench.editor.openPositioning') && !e.affectsConfiguration('workbench.editor.focusRecentEditorAfterClose')) {
+			return;
+		}
+
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
 		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
 	}
@@ -547,6 +551,7 @@ export class EditorGroupModel extends Disposable {
 		}
 
 		const editor = this.editors[index];
+		const sticky = this.sticky;
 
 		// Adjust sticky index: editor moved out of sticky state into unsticky state
 		if (this.isSticky(index) && toIndex > this.sticky) {
@@ -562,7 +567,7 @@ export class EditorGroupModel extends Disposable {
 		this.editors.splice(index, 1);
 		this.editors.splice(toIndex, 0, editor);
 
-		// Event
+		// Move Event
 		const event: IGroupEditorMoveEvent = {
 			kind: GroupModelChangeKind.EDITOR_MOVE,
 			editor,
@@ -570,6 +575,16 @@ export class EditorGroupModel extends Disposable {
 			editorIndex: toIndex
 		};
 		this._onDidModelChange.fire(event);
+
+		// Sticky Event (if sticky changed as part of the move)
+		if (sticky !== this.sticky) {
+			const event: IGroupEditorChangeEvent = {
+				kind: GroupModelChangeKind.EDITOR_STICKY,
+				editor,
+				editorIndex: toIndex
+			};
+			this._onDidModelChange.fire(event);
+		}
 
 		return editor;
 	}
@@ -854,7 +869,7 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	indexOf(candidate: EditorInput | null, editors = this.editors, options?: IMatchEditorOptions): number {
+	indexOf(candidate: EditorInput | IUntypedEditorInput | null, editors = this.editors, options?: IMatchEditorOptions): number {
 		let index = -1;
 		if (!candidate) {
 			return index;
@@ -879,7 +894,7 @@ export class EditorGroupModel extends Disposable {
 		return index;
 	}
 
-	private findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined {
+	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined {
 		const index = this.indexOf(candidate, this.editors, options);
 		if (index === -1) {
 			return undefined;
@@ -897,13 +912,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
-		for (const editor of this.editors) {
-			if (this.matches(editor, candidate, options)) {
-				return true;
-			}
-		}
-
-		return false;
+		return this.indexOf(candidate, this.editors, options) !== -1;
 	}
 
 	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchEditorOptions): boolean {

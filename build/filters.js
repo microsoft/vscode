@@ -22,6 +22,7 @@ module.exports.all = [
 	'scripts/**/*',
 	'src/**/*',
 	'test/**/*',
+	'!cli/**/*',
 	'!out*/**',
 	'!test/**/out/**',
 	'!**/node_modules/**',
@@ -31,6 +32,7 @@ module.exports.unicodeFilter = [
 	'**',
 
 	'!**/ThirdPartyNotices.txt',
+	'!**/ThirdPartyNotices.cli.txt',
 	'!**/LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
@@ -39,10 +41,12 @@ module.exports.unicodeFilter = [
 	'!**/test/**',
 	'!**/*.test.ts',
 	'!**/*.{d.ts,json,md}',
+	'!**/*.mp3',
 
 	'!build/win32/**',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/**',
+	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/**',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
 	'!extensions/typescript-language-features/test-workspace/**',
@@ -62,9 +66,11 @@ module.exports.indentationFilter = [
 
 	// except specific files
 	'!**/ThirdPartyNotices.txt',
+	'!**/ThirdPartyNotices.cli.txt',
 	'!**/LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
+	'!**/*.mp3',
 	'!src/vs/loader.js',
 	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
@@ -74,13 +80,16 @@ module.exports.indentationFilter = [
 	'!test/unit/assert.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
+	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
 
 	// except specific folders
 	'!test/automation/out/**',
 	'!test/monaco/out/**',
 	'!test/smoke/out/**',
 	'!extensions/typescript-language-features/test-workspace/**',
+	'!extensions/typescript-language-features/resources/walkthroughs/**',
 	'!extensions/markdown-math/notebook-out/**',
+	'!extensions/ipynb/notebook-out/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',
@@ -120,6 +129,7 @@ module.exports.indentationFilter = [
 	'!extensions/markdown-language-features/media/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/*.js',
+	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/*.js',
 	'!extensions/simple-browser/media/*.js',
 ];
@@ -135,10 +145,12 @@ module.exports.copyrightFilter = [
 	'!**/*.cmd',
 	'!**/*.ico',
 	'!**/*.opus',
+	'!**/*.mp3',
 	'!**/*.icns',
 	'!**/*.xml',
 	'!**/*.sh',
 	'!**/*.zsh',
+	'!**/*.fish',
 	'!**/*.txt',
 	'!**/*.xpm',
 	'!**/*.opts',
@@ -153,6 +165,7 @@ module.exports.copyrightFilter = [
 	'!extensions/configuration-editing/build/inline-allOf.ts',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/markdown-math/notebook-out/**',
+	'!extensions/ipynb/notebook-out/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
@@ -183,4 +196,8 @@ module.exports.eslintFilter = [
 		.filter(line => !line.startsWith('#'))
 		.filter(line => !!line)
 		.map(line => `!${line}`)
+];
+
+module.exports.stylelintFilter = [
+	'src/**/*.css'
 ];

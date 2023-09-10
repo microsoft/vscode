@@ -62,7 +62,7 @@ class TestView implements IView<number> {
 }
 
 function getSashes(splitview: SplitView): Sash[] {
-	return (splitview as any).sashItems.map((i: any) => i.sash) as Sash[];
+	return splitview.sashItems.map((i: any) => i.sash) as Sash[];
 }
 
 suite('Splitview', () => {
@@ -336,7 +336,7 @@ suite('Splitview', () => {
 		const viewContainers = container.querySelectorAll('.split-view-view');
 		assert.strictEqual(viewContainers.length, 2, 'there are two view containers');
 		assert.strictEqual((viewContainers.item(0) as HTMLElement).style.height, '66px', 'second view container is 66px');
-		assert.strictEqual((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
+		assert.strictEqual<string>((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
 
 		splitview.dispose();
 		view2.dispose();

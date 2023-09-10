@@ -480,6 +480,7 @@ suite('HistoryService', function () {
 			isSymbolicLink: false,
 			name: 'other.txt',
 			readonly: false,
+			locked: false,
 			size: 0,
 			resource: toResource.call(this, '/path/other.txt'),
 			children: undefined

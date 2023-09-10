@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { env } from 'vs/base/common/process';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { PosixShellType, TerminalSettingId, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { PosixShellType, TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Schemas } from 'vs/base/common/network';
@@ -53,7 +53,7 @@ const enum StorageKeys {
 }
 
 let commandHistory: ITerminalPersistedHistory<{ shellType: TerminalShellType }> | undefined = undefined;
-export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType }> {
+export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType | undefined }> {
 	if (!commandHistory) {
 		commandHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'commands') as TerminalPersistedHistory<{ shellType: TerminalShellType }>;
 	}
@@ -69,8 +69,8 @@ export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersis
 }
 
 // Shell file history loads once per shell per window
-const shellFileHistory: Map<TerminalShellType, string[] | null> = new Map();
-export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType): Promise<string[]> {
+const shellFileHistory: Map<TerminalShellType | undefined, string[] | null> = new Map();
+export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType | undefined): Promise<string[]> {
 	const cached = shellFileHistory.get(shellType);
 	if (cached === null) {
 		return [];
@@ -83,12 +83,14 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Bash:
 			result = await fetchBashHistory(accessor);
 			break;
-		case PosixShellType.PowerShell:
-		case WindowsShellType.PowerShell:
+		case PosixShellType.PowerShell: // WindowsShellType.PowerShell has the same value
 			result = await fetchPwshHistory(accessor);
 			break;
 		case PosixShellType.Zsh:
 			result = await fetchZshHistory(accessor);
+			break;
+		case PosixShellType.Fish:
+			result = await fetchFishHistory(accessor);
 			break;
 		default: return [];
 	}
@@ -126,18 +128,18 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 		this._entries = new LRUCache<string, T>(this._getHistoryLimit());
 
 		// Listen for config changes to set history limit
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandHistory)) {
 				this._entries.limit = this._getHistoryLimit();
 			}
-		});
+		}));
 
 		// Listen to cache changes from other windows
-		this._storageService.onDidChangeValue(e => {
-			if (e.key === this._getTimestampStorageKey() && !this._isStale) {
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._getTimestampStorageKey(), this._register(new DisposableStore()))(() => {
+			if (!this._isStale) {
 				this._isStale = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.APPLICATION, 0) !== this._timestamp;
 			}
-		});
+		}));
 	}
 
 	add(key: string, value: T) {
@@ -360,6 +362,89 @@ export async function fetchPwshHistory(accessor: ServicesAccessor) {
 	}
 
 	return result.values();
+}
+
+export async function fetchFishHistory(accessor: ServicesAccessor) {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
+	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
+		return undefined;
+	}
+
+	/**
+	 * From `fish` docs:
+	 * > The command history is stored in the file ~/.local/share/fish/fish_history
+	 *   (or $XDG_DATA_HOME/fish/fish_history if that variable is set) by default.
+	 *
+	 * (https://fishshell.com/docs/current/interactive.html#history-search)
+	 */
+	const overridenDataHome = env['XDG_DATA_HOME'];
+
+	// TODO: Unchecked fish behavior:
+	// What if XDG_DATA_HOME was defined but somehow $XDG_DATA_HOME/fish/fish_history
+	// was not exist. Does fish fall back to ~/.local/share/fish/fish_history?
+
+	const content = await (overridenDataHome
+		? fetchFileContents(env['XDG_DATA_HOME'], 'fish/fish_history', false, fileService, remoteAgentService)
+		: fetchFileContents(env['HOME'], '.local/share/fish/fish_history', false, fileService, remoteAgentService));
+	if (content === undefined) {
+		return undefined;
+	}
+
+	/**
+	 * These apply to `fish` v3.5.1:
+	 * - It looks like YAML but it's not. It's, quoting, *"a broken psuedo-YAML"*.
+	 *   See these discussions for more details:
+	 *   - https://github.com/fish-shell/fish-shell/pull/6493
+	 *   - https://github.com/fish-shell/fish-shell/issues/3341
+	 * - Every record should exactly start with `- cmd:` (the whitespace between `-` and `cmd` cannot be replaced with tab)
+	 * - Both `- cmd: echo 1` and `- cmd:echo 1` are valid entries.
+	 * - Backslashes are esacped as `\\`.
+	 * - Multiline commands are joined with a `\n` sequence, hence they're read as single line commands.
+	 * - Property `when` is optional.
+	 * - History navigation respects the records order and ignore the actual `when` property values (chronological order).
+	 * - If `cmd` value is multiline , it just takes the first line. Also YAML operators like `>-` or `|-` are not supported.
+	 */
+	const result: Set<string> = new Set();
+	const cmds = content.split('\n')
+		.filter(x => x.startsWith('- cmd:'))
+		.map(x => x.substring(6).trimStart());
+	for (let i = 0; i < cmds.length; i++) {
+		const sanitized = sanitizeFishHistoryCmd(cmds[i]).trim();
+		if (sanitized.length > 0) {
+			result.add(sanitized);
+		}
+	}
+	return result.values();
+}
+
+export function sanitizeFishHistoryCmd(cmd: string): string {
+	/**
+	 * NOTE
+	 * This repeatedReplace() call can be eliminated by using look-ahead
+	 * caluses in the original RegExp pattern:
+	 *
+	 * >>> ```ts
+	 * >>> cmds[i].replace(/(?<=^|[^\\])((?:\\\\)*)(\\n)/g, '$1\n')
+	 * >>> ```
+	 *
+	 * But since not all browsers support look aheads we opted to a simple
+	 * pattern and repeatedly calling replace method.
+	 */
+	return repeatedReplace(/(^|[^\\])((?:\\\\)*)(\\n)/g, cmd, '$1$2\n');
+}
+
+function repeatedReplace(pattern: RegExp, value: string, replaceValue: string): string {
+	let last;
+	let current = value;
+	while (true) {
+		last = current;
+		current = current.replace(pattern, replaceValue);
+		if (current === last) {
+			return current;
+		}
+	}
 }
 
 async function fetchFileContents(

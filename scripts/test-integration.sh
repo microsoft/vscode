@@ -20,38 +20,18 @@ cd $ROOT
 # Figure out which Electron to use for running tests
 if [ -z "$INTEGRATION_TEST_ELECTRON_PATH" ]
 then
-	# Run out of sources: no need to compile as code.sh takes care of it
 	INTEGRATION_TEST_ELECTRON_PATH="./scripts/code.sh"
 
-	echo "Storing crash reports into '$VSCODECRASHDIR'."
-	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running integration tests out of sources."
 else
-	# Run from a built: need to compile all test extensions
-	# because we run extension tests from their source folders
-	# and the build bundles extensions into .build webpacked
-	# yarn gulp 	compile-extension:vscode-api-tests \
-	#			compile-extension:vscode-colorize-tests \
-	#			compile-extension:vscode-notebook-tests \
-	#			compile-extension:markdown-language-features \
-	#			compile-extension:typescript-language-features \
-	#			compile-extension:emmet \
-	#			compile-extension:css-language-features-server \
-	#			compile-extension:html-language-features-server \
-	#			compile-extension:json-language-features-server \
-	#			compile-extension:git \
-	#			compile-extension:ipynb \
-	#			compile-extension:configuration-editing \
-	#			compile-extension-media
-
-	# Configuration for more verbose output
 	export VSCODE_CLI=1
 	export ELECTRON_ENABLE_LOGGING=1
 
-	echo "Storing crash reports into '$VSCODECRASHDIR'."
-	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running integration tests with '$INTEGRATION_TEST_ELECTRON_PATH' as build."
 fi
+
+echo "Storing crash reports into '$VSCODECRASHDIR'."
+echo "Storing log files into '$VSCODELOGSDIR'."
 
 
 # Tests standalone (AMD)
@@ -118,6 +98,12 @@ echo
 echo "### Ipynb tests"
 echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test $API_TESTS_EXTRA_ARGS
+kill_app
+
+echo
+echo "### Notebook Output tests"
+echo
+"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/notebook-renderers --extensionTestsPath=$ROOT/extensions/notebook-renderers/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 
 echo

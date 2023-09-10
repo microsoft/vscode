@@ -18,6 +18,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 suite('ExtHostConfiguration', function () {
 
@@ -30,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function createExtHostWorkspace(): ExtHostWorkspace {
-		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService());
+		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService(), new class extends mock<IURITransformerService>() { });
 	}
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
@@ -631,24 +632,6 @@ suite('ExtHostConfiguration', function () {
 		assert.strictEqual(config.has('config0'), true);
 	});
 
-	test('getConfiguration vs get', function () {
-
-		const all = createExtHostConfiguration({
-			'farboo': {
-				'config0': true,
-				'config4': 38
-			}
-		});
-
-		let config = all.getConfiguration('farboo.config0');
-		assert.strictEqual(config.get(''), undefined);
-		assert.strictEqual(config.has(''), false);
-
-		config = all.getConfiguration('farboo');
-		assert.strictEqual(config.get('config0'), true);
-		assert.strictEqual(config.has('config0'), true);
-	});
-
 	test('name vs property', function () {
 		const all = createExtHostConfiguration({
 			'farboo': {
@@ -786,6 +769,16 @@ suite('ExtHostConfiguration', function () {
 		});
 
 		testObject.$acceptConfigurationChanged(newConfigData, configEventData);
+	});
+
+	test('get return instance of array value', function () {
+		const testObject = createExtHostConfiguration({ 'far': { 'boo': [] } });
+
+		const value: string[] = testObject.getConfiguration().get('far.boo', []);
+		value.push('a');
+
+		const actual = testObject.getConfiguration().get('far.boo', []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	function aWorkspaceFolder(uri: URI, index: number, name: string = ''): IWorkspaceFolder {

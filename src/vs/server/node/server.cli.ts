@@ -12,7 +12,7 @@ import { cwd } from 'vs/base/common/process';
 import { dirname, extname, resolve, join } from 'vs/base/common/path';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { createWaitMarkerFileSync } from 'vs/platform/environment/node/wait';
 import { PipeCommand } from 'vs/workbench/api/node/extHostCLIServer';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
 
@@ -59,6 +59,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'file-uri':
 		case 'add':
 		case 'diff':
+		case 'merge':
 		case 'wait':
 		case 'goto':
 		case 'reuse-window':
@@ -72,6 +73,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'category':
 		case 'verbose':
 		case 'remote':
+		case 'locate-shell-integration-path':
 			return true;
 		default:
 			return false;
@@ -85,14 +87,14 @@ const cliRemoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
 const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 
 
-export function main(desc: ProductDescription, args: string[]): void {
+export async function main(desc: ProductDescription, args: string[]): Promise<void> {
 	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
 		return;
 	}
 
 	// take the local options and remove the ones that don't apply
-	const options: OptionDescriptions<RemoteParsedArgs> = { ...OPTIONS };
+	const options: OptionDescriptions<Required<RemoteParsedArgs>> = { ...OPTIONS, gitCredential: { type: 'string' }, openExternal: { type: 'boolean' } };
 	const isSupported = cliCommand ? isSupportedForCmd : isSupportedForPipe;
 	for (const optionId in OPTIONS) {
 		const optId = <keyof RemoteParsedArgs>optionId;
@@ -133,6 +135,22 @@ export function main(desc: ProductDescription, args: string[]): void {
 		console.log(buildVersionMessage(desc.version, desc.commit));
 		return;
 	}
+	if (parsedArgs['locate-shell-integration-path']) {
+		let file: string;
+		switch (parsedArgs['locate-shell-integration-path']) {
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"`
+			case 'bash': file = 'shellIntegration-bash.sh'; break;
+			// Usage: `if ($env:TERM_PROGRAM -eq "vscode") { . "$(code --locate-shell-integration-path pwsh)" }`
+			case 'pwsh': file = 'shellIntegration.ps1'; break;
+			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
+			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
+			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
+			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
+			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
+		}
+		console.log(resolve(__dirname, '../..', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+		return;
+	}
 	if (cliPipe) {
 		if (parsedArgs['openExternal']) {
 			openInBrowser(parsedArgs['_'], verbose);
@@ -168,7 +186,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			let stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
-				readFromStdin(stdinFilePath, verbose); // throws error if file can not be written
+				await readFromStdin(stdinFilePath, verbose); // throws error if file can not be written
 			}
 
 			// Make sure to open tmp file
@@ -215,7 +233,6 @@ export function main(desc: ProductDescription, args: string[]): void {
 			cp.on('error', err => console.log(err));
 			return;
 		}
-
 
 		const newCommandline: string[] = [];
 		for (const key in parsedArgs) {
@@ -289,7 +306,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 				console.log('At least one file must be provided to wait for.');
 				return;
 			}
-			waitMarkerFilePath = createWaitMarkerFile(verbose);
+			waitMarkerFilePath = createWaitMarkerFileSync(verbose);
 		}
 
 		sendToPipe({
@@ -297,6 +314,7 @@ export function main(desc: ProductDescription, args: string[]): void {
 			fileURIs,
 			folderURIs,
 			diffMode: parsedArgs.diff,
+			mergeMode: parsedArgs.merge,
 			addMode: parsedArgs.add,
 			gotoLineMode: parsedArgs.goto,
 			forceReuseWindow: parsedArgs['reuse-window'],
@@ -444,5 +462,6 @@ function mapFileToRemoteUri(uri: string): string {
 }
 
 const [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;
-main({ productName, version, commit, executableName }, remainingArgs);
-
+main({ productName, version, commit, executableName }, remainingArgs).then(null, err => {
+	console.error(err.message || err.stack || err);
+});

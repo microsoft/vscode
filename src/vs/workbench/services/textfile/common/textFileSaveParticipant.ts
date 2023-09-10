@@ -52,7 +52,7 @@ export class TextFileSaveParticipant extends Disposable {
 					const promise = saveParticipant.participate(model, context, progress, cts.token);
 					await raceCancellation(promise, cts.token);
 				} catch (err) {
-					this.logService.warn(err);
+					this.logService.error(err);
 				}
 			}
 

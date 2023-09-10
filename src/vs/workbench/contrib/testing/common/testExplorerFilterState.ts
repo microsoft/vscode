@@ -199,7 +199,7 @@ export const enum TestFilterTerm {
 	Hidden = '@hidden',
 }
 
-export const allTestFilterTerms: readonly TestFilterTerm[] = [
+const allTestFilterTerms: readonly TestFilterTerm[] = [
 	TestFilterTerm.Failed,
 	TestFilterTerm.Executed,
 	TestFilterTerm.CurrentDoc,

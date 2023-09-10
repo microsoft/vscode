@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { addDisposableListener, DragAndDropObserver, EventType } from 'vs/base/browser/dom';
+import { DragAndDropObserver, EventType, addDisposableListener } from 'vs/base/browser/dom';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
@@ -19,17 +19,16 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { UriList } from 'vs/editor/browser/dnd';
-import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsAndFilesDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
+import { CodeDataTransfers, Extensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat, LocalSelectionTransfer, createDraggedEditorInputFromRawResourcesData, extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extractSelection } from 'vs/platform/opener/common/opener';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, hasWorkspaceFileExtension, isTemporaryWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, IEditorIdentifier, isEditorIdentifier, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -48,10 +47,6 @@ export class DraggedEditorGroupIdentifier {
 	constructor(readonly identifier: GroupIdentifier) { }
 }
 
-export class DraggedTreeItemsIdentifier {
-
-	constructor(readonly identifier: string) { }
-}
 
 export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
@@ -121,13 +116,9 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		// and only for resources that are outside of the currently opened workspace
 		const externalLocalFiles = coalesce(editors.filter(editor => editor.isExternal && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
 		if (externalLocalFiles.length) {
-			this.workspacesService.addRecentlyOpened(externalLocalFiles
-				.filter(resource => !this.contextService.isInsideWorkspace(resource))
-				.map(resource => ({ fileUri: resource }))
-			);
+			this.workspacesService.addRecentlyOpened(externalLocalFiles.map(resource => ({ fileUri: resource })));
 		}
 
 		// Open in Editor
@@ -241,7 +232,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	// - only file:/ resources are supported
 	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
-		const firstFileUri = FileAccess.asFileUri(firstFile.resource); // enforce `file:` URIs
+		const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
 		if (firstFileUri.scheme === Schemas.file) {
 			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
 		}
@@ -336,56 +327,31 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	if (draggedEditors.length) {
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
-	}
-}
 
-//#endregion
-
-
-//#region DND Utilities
-
-/**
- * A singleton to store transfer data during drag & drop operations that are only valid within the application.
- */
-export class LocalSelectionTransfer<T> {
-
-	private static readonly INSTANCE = new LocalSelectionTransfer();
-
-	private data?: T[];
-	private proto?: T;
-
-	private constructor() {
-		// protect against external instantiation
-	}
-
-	static getInstance<T>(): LocalSelectionTransfer<T> {
-		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
-	}
-
-	hasData(proto: T): boolean {
-		return proto && proto === this.proto;
-	}
-
-	clearData(proto: T): void {
-		if (this.hasData(proto)) {
-			this.proto = undefined;
-			this.data = undefined;
-		}
-	}
-
-	getData(proto: T): T[] | undefined {
-		if (this.hasData(proto)) {
-			return this.data;
+		// Add a URI list entry
+		const uriListEntries: URI[] = [];
+		for (const editor of draggedEditors) {
+			if (editor.resource) {
+				uriListEntries.push(editor.resource);
+			} else if (isResourceDiffEditorInput(editor)) {
+				if (editor.modified.resource) {
+					uriListEntries.push(editor.modified.resource);
+				}
+			} else if (isResourceSideBySideEditorInput(editor)) {
+				if (editor.primary.resource) {
+					uriListEntries.push(editor.primary.resource);
+				}
+			} else if (isResourceMergeEditorInput(editor)) {
+				uriListEntries.push(editor.result.resource);
+			}
 		}
 
-		return undefined;
-	}
-
-	setData(data: T[], proto: T): void {
-		if (proto) {
-			this.data = data;
-			this.proto = proto;
-		}
+		// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=239745, we can only set
+		// a single uri for the real `text/uri-list` type. Otherwise all uris end up joined together
+		// However we write the full uri-list to an internal type so that other parts of VS Code
+		// can use the full list.
+		event.dataTransfer.setData(Mimes.uriList, UriList.create(uriListEntries.slice(0, 1)));
+		event.dataTransfer.setData(DataTransfers.INTERNAL_URI_LIST, UriList.create(uriListEntries));
 	}
 }
 

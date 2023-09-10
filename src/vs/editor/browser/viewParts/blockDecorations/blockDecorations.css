@@ -6,6 +6,7 @@
 .monaco-editor .blockDecorations-container {
 	position: absolute;
 	top: 0;
+	pointer-events: none;
 }
 
 .monaco-editor .blockDecorations-block {

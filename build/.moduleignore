@@ -12,6 +12,14 @@ fsevents/src/**
 fsevents/test/**
 !fsevents/**/*.node
 
+@vscode/spdlog/binding.gyp
+@vscode/spdlog/build/**
+@vscode/spdlog/deps/**
+@vscode/spdlog/src/**
+@vscode/spdlog/test/**
+@vscode/spdlog/*.yml
+!@vscode/spdlog/build/Release/*.node
+
 @vscode/sqlite3/binding.gyp
 @vscode/sqlite3/benchmark/**
 @vscode/sqlite3/cloudformation/**
@@ -21,15 +29,22 @@ fsevents/test/**
 @vscode/sqlite3/src/**
 !@vscode/sqlite3/build/Release/*.node
 
+@vscode/windows-mutex/binding.gyp
+@vscode/windows-mutex/build/**
+@vscode/windows-mutex/src/**
+!@vscode/windows-mutex/**/*.node
+
+@vscode/windows-process-tree/binding.gyp
+@vscode/windows-process-tree/build/**
+@vscode/windows-process-tree/src/**
+@vscode/windows-process-tree/tsconfig.json
+@vscode/windows-process-tree/tslint.json
+!@vscode/windows-process-tree/**/*.node
+
 @vscode/windows-registry/binding.gyp
 @vscode/windows-registry/src/**
 @vscode/windows-registry/build/**
 !@vscode/windows-registry/build/Release/*.node
-
-windows-mutex/binding.gyp
-windows-mutex/build/**
-windows-mutex/src/**
-!windows-mutex/**/*.node
 
 native-keymap/binding.gyp
 native-keymap/build/**
@@ -48,23 +63,21 @@ native-watchdog/build/**
 native-watchdog/src/**
 !native-watchdog/build/Release/*.node
 
-spdlog/binding.gyp
-spdlog/build/**
-spdlog/deps/**
-spdlog/src/**
-spdlog/test/**
-spdlog/*.yml
-!spdlog/build/Release/*.node
+node-vsce-sign/**
+!node-vsce-sign/src/main.js
+!node-vsce-sign/package.json
+!node-vsce-sign/bin/**
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
 windows-foreground-love/src/**
 !windows-foreground-love/**/*.node
 
-windows-process-tree/binding.gyp
-windows-process-tree/build/**
-windows-process-tree/src/**
-!windows-process-tree/**/*.node
+kerberos/binding.gyp
+kerberos/build/**
+kerberos/src/**
+kerberos/node_modules/**
+!kerberos/**/*.node
 
 keytar/binding.gyp
 keytar/build/**
@@ -80,6 +93,7 @@ node-pty/lib/*.test.js
 node-pty/tools/**
 node-pty/deps/**
 node-pty/scripts/**
+!node-pty/build/Release/spawn-helper
 !node-pty/build/Release/*.exe
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
@@ -96,28 +110,21 @@ vsda/src/**
 vsda/.gitignore
 vsda/binding.gyp
 vsda/README.md
+vsda/SECURITY.md
 vsda/targets
 !vsda/build/Release/vsda.node
 
-vscode-encrypt/build/**
-vscode-encrypt/src/**
-vscode-encrypt/vendor/**
-vscode-encrypt/.gitignore
-vscode-encrypt/binding.gyp
-vscode-encrypt/README.md
-!vscode-encrypt/build/Release/vscode-encrypt-native.node
+@vscode/policy-watcher/build/**
+@vscode/policy-watcher/.husky/**
+@vscode/policy-watcher/src/**
+@vscode/policy-watcher/binding.gyp
+@vscode/policy-watcher/README.md
+@vscode/policy-watcher/index.d.ts
+!@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
 
-vscode-policy-watcher/build/**
-vscode-policy-watcher/.husky/**
-vscode-policy-watcher/src/**
-vscode-policy-watcher/binding.gyp
-vscode-policy-watcher/README.md
-vscode-policy-watcher/index.d.ts
-!vscode-policy-watcher/build/Release/vscode-policy-watcher.node
-
-vscode-windows-ca-certs/**/*
-!vscode-windows-ca-certs/package.json
-!vscode-windows-ca-certs/**/*.node
+@vscode/windows-ca-certs/**/*
+!@vscode/windows-ca-certs/package.json
+!@vscode/windows-ca-certs/**/*.node
 
 node-addon-api/**/*
 prebuild-install/**/*
@@ -140,7 +147,13 @@ prebuild-install/**/*
 **/CONTRIBUTING.md
 
 **/*.ts
-!typescript/**/*.d.ts
+
+# Exclude TS files that aren't needed by TS extension
+typescript/lib/tsc.js
+typescript/lib/typescriptServices.js
+typescript/lib/tsserverlibrary.js
+# We still need to include stdlib d.ts
+!typescript/lib/lib*.d.ts
 
 jschardet/index.js
 jschardet/src/**
@@ -162,5 +175,3 @@ xterm-addon-*/src/**
 xterm-addon-*/fixtures/**
 xterm-addon-*/out/**
 xterm-addon-*/out-test/**
-
-

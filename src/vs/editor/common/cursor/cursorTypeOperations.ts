@@ -891,7 +891,7 @@ export class TypeOperations {
 
 			const commands: ICommand[] = [];
 			for (let i = 0, len = positions.length; i < len; i++) {
-				commands.push(new CompositionSurroundSelectionCommand(positions[i], compositions[i].deletedText, ch));
+				commands.push(new CompositionSurroundSelectionCommand(positions[i], compositions[i].deletedText, config.surroundingPairs[ch]));
 			}
 			return new EditOperationResult(EditOperationType.TypingOther, commands, {
 				shouldPushStackElementBefore: true,

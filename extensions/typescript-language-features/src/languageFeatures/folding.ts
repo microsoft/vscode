@@ -4,16 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { coalesce } from '../utils/arrays';
-import { conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
 
 class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
-	public static readonly minVersion = API.v280;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
@@ -24,7 +21,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		_context: vscode.FoldingContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -87,10 +84,6 @@ export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptFoldingProvider.minVersion),
-	], () => {
-		return vscode.languages.registerFoldingRangeProvider(selector.syntax,
-			new TypeScriptFoldingProvider(client));
-	});
+	return vscode.languages.registerFoldingRangeProvider(selector.syntax,
+		new TypeScriptFoldingProvider(client));
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, isEqual, joinPath } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
@@ -109,14 +109,6 @@ export class WorkingCopyBackupsModel {
 
 	remove(resource: URI): void {
 		this.cache.delete(resource);
-	}
-
-	move(source: URI, target: URI): void {
-		const entry = this.cache.get(source);
-		if (entry) {
-			this.cache.delete(source);
-			this.cache.set(target, entry);
-		}
 	}
 
 	clear(): void {
@@ -230,42 +222,14 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		// Create backup model
 		this.model = await WorkingCopyBackupsModel.create(this.backupWorkspaceHome, this.fileService);
 
-		// Migrate hashes as needed. We used to hash with a MD5
-		// sum of the path but switched to our own simpler hash
-		// to avoid a node.js dependency. We still want to
-		// support the older hash to prevent dataloss, so we:
-		// - iterate over all backups
-		// - detect if the file name length is 32 (MD5 length)
-		// - read the backup's target file path
-		// - rename the backup to the new hash
-		// - update the backup in our model
-		for (const backupResource of this.model.get()) {
-			if (basename(backupResource).length !== 32) {
-				continue; // not a MD5 hash, already uses new hash function
-			}
-
-			try {
-				const identifier = await this.resolveIdentifier(backupResource, this.model);
-				if (!identifier) {
-					this.logService.warn(`Backup: Unable to read target URI of backup ${backupResource} for migration to new hash.`);
-					continue;
-				}
-
-				const expectedBackupResource = this.toBackupResource(identifier);
-				if (!isEqual(expectedBackupResource, backupResource)) {
-					await this.fileService.move(backupResource, expectedBackupResource, true);
-					this.model.move(backupResource, expectedBackupResource);
-				}
-			} catch (error) {
-				this.logService.error(`Backup: Unable to migrate backup ${backupResource} to new hash.`);
-			}
-		}
-
 		return this.model;
 	}
 
 	async hasBackups(): Promise<boolean> {
 		const model = await this.ready;
+
+		// Ensure to await any pending backup operations
+		await this.joinBackups();
 
 		return model.count() > 0;
 	}
@@ -409,48 +373,60 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 	async getBackups(): Promise<IWorkingCopyIdentifier[]> {
 		const model = await this.ready;
 
+		// Ensure to await any pending backup operations
+		await this.joinBackups();
+
 		const backups = await Promise.all(model.get().map(backupResource => this.resolveIdentifier(backupResource, model)));
 
 		return coalesce(backups);
 	}
 
 	private async resolveIdentifier(backupResource: URI, model: WorkingCopyBackupsModel): Promise<IWorkingCopyIdentifier | undefined> {
+		let res: IWorkingCopyIdentifier | undefined = undefined;
 
-		// Read the entire backup preamble by reading up to
-		// `PREAMBLE_MAX_LENGTH` in the backup file until
-		// the `PREAMBLE_END_MARKER` is found
-		const backupPreamble = await this.readToMatchingString(backupResource, WorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER, WorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH);
-		if (!backupPreamble) {
-			return undefined;
-		}
+		await this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+			if (!model.has(backupResource)) {
+				return; // require backup to be present
+			}
 
-		// Figure out the offset in the preamble where meta
-		// information possibly starts. This can be `-1` for
-		// older backups without meta.
-		const metaStartIndex = backupPreamble.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
+			// Read the entire backup preamble by reading up to
+			// `PREAMBLE_MAX_LENGTH` in the backup file until
+			// the `PREAMBLE_END_MARKER` is found
+			const backupPreamble = await this.readToMatchingString(backupResource, WorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER, WorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH);
+			if (!backupPreamble) {
+				return;
+			}
 
-		// Extract the preamble content for resource and meta
-		let resourcePreamble: string;
-		let metaPreamble: string | undefined;
-		if (metaStartIndex > 0) {
-			resourcePreamble = backupPreamble.substring(0, metaStartIndex);
-			metaPreamble = backupPreamble.substr(metaStartIndex + 1);
-		} else {
-			resourcePreamble = backupPreamble;
-			metaPreamble = undefined;
-		}
+			// Figure out the offset in the preamble where meta
+			// information possibly starts. This can be `-1` for
+			// older backups without meta.
+			const metaStartIndex = backupPreamble.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
 
-		// Try to parse the meta preamble for figuring out
-		// `typeId` and `meta` if defined.
-		const { typeId, meta } = this.parsePreambleMeta(metaPreamble);
+			// Extract the preamble content for resource and meta
+			let resourcePreamble: string;
+			let metaPreamble: string | undefined;
+			if (metaStartIndex > 0) {
+				resourcePreamble = backupPreamble.substring(0, metaStartIndex);
+				metaPreamble = backupPreamble.substr(metaStartIndex + 1);
+			} else {
+				resourcePreamble = backupPreamble;
+				metaPreamble = undefined;
+			}
 
-		// Update model entry with now resolved meta
-		model.update(backupResource, meta);
+			// Try to parse the meta preamble for figuring out
+			// `typeId` and `meta` if defined.
+			const { typeId, meta } = this.parsePreambleMeta(metaPreamble);
 
-		return {
-			typeId: typeId ?? NO_TYPE_ID,
-			resource: URI.parse(resourcePreamble)
-		};
+			// Update model entry with now resolved meta
+			model.update(backupResource, meta);
+
+			res = {
+				typeId: typeId ?? NO_TYPE_ID,
+				resource: URI.parse(resourcePreamble)
+			};
+		});
+
+		return res;
 	}
 
 	private async readToMatchingString(backupResource: URI, matchingString: string, maximumBytesToRead: number): Promise<string | undefined> {
@@ -469,50 +445,57 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		const backupResource = this.toBackupResource(identifier);
 
 		const model = await this.ready;
-		if (!model.has(backupResource)) {
-			return undefined; // require backup to be present
-		}
 
-		// Load the backup content and peek into the first chunk
-		// to be able to resolve the meta data
-		const backupStream = await this.fileService.readFileStream(backupResource);
-		const peekedBackupStream = await peekStream(backupStream.value, 1);
-		const firstBackupChunk = VSBuffer.concat(peekedBackupStream.buffer);
+		let res: IResolvedWorkingCopyBackup<T> | undefined = undefined;
 
-		// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
-		// if VSCode goes down while writing the backup file, the file can turn empty because
-		// it always first gets truncated and then written to. In this case, we will not find
-		// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
-		// here if that is the case.
-		const preambleEndIndex = firstBackupChunk.buffer.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER_CHARCODE);
-		if (preambleEndIndex === -1) {
-			this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${backupStream.size}).`);
+		await this.ioOperationQueues.queueFor(backupResource).queue(async () => {
+			if (!model.has(backupResource)) {
+				return; // require backup to be present
+			}
 
-			return undefined;
-		}
+			// Load the backup content and peek into the first chunk
+			// to be able to resolve the meta data
+			const backupStream = await this.fileService.readFileStream(backupResource);
+			const peekedBackupStream = await peekStream(backupStream.value, 1);
+			const firstBackupChunk = VSBuffer.concat(peekedBackupStream.buffer);
 
-		const preambelRaw = firstBackupChunk.slice(0, preambleEndIndex).toString();
+			// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
+			// if VSCode goes down while writing the backup file, the file can turn empty because
+			// it always first gets truncated and then written to. In this case, we will not find
+			// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
+			// here if that is the case.
+			const preambleEndIndex = firstBackupChunk.buffer.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER_CHARCODE);
+			if (preambleEndIndex === -1) {
+				this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${backupStream.size}).`);
 
-		// Extract meta data (if any)
-		let meta: T | undefined;
-		const metaStartIndex = preambelRaw.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
-		if (metaStartIndex !== -1) {
-			meta = this.parsePreambleMeta(preambelRaw.substr(metaStartIndex + 1)).meta as T;
-		}
+				return undefined;
+			}
 
-		// Update model entry with now resolved meta
-		model.update(backupResource, meta);
+			const preambelRaw = firstBackupChunk.slice(0, preambleEndIndex).toString();
 
-		// Build a new stream without the preamble
-		const firstBackupChunkWithoutPreamble = firstBackupChunk.slice(preambleEndIndex + 1);
-		let value: VSBufferReadableStream;
-		if (peekedBackupStream.ended) {
-			value = bufferToStream(firstBackupChunkWithoutPreamble);
-		} else {
-			value = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
-		}
+			// Extract meta data (if any)
+			let meta: T | undefined;
+			const metaStartIndex = preambelRaw.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
+			if (metaStartIndex !== -1) {
+				meta = this.parsePreambleMeta(preambelRaw.substr(metaStartIndex + 1)).meta as T;
+			}
 
-		return { value, meta };
+			// Update model entry with now resolved meta
+			model.update(backupResource, meta);
+
+			// Build a new stream without the preamble
+			const firstBackupChunkWithoutPreamble = firstBackupChunk.slice(preambleEndIndex + 1);
+			let value: VSBufferReadableStream;
+			if (peekedBackupStream.ended) {
+				value = bufferToStream(firstBackupChunkWithoutPreamble);
+			} else {
+				value = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
+			}
+
+			res = { value, meta };
+		});
+
+		return res;
 	}
 
 	private parsePreambleMeta<T extends IWorkingCopyBackupMeta>(preambleMetaRaw: string | undefined): { typeId: string | undefined; meta: T | undefined } {

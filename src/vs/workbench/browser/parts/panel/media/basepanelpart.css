@@ -7,7 +7,8 @@
 	justify-content: flex-end;
 }
 
-.monaco-workbench .part.basepanel > .composite.title > .title-actions .monaco-action-bar .action-item {
+.monaco-workbench .part.basepanel > .composite.title > .title-actions .monaco-action-bar .action-item,
+.monaco-workbench .part.basepanel > .composite.title > .global-actions .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
 

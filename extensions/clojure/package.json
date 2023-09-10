@@ -36,7 +36,12 @@
         "scopeName": "source.clojure",
         "path": "./syntaxes/clojure.tmLanguage.json"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[clojure]": {
+        "diffEditor.ignoreTrimWhitespace": false
+      }
+    }
   },
   "repository": {
     "type": "git",

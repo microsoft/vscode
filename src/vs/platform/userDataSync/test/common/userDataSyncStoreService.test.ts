@@ -5,70 +5,18 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
+import { newWriteableBufferStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { ConfigurationSyncStore } from 'vs/base/common/product';
-import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
-import { RequestsSession, UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { RequestsSession, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
-
-suite('UserDataSyncStoreManagementService', () => {
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
-
-	test('test sync store is read from settings', async () => {
-		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer()));
-		await client.setUp();
-
-		client.instantiationService.stub(IProductService, {
-			_serviceBrand: undefined, ...product, ...{
-				'configurationSync.store': undefined
-			}
-		});
-
-		const configuredStore: ConfigurationSyncStore = {
-			url: 'http://configureHost:3000',
-			stableUrl: 'http://configureHost:3000',
-			insidersUrl: 'http://configureHost:3000',
-			canSwitch: false,
-			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
-		};
-		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IUserDataProfilesService).defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({
-			'configurationSync.store': configuredStore
-		})));
-		await client.instantiationService.get(IConfigurationService).reloadConfiguration();
-
-		const expected: IUserDataSyncStore = {
-			url: URI.parse('http://configureHost:3000'),
-			type: 'stable',
-			defaultUrl: URI.parse('http://configureHost:3000'),
-			stableUrl: URI.parse('http://configureHost:3000'),
-			insidersUrl: URI.parse('http://configureHost:3000'),
-			canSwitch: false,
-			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
-		};
-
-		const testObject: IUserDataSyncStoreManagementService = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreManagementService));
-
-		assert.strictEqual(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
-		assert.strictEqual(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
-		assert.deepStrictEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
-	});
-
-});
 
 suite('UserDataSyncStoreService', () => {
 
@@ -120,7 +68,7 @@ suite('UserDataSyncStoreService', () => {
 
 		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 
 		target.reset();
 		await testObject.manifest(null);
@@ -139,7 +87,7 @@ suite('UserDataSyncStoreService', () => {
 
 		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 
 		target.reset();
@@ -159,12 +107,12 @@ suite('UserDataSyncStoreService', () => {
 
 		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		await testObject.manifest(null);
 
 		target.reset();
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
@@ -180,12 +128,12 @@ suite('UserDataSyncStoreService', () => {
 
 		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		await testObject.manifest(null);
 
 		target.reset();
-		await testObject.read(SyncResource.Settings, null);
+		await testObject.readResource(SyncResource.Settings, null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
@@ -201,7 +149,7 @@ suite('UserDataSyncStoreService', () => {
 
 		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		await testObject.manifest(null);
 		await testObject.clear();
@@ -223,7 +171,7 @@ suite('UserDataSyncStoreService', () => {
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
 		await testObject.manifest(null);
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		target.reset();
 		await testObject.manifest(null);
@@ -235,7 +183,7 @@ suite('UserDataSyncStoreService', () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(target));
 		await client2.setUp();
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
-		await testObject2.write(SyncResource.Settings, 'some content', null);
+		await testObject2.writeResource(SyncResource.Settings, 'some content', null);
 
 		target.reset();
 		await testObject.manifest(null);
@@ -255,7 +203,7 @@ suite('UserDataSyncStoreService', () => {
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
 		await testObject.manifest(null);
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		target.reset();
 		await testObject.manifest(null);
@@ -267,7 +215,7 @@ suite('UserDataSyncStoreService', () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(target));
 		await client2.setUp();
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
-		await testObject2.write(SyncResource.Settings, 'some content', null);
+		await testObject2.writeResource(SyncResource.Settings, 'some content', null);
 
 		await testObject.manifest(null);
 		target.reset();
@@ -288,7 +236,7 @@ suite('UserDataSyncStoreService', () => {
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
 		await testObject.manifest(null);
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		target.reset();
 		await testObject.manifest(null);
@@ -319,7 +267,7 @@ suite('UserDataSyncStoreService', () => {
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
 		await testObject.manifest(null);
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		target.reset();
 		await testObject.manifest(null);
@@ -349,7 +297,7 @@ suite('UserDataSyncStoreService', () => {
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
 		await testObject.manifest(null);
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		target.reset();
 		await testObject.manifest(null);
@@ -363,7 +311,7 @@ suite('UserDataSyncStoreService', () => {
 		await testObject2.clear();
 
 		await testObject.manifest(null);
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 		await testObject.manifest(null);
 		target.reset();
 		await testObject.manifest(null);
@@ -454,8 +402,8 @@ suite('UserDataSyncStoreService', () => {
 		await client.sync();
 
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
-		const expected = await testObject.read(SyncResource.Settings, null);
-		const actual = await testObject.read(SyncResource.Settings, expected);
+		const expected = await testObject.readResource(SyncResource.Settings, null);
+		const actual = await testObject.readResource(SyncResource.Settings, expected);
 
 		assert.strictEqual(actual, expected);
 	});

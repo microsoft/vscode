@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { release, userInfo } from 'os';
+import { userInfo } from 'os';
 import * as platform from 'vs/base/common/platform';
 import { getFirstAvailablePowerShellInstallation } from 'vs/base/node/powershell';
 import * as processes from 'vs/base/node/processes';
@@ -17,18 +17,6 @@ export async function getSystemShell(os: platform.OperatingSystem, env: platform
 	if (os === platform.OperatingSystem.Windows) {
 		if (platform.isWindows) {
 			return getSystemShellWindows();
-		}
-		// Don't detect Windows shell when not on Windows
-		return processes.getWindowsShell(env);
-	}
-
-	return getSystemShellUnixLike(os, env);
-}
-
-export function getSystemShellSync(os: platform.OperatingSystem, env: platform.IProcessEnvironment): string {
-	if (os === platform.OperatingSystem.Windows) {
-		if (platform.isWindows) {
-			return getSystemShellWindowsSync(env);
 		}
 		// Don't detect Windows shell when not on Windows
 		return processes.getWindowsShell(env);
@@ -79,15 +67,4 @@ async function getSystemShellWindows(): Promise<string> {
 		_TERMINAL_DEFAULT_SHELL_WINDOWS = (await getFirstAvailablePowerShellInstallation())!.exePath;
 	}
 	return _TERMINAL_DEFAULT_SHELL_WINDOWS;
-}
-
-function getSystemShellWindowsSync(env: platform.IProcessEnvironment): string {
-	if (_TERMINAL_DEFAULT_SHELL_WINDOWS) {
-		return _TERMINAL_DEFAULT_SHELL_WINDOWS;
-	}
-
-	const isAtLeastWindows10 = platform.isWindows && parseFloat(release()) >= 10;
-	const is32ProcessOn64Windows = env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-	const powerShellPath = `${env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}\\WindowsPowerShell\\v1.0\\powershell.exe`;
-	return isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell(env);
 }

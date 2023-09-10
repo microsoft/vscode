@@ -7,11 +7,11 @@ import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, Ta
 import { isWeb, Language } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { FileAccess } from 'vs/base/common/network';
+import { builtinExtensionsPath, FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -46,7 +46,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 				this.nlsUrl = URI.joinPath(URI.parse(nlsBaseUrl), productService.commit, productService.version, Language.value());
 			}
 
-			const builtinExtensionsServiceUrl = FileAccess.asBrowserUri('../../../../../../extensions', require);
+			const builtinExtensionsServiceUrl = FileAccess.asBrowserUri(builtinExtensionsPath);
 			if (builtinExtensionsServiceUrl) {
 				let bundledExtensions: IBundledExtension[] = [];
 
@@ -104,4 +104,4 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	}
 }
 
-registerSingleton(IBuiltinExtensionsScannerService, BuiltinExtensionsScannerService);
+registerSingleton(IBuiltinExtensionsScannerService, BuiltinExtensionsScannerService, InstantiationType.Delayed);

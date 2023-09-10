@@ -165,6 +165,13 @@ export abstract class Marker {
 		return this._children;
 	}
 
+	get rightMostDescendant(): Marker {
+		if (this._children.length > 0) {
+			return this._children[this._children.length - 1].rightMostDescendant;
+		}
+		return this;
+	}
+
 	get snippet(): TextmateSnippet | undefined {
 		let candidate: Marker = this;
 		while (true) {
@@ -293,7 +300,7 @@ export class Choice extends Marker {
 
 	toTextmateString(): string {
 		return this.options
-			.map(option => option.value.replace(/\||,/g, '\\$&'))
+			.map(option => option.value.replace(/\||,|\\/g, '\\$&'))
 			.join(',');
 	}
 
@@ -601,16 +608,20 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
+	/**
+	 * Takes a snippet and returns the insertable string, e.g return the snippet-string
+	 * without any placeholder, tabstop, variables etc...
+	 */
+	static asInsertText(value: string): string {
+		return new SnippetParser().parse(value).toString();
+	}
+
 	static guessNeedsClipboard(template: string): boolean {
 		return /\${?CLIPBOARD/.test(template);
 	}
 
 	private _scanner: Scanner = new Scanner();
 	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
-
-	text(value: string): string {
-		return this.parse(value).toString();
-	}
 
 	parse(value: string, insertFinalTabstop?: boolean, enforceFinalTabstop?: boolean): TextmateSnippet {
 		const snippet = new TextmateSnippet();
@@ -645,16 +656,30 @@ export class SnippetParser {
 			return true;
 		});
 
-		for (const placeholder of incompletePlaceholders) {
+		const fillInIncompletePlaceholder = (placeholder: Placeholder, stack: Set<number>) => {
 			const defaultValues = placeholderDefaultValues.get(placeholder.index);
-			if (defaultValues) {
-				const clone = new Placeholder(placeholder.index);
-				clone.transform = placeholder.transform;
-				for (const child of defaultValues) {
-					clone.appendChild(child.clone());
-				}
-				snippet.replace(placeholder, [clone]);
+			if (!defaultValues) {
+				return;
 			}
+			const clone = new Placeholder(placeholder.index);
+			clone.transform = placeholder.transform;
+			for (const child of defaultValues) {
+				const newChild = child.clone();
+				clone.appendChild(newChild);
+
+				// "recurse" on children that are again placeholders
+				if (newChild instanceof Placeholder && placeholderDefaultValues.has(newChild.index) && !stack.has(newChild.index)) {
+					stack.add(newChild.index);
+					fillInIncompletePlaceholder(newChild, stack);
+					stack.delete(newChild.index);
+				}
+			}
+			snippet.replace(placeholder, [clone]);
+		};
+
+		const stack = new Set<number>();
+		for (const placeholder of incompletePlaceholders) {
+			fillInIncompletePlaceholder(placeholder, stack);
 		}
 
 		return snippet.children.slice(offset);

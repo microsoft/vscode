@@ -13,19 +13,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { listFocusForeground, listFocusBackground, foreground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
+import { getAriaLabelForExtension } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -80,7 +81,7 @@ export class ExtensionsGridView extends Disposable {
 	}
 }
 
-export interface IExtensionTemplateData {
+interface IExtensionTemplateData {
 	icon: HTMLImageElement;
 	name: HTMLElement;
 	identifier: HTMLElement;
@@ -89,18 +90,18 @@ export interface IExtensionTemplateData {
 	extensionData: IExtensionData;
 }
 
-export interface IUnknownExtensionTemplateData {
+interface IUnknownExtensionTemplateData {
 	identifier: HTMLElement;
 }
 
-export interface IExtensionData {
+interface IExtensionData {
 	extension: IExtension;
 	hasChildren: boolean;
 	getChildren: () => Promise<IExtensionData[] | null>;
 	parent: IExtensionData | null;
 }
 
-export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
+class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 	public hasChildren({ hasChildren }: IExtensionData): boolean {
 		return hasChildren;
@@ -112,7 +113,7 @@ export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 }
 
-export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
+class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
 
 	public getHeight(element: IExtensionData): number {
 		return 62;
@@ -122,7 +123,7 @@ export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
 	}
 }
 
-export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
+class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
 
 	static readonly TEMPLATE_ID = 'extension-template';
 
@@ -186,7 +187,7 @@ export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 	}
 }
 
-export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
+class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
 
 	static readonly TEMPLATE_ID = 'unknown-extension-template';
 
@@ -236,10 +237,9 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 	constructor(
 		input: IExtensionData,
 		container: HTMLElement,
-		overrideStyles: IColorMapping,
+		overrideStyles: IStyleOverride<IListStyles>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService extensionsWorkdbenchService: IExtensionsWorkbenchService
@@ -266,15 +266,14 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				overrideStyles,
 				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
 					getAriaLabel(extensionData: IExtensionData): string {
-						const extension = extensionData.extension;
-						return localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description);
+						return getAriaLabelForExtension(extensionData.extension);
 					},
 					getWidgetAriaLabel(): string {
 						return localize('extensions', "Extensions");
 					}
 				}
 			},
-			instantiationService, contextKeyService, listService, themeService, configurationService
+			instantiationService, contextKeyService, listService, configurationService
 		);
 
 		this.setInput(input);

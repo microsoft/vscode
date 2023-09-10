@@ -6,4 +6,4 @@
 import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ISharedProcessTunnelService, ipcSharedProcessTunnelChannelName } from 'vs/platform/remote/common/sharedProcessTunnelService';
 
-registerSharedProcessRemoteService(ISharedProcessTunnelService, ipcSharedProcessTunnelChannelName, { supportsDelayedInstantiation: true });
+registerSharedProcessRemoteService(ISharedProcessTunnelService, ipcSharedProcessTunnelChannelName);

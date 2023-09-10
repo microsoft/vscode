@@ -7,12 +7,13 @@ import { FileAccess } from 'vs/base/common/network';
 import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILoggerService } from 'vs/platform/log/common/log';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+
 export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
@@ -21,20 +22,20 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 		@ILoggerService private readonly loggerService: ILoggerService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProductService private readonly productService: IProductService
 	) { }
 
-	private async getCustomTelemetryService(endpoint: ITelemetryEndpoint): Promise<ITelemetryService> {
+	private getCustomTelemetryService(endpoint: ITelemetryEndpoint): ITelemetryService {
 		if (!this.customTelemetryServices.has(endpoint.id)) {
-			const { machineId, sessionId } = await this.telemetryService.getTelemetryInfo();
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
-			telemetryInfo['common.vscodemachineid'] = machineId;
-			telemetryInfo['common.vscodesessionid'] = sessionId;
+			telemetryInfo['common.vscodemachineid'] = this.telemetryService.machineId;
+			telemetryInfo['common.vscodesessionid'] = this.telemetryService.sessionId;
 			const args = [endpoint.id, JSON.stringify(telemetryInfo), endpoint.aiKey];
 			const client = new TelemetryClient(
-				FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+				FileAccess.asFileUri('bootstrap-fork').fsPath,
 				{
 					serverName: 'Debug Telemetry',
 					timeout: 1000 * 60 * 5,
@@ -50,7 +51,7 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 			const channel = client.getChannel('telemetryAppender');
 			const appenders = [
 				new TelemetryAppenderClient(channel),
-				new TelemetryLogAppender(this.loggerService, this.environmentService, `[${endpoint.id}] `),
+				new TelemetryLogAppender(this.logService, this.loggerService, this.environmentService, this.productService, `[${endpoint.id}] `),
 			];
 
 			this.customTelemetryServices.set(endpoint.id, new TelemetryService({
@@ -62,13 +63,13 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 		return this.customTelemetryServices.get(endpoint.id)!;
 	}
 
-	async publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void> {
-		const customTelemetryService = await this.getCustomTelemetryService(telemetryEndpoint);
-		await customTelemetryService.publicLog(eventName, data);
+	publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData) {
+		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
+		customTelemetryService.publicLog(eventName, data);
 	}
 
-	async publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void> {
-		const customTelemetryService = await this.getCustomTelemetryService(telemetryEndpoint);
-		await customTelemetryService.publicLogError(errorEventName, data);
+	publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData) {
+		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
+		customTelemetryService.publicLogError(errorEventName, data);
 	}
 }

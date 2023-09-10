@@ -20,6 +20,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { nullExtensionDescription as extensionsDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 suite('ExtHostTreeView', function () {
 
@@ -49,6 +50,7 @@ suite('ExtHostTreeView', function () {
 	let tree: { [key: string]: any };
 	let labels: { [key: string]: string };
 	let nodes: { [key: string]: { key: string } };
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		tree = {
@@ -69,7 +71,7 @@ suite('ExtHostTreeView', function () {
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
-			const instantiationService = new TestInstantiationService();
+			instantiationService = new TestInstantiationService();
 			inst = instantiationService;
 		}
 
@@ -77,7 +79,12 @@ suite('ExtHostTreeView', function () {
 		target = new RecordingShape();
 		testObject = new ExtHostTreeViews(target, new ExtHostCommands(
 			rpcProtocol,
-			new NullLogService()
+			new NullLogService(),
+			new class extends mock<IExtHostTelemetry>() {
+				override onExtensionError(): boolean {
+					return true;
+				}
+			}
 		), new NullLogService());
 		onDidChangeTreeNode = new Emitter<{ key: string } | undefined>();
 		onDidChangeTreeNodeWithId = new Emitter<{ key: string }>();
@@ -86,6 +93,10 @@ suite('ExtHostTreeView', function () {
 		testObject.createTreeView('testNodeWithHighlightsTreeProvider', { treeDataProvider: aNodeWithHighlightedLabelTreeDataProvider() }, extensionsDescription);
 
 		return loadCompleteTree('testNodeTreeProvider');
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('construct node tree', () => {

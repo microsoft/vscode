@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import type { IExpression, IScope } from 'vs/workbench/contrib/debug/common/debug';
+import { Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import type { IScope, IExpression } from 'vs/workbench/contrib/debug/common/debug';
-import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 
 suite('Debug - Hover', () => {
 	test('find expression in stack frame', async () => {
 		const model = createMockDebugModel();
-		const session = createMockSession(model);
+		const session = createTestSession(model);
 
 		const thread = new class extends Thread {
 			public override getCallStack(): StackFrame[] {
@@ -26,7 +27,7 @@ suite('Debug - Hover', () => {
 			name: 'internalModule.js',
 			path: 'a/b/c/d/internalModule.js',
 			sourceReference: 10,
-		}, 'aDebugSessionId', mockUriIdentityService);
+		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 
 		const stackFrame = new class extends StackFrame {
 			override getScopes(): Promise<IScope[]> {

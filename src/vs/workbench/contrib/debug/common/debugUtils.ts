@@ -11,6 +11,12 @@ import { deepClone } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextModel } from 'vs/editor/common/model';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { coalesce } from 'vs/base/common/arrays';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -113,6 +119,44 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	return matchingExpression ?
 		{ start: startOffset, end: startOffset + matchingExpression.length - 1 } :
 		{ start: 0, end: 0 };
+}
+
+export async function getEvaluatableExpressionAtPosition(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: Position, token?: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
+	if (languageFeaturesService.evaluatableExpressionProvider.has(model)) {
+		const supports = languageFeaturesService.evaluatableExpressionProvider.ordered(model);
+
+		const results = coalesce(await Promise.all(supports.map(async support => {
+			try {
+				return await support.provideEvaluatableExpression(model, position, token ?? CancellationToken.None);
+			} catch (err) {
+				return undefined;
+			}
+		})));
+
+		if (results.length > 0) {
+			let matchingExpression = results[0].expression;
+			const range = results[0].range;
+
+			if (!matchingExpression) {
+				const lineContent = model.getLineContent(position.lineNumber);
+				matchingExpression = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
+			}
+
+			return { range, matchingExpression };
+		}
+	} else { // old one-size-fits-all strategy
+		const lineContent = model.getLineContent(position.lineNumber);
+		const { start, end } = getExactExpressionStartAndEnd(lineContent, position.column, position.column);
+
+		// use regex to extract the sub-expression #9821
+		const matchingExpression = lineContent.substring(start - 1, end);
+		return {
+			matchingExpression,
+			range: new Range(position.lineNumber, start, position.lineNumber, start + matchingExpression.length)
+		};
+	}
+
+	return null;
 }
 
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt

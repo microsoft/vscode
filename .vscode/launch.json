@@ -24,15 +24,15 @@
 			]
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "node",
 			"request": "attach",
+			"restart": true,
 			"name": "Attach to Shared Process",
-			"timeout": 30000,
-			"port": 9222,
-			"urlFilter": "*sharedProcess.html*",
-			"presentation": {
-				"hidden": true
-			}
+			"timeout": 0,
+			"port": 5879,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
 		},
 		{
 			"type": "node",
@@ -67,6 +67,7 @@
 			"name": "Attach to Main Process",
 			"timeout": 30000,
 			"port": 5875,
+			"continueOnAttach": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -158,7 +159,7 @@
 				"--disable-extensions"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -176,7 +177,7 @@
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/workspace-tests"
 			],
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/extensions/vscode-api-tests/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",
@@ -202,7 +203,7 @@
 			}
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
@@ -216,7 +217,7 @@
 			"perScriptSourcemaps": "yes"
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal",
 			"windows": {
@@ -229,25 +230,25 @@
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
 			"port": 9222,
-			"timeout": 20000,
+			"timeout": 0,
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
-				"--inspect=5875",
+				"--inspect-brk=5875",
 				"--no-cached-data",
 				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests"
 			],
+			"userDataDir": "${userHome}/.vscode-oss-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
 			],
-			"userDataDir": "${workspaceFolder}/.profile-oss",
 			"pauseForSourceMap": false,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -258,7 +259,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "VS Code Server (Web)",
 			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
@@ -274,10 +275,11 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Main Process",
 			"attachSimplePort": 5875,
+			"enableContentValidation": false,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
@@ -295,7 +297,7 @@
 			}
 		},
 		{
-			"type": "pwa-chrome",
+			"type": "chrome",
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
@@ -308,7 +310,7 @@
 			}
 		},
 		{
-			"type": "pwa-msedge",
+			"type": "msedge",
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
@@ -316,6 +318,33 @@
 			"url": "http://localhost:8080?tkn=dev-token",
 			"pauseForSourceMap": false,
 			"preLaunchTask": "Run code server",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
+			"type": "chrome",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code Web (Chrome)",
+			"url": "http://localhost:8080",
+			"preLaunchTask": "Run code web",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
+			"type": "msedge",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code Web (Edge)",
+			"url": "http://localhost:8080",
+			"pauseForSourceMap": false,
+			"preLaunchTask": "Run code web",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 3
@@ -403,7 +432,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
@@ -433,7 +462,7 @@
 			}
 		},
 		{
-			"type": "pwa-node",
+			"type": "node",
 			"request": "launch",
 			"name": "Run Unit Tests For Current File",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
@@ -468,10 +497,9 @@
 			"type": "node",
 			"request": "launch",
 			"name": "Launch Smoke Test",
-			"program": "${workspaceFolder}/test/smoke/out/main.js",
+			"program": "${workspaceFolder}/test/smoke/test/index.js",
 			"cwd": "${workspaceFolder}/test/smoke",
 			"timeout": 240000,
-			"port": 9999,
 			"args": [
 				"-l",
 				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
@@ -493,6 +521,17 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/debug-auto-launch"
 			]
+		},
+		{
+			"name": "Monaco Editor Playground",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5001",
+			"preLaunchTask": "Launch Http Server",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
 		}
 	],
 	"compounds": [
@@ -512,9 +551,10 @@
 			}
 		},
 		{
-			"name": "Search and Renderer processes",
+			"name": "Search, Renderer, and Main processes",
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process",
 				"Attach to Search Process"
 			],
 			"presentation": {
@@ -523,9 +563,10 @@
 			}
 		},
 		{
-			"name": "Renderer and Extension Host processes",
+			"name": "Renderer, Extension Host, and Main processes",
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process",
 				"Attach to Extension Host"
 			],
 			"presentation": {
@@ -556,10 +597,11 @@
 			}
 		},
 		{
-			"name": "Launch VS Code",
+			"name": "Renderer and Main processes",
 			"stopAll": true,
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},

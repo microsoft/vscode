@@ -47,7 +47,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
 				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
 				const expected = [
-					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login'], isDefault: true }
+					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login', '-i'], isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});
@@ -92,7 +92,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined, isDefault: true }];
 				profilesEqual(profiles, expected);
 			});
-			suite('pwsh source detection/fallback', async () => {
+			suite('pwsh source detection/fallback', () => {
 				const pwshSourceConfig = ({
 					profiles: {
 						windows: {

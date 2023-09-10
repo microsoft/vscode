@@ -9,8 +9,6 @@ import * as which from 'which';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ThrottledDelayer } from './utils/async';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 const enum Setting {
 	Run = 'php.validate.run',
@@ -179,7 +177,7 @@ export default class PHPValidationProvider {
 		return new Promise<void>(resolve => {
 			const executable = this.config!.executable;
 			if (!executable) {
-				this.showErrorMessage(localize('noPhp', 'Cannot validate since a PHP installation could not be found. Use the setting \'php.validate.executablePath\' to configure the PHP executable.'));
+				this.showErrorMessage(vscode.l10n.t("Cannot validate since a PHP installation could not be found. Use the setting 'php.validate.executablePath' to configure the PHP executable."));
 				this.pauseValidation = true;
 				resolve();
 				return;
@@ -254,12 +252,12 @@ export default class PHPValidationProvider {
 		let message: string | null = null;
 		if (error.code === 'ENOENT') {
 			if (this.config!.executable) {
-				message = localize('wrongExecutable', 'Cannot validate since {0} is not a valid php executable. Use the setting \'php.validate.executablePath\' to configure the PHP executable.', executable);
+				message = vscode.l10n.t("Cannot validate since {0} is not a valid php executable. Use the setting 'php.validate.executablePath' to configure the PHP executable.", executable);
 			} else {
-				message = localize('noExecutable', 'Cannot validate since no PHP executable is set. Use the setting \'php.validate.executablePath\' to configure the PHP executable.');
+				message = vscode.l10n.t("Cannot validate since no PHP executable is set. Use the setting 'php.validate.executablePath' to configure the PHP executable.");
 			}
 		} else {
-			message = error.message ? error.message : localize('unknownReason', 'Failed to run php using path: {0}. Reason is unknown.', executable);
+			message = error.message ? error.message : vscode.l10n.t("Failed to run php using path: {0}. Reason is unknown.", executable);
 		}
 		if (!message) {
 			return;
@@ -269,7 +267,7 @@ export default class PHPValidationProvider {
 	}
 
 	private async showErrorMessage(message: string): Promise<void> {
-		const openSettings = localize('goToSetting', 'Open Settings');
+		const openSettings = vscode.l10n.t("Open Settings");
 		if (await vscode.window.showInformationMessage(message, openSettings) === openSettings) {
 			vscode.commands.executeCommand('workbench.action.openSettings', Setting.ExecutablePath);
 		}

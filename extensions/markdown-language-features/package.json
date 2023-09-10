@@ -8,7 +8,7 @@
   "license": "MIT",
   "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
   "engines": {
-    "vscode": "^1.20.0"
+    "vscode": "^1.70.0"
   },
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
@@ -16,22 +16,14 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "documentPaste"
+    "documentPaste",
+    "dropMetadata"
   ],
   "activationEvents": [
     "onLanguage:markdown",
-    "onCommand:markdown.preview.toggleLock",
-    "onCommand:markdown.preview.refresh",
-    "onCommand:markdown.showPreview",
-    "onCommand:markdown.showPreviewToSide",
-    "onCommand:markdown.showLockedPreviewToSide",
-    "onCommand:markdown.showSource",
-    "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
-    "onCommand:markdown.findAllFileReferences",
-    "onWebviewPanel:markdown.preview",
-    "onCustomEditor:vscode.markdown.preview.editor"
+    "onWebviewPanel:markdown.preview"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -130,6 +122,10 @@
     ],
     "commands": [
       {
+        "command": "_markdown.copyImage",
+        "title": "%markdown.copyImage.title%"
+      },
+      {
         "command": "markdown.showPreview",
         "title": "%markdown.preview.title%",
         "category": "Markdown",
@@ -175,9 +171,27 @@
         "command": "markdown.findAllFileReferences",
         "title": "%markdown.findAllFileReferences%",
         "category": "Markdown"
+      },
+      {
+        "command": "markdown.editor.insertLinkFromWorkspace",
+        "title": "%markdown.editor.insertLinkFromWorkspace%",
+        "category": "Markdown",
+        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
+      },
+      {
+        "command": "markdown.editor.insertImageFromWorkspace",
+        "title": "%markdown.editor.insertImageFromWorkspace%",
+        "category": "Markdown",
+        "enablement": "editorLangId == markdown && !activeEditorIsReadonly"
       }
     ],
     "menus": {
+      "webview/context": [
+        {
+          "command": "_markdown.copyImage",
+          "when": "webviewId == 'markdown.preview' && webviewSection == 'image'"
+        }
+      ],
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
@@ -187,22 +201,22 @@
         },
         {
           "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         },
         {
           "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "1_markdown"
         }
       ],
@@ -247,7 +261,7 @@
         },
         {
           "command": "markdown.showSource",
-          "when": "markdownPreviewFocus",
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'",
           "group": "navigation"
         },
         {
@@ -256,11 +270,11 @@
         },
         {
           "command": "markdown.showPreviewSecuritySelector",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.preview.toggleLock",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.preview.refresh",
@@ -268,7 +282,7 @@
         },
         {
           "command": "markdown.preview.refresh",
-          "when": "markdownPreviewFocus"
+          "when": "activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor'"
         },
         {
           "command": "markdown.findAllFileReferences",
@@ -398,15 +412,53 @@
           "description": "%configuration.markdown.suggest.paths.enabled.description%",
           "scope": "resource"
         },
-        "markdown.trace": {
+        "markdown.suggest.paths.includeWorkspaceHeaderCompletions": {
+          "type": "string",
+          "default": "onDoubleHash",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions%",
+          "enum": [
+            "never",
+            "onDoubleHash",
+            "onSingleOrDoubleHash"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.never%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash%",
+            "%configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash%"
+          ]
+        },
+        "markdown.trace.extension": {
           "type": "string",
           "enum": [
             "off",
             "verbose"
           ],
           "default": "off",
-          "description": "%markdown.trace.desc%",
+          "description": "%markdown.trace.extension.desc%",
           "scope": "window"
+        },
+        "markdown.trace.server": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "%markdown.trace.server.desc%"
+        },
+        "markdown.server.log": {
+          "type": "string",
+          "scope": "window",
+          "enum": [
+            "off",
+            "debug",
+            "trace"
+          ],
+          "default": "off",
+          "description": "%markdown.server.log.desc%"
         },
         "markdown.editor.drop.enabled": {
           "type": "boolean",
@@ -414,88 +466,210 @@
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
         },
-        "markdown.experimental.editor.pasteLinks.enabled": {
+        "markdown.editor.drop.copyIntoWorkspace": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.drop.copyIntoWorkspace%",
+          "default": "mediaFiles",
+          "enum": [
+            "mediaFiles",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.copyIntoWorkspace.mediaFiles%",
+            "%configuration.copyIntoWorkspace.never%"
+          ]
+        },
+        "markdown.editor.filePaste.enabled": {
           "type": "boolean",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
-          "default": true,
-          "tags": [
-            "experimental"
+          "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
+          "default": true
+        },
+        "markdown.editor.filePaste.copyIntoWorkspace": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.filePaste.copyIntoWorkspace%",
+          "default": "mediaFiles",
+          "enum": [
+            "mediaFiles",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.copyIntoWorkspace.mediaFiles%",
+            "%configuration.copyIntoWorkspace.never%"
           ]
         },
-        "markdown.experimental.validate.enabled": {
+        "markdown.editor.pasteUrlAsFormattedLink.enabled": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
+          "default":"never",
+          "enum": [
+            "always",
+            "smart",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.pasteUrlAsFormattedLink.always%",
+            "%configuration.pasteUrlAsFormattedLink.smart%",
+            "%configuration.pasteUrlAsFormattedLink.never%"
+          ]
+        },
+        "markdown.validate.enabled": {
           "type": "boolean",
           "scope": "resource",
-          "description": "%configuration.markdown.experimental.validate.enabled.description%",
-          "default": false,
-          "tags": [
-            "experimental"
-          ]
+          "description": "%configuration.markdown.validate.enabled.description%",
+          "default": false
         },
-        "markdown.experimental.validate.referenceLinks.enabled": {
+        "markdown.validate.referenceLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.referenceLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.validate.referenceLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.fragmentLinks.enabled": {
+        "markdown.validate.fragmentLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fragmentLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.validate.fragmentLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.fileLinks.enabled": {
+        "markdown.validate.fileLinks.enabled": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.enabled.description%",
+          "markdownDescription": "%configuration.markdown.validate.fileLinks.enabled.description%",
           "default": "warning",
           "enum": [
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.fileLinks.markdownFragmentLinks": {
+        "markdown.validate.fileLinks.markdownFragmentLinks": {
           "type": "string",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.fileLinks.markdownFragmentLinks.description%",
+          "markdownDescription": "%configuration.markdown.validate.fileLinks.markdownFragmentLinks.description%",
+          "default": "inherit",
           "enum": [
+            "inherit",
             "ignore",
             "warning",
             "error"
-          ],
-          "tags": [
-            "experimental"
           ]
         },
-        "markdown.experimental.validate.ignoreLinks": {
+        "markdown.validate.ignoredLinks": {
           "type": "array",
           "scope": "resource",
-          "markdownDescription": "%configuration.markdown.experimental.validate.ignoreLinks.description%",
+          "markdownDescription": "%configuration.markdown.validate.ignoredLinks.description%",
           "items": {
             "type": "string"
+          }
+        },
+        "markdown.validate.unusedLinkDefinitions.enabled": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.validate.unusedLinkDefinitions.description%",
+          "default": "hint",
+          "enum": [
+            "ignore",
+            "hint",
+            "warning",
+            "error"
+          ]
+        },
+        "markdown.validate.duplicateLinkDefinitions.enabled": {
+          "type": "string",
+          "scope": "resource",
+          "markdownDescription": "%configuration.markdown.validate.duplicateLinkDefinitions.description%",
+          "default": "warning",
+          "enum": [
+            "ignore",
+            "warning",
+            "error"
+          ]
+        },
+        "markdown.updateLinksOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.updateLinksOnFileMove.enabled.prompt%",
+            "%configuration.markdown.updateLinksOnFileMove.enabled.always%",
+            "%configuration.markdown.updateLinksOnFileMove.enabled.never%"
+          ],
+          "default": "never",
+          "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.enabled%",
+          "scope": "window"
+        },
+        "markdown.updateLinksOnFileMove.include": {
+          "type": "array",
+          "markdownDescription": "%configuration.markdown.updateLinksOnFileMove.include%",
+          "scope": "window",
+          "items": {
+            "type": "string",
+            "description": "%configuration.markdown.updateLinksOnFileMove.include.property%"
           },
-          "tags": [
-            "experimental"
+          "default": [
+            "**/*.{md,mkd,mdwn,mdown,markdown,markdn,mdtxt,mdtext,workbook}",
+            "**/*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif,tiff,svg,mp4}"
+          ]
+        },
+        "markdown.updateLinksOnFileMove.enableForDirectories": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
+          "scope": "window"
+        },
+        "markdown.occurrencesHighlight.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.markdown.occurrencesHighlight.enabled%",
+          "scope": "resource"
+        },
+        "markdown.copyFiles.destination": {
+          "type": "object",
+          "markdownDescription": "%configuration.markdown.copyFiles.destination%",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "markdown.copyFiles.overwriteBehavior": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.copyFiles.overwriteBehavior%",
+          "default": "nameIncrementally",
+          "enum": [
+            "nameIncrementally",
+            "overwrite"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.copyFiles.overwriteBehavior.nameIncrementally%",
+            "%configuration.markdown.copyFiles.overwriteBehavior.overwrite%"
+          ]
+        },
+        "markdown.preferredMdPathExtensionStyle": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "%configuration.markdown.preferredMdPathExtensionStyle%",
+          "enum": [
+            "auto",
+            "includeExtension",
+            "removeExtension"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.preferredMdPathExtensionStyle.auto%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
           ]
         }
       }
@@ -503,7 +677,11 @@
     "configurationDefaults": {
       "[markdown]": {
         "editor.wordWrap": "on",
-        "editor.quickSuggestions": false
+        "editor.quickSuggestions": {
+          "comments": "off",
+          "strings": "off",
+          "other": "off"
+        }
       }
     },
     "jsonValidation": [
@@ -543,27 +721,26 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.6.2",
-    "dompurify": "^2.3.3",
-    "highlight.js": "^11.4.0",
+    "@vscode/extension-telemetry": "0.7.5",
+    "dompurify": "^3.0.5",
+    "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
-    "vscode-languageclient": "^8.0.1",
-    "vscode-languageserver-textdocument": "^1.0.4",
-    "vscode-nls": "^5.0.0",
+    "vscode-languageclient": "^8.0.2",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/dompurify": "^2.3.1",
+    "@types/dompurify": "^3.0.2",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "12.2.3",
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1",
-    "vscode-languageserver-types": "^3.17.2"
+    "vscode-languageserver-types": "^3.17.2",
+    "vscode-markdown-languageservice": "^0.3.0-alpha.3"
   },
   "repository": {
     "type": "git",

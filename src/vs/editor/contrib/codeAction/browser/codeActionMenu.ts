@@ -3,258 +3,80 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { canceled } from 'vs/base/common/errors';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { CodeAction, Command } from 'vs/editor/common/languages';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CodeAction } from 'vs/editor/common/languages';
+import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
+import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
+import { localize } from 'vs/nls';
+import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 
-interface CodeActionWidgetDelegate {
-	onSelectCodeAction: (action: CodeActionItem, trigger: CodeActionTrigger) => Promise<any>;
-}
-
-interface ResolveCodeActionKeybinding {
+interface ActionGroup {
 	readonly kind: CodeActionKind;
-	readonly preferred: boolean;
-	readonly resolvedKeybinding: ResolvedKeybinding;
+	readonly title: string;
+	readonly icon?: ThemeIcon;
 }
 
-class CodeActionAction extends Action {
-	constructor(
-		public readonly action: CodeAction,
-		callback: () => Promise<void>,
-	) {
-		super(action.command ? action.command.id : action.title, stripNewlines(action.title), undefined, !action.disabled, callback);
-	}
-}
+const uncategorizedCodeActionGroup = Object.freeze<ActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });
 
-function stripNewlines(str: string): string {
-	return str.replace(/\r\n|\r|\n/g, ' ');
-}
+const codeActionGroups = Object.freeze<ActionGroup[]>([
+	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...') },
+	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.RefactorRewrite, title: localize('codeAction.widget.id.convert', 'Rewrite...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.RefactorMove, title: localize('codeAction.widget.id.move', 'Move...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: Codicon.symbolSnippet },
+	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: Codicon.symbolFile },
+	uncategorizedCodeActionGroup,
+]);
 
-export interface CodeActionShowOptions {
-	readonly includeDisabledActions: boolean;
-	readonly fromLightbulb?: boolean;
-}
-
-export class CodeActionMenu extends Disposable {
-
-	private _visible: boolean = false;
-	private readonly _showingActions = this._register(new MutableDisposable<CodeActionSet>());
-
-	private readonly _keybindingResolver: CodeActionKeybindingResolver;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _delegate: CodeActionWidgetDelegate,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
-	) {
-		super();
-
-		this._keybindingResolver = new CodeActionKeybindingResolver({
-			getKeybindings: () => keybindingService.getKeybindings()
+export function toMenuItems(
+	inputCodeActions: readonly CodeActionItem[],
+	showHeaders: boolean,
+	keybindingResolver: (action: CodeAction) => ResolvedKeybinding | undefined
+): IActionListItem<CodeActionItem>[] {
+	if (!showHeaders) {
+		return inputCodeActions.map((action): IActionListItem<CodeActionItem> => {
+			return {
+				kind: ActionListItemKind.Action,
+				item: action,
+				group: uncategorizedCodeActionGroup,
+				disabled: !!action.action.disabled,
+				label: action.action.disabled || action.action.title
+			};
 		});
 	}
 
-	get isVisible(): boolean {
-		return this._visible;
+	// Group code actions
+	const menuEntries = codeActionGroups.map(group => ({ group, actions: [] as CodeActionItem[] }));
+
+	for (const action of inputCodeActions) {
+		const kind = action.action.kind ? new CodeActionKind(action.action.kind) : CodeActionKind.None;
+		for (const menuEntry of menuEntries) {
+			if (menuEntry.group.kind.contains(kind)) {
+				menuEntry.actions.push(action);
+				break;
+			}
+		}
 	}
 
-	public async show(trigger: CodeActionTrigger, codeActions: CodeActionSet, at: IAnchor | IPosition, options: CodeActionShowOptions): Promise<void> {
-		const actionsToShow = options.includeDisabledActions ? codeActions.allActions : codeActions.validActions;
-		if (!actionsToShow.length) {
-			this._visible = false;
-			return;
-		}
-
-		if (!this._editor.getDomNode()) {
-			// cancel when editor went off-dom
-			this._visible = false;
-			throw canceled();
-		}
-
-		this._visible = true;
-		this._showingActions.value = codeActions;
-
-		const menuActions = this.getMenuActions(trigger, actionsToShow, codeActions.documentation);
-
-		const anchor = Position.isIPosition(at) ? this._toCoords(at) : at || { x: 0, y: 0 };
-		const resolver = this._keybindingResolver.getResolver();
-
-		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM);
-
-		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode()! : undefined,
-			getAnchor: () => anchor,
-			getActions: () => menuActions,
-			onHide: (didCancel) => {
-				const openedFromString = (options.fromLightbulb) ? CodeActionTriggerSource.Lightbulb : trigger.triggerAction;
-
-				type ApplyCodeActionEvent = {
-					codeActionFrom: CodeActionTriggerSource;
-					validCodeActions: number;
-					cancelled: boolean;
-				};
-
-				type ApplyCodeEventClassification = {
-					codeActionFrom: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to opened the code action.' };
-					validCodeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total number of valid actions that are highlighted and can be used.' };
-					cancelled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The indicator if the menu was selected or cancelled.' };
-					owner: 'mjbvz';
-					comment: 'Event used to gain insights into how code actions are being triggered';
-				};
-
-				this._telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-					codeActionFrom: openedFromString,
-					validCodeActions: codeActions.validActions.length,
-					cancelled: didCancel,
-
+	const allMenuItems: IActionListItem<CodeActionItem>[] = [];
+	for (const menuEntry of menuEntries) {
+		if (menuEntry.actions.length) {
+			allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });
+			for (const action of menuEntry.actions) {
+				allMenuItems.push({
+					kind: ActionListItemKind.Action,
+					item: action,
+					group: menuEntry.group,
+					label: action.action.title,
+					disabled: !!action.action.disabled,
+					keybinding: keybindingResolver(action.action),
 				});
-
-				this._visible = false;
-				this._editor.focus();
-			},
-			autoSelectFirstItem: true,
-			getKeyBinding: action => action instanceof CodeActionAction ? resolver(action.action) : undefined,
-		});
-	}
-
-	private getMenuActions(
-		trigger: CodeActionTrigger,
-		actionsToShow: readonly CodeActionItem[],
-		documentation: readonly Command[]
-	): IAction[] {
-		const toCodeActionAction = (item: CodeActionItem): CodeActionAction => new CodeActionAction(item.action, () => this._delegate.onSelectCodeAction(item, trigger));
-		const result: IAction[] = actionsToShow
-			.map(toCodeActionAction);
-
-		const allDocumentation: Command[] = [...documentation];
-
-		const model = this._editor.getModel();
-		if (model && result.length) {
-			for (const provider of this._languageFeaturesService.codeActionProvider.all(model)) {
-				if (provider._getAdditionalMenuItems) {
-					allDocumentation.push(...provider._getAdditionalMenuItems({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action)));
-				}
 			}
 		}
-
-		if (allDocumentation.length) {
-			result.push(new Separator(), ...allDocumentation.map(command => toCodeActionAction(new CodeActionItem({
-				title: command.title,
-				command: command,
-			}, undefined))));
-		}
-
-		return result;
 	}
-
-	private _toCoords(position: IPosition): { x: number; y: number } {
-		if (!this._editor.hasModel()) {
-			return { x: 0, y: 0 };
-		}
-		this._editor.revealPosition(position, ScrollType.Immediate);
-		this._editor.render();
-
-		// Translate to absolute editor position
-		const cursorCoords = this._editor.getScrolledVisiblePosition(position);
-		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
-		const x = editorCoords.left + cursorCoords.left;
-		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
-
-		return { x, y };
-	}
-}
-
-export class CodeActionKeybindingResolver {
-	private static readonly codeActionCommands: readonly string[] = [
-		refactorCommandId,
-		codeActionCommandId,
-		sourceActionCommandId,
-		organizeImportsCommandId,
-		fixAllCommandId
-	];
-
-	constructor(
-		private readonly _keybindingProvider: {
-			getKeybindings(): readonly ResolvedKeybindingItem[];
-		},
-	) { }
-
-	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {
-		// Lazy since we may not actually ever read the value
-		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() =>
-			this._keybindingProvider.getKeybindings()
-				.filter(item => CodeActionKeybindingResolver.codeActionCommands.indexOf(item.command!) >= 0)
-				.filter(item => item.resolvedKeybinding)
-				.map((item): ResolveCodeActionKeybinding => {
-					// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
-					let commandArgs = item.commandArgs;
-					if (item.command === organizeImportsCommandId) {
-						commandArgs = { kind: CodeActionKind.SourceOrganizeImports.value };
-					} else if (item.command === fixAllCommandId) {
-						commandArgs = { kind: CodeActionKind.SourceFixAll.value };
-					}
-
-					return {
-						resolvedKeybinding: item.resolvedKeybinding!,
-						...CodeActionCommandArgs.fromUser(commandArgs, {
-							kind: CodeActionKind.None,
-							apply: CodeActionAutoApply.Never
-						})
-					};
-				}));
-
-		return (action) => {
-			if (action.kind) {
-				const binding = this.bestKeybindingForCodeAction(action, allCodeActionBindings.getValue());
-				return binding?.resolvedKeybinding;
-			}
-			return undefined;
-		};
-	}
-
-	private bestKeybindingForCodeAction(
-		action: CodeAction,
-		candidates: readonly ResolveCodeActionKeybinding[],
-	): ResolveCodeActionKeybinding | undefined {
-		if (!action.kind) {
-			return undefined;
-		}
-		const kind = new CodeActionKind(action.kind);
-
-		return candidates
-			.filter(candidate => candidate.kind.contains(kind))
-			.filter(candidate => {
-				if (candidate.preferred) {
-					// If the candidate keybinding only applies to preferred actions, the this action must also be preferred
-					return action.isPreferred;
-				}
-				return true;
-			})
-			.reduceRight((currentBest, candidate) => {
-				if (!currentBest) {
-					return candidate;
-				}
-				// Select the more specific binding
-				return currentBest.kind.contains(candidate.kind) ? candidate : currentBest;
-			}, undefined as ResolveCodeActionKeybinding | undefined);
-	}
+	return allMenuItems;
 }

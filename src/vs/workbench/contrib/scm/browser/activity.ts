@@ -11,12 +11,11 @@ import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/w
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { stripIcons } from 'vs/base/common/iconLabels';
 import { Schemas } from 'vs/base/common/network';
 import { Iterable } from 'vs/base/common/iterator';
 
@@ -41,7 +40,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -155,16 +153,32 @@ export class SCMStatusController implements IWorkbenchContribution {
 			const command = commands[index];
 			const tooltip = `${label}${command.tooltip ? ` - ${command.tooltip}` : ''}`;
 
-			let ariaLabel = stripIcons(command.title).trim();
-			ariaLabel = ariaLabel ? `${ariaLabel}, ${label}` : label;
+			// Get a repository agnostic name for the status bar action, derive this from the
+			// first command argument which is in the form "git.<command>/<number>"
+			let repoAgnosticActionName = command.arguments?.[0];
+			if (repoAgnosticActionName && typeof repoAgnosticActionName === 'string') {
+				repoAgnosticActionName = repoAgnosticActionName
+					.substring(0, repoAgnosticActionName.lastIndexOf('/'))
+					.replace(/^git\./, '');
+				if (repoAgnosticActionName.length > 1) {
+					repoAgnosticActionName = repoAgnosticActionName[0].toLocaleUpperCase() + repoAgnosticActionName.slice(1);
+				}
+			} else {
+				repoAgnosticActionName = '';
+			}
 
-			disposables.add(this.statusbarService.addEntry({
-				name: localize('status.scm', "Source Control"),
+			const statusbarEntry: IStatusbarEntry = {
+				name: localize('status.scm', "Source Control") + (repoAgnosticActionName ? ` ${repoAgnosticActionName}` : ''),
 				text: command.title,
-				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
+				ariaLabel: tooltip,
 				tooltip,
 				command: command.id ? command : undefined
-			}, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000 - index));
+			};
+
+			disposables.add(index === 0 ?
+				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000) :
+				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, { id: `status.scm.${index - 1}`, alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
+			);
 		}
 
 		this.statusBarDisposable = disposables;
@@ -207,7 +221,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 	private repositoryDisposables = new Set<IDisposable>();
 
 	constructor(
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService

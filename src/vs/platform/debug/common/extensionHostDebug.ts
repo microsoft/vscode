@@ -32,13 +32,6 @@ export interface IOpenExtensionWindowResult {
 	success: boolean;
 }
 
-/**
- * Like a IProcessEnvironment, but the value "null" deletes an environment variable
- */
-export interface INullableProcessEnvironment {
-	[key: string]: string | null;
-}
-
 export interface IExtensionHostDebugService {
 	readonly _serviceBrand: undefined;
 
