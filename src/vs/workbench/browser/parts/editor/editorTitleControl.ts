@@ -5,19 +5,15 @@
 
 import 'vs/css!./media/editortitlecontrol';
 import { Dimension, clearNode } from 'vs/base/browser/dom';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { BreadcrumbsControl, BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IEditorTitleControlDimensions {
 
@@ -37,22 +33,20 @@ export class EditorTitleControl extends Themable {
 
 	private editorTabsControl: EditorTabsControl;
 
-	private breadcrumbsControl: BreadcrumbsControl | undefined;
-	private breadcrumbsControlDisposables = this._register(new DisposableStore());
+	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
+	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	constructor(
 		private parent: HTMLElement,
 		private accessor: IEditorGroupsAccessor,
 		private group: IEditorGroupView,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IFileService private fileService: IFileService
+		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
 
 		this.editorTabsControl = this.createEditorTabsControl();
-		this.breadcrumbsControl = this.createBreadcrumbsControl();
+		this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
 	}
 
 	private createEditorTabsControl(): EditorTabsControl {
@@ -63,59 +57,25 @@ export class EditorTitleControl extends Themable {
 		return this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.group);
 	}
 
-	private createBreadcrumbsControl(): BreadcrumbsControl | undefined {
+	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
 		if (!this.accessor.partOptions.showTabs) {
 			return undefined; // single tabs have breadcrumbs inlined
 		}
-
-		const options: IBreadcrumbsControlOptions = { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, showPlaceholder: true };
 
 		// Breadcrumbs container
 		const breadcrumbsContainer = document.createElement('div');
 		breadcrumbsContainer.classList.add('breadcrumbs-below-tabs');
 		this.parent.appendChild(breadcrumbsContainer);
 
-		const config = this.breadcrumbsControlDisposables.add(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
-
-		// Create if enabled
-		let breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
-		if (config.getValue()) {
-			breadcrumbsControl = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControl, breadcrumbsContainer, options, this.group));
-		}
-
-		// Listen to breadcrumbs enablement changes
-		this.breadcrumbsControlDisposables.add(config.onDidChange(() => {
-			const value = config.getValue();
-
-			// Hide breadcrumbs if showing
-			if (!value && this.breadcrumbsControl) {
-				this.breadcrumbsControl.dispose();
-				this.breadcrumbsControl = undefined;
-
-				this.handleBreadcrumbsEnablementChange();
-			}
-
-			// Show breadcrumbs if hidden
-			else if (value && !this.breadcrumbsControl) {
-				this.breadcrumbsControl = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControl, breadcrumbsContainer, options, this.group));
-				this.breadcrumbsControl.update();
-
-				this.handleBreadcrumbsEnablementChange();
-			}
+		const breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.group, {
+			showFileIcons: true,
+			showSymbolIcons: true,
+			showDecorationColors: false,
+			showPlaceholder: true
 		}));
+		this._register(breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
 
-		// Listen to file system provider changes
-		this.breadcrumbsControlDisposables.add(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
-				return; // ignore if the scheme of the breadcrumbs resource is not affected
-			}
-
-			if (this.breadcrumbsControl?.update()) {
-				this.handleBreadcrumbsEnablementChange();
-			}
-		}));
-
-		return breadcrumbsControl;
+		return breadcrumbsControlFactory;
 	}
 
 	private handleBreadcrumbsEnablementChange(): void {
@@ -197,12 +157,12 @@ export class EditorTitleControl extends Themable {
 
 			// Clear old
 			this.editorTabsControl.dispose();
-			this.breadcrumbsControlDisposables.clear();
+			this.breadcrumbsControlFactory?.dispose();
 			clearNode(this.parent);
 
 			// Create new
 			this.editorTabsControl = this.createEditorTabsControl();
-			this.breadcrumbsControl = this.createBreadcrumbsControl();
+			this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
 		}
 
 		// Forward into editor tabs control
@@ -239,7 +199,7 @@ export class EditorTitleControl extends Themable {
 
 	override dispose(): void {
 		this.editorTabsControl.dispose();
-		this.breadcrumbsControlDisposables.dispose();
+		this.breadcrumbsControlFactory?.dispose();
 
 		super.dispose();
 	}

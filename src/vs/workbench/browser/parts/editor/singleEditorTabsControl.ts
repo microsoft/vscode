@@ -18,8 +18,7 @@ import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
+import { BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
@@ -32,7 +31,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
-	private breadcrumbsControl: BreadcrumbsControl | undefined;
+	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
+	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	protected override create(parent: HTMLElement): void {
 		super.create(parent);
@@ -55,7 +55,14 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() }, showPlaceholder: false });
+		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.group, {
+			showFileIcons: false,
+			showSymbolIcons: true,
+			showDecorationColors: false,
+			widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
+			showPlaceholder: false
+		}));
+		this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
@@ -66,47 +73,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 		// Editor actions toolbar
 		this.createEditorActionsToolBar(actionsContainer);
-	}
-
-	private createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
-		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
-
-		// Create if enabled
-		if (config.getValue()) {
-			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
-		}
-
-		// Listen to breadcrumbs enablement changes
-		this._register(config.onDidChange(() => {
-			const value = config.getValue();
-
-			// Hide breadcrumbs if showing
-			if (!value && this.breadcrumbsControl) {
-				this.breadcrumbsControl.dispose();
-				this.breadcrumbsControl = undefined;
-
-				this.handleBreadcrumbsEnablementChange();
-			}
-
-			// Show breadcrumbs if hidden
-			else if (value && !this.breadcrumbsControl) {
-				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
-				this.breadcrumbsControl.update();
-
-				this.handleBreadcrumbsEnablementChange();
-			}
-		}));
-
-		// Listen to file system provider changes
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
-				return; // ignore if the scheme of the breadcrumbs resource is not affected
-			}
-
-			if (this.breadcrumbsControl?.update()) {
-				this.handleBreadcrumbsEnablementChange();
-			}
-		}));
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
@@ -403,12 +369,5 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.breadcrumbsControl?.layout(undefined);
 
 		return new Dimension(dimensions.container.width, this.getHeight());
-	}
-
-	override dispose(): void {
-		this.breadcrumbsControl?.dispose();
-		this.breadcrumbsControl = undefined;
-
-		super.dispose();
 	}
 }
