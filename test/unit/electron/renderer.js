@@ -166,10 +166,47 @@ function loadTestModules(opts) {
 	}).then(loadModules);
 }
 
+let currentSuiteTitle;
+let currentTestTitle;
+
+const allowedTestOutput = new Set([
+	'The vm module of Node.js is deprecated in the renderer process and will be removed.',
+]);
+
+const allowedTestsWithOutput = new Set([
+	'throws if an event subscription is not cleaned up',
+	'throws if a disposable is not disposed',
+	'creates a snapshot',
+	'validates a snapshot',
+	'cleans up old snapshots',
+	'issue #149412: VS Code hangs when bad semantic token data is received',
+	'issue #134973: invalid semantic tokens should be handled better',
+	'issue #148651: VSCode UI process can hang if a semantic token with negative values is returned by language service',
+	'issue #149130: vscode freezes because of Bracket Pair Colorization',
+	'property limits',
+	'Error events',
+	'Ensure output channel is logged to',
+	'guards calls after runs are ended'
+]);
+
+const allowedSuitesWithOutput = new Set([
+	'ExtHostLanguageFeatures'
+]);
+
 function loadTests(opts) {
 
 	const _unexpectedErrors = [];
 	const _loaderErrors = [];
+
+	const testsWithUnexpectedOutput = new Set();
+	for (const consoleFn of [console.log, console.error, console.info, console.warn]) {
+		console[consoleFn.name] = function (msg) {
+			if (!allowedTestOutput.has(msg) && !allowedTestsWithOutput.has(currentTestTitle) && !allowedSuitesWithOutput.has(currentSuiteTitle)) {
+				testsWithUnexpectedOutput.add(`${currentSuiteTitle} - ${currentTestTitle}`);
+			}
+			consoleFn.apply(console, arguments);
+		};
+	}
 
 	// collect loader errors
 	loader.require.config({
@@ -215,6 +252,14 @@ function loadTests(opts) {
 
 				test('assertCleanState - check that registries are clean and objects are disposed at the end of test running', () => {
 					assertCleanState();
+				});
+			});
+
+			suite('Unexpected Output', function () {
+				test('should not have unexpected output', function () {
+					if (testsWithUnexpectedOutput.size > 0) {
+						assert.ok(false, `Tests with unexpected output:\n${Array.from(testsWithUnexpectedOutput).join('\n')}`);
+					}
 				});
 			});
 		});
@@ -329,9 +374,11 @@ function runTests(opts) {
 			});
 		});
 
+		runner.on('suite', suite => currentSuiteTitle = suite.title);
+		runner.on('test', test => currentTestTitle = test.title);
+
 		if (opts.dev) {
 			runner.on('fail', (test, err) => {
-
 				console.error(test.fullTitle());
 				console.error(err.stack);
 			});
