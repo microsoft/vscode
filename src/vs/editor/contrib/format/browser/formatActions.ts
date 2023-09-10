@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 
-class FormatOnType implements IEditorContribution {
+export class FormatOnType implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.autoFormat';
 

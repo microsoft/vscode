@@ -3,31 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
+import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
+import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const decorationDescription = 'chat';
 const slashCommandPlaceholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
+const variableTextDecorationType = 'chat-variable-text';
 
 class InputEditorDecorations extends Disposable {
 
@@ -39,6 +46,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 	) {
 		super();
 
@@ -61,6 +69,7 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private updateRegisteredDecorationTypes() {
+		this.codeEditorService.removeDecorationType(variableTextDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 		this._slashCommandContentWidget?.hide();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
@@ -69,12 +78,18 @@ class InputEditorDecorations extends Disposable {
 				contentText: ' ',
 			}
 		});
+		const theme = this.themeService.getColorTheme();
+		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
+		});
 		this.updateInputEditorDecorations();
 	}
 
 	private getPlaceholderColor(): string | undefined {
 		const theme = this.themeService.getColorTheme();
-		const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
+		const transparentForeground = theme.getColor(inputPlaceholderForeground);
 		return transparentForeground?.toString();
 	}
 
@@ -126,7 +141,6 @@ class InputEditorDecorations extends Disposable {
 						after: {
 							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
 							color: this.getPlaceholderColor(),
-							padding: '0 0 0 3px'
 						}
 					}
 				}];
@@ -163,6 +177,26 @@ class InputEditorDecorations extends Disposable {
 		} else {
 			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
 		}
+
+		const variables = this.chatVariablesService.getVariables();
+		const variableReg = /(^|\s)@(\w+)(:\d+)?(?=(\s|$))/ig;
+		let match: RegExpMatchArray | null;
+		const varDecorations: IDecorationOptions[] = [];
+		while (match = variableReg.exec(inputValue)) {
+			const varName = match[2];
+			if (Iterable.find(variables, v => v.name === varName)) {
+				varDecorations.push({
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: match.index! + match[1].length + 1,
+						endColumn: match.index! + match[0].length + 1
+					}
+				});
+			}
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
 	}
 }
 
@@ -223,14 +257,14 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return <CompletionList>{
-					suggestions: slashCommands.map(c => {
+					suggestions: sortSlashCommandsByYieldTo<ISlashCommand>(slashCommands).map((c, i) => {
 						const withSlash = `/${c.command}`;
 						return <CompletionItem>{
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
-							sortText: c.sortText ?? c.command,
+							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
 						};
@@ -241,4 +275,148 @@ class SlashCommandCompletions extends Disposable {
 	}
 }
 
+interface SlashCommandYieldTo {
+	command: string;
+}
+
+// Adapted from https://github.com/microsoft/vscode/blob/ca2c1636f87ea4705f32345c2e348e815996e129/src/vs/editor/contrib/dropOrPasteInto/browser/edit.ts#L31-L99
+function sortSlashCommandsByYieldTo<T extends {
+	readonly command: string;
+	readonly yieldsTo?: ReadonlyArray<SlashCommandYieldTo>;
+}>(slashCommands: readonly T[]): T[] {
+	function yieldsTo(yTo: SlashCommandYieldTo, other: T): boolean {
+		return 'command' in yTo && other.command === yTo.command;
+	}
+
+	// Build list of nodes each node yields to
+	const yieldsToMap = new Map<T, T[]>();
+	for (const slashCommand of slashCommands) {
+		for (const yTo of slashCommand.yieldsTo ?? []) {
+			for (const other of slashCommands) {
+				if (other.command === slashCommand.command) {
+					continue;
+				}
+
+				if (yieldsTo(yTo, other)) {
+					let arr = yieldsToMap.get(slashCommand);
+					if (!arr) {
+						arr = [];
+						yieldsToMap.set(slashCommand, arr);
+					}
+					arr.push(other);
+				}
+			}
+		}
+	}
+
+	if (!yieldsToMap.size) {
+		return Array.from(slashCommands);
+	}
+
+	// Topological sort
+	const visited = new Set<T>();
+	const tempStack: T[] = [];
+
+	function visit(nodes: T[]): T[] {
+		if (!nodes.length) {
+			return [];
+		}
+
+		const node = nodes[0];
+		if (tempStack.includes(node)) {
+			console.warn(`Yield to cycle detected for ${node.command}`);
+			return nodes;
+		}
+
+		if (visited.has(node)) {
+			return visit(nodes.slice(1));
+		}
+
+		let pre: T[] = [];
+		const yTo = yieldsToMap.get(node);
+		if (yTo) {
+			tempStack.push(node);
+			pre = visit(yTo);
+			tempStack.pop();
+		}
+
+		visited.add(node);
+
+		return [...pre, node, ...visit(nodes.slice(1))];
+	}
+
+	return visit(Array.from(slashCommands));
+}
+
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
+
+class VariableCompletions extends Disposable {
+
+	private static readonly VariableNameDef = /@\w*/g; // MUST be using `g`-flag
+
+	constructor(
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatVariables',
+			triggerCharacters: ['@'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					return null;
+				}
+
+				const varWord = getWordAtText(position.column, VariableCompletions.VariableNameDef, model.getLineContent(position.lineNumber), 0);
+				if (!varWord && model.getWordUntilPosition(position).word) {
+					// inside a "normal" word
+					return null;
+				}
+
+				let insert: Range;
+				let replace: Range;
+				if (!varWord) {
+					insert = replace = Range.fromPositions(position);
+				} else {
+					insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
+					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
+				}
+
+				const history = widget.viewModel!.getItems()
+					.filter(isResponseVM);
+
+				// TODO@roblourens work out a real API for this- maybe it can be part of the two-step flow that @file will probably use
+				const historyVariablesEnabled = this.configurationService.getValue('chat.experimental.historyVariables');
+				const historyItems = historyVariablesEnabled ? history.map((h, i): CompletionItem => ({
+					label: `@response:${i + 1}`,
+					detail: h.response.asString(),
+					insertText: `@response:${String(i + 1).padStart(String(history.length).length, '0')} `,
+					kind: CompletionItemKind.Text,
+					range: { insert, replace },
+				})) : [];
+
+				const variableItems = Array.from(this.chatVariablesService.getVariables()).map(v => {
+					const withAt = `@${v.name}`;
+					return <CompletionItem>{
+						label: withAt,
+						range: { insert, replace },
+						insertText: withAt + ' ',
+						detail: v.description,
+						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+					};
+				});
+
+				return <CompletionList>{
+					suggestions: [...variableItems, ...historyItems]
+				};
+			}
+		}));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);

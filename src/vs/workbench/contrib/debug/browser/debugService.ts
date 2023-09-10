@@ -120,7 +120,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.adapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.disposables.add(this.configurationManager);
-		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
+		this.debugStorage = this.disposables.add(this.instantiationService.createInstance(DebugStorage));
 
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
@@ -655,14 +655,16 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private registerSessionListeners(session: IDebugSession): void {
+	private registerSessionListeners(session: DebugSession): void {
 		const sessionRunningScheduler = new RunOnceScheduler(() => {
 			// Do not immediatly defocus the stack frame if the session is running
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
 			}
 		}, 200);
-		this.disposables.add(session.onDidChangeState(() => {
+		const sessionStore = new DisposableStore();
+
+		sessionStore.add(session.onDidChangeState(() => {
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				sessionRunningScheduler.schedule();
 			}
@@ -671,7 +673,7 @@ export class DebugService implements IDebugService {
 			}
 		}));
 
-		this.disposables.add(session.onDidEndAdapter(async adapterExitEvent => {
+		sessionStore.add(session.onDidEndAdapter(async adapterExitEvent => {
 
 			if (adapterExitEvent) {
 				if (adapterExitEvent.error) {
@@ -724,6 +726,8 @@ export class DebugService implements IDebugService {
 			}
 
 			this.model.removeExceptionBreakpointsForSession(session.getId());
+			sessionStore.dispose();
+			// session.dispose(); TODO@roblourens
 		}));
 	}
 
@@ -1048,15 +1052,15 @@ export class DebugService implements IDebugService {
 		await this.sendDataBreakpoints();
 	}
 
-	async addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void> {
-		this.model.addInstructionBreakpoint(address, offset, condition, hitCondition);
+	async addInstructionBreakpoint(instructionReference: string, offset: number, address: bigint, condition?: string, hitCondition?: string): Promise<void> {
+		this.model.addInstructionBreakpoint(instructionReference, offset, address, condition, hitCondition);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async removeInstructionBreakpoints(address?: string): Promise<void> {
-		this.model.removeInstructionBreakpoints(address);
+	async removeInstructionBreakpoints(instructionReference?: string, offset?: number): Promise<void> {
+		this.model.removeInstructionBreakpoints(instructionReference, offset);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 	}

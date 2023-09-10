@@ -8,7 +8,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeyCodeChord } from 'vs/base/common/keybindings';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -119,6 +119,9 @@ export class SuggestController implements IEditorContribution {
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
+	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
+	readonly onWillInsertSuggestItem: Event<{ item: CompletionItem }> = this._onWillInsertSuggestItem.event;
+
 	constructor(
 		editor: ICodeEditor,
 		@ISuggestMemoryService private readonly _memoryService: ISuggestMemoryService,
@@ -140,7 +143,7 @@ export class SuggestController implements IEditorContribution {
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
-		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
+		this._toDispose.add(this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode)));
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
@@ -292,6 +295,7 @@ export class SuggestController implements IEditorContribution {
 		this.widget.dispose();
 		this.model.dispose();
 		this._lineSuffix.dispose();
+		this._onWillInsertSuggestItem.dispose();
 	}
 
 	protected _insertSuggestion(
@@ -311,6 +315,8 @@ export class SuggestController implements IEditorContribution {
 		if (!snippetController) {
 			return;
 		}
+
+		this._onWillInsertSuggestItem.fire({ item: event.item });
 
 		const model = this.editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();

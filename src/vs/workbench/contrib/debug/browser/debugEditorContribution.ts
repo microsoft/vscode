@@ -41,7 +41,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { DebugHoverWidget, ShowDebugHoverResult } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
@@ -219,7 +219,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private gutterIsHovered = false;
 
 	private exceptionWidget: ExceptionWidget | undefined;
-	private configurationWidget: FloatingClickWidget | undefined;
+	private configurationWidget: FloatingEditorClickWidget | undefined;
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();

@@ -190,7 +190,7 @@ suite('Search - Viewlet', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, parent ?? aSearchResult().folderMatches()[0], searchModel, null);
+		}, parent ?? aSearchResult().folderMatches()[0], searchModel.searchResult, null);
 	}
 
 	function aSearchResult(): SearchResult {

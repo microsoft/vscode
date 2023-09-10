@@ -403,11 +403,11 @@ export class ListView<T> implements IListView<T> {
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
-		this.scrollable = new Scrollable({
+		this.scrollable = this.disposables.add(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: (options.smoothScrolling ?? false) ? 125 : 0,
 			scheduleAtNextAnimationFrame: cb => scheduleAtNextAnimationFrame(cb)
-		});
+		}));
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: options.alwaysConsumeMouseWheel ?? DefaultOptions.alwaysConsumeMouseWheel,
 			horizontal: ScrollbarVisibility.Auto,
@@ -1525,19 +1525,20 @@ export class ListView<T> implements IListView<T> {
 	// Dispose
 
 	dispose() {
-		if (this.items) {
-			for (const item of this.items) {
-				if (item.row) {
-					const renderer = this.renderers.get(item.row.templateId);
-					if (renderer) {
-						renderer.disposeElement?.(item.element, -1, item.row.templateData, undefined);
-						renderer.disposeTemplate(item.row.templateData);
-					}
+		for (const item of this.items) {
+			item.dragStartDisposable.dispose();
+			item.checkedDisposable.dispose();
+
+			if (item.row) {
+				const renderer = this.renderers.get(item.row.templateId);
+				if (renderer) {
+					renderer.disposeElement?.(item.element, -1, item.row.templateData, undefined);
+					renderer.disposeTemplate(item.row.templateData);
 				}
 			}
-
-			this.items = [];
 		}
+
+		this.items = [];
 
 		if (this.domNode && this.domNode.parentNode) {
 			this.domNode.parentNode.removeChild(this.domNode);

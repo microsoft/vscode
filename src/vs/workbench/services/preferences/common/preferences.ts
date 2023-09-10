@@ -138,8 +138,9 @@ export interface IFilterResult {
  */
 export enum SettingMatchType {
 	None = 0,
-	WholeWordMatch = 1 << 0,
-	KeyMatch = 1 << 1
+	RemoteMatch = 1 << 0,
+	WholeWordMatch = 1 << 1,
+	KeyMatch = 1 << 2
 }
 
 export interface ISettingMatch {

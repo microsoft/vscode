@@ -127,6 +127,16 @@
   {
     "kind": 1,
     "language": "markdown",
+    "value": "## All Unverified Fixes"
+  },
+  {
+    "kind": 2,
+    "language": "github-issues",
+    "value": "$REPOS $MILESTONE is:issue is:closed reason:completed sort:updated-asc label:bug -label:verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:z-author-verified "
+  },
+  {
+    "kind": 1,
+    "language": "markdown",
     "value": "# Candidates"
   },
   {

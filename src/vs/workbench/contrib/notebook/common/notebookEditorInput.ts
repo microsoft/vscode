@@ -158,8 +158,8 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	override isSaving(): boolean {
 		const model = this._editorModelReference?.object;
-		if (!model || !model.isDirty() || model.hasErrorState) {
-			return false; // require the model to be dirty and not in an error state
+		if (!model || !model.isDirty() || model.hasErrorState || this.hasCapability(EditorInputCapabilities.Untitled)) {
+			return false; // require the model to be dirty, file-backed and not in an error state
 		}
 
 		// if a short auto save is configured, treat this as being saved
