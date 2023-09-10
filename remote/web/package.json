@@ -3,19 +3,19 @@
 	"version": "0.0.0",
 	"private": true,
 	"dependencies": {
-		"@microsoft/1ds-core-js": "^3.2.2",
-		"@microsoft/1ds-post-js": "^3.2.2",
+		"@microsoft/1ds-core-js": "^4.0.1",
+		"@microsoft/1ds-post-js": "^4.0.1",
 		"@vscode/iconv-lite-umd": "0.7.0",
 		"@vscode/vscode-languagedetection": "1.0.21",
 		"jschardet": "3.0.0",
 		"tas-client-umd": "0.1.8",
 		"vscode-oniguruma": "1.7.0",
 		"vscode-textmate": "9.0.0",
-		"xterm": "5.2.0-beta.43",
-		"xterm-addon-canvas": "0.4.0-beta.11",
-		"xterm-addon-image": "0.4.0",
-		"xterm-addon-search": "0.12.0-beta.3",
+		"xterm": "5.3.0-beta.24",
+		"xterm-addon-canvas": "0.5.0-beta.7",
+		"xterm-addon-image": "0.5.0",
+		"xterm-addon-search": "0.13.0-beta.4",
 		"xterm-addon-unicode11": "0.5.0",
-		"xterm-addon-webgl": "0.15.0-beta.10"
+		"xterm-addon-webgl": "0.16.0-beta.6"
 	}
 }

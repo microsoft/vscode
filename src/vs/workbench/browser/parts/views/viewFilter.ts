@@ -81,6 +81,10 @@ export class FilterWidget extends Widget {
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
 
+	private focusTracker: DOM.IFocusTracker;
+	public get onDidFocus() { return this.focusTracker.onDidFocus; }
+	public get onDidBlur() { return this.focusTracker.onDidBlur; }
+
 	constructor(
 		private readonly options: IFilterWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -97,13 +101,17 @@ export class FilterWidget extends Widget {
 		}
 
 		this.element = DOM.$('.viewpane-filter');
-		this.filterInputBox = this.createInput(this.element);
+		[this.filterInputBox, this.focusTracker] = this.createInput(this.element);
 
 		const controlsContainer = DOM.append(this.element, DOM.$('.viewpane-filter-controls'));
 		this.filterBadge = this.createBadge(controlsContainer);
 		this.toolbar = this._register(this.createToolBar(controlsContainer));
 
 		this.adjustInputBox();
+	}
+
+	hasFocus(): boolean {
+		return this.filterInputBox.hasFocus();
 	}
 
 	focus(): void {
@@ -145,7 +153,7 @@ export class FilterWidget extends Widget {
 		}
 	}
 
-	private createInput(container: HTMLElement): ContextScopedHistoryInputBox {
+	private createInput(container: HTMLElement): [ContextScopedHistoryInputBox, DOM.IFocusTracker] {
 		const inputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: this.options.placeholder,
 			ariaLabel: this.options.ariaLabel,
@@ -171,7 +179,7 @@ export class FilterWidget extends Widget {
 			this._register(focusTracker.onDidBlur(() => this.focusContextKey!.set(false)));
 			this._register(toDisposable(() => this.focusContextKey!.reset()));
 		}
-		return inputBox;
+		return [inputBox, focusTracker];
 	}
 
 	private createBadge(container: HTMLElement): HTMLElement {

@@ -19,13 +19,14 @@ import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI as uri } from 'vs/base/common/uri';
 import 'vs/css!./media/repl';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -55,7 +56,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { FilterViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -63,11 +63,12 @@ import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/d
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplOutputElementRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
-import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
+import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplOutputElementRenderer, ReplRawObjectsRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
+import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, IDebugConfiguration, IDebugService, IDebugSession, IReplConfiguration, IReplElement, IReplOptions, REPL_VIEW_ID, State, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
+import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const $ = dom.$;
 
@@ -233,6 +234,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.completionItemProvider?.dispose();
 			if (session.capabilities.supportsCompletionsRequest) {
 				this.completionItemProvider = this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+					_debugDisplayName: 'debugConsole',
 					triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
 					provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 						// Disable history navigation because up and down are used to navigate through the suggest widget
@@ -562,6 +564,27 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 	// --- Creation
 
+	override render(): void {
+		super.render();
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this, this.filterWidget],
+			focusNextWidget: () => {
+				if (this.filterWidget.hasFocus()) {
+					this.tree?.domFocus();
+				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+					this.focus();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (this.replInput.hasTextFocus()) {
+					this.tree?.domFocus();
+				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+					this.focusFilter();
+				}
+			}
+		}));
+	}
+
 	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, $('.repl'));
@@ -649,15 +672,12 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		CONTEXT_IN_DEBUG_REPL.bindTo(this.scopedContextKeyService).set(true);
 
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		const options = getSimpleEditorOptions();
+		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = true;
 		options.suggest = { showStatusBar: true };
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
-		// We must respect some accessibility related settings
-		options.accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-		options.cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
@@ -753,7 +773,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	override dispose(): void {
-		this.replInput.dispose();
+		this.replInput?.dispose(); // Disposed before rendered? #174558
 		this.replElementsChangeListener?.dispose();
 		this.refreshScheduler.dispose();
 		this.modelChangeListener.dispose();
@@ -1047,12 +1067,33 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
+		const debugService = accessor.get(IDebugService);
 		const nativeSelection = window.getSelection();
 		const selectedText = nativeSelection?.toString();
 		if (selectedText && selectedText.length > 0) {
-			await clipboardService.writeText(selectedText);
+			return clipboardService.writeText(selectedText);
 		} else if (element) {
-			await clipboardService.writeText(element.toString());
+			return clipboardService.writeText(await this.tryEvaluateAndCopy(debugService, element) || element.toString());
+		}
+	}
+
+	private async tryEvaluateAndCopy(debugService: IDebugService, element: IReplElement): Promise<string | undefined> {
+		// todo: we should expand DAP to allow copying more types here (#187784)
+		if (!(element instanceof ReplEvaluationResult)) {
+			return;
+		}
+
+		const stackFrame = debugService.getViewModel().focusedStackFrame;
+		const session = debugService.getViewModel().focusedSession;
+		if (!stackFrame || !session || !session.capabilities.supportsClipboardContext) {
+			return;
+		}
+
+		try {
+			const evaluation = await session.evaluate(element.originalExpression, stackFrame.frameId, 'clipboard');
+			return evaluation?.body.result;
+		} catch (e) {
+			return;
 		}
 	}
 });

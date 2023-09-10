@@ -402,6 +402,6 @@
     "watch": "npx gulp watch-extension:references-view"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   }
 }

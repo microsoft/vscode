@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { TabFocusContext, TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalSettingId, terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
+import { TerminalSettingId, terminalTabFocusModeContextKey } from 'vs/platform/terminal/common/terminal';
 
 export const editorTabFocusContextKey = new RawContextKey<boolean>('editorTabFocusMode', false, true);
 
@@ -26,7 +26,7 @@ export class TabFocusMode extends Disposable {
 		super();
 
 		this._editorContext = editorTabFocusContextKey.bindTo(contextKeyService);
-		this._terminalContext = terminalTabFocusContextKey.bindTo(contextKeyService);
+		this._terminalContext = terminalTabFocusModeContextKey.bindTo(contextKeyService);
 		const editorConfig: boolean = configurationService.getValue('editor.tabFocusMode');
 		const terminalConfig: boolean = configurationService.getValue(TerminalSettingId.TabFocusMode) ?? editorConfig;
 		this._editorContext.set(editorConfig);

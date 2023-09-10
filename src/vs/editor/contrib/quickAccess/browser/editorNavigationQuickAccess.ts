@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
@@ -16,7 +15,7 @@ import { overviewRulerRangeHighlight } from 'vs/editor/common/core/editorColorRe
 import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 interface IEditorLineDecoration {
 	readonly rangeHighlightId: string;
@@ -95,9 +94,9 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 				// changes even later because it could be that the user has
 				// configured quick access to remain open when focus is lost and
 				// we always want to restore the current location.
-				let lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+				let lastKnownEditorViewState = editor.saveViewState() ?? undefined;
 				disposables.add(codeEditor.onDidChangeCursorPosition(() => {
-					lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+					lastKnownEditorViewState = editor.saveViewState() ?? undefined;
 				}));
 
 				context.restoreViewState = () => {
@@ -149,7 +148,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 		}
 		const model = editor.getModel();
 		if (model && 'getLineContent' in model) {
-			alert(`${model.getLineContent(options.range.startLineNumber)}`);
+			status(`${model.getLineContent(options.range.startLineNumber)}`);
 		}
 	}
 

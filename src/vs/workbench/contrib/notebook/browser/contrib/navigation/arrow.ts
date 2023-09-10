@@ -5,7 +5,6 @@
 
 import { timeout } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { isEqual } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -18,10 +17,10 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
-import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
@@ -36,18 +35,6 @@ const NOTEBOOK_CURSOR_PAGEUP_COMMAND_ID = 'notebook.cell.cursorPageUp';
 const NOTEBOOK_CURSOR_PAGEUP_SELECT_COMMAND_ID = 'notebook.cell.cursorPageUpSelect';
 const NOTEBOOK_CURSOR_PAGEDOWN_COMMAND_ID = 'notebook.cell.cursorPageDown';
 const NOTEBOOK_CURSOR_PAGEDOWN_SELECT_COMMAND_ID = 'notebook.cell.cursorPageDownSelect';
-
-function findTargetCellEditor(context: INotebookCellActionContext, targetCell: ICellViewModel) {
-	let foundEditor: ICodeEditor | undefined = undefined;
-	for (const [, codeEditor] of context.notebookEditor.codeEditors) {
-		if (isEqual(codeEditor.getModel()?.uri, targetCell.uri)) {
-			foundEditor = codeEditor;
-			break;
-		}
-	}
-
-	return foundEditor;
-}
 
 registerAction2(class FocusNextCellAction extends NotebookCellAction {
 	constructor() {
@@ -101,8 +88,8 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
 							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
 						),
-						CTX_INTERACTIVE_EDITOR_FOCUSED,
-						CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST,
+						CTX_INLINE_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
 						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.DownArrow,
@@ -117,8 +104,8 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
 							NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.isEqualTo(false),
 							NOTEBOOK_CURSOR_NAVIGATION_MODE),
-						CTX_INTERACTIVE_EDITOR_FOCUSED,
-						CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST,
+						CTX_INLINE_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
 						EditorContextKeys.isEmbeddedDiffEditor.negate()
 					),
 					primary: KeyCode.DownArrow,
@@ -146,8 +133,8 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 		const targetCell = (context.cell ?? context.selectedCells?.[0]);
 		const foundEditor: ICodeEditor | undefined = targetCell ? findTargetCellEditor(context, targetCell) : undefined;
 
-		if (foundEditor && foundEditor.hasTextFocus() && InteractiveEditorController.get(foundEditor)?.getWidgetPosition()?.lineNumber === focusEditorLine) {
-			InteractiveEditorController.get(foundEditor)?.focus();
+		if (foundEditor && foundEditor.hasTextFocus() && InlineChatController.get(foundEditor)?.getWidgetPosition()?.lineNumber === focusEditorLine) {
+			InlineChatController.get(foundEditor)?.focus();
 		} else {
 			const newCell = editor.cellAt(idx + 1);
 			const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
@@ -220,8 +207,8 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 
 		const foundEditor: ICodeEditor | undefined = findTargetCellEditor(context, newCell);
 
-		if (foundEditor && InteractiveEditorController.get(foundEditor)?.getWidgetPosition()?.lineNumber === focusEditorLine) {
-			InteractiveEditorController.get(foundEditor)?.focus();
+		if (foundEditor && InlineChatController.get(foundEditor)?.getWidgetPosition()?.lineNumber === focusEditorLine) {
+			InlineChatController.get(foundEditor)?.focus();
 		}
 	}
 });
@@ -444,7 +431,7 @@ registerAction2(class extends NotebookCellAction {
 
 function getPageSize(context: INotebookCellActionContext) {
 	const editor = context.notebookEditor;
-	const layoutInfo = editor._getViewModel().layoutInfo;
+	const layoutInfo = editor.getViewModel().layoutInfo;
 	const lineHeight = layoutInfo?.fontInfo.lineHeight || 17;
 	return Math.max(1, Math.floor((layoutInfo?.height || 0) / lineHeight) - 2);
 }

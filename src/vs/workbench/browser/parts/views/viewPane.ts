@@ -47,11 +47,22 @@ import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
+export enum ViewPaneShowActions {
+	/** Show the actions when the view is hovered. This is the default behavior. */
+	Default,
+
+	/** Always shows the actions when the view is expanded */
+	WhenExpanded,
+
+	/** Always shows the actions */
+	Always,
+}
+
 export interface IViewPaneOptions extends IPaneOptions {
-	id: string;
-	showActionsAlways?: boolean;
-	titleMenuId?: MenuId;
-	donotForwardArgs?: boolean;
+	readonly id: string;
+	readonly showActions?: ViewPaneShowActions;
+	readonly titleMenuId?: MenuId;
+	readonly donotForwardArgs?: boolean;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -188,7 +199,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private progressIndicator!: IProgressIndicator;
 
 	private toolbar?: WorkbenchToolBar;
-	private readonly showActionsAlways: boolean = false;
+	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	private titleDescriptionContainer?: HTMLElement;
@@ -219,7 +230,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
-		this.showActionsAlways = !!options.showActionsAlways;
+		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this.scopedContextKeyService.createKey('view', this.id);
@@ -288,7 +299,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
-		actions.classList.toggle('show', this.showActionsAlways);
+		actions.classList.toggle('show-always', this.showActions === ViewPaneShowActions.Always);
+		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
 		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),

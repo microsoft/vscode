@@ -48,6 +48,10 @@ suite('KeybindingsEditorModel', () => {
 		CommandsRegistry.registerCommand('command_without_keybinding', () => { });
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('fetch returns default keybindings', async () => {
 		const expected = prepareKeybindingService(
 			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstChord: { keyCode: KeyCode.Escape } }),

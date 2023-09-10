@@ -410,6 +410,9 @@ export interface ISearchConfigurationProperties {
 		badges: boolean;
 	};
 	defaultViewMode: ViewMode;
+	experimental: {
+		closedNotebookRichContentResults: boolean;
+	};
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

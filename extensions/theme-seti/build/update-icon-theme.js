@@ -44,6 +44,7 @@ const nonBuiltInLanguages = { // { fileNames, extensions  }
 // list of languagesId that inherit the icon from another language
 const inheritIconFromLanguage = {
 	"jsonc": 'json',
+	"jsonl": 'json',
 	"postcss": 'css',
 	"django-html": 'html',
 	"blade": 'php'

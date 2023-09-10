@@ -123,6 +123,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 			this._currentSuggestItemInfo = newInlineCompletion;
 
 			transaction(tx => {
+				/** @description Update state from suggest widget */
 				this.checkModelVersion(tx);
 				this._selectedItem.set(this._isActive ? this._currentSuggestItemInfo : undefined, tx);
 			});
