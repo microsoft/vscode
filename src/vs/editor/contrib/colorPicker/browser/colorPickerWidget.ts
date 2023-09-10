@@ -26,6 +26,7 @@ export class ColorPickerHeader extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _pickedColorNode: HTMLElement;
+	private readonly _pickedColorPresentation: HTMLElement;
 	private readonly _originalColorNode: HTMLElement;
 	private readonly _closeButton: CloseButton | null = null;
 	private backgroundColor: Color;
@@ -37,6 +38,9 @@ export class ColorPickerHeader extends Disposable {
 		dom.append(container, this._domNode);
 
 		this._pickedColorNode = dom.append(this._domNode, $('.picked-color'));
+		dom.append(this._pickedColorNode, $('span.codicon.codicon-color-mode'));
+		this._pickedColorPresentation = dom.append(this._pickedColorNode, document.createElement('span'));
+		this._pickedColorPresentation.classList.add('picked-color-presentation');
 
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
 		this._pickedColorNode.setAttribute('title', tooltip);
@@ -91,8 +95,7 @@ export class ColorPickerHeader extends Disposable {
 	}
 
 	private onDidChangePresentation(): void {
-		this._pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
-		this._pickedColorNode.prepend($('.codicon.codicon-color-mode'));
+		this._pickedColorPresentation.textContent = this.model.presentation ? this.model.presentation.label : '';
 	}
 }
 
@@ -318,11 +321,13 @@ class SaturationBox extends Disposable {
 		this.selection.style.top = `${this.height - v * this.height}px`;
 	}
 
-	private onDidChangeColor(): void {
+	private onDidChangeColor(color: Color): void {
 		if (this.monitor && this.monitor.isMonitoring()) {
 			return;
 		}
 		this.paint();
+		const hsva = color.hsva;
+		this.paintSelection(hsva.s, hsva.v);
 	}
 }
 
@@ -352,6 +357,7 @@ abstract class Strip extends Disposable {
 		this.slider.style.top = `0px`;
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
+		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.layout();
 	}
 
@@ -359,6 +365,11 @@ abstract class Strip extends Disposable {
 		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
 
 		const value = this.getValue(this.model.color);
+		this.updateSliderPosition(value);
+	}
+
+	protected onDidChangeColor(color: Color) {
+		const value = this.getValue(color);
 		this.updateSliderPosition(value);
 	}
 
@@ -404,11 +415,11 @@ class OpacityStrip extends Strip {
 		super(container, model, showingStandaloneColorPicker);
 		this.domNode.classList.add('opacity-strip');
 
-		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.onDidChangeColor(this.model.color);
 	}
 
-	private onDidChangeColor(color: Color): void {
+	protected override onDidChangeColor(color: Color): void {
+		super.onDidChangeColor(color);
 		const { r, g, b } = color.rgba;
 		const opaque = new Color(new RGBA(r, g, b, 1));
 		const transparent = new Color(new RGBA(r, g, b, 0));

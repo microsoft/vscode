@@ -300,6 +300,14 @@ export class SearchWidget extends Widget {
 		return this.replaceInput?.inputBox.getHistory() ?? [];
 	}
 
+	prependSearchHistory(history: string[]): void {
+		this.searchInput?.inputBox.prependHistory(history);
+	}
+
+	prependReplaceHistory(history: string[]): void {
+		this.replaceInput?.inputBox.prependHistory(history);
+	}
+
 	clearHistory(): void {
 		this.searchInput?.inputBox.clearHistory();
 		this.replaceInput?.inputBox.clearHistory();

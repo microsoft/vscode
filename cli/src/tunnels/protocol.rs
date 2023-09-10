@@ -200,6 +200,11 @@ pub const METHOD_CHALLENGE_ISSUE: &str = "challenge_issue";
 pub const METHOD_CHALLENGE_VERIFY: &str = "challenge_verify";
 
 #[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueParams {
+	pub token: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct ChallengeIssueResponse {
 	pub challenge: String,
 }
@@ -207,6 +212,39 @@ pub struct ChallengeIssueResponse {
 #[derive(Deserialize, Serialize)]
 pub struct ChallengeVerifyParams {
 	pub response: String,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortPrivacy {
+	Public,
+	Private,
+}
+
+pub mod forward_singleton {
+	use serde::{Deserialize, Serialize};
+
+	use super::PortPrivacy;
+
+	pub const METHOD_SET_PORTS: &str = "set_ports";
+
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+	pub struct PortRec {
+		pub number: u16,
+		pub privacy: PortPrivacy,
+	}
+
+	pub type PortList = Vec<PortRec>;
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsParams {
+		pub ports: PortList,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsResponse {
+		pub port_format: Option<String>,
+	}
 }
 
 pub mod singleton {

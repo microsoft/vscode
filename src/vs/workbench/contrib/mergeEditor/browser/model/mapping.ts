@@ -237,33 +237,6 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
 		super(inputRange, outputRange);
 
 		this.rangeMappings = rangeMappings || [new RangeMapping(this.inputRange.toRange(), this.outputRange.toRange())];
-
-		assertFn(() => {
-			for (const map of this.rangeMappings) {
-				let inputRangesValid = inputRange.startLineNumber - 1 <= map.inputRange.startLineNumber
-					&& map.inputRange.endLineNumber <= inputRange.endLineNumberExclusive;
-				if (inputRangesValid && map.inputRange.startLineNumber === inputRange.startLineNumber - 1) {
-					inputRangesValid = map.inputRange.endColumn >= inputTextModel.getLineMaxColumn(map.inputRange.startLineNumber);
-				}
-				if (inputRangesValid && map.inputRange.endLineNumber === inputRange.endLineNumberExclusive) {
-					inputRangesValid = map.inputRange.endColumn === 1;
-				}
-
-				let outputRangesValid = outputRange.startLineNumber - 1 <= map.outputRange.startLineNumber
-					&& map.outputRange.endLineNumber <= outputRange.endLineNumberExclusive;
-				if (outputRangesValid && map.outputRange.startLineNumber === outputRange.startLineNumber - 1) {
-					outputRangesValid = map.outputRange.endColumn >= outputTextModel.getLineMaxColumn(map.outputRange.startLineNumber);
-				}
-				if (outputRangesValid && map.outputRange.endLineNumber === outputRange.endLineNumberExclusive) {
-					outputRangesValid = map.outputRange.endColumn === 1;
-				}
-
-				if (!inputRangesValid || !outputRangesValid) {
-					return false;
-				}
-			}
-			return true;
-		});
 	}
 
 	public override addOutputLineDelta(delta: number): DetailedLineRangeMapping {

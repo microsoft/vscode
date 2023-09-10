@@ -12,7 +12,6 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -249,6 +248,9 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			opts.execArgv.unshift('--prof');
 		}
 
+		// Refs https://github.com/microsoft/vscode/issues/189805
+		opts.execArgv.unshift('--dns-result-order=ipv4first');
+
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
 		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
@@ -437,7 +439,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				extensionLogLevel: this._environmentService.extensionLogLevel
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
-				configuration: withNullAsUndefined(workspace.configuration),
+				configuration: workspace.configuration ?? undefined,
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
@@ -530,7 +532,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	public getInspectPort(): number | undefined {
-		return withNullAsUndefined(this._inspectPort);
+		return this._inspectPort ?? undefined;
 	}
 
 	private _onWillShutdown(event: WillShutdownEvent): void {

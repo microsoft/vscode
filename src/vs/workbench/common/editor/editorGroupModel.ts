@@ -869,7 +869,7 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	indexOf(candidate: EditorInput | null, editors = this.editors, options?: IMatchEditorOptions): number {
+	indexOf(candidate: EditorInput | IUntypedEditorInput | null, editors = this.editors, options?: IMatchEditorOptions): number {
 		let index = -1;
 		if (!candidate) {
 			return index;
@@ -894,7 +894,7 @@ export class EditorGroupModel extends Disposable {
 		return index;
 	}
 
-	private findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined {
+	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined {
 		const index = this.indexOf(candidate, this.editors, options);
 		if (index === -1) {
 			return undefined;
@@ -912,13 +912,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
-		for (const editor of this.editors) {
-			if (this.matches(editor, candidate, options)) {
-				return true;
-			}
-		}
-
-		return false;
+		return this.indexOf(candidate, this.editors, options) !== -1;
 	}
 
 	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchEditorOptions): boolean {

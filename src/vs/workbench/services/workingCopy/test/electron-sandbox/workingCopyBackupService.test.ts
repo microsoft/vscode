@@ -59,7 +59,7 @@ const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	execPath: process.execPath,
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
-	os: { release: 'unknown', hostname: 'unknown' },
+	os: { release: 'unknown', hostname: 'unknown', arch: 'unknown' },
 	product,
 	homeDir: homeDir.fsPath,
 	tmpDir: tmpDir.fsPath,
@@ -1212,11 +1212,6 @@ suite('WorkingCopyBackupService', () => {
 			model.update(resource4);
 			assert.strictEqual(model.has(resource4), true);
 			assert.strictEqual(model.has(resource4, undefined, { foo: 'nothing' }), false);
-
-			const resource5 = URI.file('test4.html');
-			model.move(resource4, resource5);
-			assert.strictEqual(model.has(resource4), false);
-			assert.strictEqual(model.has(resource5), true);
 		});
 
 		test('create', async () => {
@@ -1242,50 +1237,6 @@ suite('WorkingCopyBackupService', () => {
 			model.add(untitled);
 
 			assert.deepStrictEqual(model.get().map(f => f.fsPath), [file1.fsPath, file2.fsPath, untitled.fsPath]);
-		});
-	});
-
-	suite('Hash migration', () => {
-
-		test('works', async () => {
-			const fooBackupId = toUntypedWorkingCopyId(fooFile);
-			const untitledBackupId = toUntypedWorkingCopyId(untitledFile);
-			const customBackupId = toUntypedWorkingCopyId(customFile);
-
-			const fooBackupPath = joinPath(workspaceBackupPath, fooFile.scheme, hashIdentifier(fooBackupId));
-			const untitledBackupPath = joinPath(workspaceBackupPath, untitledFile.scheme, hashIdentifier(untitledBackupId));
-			const customFileBackupPath = joinPath(workspaceBackupPath, customFile.scheme, hashIdentifier(customBackupId));
-
-			// Prepare backups of the old MD5 hash format
-			await fileService.createFolder(joinPath(workspaceBackupPath, fooFile.scheme));
-			await fileService.createFolder(joinPath(workspaceBackupPath, untitledFile.scheme));
-			await fileService.createFolder(joinPath(workspaceBackupPath, customFile.scheme));
-			await fileService.writeFile(joinPath(workspaceBackupPath, fooFile.scheme, '8a8589a2f1c9444b89add38166f50229'), VSBuffer.fromString(`${fooFile.toString()}\ntest file`));
-			await fileService.writeFile(joinPath(workspaceBackupPath, untitledFile.scheme, '13264068d108c6901b3592ea654fcd57'), VSBuffer.fromString(`${untitledFile.toString()}\ntest untitled`));
-			await fileService.writeFile(joinPath(workspaceBackupPath, customFile.scheme, 'bf018572af7b38746b502893bd0adf6c'), VSBuffer.fromString(`${customFile.toString()}\ntest custom`));
-
-			service.reinitialize(workspaceBackupPath);
-
-			const backups = await service.getBackups();
-			assert.strictEqual(backups.length, 3);
-			assert.ok(backups.some(backup => isEqual(backup.resource, fooFile)));
-			assert.ok(backups.some(backup => isEqual(backup.resource, untitledFile)));
-			assert.ok(backups.some(backup => isEqual(backup.resource, customFile)));
-
-			assert.strictEqual((await fileService.resolve(joinPath(workspaceBackupPath, fooFile.scheme))).children?.length, 1);
-			assert.strictEqual((await fileService.exists(fooBackupPath)), true);
-			assert.strictEqual((await fileService.readFile(fooBackupPath)).value.toString(), `${fooFile.toString()}\ntest file`);
-			assert.ok(service.hasBackupSync(fooBackupId));
-
-			assert.strictEqual((await fileService.resolve(joinPath(workspaceBackupPath, untitledFile.scheme))).children?.length, 1);
-			assert.strictEqual((await fileService.exists(untitledBackupPath)), true);
-			assert.strictEqual((await fileService.readFile(untitledBackupPath)).value.toString(), `${untitledFile.toString()}\ntest untitled`);
-			assert.ok(service.hasBackupSync(untitledBackupId));
-
-			assert.strictEqual((await fileService.resolve(joinPath(workspaceBackupPath, customFile.scheme))).children?.length, 1);
-			assert.strictEqual((await fileService.exists(customFileBackupPath)), true);
-			assert.strictEqual((await fileService.readFile(customFileBackupPath)).value.toString(), `${customFile.toString()}\ntest custom`);
-			assert.ok(service.hasBackupSync(customBackupId));
 		});
 	});
 

@@ -653,7 +653,7 @@ export interface ITreeView extends IDisposable {
 
 	manuallyManageCheckboxes: boolean;
 
-	message?: string;
+	message?: string | IMarkdownString;
 
 	title: string;
 
@@ -667,9 +667,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
 
-	readonly onDidChangeSelection: Event<readonly ITreeItem[]>;
-
-	readonly onDidChangeFocus: Event<ITreeItem>;
+	readonly onDidChangeSelectionAndFocus: Event<{ selection: readonly ITreeItem[]; focus: ITreeItem }>;
 
 	readonly onDidChangeVisibility: Event<boolean>;
 

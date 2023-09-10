@@ -281,7 +281,6 @@
 		"workbench-editor-resolver": {"assign": ["lramos15"]},
 		"workbench-editors": {"assign": ["bpasero"]},
 		"workbench-electron": {"assign": ["deepak1556"]},
-		"workbench-feedback": {"assign": ["bpasero"]},
 		"workbench-fonts": {"assign": []},
 		"workbench-history": {"assign": ["bpasero"]},
 		"workbench-hot-exit": {"assign": ["bpasero"]},

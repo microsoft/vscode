@@ -448,7 +448,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.WordSeparators]: {
-			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double-click to select word feature."),
+			markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
 			type: 'string',
 			// allow-any-unicode-next-line
 			default: ' ()[]{}\',"`─‘’|'
@@ -503,16 +503,13 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.LocalEchoStyle]: {
 			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
 			default: 'dim',
-			oneOf: [
+			anyOf: [
 				{
-					type: 'string',
-					default: 'dim',
-					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted', '#ff0000'],
 				},
 				{
 					type: 'string',
 					format: 'color-hex',
-					default: '#ff0000',
 				}
 			]
 		},
@@ -531,6 +528,17 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.persistentSessionReviveProcess.never', "Never restore the terminal buffers or recreate the process.")
 			],
 			default: 'onExit'
+		},
+		[TerminalSettingId.HideOnStartup]: {
+			description: localize('terminal.integrated.hideOnStartup', "Whether to hide the terminal view on startup, avoiding creating a terminal when there are no persistent sessions."),
+			type: 'string',
+			enum: ['never', 'whenEmpty', 'always'],
+			markdownEnumDescriptions: [
+				localize('hideOnStartup.never', "Never hide the terminal view on startup."),
+				localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
+				localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
+			],
+			default: 'never'
 		},
 		[TerminalSettingId.CustomGlyphs]: {
 			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
@@ -578,20 +586,23 @@ const terminalConfiguration: IConfigurationNode = {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
 			type: 'boolean',
-			default: false,
-			tags: ['experimental']
+			default: false
 		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
 		},
-		[TerminalSettingId.ExperimentalImageSupport]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.experimentalImageSupport', "Enables experimental image support in the terminal. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will not be retained currently between window reloads/reconnects."),
+		[TerminalSettingId.IgnoreBracketedPasteMode]: {
+			markdownDescription: localize('terminal.integrated.ignoreBracketedPasteMode', "Controls whether the terminal will ignore bracketed paste mode even if the terminal was put into the mode, omitting the {0} and {1} sequences when pasting. This is useful when the shell is not respecting the mode which can happen in sub-shells for example.", '`\\x1b[200~`', '`\\x1b[201~`'),
 			type: 'boolean',
-			default: false,
-			tags: ['experimental']
+			default: false
+		},
+		[TerminalSettingId.EnableImages]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS, Windows support will light up automatically when ConPTY passes through the sequences. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+			type: 'boolean',
+			default: true
 		},
 	}
 };

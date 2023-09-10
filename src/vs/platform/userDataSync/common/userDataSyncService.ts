@@ -423,9 +423,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 		const updatedRemoteProfiles = remoteProfiles.filter(profile => allCollections.includes(profile.collection));
 		if (updatedRemoteProfiles.length !== remoteProfiles.length) {
-			this.logService.info(`Updating remote profiles with invalid collections on server`);
 			const profileManifestSynchronizer = this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, this.userDataProfilesService.defaultProfile, undefined);
 			try {
+				this.logService.info('Resetting the last synced state of profiles');
+				await profileManifestSynchronizer.resetLocal();
+				this.logService.info('Did reset the last synced state of profiles');
+				this.logService.info(`Updating remote profiles with invalid collections on server`);
 				await profileManifestSynchronizer.updateRemoteProfiles(updatedRemoteProfiles, null);
 				this.logService.info(`Updated remote profiles on server`);
 			} finally {
@@ -620,6 +623,10 @@ class ProfileSynchronizer extends Disposable {
 			}
 		}
 		if (syncResource === SyncResource.WorkspaceState) {
+			return;
+		}
+		if (syncResource !== SyncResource.Profiles && this.profile.useDefaultFlags?.[syncResource]) {
+			this.logService.debug(`Skipping syncing ${syncResource} in ${this.profile.name} because it is already synced by default profile`);
 			return;
 		}
 		const disposables = new DisposableStore();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IBuffer, Terminal } from 'xterm';
+import type { IBuffer, Terminal } from 'xterm';
 import { SinonStub, stub, useFakeTimers } from 'sinon';
 import { Emitter } from 'vs/base/common/event';
 import { CharPredictState, IPrediction, PredictionStats, TypeAheadAddon } from 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon';
@@ -452,7 +452,7 @@ function createMockTerminal({ lines, cursorAttrs }: {
 		if (line.includes('|')) {
 			cursor.y = y + 1;
 			cursor.x = line.indexOf('|') + 1;
-			lines[y] = line.replace('|', '');
+			lines[y] = line.replace('|', ''); // CodeQL [SM02383] replacing the first occurrence is intended
 			break;
 		}
 	}
