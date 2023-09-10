@@ -26,6 +26,7 @@ import { asJson, asTextOrError, IRequestService, isSuccess } from 'vs/platform/r
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 const ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
@@ -874,14 +875,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		}
 
 		if (needAllVersions.size) {
-			const startTime = new Date().getTime();
+			const stopWatch = new StopWatch();
 			const query = new Query()
 				.withFlags(flags & ~Flags.IncludeLatestVersionOnly, Flags.IncludeVersions)
 				.withPage(1, needAllVersions.size)
 				.withFilter(FilterType.ExtensionId, ...needAllVersions.keys());
 			const { extensions } = await this.queryGalleryExtensions(query, criteria, token);
 			this.telemetryService.publicLog2<GalleryServiceAdditionalQueryEvent, GalleryServiceAdditionalQueryClassification>('galleryService:additionalQuery', {
-				duration: new Date().getTime() - startTime,
+				duration: stopWatch.elapsed(),
 				count: needAllVersions.size
 			});
 			for (const extension of extensions) {
@@ -952,7 +953,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			'Content-Length': String(data.length),
 		};
 
-		const startTime = new Date().getTime();
+		const stopWatch = new StopWatch();
 		let context: IRequestContext | undefined, error: any, total: number = 0;
 
 		try {
@@ -991,7 +992,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			this.telemetryService.publicLog2<GalleryServiceQueryEvent, GalleryServiceQueryClassification>('galleryService:query', {
 				...query.telemetryData,
 				requestBodySize: String(data.length),
-				duration: new Date().getTime() - startTime,
+				duration: stopWatch.elapsed(),
 				success: !!context && isSuccess(context),
 				responseBodySize: context?.res.headers['Content-Length'],
 				statusCode: context ? String(context.res.statusCode) : undefined,

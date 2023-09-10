@@ -35,7 +35,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		local_forwarding, legal,
+		legal, local_forwarding,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -326,12 +326,12 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 
 #[derive(Serialize)]
 pub struct StatusOutput {
-	pub tunnel: Option<protocol::singleton::TunnelState>,
+	pub tunnel: Option<protocol::singleton::StatusWithTunnelName>,
 	pub service_installed: bool,
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let tunnel_status = do_single_rpc_call::<_, protocol::singleton::Status>(
+	let tunnel = do_single_rpc_call::<_, protocol::singleton::StatusWithTunnelName>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
@@ -347,8 +347,8 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 	ctx.log.result(
 		serde_json::to_string(&StatusOutput {
 			service_installed,
-			tunnel: match tunnel_status {
-				Ok(s) => Some(s.tunnel),
+			tunnel: match tunnel {
+				Ok(s) => Some(s),
 				Err(CodeError::NoRunningTunnel) => None,
 				Err(e) => return Err(e.into()),
 			},

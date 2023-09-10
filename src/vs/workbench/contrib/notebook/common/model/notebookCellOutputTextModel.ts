@@ -25,6 +25,15 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		return this._rawOutput.outputId;
 	}
 
+	/**
+	 * Alternative output id that's reused when the output is updated.
+	 */
+	private _alternativeOutputId: string;
+
+	get alternativeOutputId(): string {
+		return this._alternativeOutputId;
+	}
+
 	private _versionId = 0;
 
 	get versionId() {
@@ -35,6 +44,8 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		private _rawOutput: IOutputDto
 	) {
 		super();
+
+		this._alternativeOutputId = this._rawOutput.outputId;
 	}
 
 	replaceData(rawData: IOutputDto) {
@@ -109,7 +120,7 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		}
 	}
 
-	toJSON(): IOutputDto {
+	asDto(): IOutputDto {
 		return {
 			// data: this._data,
 			metadata: this._rawOutput.metadata,
