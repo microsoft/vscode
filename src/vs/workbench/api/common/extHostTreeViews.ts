@@ -47,7 +47,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 }
 
 
-export class ExtHostTreeViews implements ExtHostTreeViewsShape {
+export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
 	private treeDragAndDropService: ITreeViewsDnDService<vscode.DataTransfer> = new TreeViewsDnDService<vscode.DataTransfer>();
@@ -57,7 +57,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		private commands: ExtHostCommands,
 		private logService: ILogService
 	) {
-
+		super();
 		function isTreeViewConvertableItem(arg: any): boolean {
 			return arg && arg.$treeViewId && (arg.$treeItemHandle || arg.$selectedTreeItems || arg.$focusedTreeItem);
 		}
@@ -152,6 +152,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.dispose();
 			}
 		};
+		this._register(view);
 		return view as vscode.TreeView<T>;
 	}
 
@@ -262,7 +263,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 
 	private createExtHostTreeView<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
+		const treeView = this._register(new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension));
 		this.treeViews.set(id, treeView);
 		return treeView;
 	}
@@ -359,7 +360,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		let refreshingPromise: Promise<void> | null;
 		let promiseCallback: () => void;
-		this._register(Event.debounce<TreeData<T>, { message: boolean; elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
+		const onDidChangeData = Event.debounce<TreeData<T>, { message: boolean; elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
 			if (!result) {
 				result = { message: false, elements: [] };
 			}
@@ -379,7 +380,8 @@ class ExtHostTreeView<T> extends Disposable {
 				result.message = true;
 			}
 			return result;
-		}, 200, true)(({ message, elements }) => {
+		}, 200, true);
+		this._register(onDidChangeData(({ message, elements }) => {
 			if (elements.length) {
 				this.refreshQueue = this.refreshQueue.then(() => {
 					const _promiseCallback = promiseCallback;
@@ -801,7 +803,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
 		this.validateTreeItem(extensionTreeItem);
-		const disposableStore = new DisposableStore();
+		const disposableStore = this._register(new DisposableStore());
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
 		const item: ITreeItem = {
@@ -970,6 +972,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	override dispose() {
+		super.dispose();
 		this._refreshCancellationSource.dispose();
 
 		this.clearAll();

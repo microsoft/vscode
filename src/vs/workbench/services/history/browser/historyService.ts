@@ -1115,6 +1115,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	//#endregion
+
+	override dispose(): void {
+		super.dispose();
+
+		for (const [, stack] of this.editorGroupScopedNavigationStacks) {
+			stack.disposable.dispose();
+		}
+
+		for (const [, editors] of this.editorScopedNavigationStacks) {
+			for (const [, stack] of editors) {
+				stack.disposable.dispose();
+			}
+		}
+	}
 }
 
 registerSingleton(IHistoryService, HistoryService, InstantiationType.Eager);

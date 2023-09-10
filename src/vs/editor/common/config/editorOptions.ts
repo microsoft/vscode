@@ -460,6 +460,11 @@ export interface IEditorOptions {
 	 */
 	autoClosingBrackets?: EditorAutoClosingStrategy;
 	/**
+	 * Options for auto closing comments.
+	 * Defaults to language defined behavior.
+	 */
+	autoClosingComments?: EditorAutoClosingStrategy;
+	/**
 	 * Options for auto closing quotes.
 	 * Defaults to language defined behavior.
 	 */
@@ -726,7 +731,7 @@ export interface IEditorOptions {
 	pasteAs?: IPasteAsOptions;
 
 	/**
-	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 * Controls whether the editor / terminal receives tabs or defers them to the workbench for navigation.
 	 */
 	tabFocusMode?: boolean;
 
@@ -5011,6 +5016,7 @@ export const enum EditorOption {
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
+	autoClosingComments,
 	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
@@ -5205,6 +5211,20 @@ export const EditorOptions = {
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
 		}
 	)),
+	autoClosingComments: register(new EditorStringEnumOption(
+		EditorOption.autoClosingComments, 'autoClosingComments',
+		'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never',
+		['always', 'languageDefined', 'beforeWhitespace', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingComments.languageDefined', "Use language configurations to determine when to autoclose comments."),
+				nls.localize('editor.autoClosingComments.beforeWhitespace', "Autoclose comments only when the cursor is to the left of whitespace."),
+				'',
+			],
+			description: nls.localize('autoClosingComments', "Controls whether the editor should automatically close comments after the user adds an opening comment.")
+		}
+	)),
 	autoClosingDelete: register(new EditorStringEnumOption(
 		EditorOption.autoClosingDelete, 'autoClosingDelete',
 		'auto' as 'always' | 'auto' | 'never',
@@ -5370,7 +5390,7 @@ export const EditorOptions = {
 				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced.")
+			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#cursorSurroundingLines#` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(

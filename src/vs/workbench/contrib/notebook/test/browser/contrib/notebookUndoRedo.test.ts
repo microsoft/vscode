@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
@@ -134,7 +135,7 @@ suite('Notebook Undo/Redo', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				const languageService = accessor.get(ILanguageService);
-				const cellList = createNotebookCellList(accessor);
+				const cellList = createNotebookCellList(accessor, new DisposableStore());
 				cellList.attachViewModel(viewModel);
 				cellList.setFocus([1]);
 

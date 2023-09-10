@@ -15,13 +15,13 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IViewZone } from 'vs/editor/browser/editorBrowser';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditorWidget2/decorations';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorEditors';
-import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorViewModel';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditorWidget2/inlineDiffDeletedCodeMargin';
-import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditorWidget2/renderLines';
-import { animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditorWidget2/utils';
+import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditor/decorations';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
+import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditor/inlineDiffDeletedCodeMargin';
+import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/renderLines';
+import { animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -53,7 +53,7 @@ export class ViewZoneManager extends Disposable {
 		private readonly _editors: DiffEditorEditors,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _options: DiffEditorOptions,
-		private readonly _diffEditorWidget: DiffEditorWidget2,
+		private readonly _diffEditorWidget: DiffEditorWidget,
 		private readonly _canIgnoreViewZoneUpdateEvent: () => boolean,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,

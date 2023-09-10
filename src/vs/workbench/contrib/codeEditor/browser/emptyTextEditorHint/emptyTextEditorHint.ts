@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./untitledTextEditorHint';
+import 'vs/css!./emptyTextEditorHint';
 import * as dom from 'vs/base/browser/dom';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -30,16 +30,36 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { OS } from 'vs/base/common/platform';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
+import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { GHOST_TEXT_DESCRIPTION } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 
 const $ = dom.$;
 
-const untitledTextEditorHintSetting = 'workbench.editor.untitled.hint';
-export class UntitledTextEditorHintContribution implements IEditorContribution {
+// TODO@joyceerhl remove this after a few iterations
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.editor.untitled.hint',
+		migrateFn: (value, _accessor) => ([
+			[emptyTextEditorHintSetting, { value }],
+		])
+	},
+	{
+		key: 'accessibility.verbosity.untitledHint',
+		migrateFn: (value, _accessor) => ([
+			[AccessibilityVerbositySettingId.EmptyEditorHint, { value }],
+		])
+	}]);
 
-	public static readonly ID = 'editor.contrib.untitledTextEditorHint';
+const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
+export class EmptyTextEditorHintContribution implements IEditorContribution {
+
+	public static readonly ID = 'editor.contrib.emptyTextEditorHint';
 
 	private toDispose: IDisposable[];
-	private untitledTextHintContentWidget: UntitledTextEditorHintContentWidget | undefined;
+	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -56,13 +76,13 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(untitledTextEditorHintSetting)) {
+			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
 				this.update();
 			}
 		}));
 		this.toDispose.push(inlineChatSessionService.onWillStartSession(editor => {
 			if (this.editor === editor) {
-				this.untitledTextHintContentWidget?.dispose();
+				this.textHintContentWidget?.dispose();
 			}
 		}));
 		this.toDispose.push(inlineChatSessionService.onDidEndSession(editor => {
@@ -72,16 +92,42 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		}));
 	}
 
-	private update(): void {
-		this.untitledTextHintContentWidget?.dispose();
-		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
+	private _shouldRenderHint() {
+		const configValue = this.configurationService.getValue(emptyTextEditorHintSetting);
+		if (configValue === 'hidden') {
+			return false;
+		}
+
+		if (this.editor.getOption(EditorOption.readOnly)) {
+			return false;
+		}
+
+		const hasGhostText = this.editor.getLineDecorations(0)?.find((d) => d.options.description === GHOST_TEXT_DESCRIPTION);
+		if (hasGhostText) {
+			return false;
+		}
+
 		const model = this.editor.getModel();
+		const languageId = model?.getLanguageId();
+		if (languageId === OUTPUT_MODE_ID || languageId === LOG_MODE_ID || languageId === SEARCH_RESULT_LANGUAGE_ID) {
+			return false;
+		}
+
+		const isNotebookCell = model?.uri.scheme === Schemas.vscodeNotebookCell;
+		if (isNotebookCell) {
+			return false;
+		}
 
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
-		const shouldRenderEitherDefaultOrInlineChatHint = model?.getLanguageId() === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length || inlineChatProviders.length > 0;
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		return inlineChatProviders.length > 0 || shouldRenderDefaultHint;
+	}
 
-		if (model && model.uri.scheme === Schemas.untitled && shouldRenderEitherDefaultOrInlineChatHint && configValue === 'text') {
-			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(
+	private update(): void {
+		this.textHintContentWidget?.dispose();
+
+		if (this._shouldRenderHint()) {
+			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
 				this.editorGroupsService,
 				this.commandService,
@@ -96,13 +142,13 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	dispose(): void {
 		dispose(this.toDispose);
-		this.untitledTextHintContentWidget?.dispose();
+		this.textHintContentWidget?.dispose();
 	}
 }
 
-class UntitledTextEditorHintContentWidget implements IContentWidget {
+class EmptyTextEditorHintContentWidget implements IContentWidget {
 
-	private static readonly ID = 'editor.widget.untitledHint';
+	private static readonly ID = 'editor.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
 	private toDispose: DisposableStore;
@@ -129,7 +175,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		}));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this.toDispose.add(onDidFocusEditorText(() => {
-			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EditorUntitledHint)) {
+			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
 				status(this.ariaLabel);
 			}
 		}));
@@ -147,7 +193,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	}
 
 	getId(): string {
-		return UntitledTextEditorHintContentWidget.ID;
+		return EmptyTextEditorHintContentWidget.ID;
 	}
 
 	private _getHintInlineChat(providers: IInlineChatSessionProvider[]) {
@@ -175,14 +221,14 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			}
 		};
 
-		const hintElement = $('untitled-hint-text');
+		const hintElement = $('empty-hint-text');
 		hintElement.style.display = 'block';
 
 		const keybindingHint = this.keybindingService.lookupKeybinding(inlineChatId);
 		const keybindingHintLabel = keybindingHint?.getLabel();
 
 		if (keybindingHint && keybindingHintLabel) {
-			const actionPart = localize('untitledText', 'Press {0} to ask {1} to do something. ', keybindingHintLabel, providerName);
+			const actionPart = localize('emptyHintText', 'Press {0} to ask {1} to do something. ', keybindingHintLabel, providerName);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
 				const hintPart = $('a', undefined, fragment);
@@ -203,7 +249,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 			hintElement.appendChild(after);
 
-			const typeToDismiss = localize('untitledText2', 'Start typing to dismiss.');
+			const typeToDismiss = localize('emptyHintTextDismiss', 'Start typing to dismiss.');
 			const textHint2 = $('span', undefined, typeToDismiss);
 			textHint2.style.fontStyle = 'italic';
 			hintElement.appendChild(textHint2);
@@ -284,7 +330,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		};
 
 		const dontShowOnClickOrTap = () => {
-			this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');
+			this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
 			this.dispose();
 			this.editor.focus();
 		};
@@ -318,14 +364,14 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 	getDomNode(): HTMLElement {
 		if (!this.domNode) {
-			this.domNode = $('.untitled-hint');
+			this.domNode = $('.empty-editor-hint');
 			this.domNode.style.width = 'max-content';
 			this.domNode.style.paddingLeft = '4px';
 
 			const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
 			const { hintElement, ariaLabel } = !inlineChatProviders.length ? this._getHintDefault() : this._getHintInlineChat(inlineChatProviders);
 			this.domNode.append(hintElement);
-			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EditorUntitledHint));
+			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));
 
 			this.toDispose.add(dom.addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();
@@ -350,4 +396,4 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	}
 }
 
-registerEditorContribution(UntitledTextEditorHintContribution.ID, UntitledTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message
+registerEditorContribution(EmptyTextEditorHintContribution.ID, EmptyTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message

@@ -31,8 +31,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		@ILogService logService: ILogService
 	) {
 		super(
-			// TODO: rename disableKeytar to disableSecretStorage or similar
-			!!_environmentService.disableKeytar,
+			!!_environmentService.useInMemorySecretStorage,
 			storageService,
 			encryptionService,
 			logService
@@ -43,7 +42,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		this._sequencer.queue(key, async () => {
 			await this.resolvedStorageService;
 
-			if (this.type !== 'persisted' && !this._environmentService.disableKeytar) {
+			if (this.type !== 'persisted' && !this._environmentService.useInMemorySecretStorage) {
 				this._logService.trace('[NativeSecretStorageService] Notifying user that secrets are not being stored on disk.');
 				await this.notifyOfNoEncryptionOnce();
 			}

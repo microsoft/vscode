@@ -268,6 +268,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		data.toDisposeTemplate.push(data.label);
 		data.icon = <HTMLInputElement>dom.prepend(data.label.element, $('.quick-input-list-icon'));
 
 		// Keybinding
@@ -277,6 +278,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
 		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true });
+		data.toDisposeTemplate.push(data.detail);
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));

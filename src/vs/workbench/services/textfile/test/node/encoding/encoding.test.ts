@@ -11,6 +11,7 @@ import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBuf
 import { splitLines } from 'vs/base/common/strings';
 import { FileAccess } from 'vs/base/common/network';
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -452,4 +453,6 @@ suite('Encoding', () => {
 			assert.strictEqual(iconv.encodingExists(enc), true, enc);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
