@@ -162,6 +162,16 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('sideBySide', "Controls whether the diff editor shows the diff side by side or inline.")
 		},
+		'diffEditor.renderSideBySideInlineBreakpoint': {
+			type: 'number',
+			default: true,
+			description: nls.localize('renderSideBySideInlineBreakpoint', "If the diff editor width is smaller than this value, the inline view is used.")
+		},
+		'diffEditor.useInlineViewWhenSpaceIsLimited': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('useInlineViewWhenSpaceIsLimited', "If enabled and the editor width is too small, the inline view is used.")
+		},
 		'diffEditor.renderMarginRevertIcon': {
 			type: 'boolean',
 			default: true,
@@ -195,13 +205,34 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['legacy', 'advanced'],
-			default: 'legacy',
+			default: 'advanced',
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
 				nls.localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
 			],
 			tags: ['experimental'],
 		},
+		'diffEditor.experimental.collapseUnchangedRegions': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('collapseUnchangedRegions', "Controls whether the diff editor shows unchanged regions. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`'),
+		},
+		'diffEditor.experimental.showMoves': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('showMoves', "Controls whether the diff editor should show detected code moves. Only works when {0} is set.", '`#diffEditor.experimental.useVersion2#`')
+		},
+		'diffEditor.experimental.useVersion2': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('useVersion2', "Controls whether the diff editor uses the new or the old implementation."),
+			tags: ['experimental'],
+		},
+		'diffEditor.experimental.showEmptyDecorations': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
+		}
 	}
 };
 

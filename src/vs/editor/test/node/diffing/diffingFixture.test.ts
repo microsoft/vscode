@@ -4,13 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { readdirSync, readFileSync, existsSync, writeFileSync, rmSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { FileAccess } from 'vs/base/common/network';
+import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
 
 suite('diff fixtures', () => {
+	setup(() => {
+		setUnexpectedErrorHandler(e => {
+			throw e;
+		});
+	});
+
+
 	const fixturesOutDir = FileAccess.asFileUri('vs/editor/test/node/diffing/fixtures').fsPath;
 	// We want the dir in src, so we can directly update the source files if they disagree and create invalid files to capture the previous state.
 	// This makes it very easy to update the fixtures.
@@ -31,20 +40,33 @@ suite('diff fixtures', () => {
 
 		const diffingAlgo = diffingAlgoName === 'legacy' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
 
-		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER });
+		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
+		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false });
 
-		const actualDiffingResult: DiffingResult = {
-			original: { content: firstContent, fileName: `./${firstFileName}` },
-			modified: { content: secondContent, fileName: `./${secondFileName}` },
-			diffs: diff.changes.map<IDetailedDiff>(c => ({
+		function getDiffs(changes: readonly LineRangeMapping[]): IDetailedDiff[] {
+			return changes.map<IDetailedDiff>(c => ({
 				originalRange: c.originalRange.toString(),
 				modifiedRange: c.modifiedRange.toString(),
 				innerChanges: c.innerChanges?.map<IDiff>(c => ({
 					originalRange: c.originalRange.toString(),
 					modifiedRange: c.modifiedRange.toString(),
 				})) || null
+			}));
+		}
+
+		const actualDiffingResult: DiffingResult = {
+			original: { content: firstContent, fileName: `./${firstFileName}` },
+			modified: { content: secondContent, fileName: `./${secondFileName}` },
+			diffs: getDiffs(diff.changes),
+			moves: diff.moves.map(v => ({
+				originalRange: v.lineRangeMapping.original.toString(),
+				modifiedRange: v.lineRangeMapping.modified.toString(),
+				changes: getDiffs(v.changes),
 			}))
 		};
+		if (actualDiffingResult.moves?.length === 0) {
+			delete actualDiffingResult.moves;
+		}
 
 		const expectedFilePath = join(folderPath, `${diffingAlgoName}.expected.diff.json`);
 		const invalidFilePath = join(folderPath, `${diffingAlgoName}.invalid.diff.json`);
@@ -90,8 +112,8 @@ suite('diff fixtures', () => {
 		}
 	}
 
-	test(`uiae`, () => {
-		runTest('subword', 'advanced');
+	test(`test`, () => {
+		runTest('invalid-diff-trimws', 'advanced');
 	});
 
 	for (const folder of folders) {
@@ -108,6 +130,7 @@ interface DiffingResult {
 	modified: { content: string; fileName: string };
 
 	diffs: IDetailedDiff[];
+	moves?: IMoveInfo[];
 }
 
 interface IDetailedDiff {
@@ -119,4 +142,11 @@ interface IDetailedDiff {
 interface IDiff {
 	originalRange: string; // [1,18 -> 1,19]
 	modifiedRange: string; // [1,18 -> 1,19]
+}
+
+interface IMoveInfo {
+	originalRange: string; // [startLineNumber, endLineNumberExclusive)
+	modifiedRange: string; // [startLineNumber, endLineNumberExclusive)
+
+	changes?: IDetailedDiff[];
 }

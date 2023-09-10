@@ -94,6 +94,16 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 				if (message?.type === TestMessageType.Error) { text = message.actual; }
 				break;
 			}
+			case TestUriType.TestOutput: {
+				text = '';
+				const output = result.tasks[parsed.taskIndex].output;
+				for (const message of test.tasks[parsed.taskIndex].messages) {
+					if (message.type === TestMessageType.Output) {
+						text += removeAnsiEscapeCodes(output.getRange(message.offset, message.length).toString());
+					}
+				}
+				break;
+			}
 			case TestUriType.ResultExpectedOutput: {
 				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
 				if (message?.type === TestMessageType.Error) { text = message.expected; }

@@ -82,7 +82,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			});
 		}));
 
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditor.getViewModel();
 		let items: INotebookDeltaCellStatusBarItems[] = [];
 
 		if (this._enabled) {

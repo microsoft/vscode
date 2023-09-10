@@ -6,7 +6,9 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import { DiffAlgorithmName, IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -17,6 +19,8 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 
 	private diffAlgorithm: DiffAlgorithmName | IDocumentDiffProvider = 'advanced';
 	private diffAlgorithmOnDidChangeSubscription: IDisposable | undefined = undefined;
+
+	private static readonly diffCache = new Map<string, { result: IDocumentDiff; context: string }>();
 
 	constructor(
 		options: IWorkerBasedDocumentDiffProviderOptions,
@@ -35,7 +39,35 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			return this.diffAlgorithm.computeDiff(original, modified, options);
 		}
 
-		const sw = StopWatch.create(true);
+		// This significantly speeds up the case when the original file is empty
+		if (original.getLineCount() === 1 && original.getLineMaxColumn(1) === 1) {
+			return {
+				changes: [
+					new LineRangeMapping(
+						new LineRange(1, 2),
+						new LineRange(1, modified.getLineCount() + 1),
+						[
+							new RangeMapping(
+								original.getFullModelRange(),
+								modified.getFullModelRange(),
+							)
+						]
+					)
+				],
+				identical: false,
+				quitEarly: false,
+				moves: [],
+			};
+		}
+
+		const uriKey = JSON.stringify([original.uri.toString(), modified.uri.toString()]);
+		const context = JSON.stringify([original.id, modified.id, original.getAlternativeVersionId(), modified.getAlternativeVersionId(), JSON.stringify(options)]);
+		const c = WorkerBasedDocumentDiffProvider.diffCache.get(uriKey);
+		if (c && c.context === context) {
+			return c.result;
+		}
+
+		const sw = StopWatch.create();
 		const result = await this.editorWorkerService.computeDiff(original.uri, modified.uri, options, this.diffAlgorithm);
 		const timeMs = sw.elapsed();
 
@@ -58,6 +90,12 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			throw new Error('no diff result available');
 		}
 
+		// max 10 items in cache
+		if (WorkerBasedDocumentDiffProvider.diffCache.size > 10) {
+			WorkerBasedDocumentDiffProvider.diffCache.delete(WorkerBasedDocumentDiffProvider.diffCache.keys().next().value);
+		}
+
+		WorkerBasedDocumentDiffProvider.diffCache.set(uriKey, { result, context });
 		return result;
 	}
 

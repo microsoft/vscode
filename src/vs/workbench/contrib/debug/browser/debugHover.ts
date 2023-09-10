@@ -112,7 +112,6 @@ export class DebugHoverWidget implements IContentWidget {
 	private create(): void {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
-		this.complexValueContainer.style.visibility = 'hidden';
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
@@ -145,6 +144,12 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode.style.color = asCssVariable(editorHoverForeground);
 
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => {
+			if (!this.isUpdatingTree) {
+				// Don't do a layout in the middle of the async setInput
+				this.layoutTreeAndContainer();
+			}
+		}));
+		this.toDispose.push(this.tree.onDidChangeContentWidth(() => {
 			if (!this.isUpdatingTree) {
 				// Don't do a layout in the middle of the async setInput
 				this.layoutTreeAndContainer();
@@ -295,12 +300,7 @@ export class DebugHoverWidget implements IContentWidget {
 		const scrollBarHeight = 10;
 		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
 
-		// Reset to a smaller width, if it was previously rendered wide
-		this.tree.layout(treeHeight, 400);
-
-		// const titleWidth = this.complexValueTitle.clientWidth;
-		const realTreeWidth = this.tree.getHTMLElement().offsetWidth;
-		// const contentWidth = Math.max(titleWidth, realTreeWidth);
+		const realTreeWidth = this.tree.contentWidth;
 		const treeWidth = clamp(realTreeWidth, 400, 550);
 		this.tree.layout(treeHeight, treeWidth);
 		this.treeContainer.style.height = `${treeHeight}px`;
@@ -315,14 +315,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 			// Do this in beforeRender once the content widget is no longer display=none so that its elements' sizes will be measured correctly.
 			this.isUpdatingTree = true;
-			this.tree.setInput(expression).then(() => {
-				dom.scheduleAtNextAnimationFrame(() => {
-					// Wait for scrollWidth to update after a frame
-					this.layoutTree();
-					this.editor.layoutContentWidget(this);
-					this.complexValueContainer.style.visibility = '';
-				});
-			}).finally(() => {
+			this.tree.setInput(expression).finally(() => {
 				this.isUpdatingTree = false;
 			});
 		}
@@ -339,7 +332,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 
 	hide(): void {
-		this.complexValueContainer.style.visibility = 'hidden';
 		if (this.showCancellationSource) {
 			this.showCancellationSource.cancel();
 			this.showCancellationSource = undefined;

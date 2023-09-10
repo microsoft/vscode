@@ -5,13 +5,14 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
@@ -20,7 +21,6 @@ import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/c
 import { CurrentLineHighlightOverlay, CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
-import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
@@ -52,6 +52,9 @@ import { BlockDecorations } from 'vs/editor/browser/viewParts/blockDecorations/b
 import { inputLatency } from 'vs/base/browser/performance';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whitespace';
+import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
+import { GlyphMarginLane } from 'vs/editor/common/model';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 export interface IContentWidgetData {
@@ -62,6 +65,11 @@ export interface IContentWidgetData {
 export interface IOverlayWidgetData {
 	widget: IOverlayWidget;
 	position: IOverlayWidgetPosition | null;
+}
+
+export interface IGlyphMarginWidgetData {
+	widget: IGlyphMarginWidget;
+	position: IGlyphMarginWidgetPosition;
 }
 
 export class View extends ViewEventHandler {
@@ -77,6 +85,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewZones: ViewZones;
 	private readonly _contentWidgets: ViewContentWidgets;
 	private readonly _overlayWidgets: ViewOverlayWidgets;
+	private readonly _glyphMarginWidgets: GlyphMarginWidgets;
 	private readonly _viewCursors: ViewCursors;
 	private readonly _viewParts: ViewPart[];
 
@@ -89,6 +98,7 @@ export class View extends ViewEventHandler {
 	private readonly _overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
+	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
 
 	constructor(
@@ -97,7 +107,8 @@ export class View extends ViewEventHandler {
 		colorTheme: IColorTheme,
 		model: IViewModel,
 		userInputEvents: ViewUserInputEvents,
-		overflowWidgetsDomNode: HTMLElement | undefined
+		overflowWidgetsDomNode: HTMLElement | undefined,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -114,7 +125,7 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this._createTextAreaHandlerHelper());
+		this._textAreaHandler = this._instantiationService.createInstance(TextAreaHandler, this._context, viewController, this._createTextAreaHandlerHelper());
 		this._viewParts.push(this._textAreaHandler);
 
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
@@ -160,14 +171,18 @@ export class View extends ViewEventHandler {
 		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this._viewParts.push(marginViewOverlays);
 		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
-		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
 		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
 
+		// Glyph margin widgets
+		this._glyphMarginWidgets = new GlyphMarginWidgets(this._context);
+		this._viewParts.push(this._glyphMarginWidgets);
+
 		const margin = new Margin(this._context);
 		margin.getDomNode().appendChild(this._viewZones.marginDomNode);
 		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
+		margin.getDomNode().appendChild(this._glyphMarginWidgets.domNode);
 		this._viewParts.push(margin);
 
 		// Content widgets
@@ -226,8 +241,68 @@ export class View extends ViewEventHandler {
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
+		if (this._shouldRecomputeGlyphMarginLanes) {
+			this._shouldRecomputeGlyphMarginLanes = false;
+			this._context.configuration.setGlyphMarginDecorationLaneCount(this._computeGlyphMarginLaneCount());
+		}
 		inputLatency.onRenderStart();
 		this._renderNow();
+	}
+
+	private _computeGlyphMarginLaneCount(): number {
+		const model = this._context.viewModel.model;
+		type Glyph = { range: Range; lane: GlyphMarginLane };
+		let glyphs: Glyph[] = [];
+
+		// Add all margin decorations
+		glyphs = glyphs.concat(model.getAllMarginDecorations().map((decoration) => {
+			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
+			return { range: decoration.range, lane };
+		}));
+
+		// Add all glyph margin widgets
+		glyphs = glyphs.concat(this._glyphMarginWidgets.getWidgets().map((widget) => {
+			const range = model.validateRange(widget.preference.range);
+			return { range, lane: widget.preference.lane };
+		}));
+
+		// Sorted by their start position
+		glyphs.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+
+		let leftDecRange: Range | null = null;
+		let rightDecRange: Range | null = null;
+		for (const decoration of glyphs) {
+
+			if (decoration.lane === GlyphMarginLane.Left && (!leftDecRange || Range.compareRangesUsingEnds(leftDecRange, decoration.range) < 0)) {
+				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
+				leftDecRange = decoration.range;
+			}
+
+			if (decoration.lane === GlyphMarginLane.Right && (!rightDecRange || Range.compareRangesUsingEnds(rightDecRange, decoration.range) < 0)) {
+				// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
+				rightDecRange = decoration.range;
+			}
+
+			if (leftDecRange && rightDecRange) {
+
+				if (leftDecRange.endLineNumber < rightDecRange.startLineNumber) {
+					// there's no chance for `leftDecRange` to ever intersect something going further
+					leftDecRange = null;
+					continue;
+				}
+
+				if (rightDecRange.endLineNumber < leftDecRange.startLineNumber) {
+					// there's no chance for `rightDecRange` to ever intersect something going further
+					rightDecRange = null;
+					continue;
+				}
+
+				// leftDecRange and rightDecRange are intersecting or touching => we need two lanes
+				return 2;
+			}
+		}
+
+		return 1;
 	}
 
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
@@ -315,6 +390,12 @@ export class View extends ViewEventHandler {
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections;
+		return false;
+	}
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		if (e.affectsGlyphMargin) {
+			this._shouldRecomputeGlyphMarginLanes = true;
+		}
 		return false;
 	}
 	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -545,6 +626,27 @@ export class View extends ViewEventHandler {
 
 	public removeOverlayWidget(widgetData: IOverlayWidgetData): void {
 		this._overlayWidgets.removeWidget(widgetData.widget);
+		this._scheduleRender();
+	}
+
+	public addGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
+		this._glyphMarginWidgets.addWidget(widgetData.widget);
+		this._shouldRecomputeGlyphMarginLanes = true;
+		this._scheduleRender();
+	}
+
+	public layoutGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
+		const newPreference = widgetData.position;
+		const shouldRender = this._glyphMarginWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		if (shouldRender) {
+			this._shouldRecomputeGlyphMarginLanes = true;
+			this._scheduleRender();
+		}
+	}
+
+	public removeGlyphMarginWidget(widgetData: IGlyphMarginWidgetData): void {
+		this._glyphMarginWidgets.removeWidget(widgetData.widget);
+		this._shouldRecomputeGlyphMarginLanes = true;
 		this._scheduleRender();
 	}
 

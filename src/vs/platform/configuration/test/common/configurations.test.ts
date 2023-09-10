@@ -62,15 +62,15 @@ suite('DefaultConfiguration', () => {
 
 	test('Test registering a property after initialize', async () => {
 		const testObject = new DefaultConfiguration();
-		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		await testObject.initialize();
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
 			'title': 'a',
 			'type': 'object',
 			'properties': {
-				'a': {
+				'defaultConfiguration.testSetting1': {
 					'description': 'a',
 					'type': 'boolean',
 					'default': false,
@@ -78,8 +78,8 @@ suite('DefaultConfiguration', () => {
 			}
 		});
 		const { defaults: actual, properties } = await promise;
-		assert.strictEqual(actual.getValue('a'), false);
-		assert.deepStrictEqual(properties, ['a']);
+		assert.strictEqual(actual.getValue('defaultConfiguration.testSetting1'), false);
+		assert.deepStrictEqual(properties, ['defaultConfiguration.testSetting1']);
 	});
 
 	test('Test registering nested properties', async () => {

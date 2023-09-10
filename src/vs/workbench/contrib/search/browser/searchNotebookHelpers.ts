@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FindMatch } from 'vs/editor/common/model';
+import { DefaultEndOfLine, FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IFileMatch, ITextSearchMatch, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { Range } from 'vs/editor/common/core/range';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 
 export interface IFileMatchWithCells extends IFileMatch {
 	cellResults: ICellMatch[];
 }
 
 export interface ICellMatch {
-	cell: ICellViewModel;
+	cell: ICellViewModel | CellSearchModel;
 	index: number;
 	contentResults: ITextSearchMatch[];
 	webviewResults: ITextSearchMatch[];
@@ -24,7 +28,7 @@ export function isIFileMatchWithCells(object: IFileMatch): object is IFileMatchW
 
 // to text search results
 
-export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], cell: ICellViewModel): ITextSearchMatch[] {
+export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], cell: ICellViewModel | CellSearchModel): ITextSearchMatch[] {
 	let previousEndLine = -1;
 	const contextGroupings: FindMatch[][] = [];
 	let currentContextGrouping: FindMatch[] = [];
@@ -73,4 +77,56 @@ export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFin
 		).filter((e): e is ITextSearchMatch => !!e);
 }
 
+// experimental
 
+export const rawCellPrefix = 'rawCell#';
+export class CellSearchModel extends Disposable {
+	constructor(readonly _source: string, private _textBuffer: IReadonlyTextBuffer | undefined, private _uri: URI, private _cellIndex: number) {
+		super();
+	}
+
+	get id() {
+		return `${rawCellPrefix}${this._cellIndex}`;
+	}
+
+	get uri() {
+		return this._uri;
+	}
+
+	public getFullModelRange(): Range {
+		const lineCount = this.textBuffer.getLineCount();
+		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
+	}
+
+	public getLineMaxColumn(lineNumber: number): number {
+		if (lineNumber < 1 || lineNumber > this.textBuffer.getLineCount()) {
+			throw new Error('Illegal value for lineNumber');
+		}
+		return this.textBuffer.getLineLength(lineNumber) + 1;
+	}
+
+	get textBuffer() {
+		if (this._textBuffer) {
+			return this._textBuffer;
+		}
+
+		const builder = new PieceTreeTextBufferBuilder();
+		builder.acceptChunk(this._source);
+		const bufferFactory = builder.finish(true);
+		const { textBuffer, disposable } = bufferFactory.create(DefaultEndOfLine.LF);
+		this._textBuffer = textBuffer;
+		this._register(disposable);
+
+		return this._textBuffer;
+	}
+
+	find(target: string): FindMatch[] {
+		const searchParams = new SearchParams(target, false, false, null);
+		const searchData = searchParams.parseSearchRequest();
+		if (!searchData) {
+			return [];
+		}
+		const fullRange = this.getFullModelRange();
+		return this.textBuffer.findMatchesLineByLine(fullRange, searchData, true, 5000);
+	}
+}
