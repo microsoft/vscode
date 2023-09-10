@@ -36,7 +36,6 @@ export type ExtractErrorType = 'CorruptZip' | 'Incomplete';
 export class ExtractError extends Error {
 
 	readonly type?: ExtractErrorType;
-	readonly cause: Error;
 
 	constructor(type: ExtractErrorType | undefined, cause: Error) {
 		let message = cause.message;
@@ -108,12 +107,12 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 	let last = createCancelablePromise<void>(() => Promise.resolve());
 	let extractedEntriesCount = 0;
 
-	token.onCancellationRequested(() => {
+	const listener = token.onCancellationRequested(() => {
 		last.cancel();
 		zipfile.close();
 	});
 
-	return new Promise((c, e) => {
+	return new Promise<void>((c, e) => {
 		const throttler = new Sequencer();
 
 		const readNextEntry = (token: CancellationToken) => {
@@ -159,7 +158,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 
 			last = createCancelablePromise(token => throttler.queue(() => stream.then(stream => extractEntry(stream, fileName, mode, targetPath, options, token).then(() => readNextEntry(token)))).then(null, e));
 		});
-	});
+	}).finally(() => listener.dispose());
 }
 
 function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {

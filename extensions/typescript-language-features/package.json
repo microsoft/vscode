@@ -21,7 +21,8 @@
       "restrictedConfigurations": [
         "typescript.tsdk",
         "typescript.tsserver.pluginPaths",
-        "typescript.npm"
+        "typescript.npm",
+        "typescript.tsserver.nodePath"
       ]
     }
   },
@@ -33,17 +34,18 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5",
-    "jsonc-parser": "^3.2.0",
-    "semver": "5.5.1",
-    "vscode-tas-client": "^0.1.63",
+    "@vscode/extension-telemetry": "^0.8.4",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
     "@vscode/sync-api-service": "^0.7.3",
+    "@vscode/ts-package-manager": "^0.0.2",
+    "jsonc-parser": "^3.2.0",
+    "semver": "7.5.2",
+    "vscode-tas-client": "^0.1.63",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -143,6 +145,12 @@
       "title": "%configuration.typescript%",
       "order": 20,
       "properties": {
+        "typescript.experimental.aiQuickFix": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.experimental.aiQuickFix%",
+          "scope": "resource"
+        },
         "typescript.tsdk": {
           "type": "string",
           "markdownDescription": "%typescript.tsdk.desc%",
@@ -1125,7 +1133,7 @@
         "typescript.tsserver.maxTsServerMemory": {
           "type": "number",
           "default": 3072,
-          "description": "%configuration.tsserver.maxTsServerMemory%",
+          "markdownDescription": "%configuration.tsserver.maxTsServerMemory%",
           "scope": "window"
         },
         "typescript.tsserver.experimental.enableProjectDiagnostics": {
@@ -1244,13 +1252,25 @@
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
           "scope": "window"
         },
+        "typescript.tsserver.nodePath": {
+          "type": "string",
+          "description": "%configuration.tsserver.nodePath%",
+          "scope": "window"
+        },
+        "typescript.experimental.tsserver.web.typeAcquisition.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.experimental.tsserver.web.typeAcquisition.enabled%",
+          "scope": "window",
+          "tags": ["experimental"]
+        },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
           "description": "%configuration.preferGoToSourceDefinition%",
           "scope": "window"
         },
-				"javascript.preferGoToSourceDefinition": {
+        "javascript.preferGoToSourceDefinition": {
           "type": "boolean",
           "default": false,
           "description": "%configuration.preferGoToSourceDefinition%",
@@ -1276,12 +1296,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%typescript.goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%goToProjectConfig.title%",
+        "title": "%javascript.goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {

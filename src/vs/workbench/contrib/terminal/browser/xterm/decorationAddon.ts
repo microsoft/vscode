@@ -23,7 +23,7 @@ import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorati
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
+import type { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
@@ -69,8 +69,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => this._refreshStyles(true)));
 		this._updateDecorationVisibility();
-		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c)));
-		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidAddCapabilityType(c => this._createCapabilityDisposables(c)));
+		this._register(this._capabilities.onDidRemoveCapabilityType(c => this._removeCapabilityDisposables(c)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 		this._terminalDecorationHoverService = instantiationService.createInstance(TerminalDecorationHoverManager);
 	}

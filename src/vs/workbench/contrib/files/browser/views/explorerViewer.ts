@@ -1140,6 +1140,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return false;
 			}
 
+			if (!isCopy && items.every((source) => source.isReadonly)) {
+				return false; // Cannot move readonly items unless we copy
+			}
+
 			if (items.some((source) => {
 				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
 					return true; // Root folder can not be moved to a non root file stat.
@@ -1387,11 +1391,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const resourceEdit = new ResourceFileEdit(resource, newResource, { copy: true, overwrite: allowOverwrite });
 			resourceFileEdits.push(resourceEdit);
 		}
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
 			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('copy', "Copy {0}", labelSufix),
-			progressLabel: localize('copying', "Copying {0}", labelSufix),
+			undoLabel: localize('copy', "Copy {0}", labelSuffix),
+			progressLabel: localize('copying', "Copying {0}", labelSuffix),
 		});
 
 		const editors = resourceFileEdits.filter(edit => {
@@ -1406,11 +1410,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Do not allow moving readonly items
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('move', "Move {0}", labelSufix),
-			progressLabel: localize('moving', "Moving {0}", labelSufix)
+			undoLabel: localize('move', "Move {0}", labelSuffix),
+			progressLabel: localize('moving', "Moving {0}", labelSuffix)
 		};
 
 		try {
@@ -1514,7 +1518,7 @@ export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<Exp
 	}
 }
 
-function getFileOrFolderLabelSufix(items: ExplorerItem[]): string {
+function getFileOrFolderLabelSuffix(items: ExplorerItem[]): string {
 	if (items.length === 1) {
 		return items[0].name;
 	}

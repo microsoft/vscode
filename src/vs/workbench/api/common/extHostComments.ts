@@ -20,7 +20,6 @@ import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 type ProviderHandle = number;
 
@@ -207,7 +206,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 						fileComments: rangesResult.fileComments || false
 					};
 				} else {
-					ranges = withNullAsUndefined(rangesResult);
+					ranges = rangesResult ?? undefined;
 				}
 				return ranges;
 			}).then(ranges => {

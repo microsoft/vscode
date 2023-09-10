@@ -8,7 +8,7 @@ import { workbenchInstantiationService as browserWorkbenchInstantiationService, 
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
@@ -51,10 +51,9 @@ export class TestSharedProcessService implements ISharedProcessService {
 
 	declare readonly _serviceBrand: undefined;
 
+	createRawConnection(): never { throw new Error('Not Implemented'); }
 	getChannel(channelName: string): any { return undefined; }
-
 	registerChannel(channelName: string, channel: any): void { }
-
 	notifyRestored(): void { }
 }
 
@@ -107,6 +106,7 @@ export class TestNativeHostService implements INativeHostService {
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
 	async writeElevated(source: URI, target: URI): Promise<void> { }
+	async isRunningUnderARM64Translation(): Promise<boolean> { return false; }
 	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
@@ -175,7 +175,7 @@ export function workbenchInstantiationService(overrides?: {
 	textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 }, disposables = new DisposableStore()): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
-		workingCopyBackupService: (instantiationService: IInstantiationService) => new TestNativeWorkingCopyBackupService(),
+		workingCopyBackupService: () => disposables.add(new TestNativeWorkingCopyBackupService()),
 		...overrides
 	}, disposables);
 
@@ -213,7 +213,7 @@ export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFi
 	}
 }
 
-export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService {
+export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService implements IDisposable {
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
@@ -228,15 +228,18 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const lifecycleService = new TestLifecycleService();
 		super(environmentService as any, fileService, logService, lifecycleService);
 
-		const inMemoryFileSystemProvider = new InMemoryFileSystemProvider();
-		fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider);
-		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService));
+		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());
+		this._register(fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider));
+		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService))));
 
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
 		this.pendingBackupsArr = [];
 		this.discardedAllBackups = false;
+
+		this._register(fileService);
+		this._register(lifecycleService);
 	}
 
 	testGetFileService(): IFileService {

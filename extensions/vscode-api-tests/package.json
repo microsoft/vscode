@@ -7,6 +7,7 @@
   "enabledApiProposals": [
     "authSession",
     "contribViewsRemote",
+    "contribStatusBarItems",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
@@ -18,6 +19,7 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -25,6 +27,7 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
+    "readonlyMessage",
     "resolvers",
     "saveEditor",
     "scmActionButton",
@@ -38,14 +41,16 @@
     "envShellEvent",
     "testCoverage",
     "testObserver",
+    "testMessageContextValue",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeItemCheckbox",
+	"treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
-    "windowActivity"
+    "windowActivity",
+    "interactiveUserActions"
   ],
   "private": true,
   "activationEvents": [],
@@ -188,7 +193,19 @@
           }
         ]
       }
-    ]
+    ],
+    "statusBarItems": {
+      "id": "myStaticItem",
+      "alignment": "right",
+      "priority": 17,
+      "name": "My Static Item",
+      "text": "Hello $(globe)",
+      "tooltip": "Hover World",
+      "accessibilityInformation": {
+        "label": "Hello World",
+        "role": "button"
+      }
+    }
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
@@ -196,7 +213,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

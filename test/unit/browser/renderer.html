@@ -116,15 +116,22 @@
 			runner.on('pending', test => window.mocha_report('pending', serializeRunnable(test)));
 		};
 
+
+		async function loadModules(modules) {
+			for (const file of modules) {
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
+				const m = await new Promise((resolve, reject) => require([file], resolve, err => {
+					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
+					resolve({});
+				}));
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
+			}
+		}
+
 		window.loadAndRun = async function loadAndRun({ modules, grep }, manual = false) {
 			// load
-			await Promise.all(modules.map(module => new Promise((resolve, reject) => {
-				require([module], resolve, err => {
-					console.log("BAD " + module + JSON.stringify(err, undefined, '\t'));
-					// console.log(module);
-					resolve({});
-				});
-			})));
+			await loadModules(modules);
 			// await new Promise((resolve, reject) => {
 			// 	require(modules, resolve, err => {
 			// 		console.log(err);
@@ -149,7 +156,7 @@
 		if (Array.isArray(modules) && modules.length > 0) {
 			console.log('MANUALLY running tests', modules);
 
-			loadAndRun(modules, true).then(() => console.log('done'), err => console.log(err));
+			loadAndRun({modules}, true).then(() => console.log('done'), err => console.log(err));
 		}
 	</script>
 </body>

@@ -16,7 +16,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,7 +28,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -82,8 +82,9 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		override dispose() {
 			super.dispose();
 
-			for (const [_, disposable] of this.pendingBackupOperations) {
-				disposable.dispose();
+			for (const [_, pending] of this.pendingBackupOperations) {
+				pending.cancel();
+				pending.disposable.dispose();
 			}
 		}
 
@@ -113,11 +114,10 @@ suite('WorkingCopyBackupTracker (native)', function () {
 	let workspaceBackupPath: URI;
 
 	let accessor: TestServiceAccessor;
-	let disposables: DisposableStore;
+
+	const disposables = new DisposableStore();
 
 	setup(async () => {
-		disposables = new DisposableStore();
-
 		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopybackuptracker')).with({ scheme: Schemas.inMemory });
 		backupHome = joinPath(testDir, 'Backups');
 		const workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
@@ -137,8 +137,8 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		return accessor.fileService.writeFile(workspacesJsonPath, VSBuffer.fromString(''));
 	});
 
-	teardown(async () => {
-		disposables.dispose();
+	teardown(() => {
+		disposables.clear();
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; instantiationService: IInstantiationService; cleanup: () => Promise<void> }> {
@@ -150,19 +150,19 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
-			new UriIdentityService(new TestFileService()),
-			new TestFileService()
-		));
+			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
+			disposables.add(new TestFileService())
+		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -170,8 +170,9 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const tracker = instantiationService.createInstance(TestWorkingCopyBackupTracker);
 
 		const cleanup = async () => {
-			// File changes could also schedule some backup operations so we need to wait for them before finishing the test
-			await accessor.workingCopyBackupService.waitForAllBackups();
+			await accessor.workingCopyBackupService.waitForAllBackups(); // File changes could also schedule some backup operations so we need to wait for them before finishing the test
+
+			await workbenchTeardown(instantiationService);
 
 			part.dispose();
 			tracker.dispose();
@@ -356,7 +357,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			constructor(resource: URI) {
 				super(resource);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				this._register(accessor.workingCopyService.registerWorkingCopy(this));
 			}
 
 			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
@@ -365,7 +366,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		const resource = toResource.call(this, '/path/custom.txt');
-		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+		const customWorkingCopy = disposables.add(new TestBackupWorkingCopy(resource));
 		customWorkingCopy.setDirty(true);
 
 		const event = new TestBeforeShutdownEvent();
@@ -389,7 +390,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			constructor(resource: URI) {
 				super(resource);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				this._register(accessor.workingCopyService.registerWorkingCopy(this));
 			}
 
 			override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
@@ -408,7 +409,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		const resource = toResource.call(this, '/path/custom.txt');
-		new TestBackupWorkingCopy(resource);
+		disposables.add(new TestBackupWorkingCopy(resource));
 
 		const event = new TestBeforeShutdownEvent();
 		event.reason = ShutdownReason.QUIT;
@@ -565,6 +566,109 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			});
 		});
 
+		suite('"onExit" setting - scratchpad', () => {
+			test('should hot exit (reason: CLOSE, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, true, false);
+			});
+			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, false, false, !!isMacintosh);
+			});
+			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, true, false);
+			});
+			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.CLOSE, true, false, true);
+			});
+			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, false, false, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.QUIT, true, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, false, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.RELOAD, true, false, false);
+			});
+			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, false, false, true);
+			});
+			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT, ShutdownReason.LOAD, true, false, true);
+			});
+		});
+
+		suite('"onExitAndWindowClose" setting - scratchpad', () => {
+			test('should hot exit (reason: CLOSE, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, true, false);
+			});
+			test('should hot exit (reason: CLOSE, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, false, false, !!isMacintosh);
+			});
+			test('should hot exit (reason: CLOSE, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, true, false);
+			});
+			test('should NOT hot exit (reason: CLOSE, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.CLOSE, true, false, true);
+			});
+			test('should hot exit (reason: QUIT, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, false, false, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, true, false);
+			});
+			test('should hot exit (reason: QUIT, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.QUIT, true, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, false, false, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, true, false);
+			});
+			test('should hot exit (reason: RELOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.RELOAD, true, false, false);
+			});
+			test('should hot exit (reason: LOAD, windows: single, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: single, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, false, false, true);
+			});
+			test('should hot exit (reason: LOAD, windows: multiple, workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, true, false);
+			});
+			test('should NOT hot exit (reason: LOAD, windows: multiple, empty workspace)', function () {
+				return scratchpadHotExitTest.call(this, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE, ShutdownReason.LOAD, true, false, true);
+			});
+		});
+
+
 		async function hotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
 			const { accessor, cleanup } = await createTracker();
 
@@ -604,5 +708,60 @@ suite('WorkingCopyBackupTracker (native)', function () {
 
 			await cleanup();
 		}
+
+		async function scratchpadHotExitTest(this: any, setting: string, shutdownReason: ShutdownReason, multipleWindows: boolean, workspace: boolean, shouldVeto: boolean): Promise<void> {
+			const { accessor, cleanup } = await createTracker();
+
+			class TestBackupWorkingCopy extends TestWorkingCopy {
+
+				constructor(resource: URI) {
+					super(resource);
+
+					this._register(accessor.workingCopyService.registerWorkingCopy(this));
+				}
+
+				override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
+
+				override isDirty(): boolean {
+					return false;
+				}
+
+				override isModified(): boolean {
+					return true;
+				}
+			}
+
+			// Set hot exit config
+			accessor.filesConfigurationService.testOnFilesConfigurationChange({ files: { hotExit: setting } });
+
+			// Set empty workspace if required
+			if (!workspace) {
+				accessor.contextService.setWorkspace(new Workspace('empty:1508317022751'));
+			}
+
+			// Set multiple windows if required
+			if (multipleWindows) {
+				accessor.nativeHostService.windowCount = Promise.resolve(2);
+			}
+
+			// Set cancel to force a veto if hot exit does not trigger
+			accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
+
+			const resource = toResource.call(this, '/path/custom.txt');
+			disposables.add(new TestBackupWorkingCopy(resource));
+
+			const event = new TestBeforeShutdownEvent();
+			event.reason = shutdownReason;
+			accessor.lifecycleService.fireBeforeShutdown(event);
+
+			const veto = await event.value;
+			assert.ok(typeof event.finalValue === 'function'); // assert the tracker uses the internal finalVeto API
+			assert.strictEqual(accessor.workingCopyBackupService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
+			assert.strictEqual(veto, shouldVeto);
+
+			await cleanup();
+		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

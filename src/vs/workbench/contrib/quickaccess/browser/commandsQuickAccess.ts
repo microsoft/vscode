@@ -33,16 +33,16 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
+import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	private static SEMANTIC_SIMILARITY_MAX_PICKS = 3;
-	private static SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
-	private static SEMANTIC_SIMILARITY_DEBOUNCE = 200;
+	private static AI_RELATED_INFORMATION_MAX_PICKS = 3;
+	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
+	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
 	// If extensions are not yet registered, we wait for a little moment to give them
 	// a chance to register so that the complete set of commands shows up as result
@@ -50,7 +50,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	// functional.
 	private readonly extensionRegistrationRace = raceTimeout(this.extensionService.whenInstalledExtensionsRegistered(), 800);
 
-	private useSemanticSimilarity = false;
+	private useAiRelatedInfo = false;
 
 	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
 
@@ -75,24 +75,15 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IProductService private readonly productService: IProductService,
-		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
+		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService,
 		@IChatService private readonly chatService: IChatService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
-			noResultsPick: (filter) => {
-				const info = this.chatService.getProviderInfos()[0];
-				return info
-					? {
-						label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
-						commandId: AskInInteractiveAction.ID,
-						accept: () => commandService.executeCommand(AskInInteractiveAction.ID, filter)
-					}
-					: {
-						label: localize('noCommandResults', "No matching commands"),
-						commandId: ''
-					};
-			},
+			noResultsPick: () => ({
+				label: localize('noCommandResults', "No matching commands"),
+				commandId: ''
+			}),
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 
 		this._register(configurationService.onDidChangeConfiguration((e) => this.updateOptions(e)));
@@ -118,7 +109,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			? new Set(this.productService.commandPaletteSuggestedCommandIds)
 			: undefined;
 		this.options.suggestedCommandIds = suggestedCommandIds;
-		this.useSemanticSimilarity = config.experimental.useSemanticSimilarity;
+		this.useAiRelatedInfo = config.experimental.enableNaturalLanguageSearch;
 	}
 
 	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
@@ -147,7 +138,12 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	}
 
 	protected hasAdditionalCommandPicks(filter: string, token: CancellationToken): boolean {
-		if (!this.useSemanticSimilarity || filter === '' || token.isCancellationRequested || !this.semanticSimilarityService.isEnabled()) {
+		if (
+			!this.useAiRelatedInfo
+			|| token.isCancellationRequested
+			|| filter === ''
+			|| !this.aiRelatedInformationService.isEnabled()
+		) {
 			return false;
 		}
 
@@ -159,40 +155,61 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		const format = allPicks.map(p => p.commandId);
-		let scores: number[];
+		let additionalPicks;
+
 		try {
 			// Wait a bit to see if the user is still typing
-			await timeout(CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_DEBOUNCE, token);
-			scores = await this.semanticSimilarityService.getSimilarityScore(filter, format, token);
+			await timeout(CommandsQuickAccessProvider.AI_RELATED_INFORMATION_DEBOUNCE, token);
+			additionalPicks = await this.getRelatedInformationPicks(allPicks, picksSoFar, filter, token);
 		} catch (e) {
 			return [];
 		}
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (additionalPicks.length) {
+			additionalPicks.unshift({
+				type: 'separator',
+				label: localize('similarCommands', "similar commands")
+			});
 		}
 
-		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
-		const setOfPicksSoFar = new Set(picksSoFar.map(p => p.commandId));
-		const additionalPicks: Array<ICommandQuickPick | IQuickPickSeparator> = picksSoFar.length > 0
-			? [{
-				type: 'separator',
-				label: localize('semanticSimilarity', "similar commands")
-			}]
-			: [];
+		if (picksSoFar.length || additionalPicks.length) {
+			additionalPicks.push({
+				type: 'separator'
+			});
+		}
 
-		let numOfSmartPicks = 0;
-		for (const i of sortedIndices) {
-			const score = scores[i];
-			if (score < CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_THRESHOLD || numOfSmartPicks === CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
+		const info = this.chatService.getProviderInfos()[0];
+		if (info) {
+			additionalPicks.push({
+				label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
+				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
+				args: [filter]
+			});
+		}
+
+		return additionalPicks;
+	}
+
+	private async getRelatedInformationPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken) {
+		const relatedInformation = await this.aiRelatedInformationService.getRelatedInformation(
+			filter,
+			[RelatedInformationType.CommandInformation],
+			token
+		) as CommandInformationResult[];
+
+		// Sort by weight descending to get the most relevant results first
+		relatedInformation.sort((a, b) => b.weight - a.weight);
+
+		const setOfPicksSoFar = new Set(picksSoFar.map(p => p.commandId));
+		const additionalPicks = new Array<ICommandQuickPick | IQuickPickSeparator>();
+
+		for (const info of relatedInformation) {
+			if (info.weight < CommandsQuickAccessProvider.AI_RELATED_INFORMATION_THRESHOLD || additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
-
-			const pick = allPicks[i];
-			if (!setOfPicksSoFar.has(pick.commandId)) {
+			const pick = allPicks.find(p => p.commandId === info.command && !setOfPicksSoFar.has(p.commandId));
+			if (pick) {
 				additionalPicks.push(pick);
-				numOfSmartPicks++;
 			}
 		}
 
@@ -295,50 +312,6 @@ export class ClearCommandHistoryAction extends Action2 {
 			}
 
 			CommandsHistory.clearHistory(configurationService, storageService);
-		}
-	}
-}
-
-// TODO: Should this live here? It seems fairly generic and could live in the interactive code.
-export class AskInInteractiveAction extends Action2 {
-
-	static readonly ID = 'workbench.action.askCommandInChat';
-
-	constructor() {
-		super({
-			id: AskInInteractiveAction.ID,
-			title: { value: localize('askInChat', "Ask In Chat"), original: 'Ask In Chat' },
-			f1: false
-		});
-	}
-
-	async run(accessor: ServicesAccessor, filter?: string): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const logService = accessor.get(ILogService);
-
-		if (!filter) {
-			throw new Error('No filter provided.');
-		}
-
-		let providerId: string;
-		const providerInfos = chatService.getProviderInfos();
-		switch (providerInfos.length) {
-			case 0:
-				throw new Error('No chat provider found.');
-			case 1:
-				providerId = providerInfos[0].id;
-				break;
-			default:
-				logService.warn('Multiple chat providers found. Using the first one.');
-				providerId = providerInfos[0].id;
-				break;
-		}
-
-		const widget = await chatWidgetService.revealViewForProvider(providerId);
-		if (widget?.viewModel) {
-			// TODO: Maybe this could provide metadata saying it came from the command palette?
-			chatService.sendRequestToProvider(widget.viewModel.sessionId, { message: filter });
 		}
 	}
 }
