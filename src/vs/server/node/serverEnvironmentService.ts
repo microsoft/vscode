@@ -9,6 +9,8 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { memoize } from 'vs/base/common/decorators';
+import { URI } from 'vs/base/common/uri';
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -48,6 +50,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
+	'use-test-resolver': { type: 'boolean' },
 
 	/* ----- extension management ----- */
 
@@ -165,6 +168,7 @@ export interface ServerParsedArgs {
 
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
+	'use-test-resolver'?: boolean;
 
 	/* ----- extension management ----- */
 
@@ -209,5 +213,7 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
+	@memoize
+	override get userRoamingDataHome(): URI { return this.appSettingsHome; }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 }

@@ -8,7 +8,7 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n, TextEditorOptions
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
@@ -51,7 +51,14 @@ interface DocumentSortingParams {
 }
 
 namespace DocumentSortingRequest {
-	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+	export interface ITextEdit {
+		range: {
+			start: { line: number; character: number };
+			end: { line: number; character: number };
+		};
+		newText: string;
+	}
+	export const type: RequestType<DocumentSortingParams, ITextEdit[], any> = new RequestType('json/sort');
 }
 
 export interface ISchemaAssociations {
@@ -95,6 +102,7 @@ export type JSONSchemaSettings = {
 export namespace SettingIds {
 	export const enableFormatter = 'json.format.enable';
 	export const enableKeepLines = 'json.format.keepLines';
+	export const enableSortOnSave = 'json.sortOnSave.enable';
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
@@ -163,25 +171,23 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
+	toDispose.push(workspace.onWillSaveTextDocument(event => {
+		const sortOnSave = workspace.getConfiguration().get<boolean>(SettingIds.enableSortOnSave);
+		const document = event.document;
+		if (sortOnSave && (document.languageId === 'json' || document.languageId === 'jsonc')) {
+			const documentOptions = getOptionsForDocument(document);
+			const textEditsPromise = getSortTextEdits(document, documentOptions?.tabSize, documentOptions?.insertSpaces);
+			event.waitUntil(textEditsPromise);
+		}
+	}));
+
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
 		if (isClientReady) {
 			const textEditor = window.activeTextEditor;
 			if (textEditor) {
-				const document = textEditor.document;
-				const filesConfig = workspace.getConfiguration('files', document);
-				const options: SortOptions = {
-					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
-					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
-					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
-					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
-					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
-				};
-				const params: DocumentSortingParams = {
-					uri: document.uri.toString(),
-					options
-				};
-				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				const documentOptions = textEditor.options;
+				const textEdits = await getSortTextEdits(textEditor.document, documentOptions.tabSize, documentOptions.insertSpaces);
 				const success = await textEditor.edit(mutator => {
 					for (const edit of textEdits) {
 						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
@@ -471,6 +477,29 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	}
 
+	async function getSortTextEdits(document: TextDocument, tabSize: string | number = 4, insertSpaces: string | boolean = true): Promise<TextEdit[]> {
+		const filesConfig = workspace.getConfiguration('files', document);
+		const options: SortOptions = {
+			tabSize: Number(tabSize),
+			insertSpaces: Boolean(insertSpaces),
+			trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+			trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+			insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+		};
+		const params: DocumentSortingParams = {
+			uri: document.uri.toString(),
+			options
+		};
+		const edits = await client.sendRequest(DocumentSortingRequest.type, params);
+		// Here we convert the JSON objects to real TextEdit objects
+		return edits.map((edit) => {
+			return new TextEdit(
+				new Range(edit.range.start.line, edit.range.start.character, edit.range.end.line, edit.range.end.character),
+				edit.newText
+			);
+		});
+	}
+
 	return client;
 }
 
@@ -613,4 +642,13 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 
 function isSchemaResolveError(d: Diagnostic) {
 	return d.code === /* SchemaResolveError */ 0x300;
+}
+
+function getOptionsForDocument(document: TextDocument): TextEditorOptions | undefined {
+	for (const editor of window.visibleTextEditors) {
+		if (editor.document.uri.toString() === document.uri.toString()) {
+			return editor.options;
+		}
+	}
+	return;
 }

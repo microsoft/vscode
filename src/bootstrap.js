@@ -23,6 +23,7 @@
 	const Module = typeof require === 'function' ? require('module') : undefined;
 	const path = typeof require === 'function' ? require('path') : undefined;
 	const fs = typeof require === 'function' ? require('fs') : undefined;
+	const util = typeof require === 'function' ? require('util') : undefined;
 
 	//#region global bootstrapping
 
@@ -222,8 +223,8 @@
 			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
 		}
 
-		if (fs && path) {
-			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
+		if (fs && path && util) {
+			return (await util.promisify(fs.readFile)(path.join(...pathSegments))).toString();
 		}
 
 		throw new Error('Unsupported operation (read NLS files)');
@@ -240,8 +241,8 @@
 			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
 		}
 
-		if (fs) {
-			return fs.promises.writeFile(path, content);
+		if (fs && util) {
+			return util.promisify(fs.writeFile)(path, content);
 		}
 
 		throw new Error('Unsupported operation (write NLS files)');

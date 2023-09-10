@@ -116,6 +116,10 @@ export class PatternInputWidget extends Widget {
 		this.inputBox.clearHistory();
 	}
 
+	prependHistory(history: string[]): void {
+		this.inputBox.prependHistory(history);
+	}
+
 	clear(): void {
 		this.setValue('');
 	}

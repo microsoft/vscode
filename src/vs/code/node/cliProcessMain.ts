@@ -62,6 +62,7 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { localize } from 'vs/nls';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 
 class CliMain extends Disposable {
 
@@ -145,6 +146,10 @@ class CliMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// Use FileUserDataProvider for user data to
+		// enable atomic read / write operations.
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.vscodeUserData, logService));
+
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		services.set(IUriIdentityService, uriIdentityService);
@@ -187,7 +192,8 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
+		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		services.set(IRequestService, requestService);
 
 		// Download Service
 		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
@@ -207,7 +213,7 @@ class CliMain extends Disposable {
 		const isInternal = isInternalTelemetry(productService, configurationService);
 		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.ariaKey) {
-				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
+				appenders.push(new OneDataSystemAppender(requestService, isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
 			const config: ITelemetryServiceConfig = {

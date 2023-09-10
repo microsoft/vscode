@@ -16,6 +16,13 @@ declare module 'vscode' {
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
+		/**
+		 * Exec server from a recursively-resolved remote authority. If the
+		 * remote authority includes nested authorities delimited by `@`, it is
+		 * resolved from outer to inner authorities with ExecServer passed down
+		 * to each resolver in the chain.
+		 */
+		execServer?: ExecServer;
 	}
 
 	export class ResolvedAuthority {
@@ -142,6 +149,12 @@ declare module 'vscode' {
 		constructor(message?: string);
 	}
 
+	/**
+	 * Exec server used for nested resolvers. The type is currently not maintained
+	 * in these types, and is a contract between extensions.
+	 */
+	export type ExecServer = unknown;
+
 	export interface RemoteAuthorityResolver {
 		/**
 		 * Resolve the authority part of the current opened `vscode-remote://` URI.
@@ -153,6 +166,15 @@ declare module 'vscode' {
 		 * @param context A context indicating if this is the first call or a subsequent call.
 		 */
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+
+		/**
+		 * Resolves an exec server interface for the authority. Called if an
+		 * authority is a midpoint in a transit to the desired remote.
+		 *
+		 * @param authority The authority part of the current opened `vscode-remote://` URI.
+		 * @returns The exec server interface, as defined in a contract between extensions.
+		 */
+		resolveExecServer?(remoteAuthority: string, context: RemoteAuthorityResolverContext): ExecServer | Thenable<ExecServer>;
 
 		/**
 		 * Get the canonical URI (if applicable) for a `vscode-remote://` URI.
@@ -210,6 +232,7 @@ declare module 'vscode' {
 	export namespace workspace {
 		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
 		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
+		export function getRemoteExecServer(authority: string): Thenable<ExecServer | undefined>;
 	}
 
 	export namespace env {

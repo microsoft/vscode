@@ -31,6 +31,8 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStylingService';
 import { DocumentSemanticTokensFeature } from 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { mock } from 'vs/base/test/common/mock';
 
 suite('ModelSemanticColoring', () => {
 
@@ -54,7 +56,11 @@ suite('ModelSemanticColoring', () => {
 			languageService,
 			new TestLanguageConfigurationService(),
 		));
-		disposables.add(new DocumentSemanticTokensFeature(semanticTokensStylingService, modelService, themeService, configService, new LanguageFeatureDebounceService(logService), languageFeaturesService));
+		const envService = new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		};
+		disposables.add(new DocumentSemanticTokensFeature(semanticTokensStylingService, modelService, themeService, configService, new LanguageFeatureDebounceService(logService, envService), languageFeaturesService));
 	});
 
 	teardown(() => {

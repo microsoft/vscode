@@ -310,25 +310,37 @@ class DropOverlay extends Themable {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 			if (Array.isArray(data)) {
 				const draggedEditor = data[0].identifier;
-				const targetGroup = ensureTargetGroup();
 
 				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 				if (sourceGroup) {
-					if (sourceGroup === targetGroup) {
-						return;
+					const copyEditor = this.isCopyOperation(event, draggedEditor);
+					let targetGroup: IEditorGroupView | undefined = undefined;
+
+					// Optimization: if we move the last editor of an editor group
+					// and we are configured to close empty editor groups, we can
+					// rather move the entire editor group according to the direction
+					if (this.editorGroupService.partOptions.closeEmptyGroups && sourceGroup.count === 1 && typeof splitDirection === 'number' && !copyEditor) {
+						targetGroup = this.accessor.moveGroup(sourceGroup, this.groupView, splitDirection);
 					}
 
-					// Open in target group
-					const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
-						pinned: true,										// always pin dropped editor
-						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
-					});
+					// In any other case do a normal move/copy operation
+					else {
+						targetGroup = ensureTargetGroup();
+						if (sourceGroup === targetGroup) {
+							return;
+						}
 
-					const copyEditor = this.isCopyOperation(event, draggedEditor);
-					if (!copyEditor) {
-						sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
-					} else {
-						sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+						// Open in target group
+						const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
+							pinned: true,										// always pin dropped editor
+							sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
+						});
+
+						if (!copyEditor) {
+							sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
+						} else {
+							sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+						}
 					}
 
 					// Ensure target has focus

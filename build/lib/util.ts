@@ -77,7 +77,7 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 	return es.duplex(input, output);
 }
 
-export function debounce(task: () => NodeJS.ReadWriteStream): NodeJS.ReadWriteStream {
+export function debounce(task: () => NodeJS.ReadWriteStream, duration = 500): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';
@@ -99,7 +99,7 @@ export function debounce(task: () => NodeJS.ReadWriteStream): NodeJS.ReadWriteSt
 
 	run();
 
-	const eventuallyRun = _debounce(() => run(), 500);
+	const eventuallyRun = _debounce(() => run(), duration);
 
 	input.on('data', () => {
 		if (state === 'idle') {
@@ -219,7 +219,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 					version: '3',
 					names: [],
 					mappings: '',
-					sources: [f.relative],
+					sources: [f.relative.replace(/\\/g, '/')],
 					sourcesContent: [contents]
 				};
 
@@ -384,10 +384,11 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 	});
 }
 
-export function getElectronVersion(): string {
+export function getElectronVersion(): Record<string, string> {
 	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
-	return target;
+	const electronVersion = /^target "(.*)"$/m.exec(yarnrc)![1];
+	const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)![1];
+	return { electronVersion, msBuildId };
 }
 
 export function acquireWebNodePaths() {

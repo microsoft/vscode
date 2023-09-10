@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -46,6 +46,7 @@ import { EnablementState } from 'vs/workbench/services/extensionManagement/commo
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -89,7 +90,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -111,7 +113,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 	}
 
 	private _updateReadonly(input: NotebookEditorInput): void {
-		this._widget.value?.setOptions({ isReadOnly: input.hasCapability(EditorInputCapabilities.Readonly) });
+		this._widget.value?.setOptions({ isReadOnly: !!input.isReadonly() });
 	}
 
 	get textModel(): NotebookTextModel | undefined {
@@ -301,7 +303,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this._widget.value!.setEditorProgressService(this._editorProgressService);
 
 			await this._widget.value!.setModel(model.notebook, viewState, perf);
-			const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
+			const isReadOnly = !!input.isReadonly();
 			await this._widget.value!.setOptions({ ...options, isReadOnly });
 			this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
 			this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
@@ -318,6 +320,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 
 			this._handlePerfMark(perf, input);
+			this._handlePromptRecommendations(model.notebook);
 		} catch (e) {
 			this.logService.warn('NotebookEditorWidget#setInput failed', e);
 			if (isEditorOpenError(e)) {
@@ -422,6 +425,24 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			webviewCommLoaded: webviewCommLoadingTimespan,
 			customMarkdownLoaded: customMarkdownLoadingTimespan,
 			editorLoaded: editorLoadingTimespan
+		});
+	}
+
+	private _handlePromptRecommendations(model: NotebookTextModel) {
+		this._notebookEditorWorkerService.canPromptRecommendation(model.uri).then(shouldPrompt => {
+			type WorkbenchNotebookShouldPromptRecommendationClassification = {
+				owner: 'rebornix';
+				comment: 'The notebook file metrics. Used to get a better understanding of if we should prompt for notebook extension recommendations';
+				shouldPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Should we prompt for notebook extension recommendations' };
+			};
+
+			type WorkbenchNotebookShouldPromptRecommendationEvent = {
+				shouldPrompt: boolean;
+			};
+
+			this.telemetryService.publicLog2<WorkbenchNotebookShouldPromptRecommendationEvent, WorkbenchNotebookShouldPromptRecommendationClassification>('notebook/shouldPromptRecommendation', {
+				shouldPrompt: shouldPrompt
+			});
 		});
 	}
 
