@@ -34,10 +34,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -198,12 +197,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
-
-		// Breadcrumbs
-		const breadcrumbsContainer = document.createElement('div');
-		breadcrumbsContainer.classList.add('tabs-breadcrumbs');
-		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, showPlaceholder: true });
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -491,15 +484,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions);
 	}
 
-	openEditor(editor: EditorInput): void {
-		this.handleOpenedEditors();
+	openEditor(editor: EditorInput): boolean {
+		return this.handleOpenedEditors();
 	}
 
-	openEditors(editors: EditorInput[]): void {
-		this.handleOpenedEditors();
+	openEditors(editors: EditorInput[]): boolean {
+		return this.handleOpenedEditors();
 	}
 
-	private handleOpenedEditors(): void {
+	private handleOpenedEditors(): boolean {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
@@ -509,7 +502,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Make sure to recompute tab labels and detect
 		// if a label change occurred that requires a
-		// redraw of tabs and update of breadcrumbs.
+		// redraw of tabs.
 
 		const activeEditorChanged = this.didActiveEditorChange();
 		const oldActiveTabLabel = this.activeTabLabel;
@@ -517,20 +510,22 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.computeTabLabels();
 
 		// Redraw and update in these cases
+		let didChange = false;
 		if (
 			activeEditorChanged ||													// active editor changed
 			oldTabLabelsLength !== this.tabLabels.length ||							// number of tabs changed
 			!this.equalsEditorInputLabel(oldActiveTabLabel, this.activeTabLabel)	// active editor label changed
 		) {
 			this.redraw({ forceRevealActiveTab: true });
-			this.breadcrumbsControl?.update();
+			didChange = true;
 		}
 
-		// Otherwise only layout for revealing in tabs and breadcrumbs
+		// Otherwise only layout for revealing
 		else {
 			this.layout(this.dimensions, { forceRevealActiveTab: true });
-			this.breadcrumbsControl?.revealLast();
 		}
+
+		return didChange;
 	}
 
 	private didActiveEditorChange(): boolean {
@@ -618,8 +613,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.tabActionBars = [];
 
 			this.clearEditorActionsToolbar();
-
-			this.breadcrumbsControl?.update();
 		}
 	}
 
@@ -1526,15 +1519,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	getHeight(): IEditorGroupTitleHeight {
-		const showsBreadcrumbs = this.breadcrumbsControl && !this.breadcrumbsControl.isHidden();
+	getHeight(): number {
 
 		// Return quickly if our used dimensions are known
 		if (this.dimensions.used) {
-			return {
-				total: this.dimensions.used.height,
-				offset: showsBreadcrumbs ? this.dimensions.used.height - BreadcrumbsControl.HEIGHT : this.dimensions.used.height
-			};
+			return this.dimensions.used.height;
 		}
 
 		// Otherwise compute via browser APIs
@@ -1543,25 +1532,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private computeHeight(): IEditorGroupTitleHeight {
-		let total: number;
+	private computeHeight(): number {
+		let height: number;
 
 		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
-			total = this.tabsAndActionsContainer.offsetHeight;
+			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			total = this.tabHeight;
+			height = this.tabHeight;
 		}
 
-		const offset = total;
-
-		// Account for breadcrumbs if visible
-		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			total += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
-		}
-
-		return { total, offset };
+		return height;
 	}
 
 	layout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
@@ -1592,7 +1574,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// First time layout: compute the dimensions and store it
 		if (!this.dimensions.used) {
-			this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
+			this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
 		}
 
 		return this.dimensions.used;
@@ -1604,9 +1586,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
 		if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
 
-			// Breadcrumbs
-			this.doLayoutBreadcrumbs(dimensions);
-
 			// Tabs
 			const [activeTab, activeIndex] = activeTabAndIndex;
 			this.doLayoutTabs(activeTab, activeIndex, dimensions, options);
@@ -1616,7 +1595,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// return it fast from the `layout` call without having to
 		// compute it over and over again
 		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
+		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
 
 		// In case the height of the title control changed from before
 		// (currently only possible if wrapping changed on/off), we need
@@ -1624,16 +1603,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// e.g. the editor control can be adjusted accordingly.
 		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.group.relayout();
-		}
-	}
-
-	protected handleBreadcrumbsEnablementChange(): void {
-		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
-	}
-
-	private doLayoutBreadcrumbs(dimensions: IEditorTitleControlDimensions): void {
-		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			this.breadcrumbsControl.layout(new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT));
 		}
 	}
 

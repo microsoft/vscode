@@ -11,7 +11,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,9 +25,7 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
@@ -85,8 +83,6 @@ export abstract class EditorTabsControl extends Themable {
 		compact: 22 as const
 	};
 
-	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
-
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
 
 	private resourceContext: ResourceContextKey;
@@ -119,7 +115,7 @@ export abstract class EditorTabsControl extends Themable {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService protected readonly fileService: IFileService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
 	) {
 		super(themeService);
@@ -145,38 +141,6 @@ export abstract class EditorTabsControl extends Themable {
 	protected create(parent: HTMLElement): void {
 		this.updateTabHeight();
 	}
-
-	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
-		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
-		this._register(config.onDidChange(() => {
-			const value = config.getValue();
-			if (!value && this.breadcrumbsControl) {
-				this.breadcrumbsControl.dispose();
-				this.breadcrumbsControl = undefined;
-				this.handleBreadcrumbsEnablementChange();
-			} else if (value && !this.breadcrumbsControl) {
-				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
-				this.breadcrumbsControl.update();
-				this.handleBreadcrumbsEnablementChange();
-			}
-		}));
-
-		if (config.getValue()) {
-			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
-		}
-
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
-				// ignore if the scheme of the breadcrumbs resource is not affected
-				return;
-			}
-			if (this.breadcrumbsControl?.update()) {
-				this.handleBreadcrumbsEnablementChange();
-			}
-		}));
-	}
-
-	protected abstract handleBreadcrumbsEnablementChange(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
@@ -432,9 +396,9 @@ export abstract class EditorTabsControl extends Themable {
 		}
 	}
 
-	abstract openEditor(editor: EditorInput): void;
+	abstract openEditor(editor: EditorInput): boolean;
 
-	abstract openEditors(editors: EditorInput[]): void;
+	abstract openEditors(editors: EditorInput[]): boolean;
 
 	abstract beforeCloseEditor(editor: EditorInput): void;
 
@@ -458,12 +422,5 @@ export abstract class EditorTabsControl extends Themable {
 
 	abstract layout(dimensions: IEditorTitleControlDimensions): Dimension;
 
-	abstract getHeight(): IEditorGroupTitleHeight;
-
-	override dispose(): void {
-		dispose(this.breadcrumbsControl);
-		this.breadcrumbsControl = undefined;
-
-		super.dispose();
-	}
+	abstract getHeight(): number;
 }

@@ -26,7 +26,7 @@
 	flex: initial; /* helps to show decorations right next to the label and not at the end while still preserving text overflow ellipsis */
 }
 
-/* Breadcrumbs */
+/* Breadcrumbs (inline next to single editor tab) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
 	flex: none;

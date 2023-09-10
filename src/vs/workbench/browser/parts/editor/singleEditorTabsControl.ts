@@ -14,11 +14,12 @@ import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } 
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
+import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;
@@ -30,6 +31,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
+
+	private breadcrumbsControl: BreadcrumbsControl | undefined;
 
 	protected override create(parent: HTMLElement): void {
 		super.create(parent);
@@ -63,6 +66,47 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 		// Editor actions toolbar
 		this.createEditorActionsToolBar(actionsContainer);
+	}
+
+	private createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
+		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
+
+		// Create if enabled
+		if (config.getValue()) {
+			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
+		}
+
+		// Listen to breadcrumbs enablement changes
+		this._register(config.onDidChange(() => {
+			const value = config.getValue();
+
+			// Hide breadcrumbs if showing
+			if (!value && this.breadcrumbsControl) {
+				this.breadcrumbsControl.dispose();
+				this.breadcrumbsControl = undefined;
+
+				this.handleBreadcrumbsEnablementChange();
+			}
+
+			// Show breadcrumbs if hidden
+			else if (value && !this.breadcrumbsControl) {
+				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
+				this.breadcrumbsControl.update();
+
+				this.handleBreadcrumbsEnablementChange();
+			}
+		}));
+
+		// Listen to file system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
+				return; // ignore if the scheme of the breadcrumbs resource is not affected
+			}
+
+			if (this.breadcrumbsControl?.update()) {
+				this.handleBreadcrumbsEnablementChange();
+			}
+		}));
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
@@ -131,19 +175,21 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 	}
 
-	openEditor(editor: EditorInput): void {
-		this.doHandleOpenEditor();
+	openEditor(editor: EditorInput): boolean {
+		return this.doHandleOpenEditor();
 	}
 
-	openEditors(editors: EditorInput[]): void {
-		this.doHandleOpenEditor();
+	openEditors(editors: EditorInput[]): boolean {
+		return this.doHandleOpenEditor();
 	}
 
-	private doHandleOpenEditor(): void {
+	private doHandleOpenEditor(): boolean {
 		const activeEditorChanged = this.ifActiveEditorChanged(() => this.redraw());
 		if (!activeEditorChanged) {
 			this.ifActiveEditorPropertiesChanged(() => this.redraw());
 		}
+
+		return activeEditorChanged;
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
@@ -349,16 +395,20 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	getHeight(): IEditorGroupTitleHeight {
-		return {
-			total: this.tabHeight,
-			offset: 0
-		};
+	getHeight(): number {
+		return this.tabHeight;
 	}
 
 	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 		this.breadcrumbsControl?.layout(undefined);
 
-		return new Dimension(dimensions.container.width, this.getHeight().total);
+		return new Dimension(dimensions.container.width, this.getHeight());
+	}
+
+	override dispose(): void {
+		this.breadcrumbsControl?.dispose();
+		this.breadcrumbsControl = undefined;
+
+		super.dispose();
 	}
 }
