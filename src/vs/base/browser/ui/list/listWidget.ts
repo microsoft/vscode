@@ -830,7 +830,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listFocusForeground) {
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused:not(.monaco-list-row.action.option-disabled) { color: ${styles.listFocusForeground}; }`);
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
 		}
 
 		if (styles.listActiveSelectionBackground) {

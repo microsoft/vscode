@@ -33,6 +33,7 @@ import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chat
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const $ = dom.$;
 
@@ -101,7 +102,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _getAriaLabel(): string {
 		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat);
 		if (verbose) {
-			const kbLabel = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			return kbLabel ? localize('actions.chat.accessibiltyHelp', "Chat Input,  Type to ask questions or type / for topics, press enter to send out the request. Use {0} for Chat Accessibility Help.", kbLabel) : localize('chatInput.accessibilityHelpNoKb', "Chat Input,  Type code here and press Enter to run. Use the Chat Accessibility Help command for more information.");
 		}
 		return localize('chatInput', "Chat Input");
@@ -197,7 +198,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = 20;
-		options.padding = { top: 8, bottom: 7 };
+		options.padding = { top: 8, bottom: 8 };
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };

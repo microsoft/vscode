@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-slash-command-content-widget {
-	padding: 1px 3px 1px 3px;
-	border-radius: 3px;
-	background-color: var(--vscode-chat-slashCommandBackground);
-	color: var(--vscode-chat-slashCommandForeground);
+declare module 'vscode' {
+
+	// https://github.com/microsoft/vscode/issues/79034
+
+	// This proposal doesn't have any API changes, only contributions
+
 }

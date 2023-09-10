@@ -276,7 +276,11 @@ class TunnelProvider implements vscode.TunnelProvider {
 				try {
 					const l: { port_format: string } = JSON.parse(line);
 					if (l.port_format && l.port_format !== lastPortFormat) {
-						this.state = { state: State.Active, portFormat: l.port_format, process };
+						this.state = {
+							state: State.Active,
+							portFormat: l.port_format, process,
+							cleanupTimeout: 'cleanupTimeout' in this.state ? this.state.cleanupTimeout : undefined,
+						};
 						progressP.complete();
 					}
 				} catch (e) {

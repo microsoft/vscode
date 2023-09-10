@@ -86,6 +86,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { importAMDNodeModule } from 'vs/amdX';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const enum Constants {
 	/**
@@ -1886,7 +1887,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (!screenReaderOptimized) {
 				labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
 			}
-			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			if (this._configurationService.getValue(AccessibilityVerbositySettingId.Terminal) && accessibilityHelpKeybinding) {
 				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
 			}
