@@ -114,8 +114,9 @@ import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/se
 import product from 'vs/platform/product/common/product';
 import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/contrib/notebook/browser/notebookAccessibility';
-import { AccessibilityHelpAction, AccessibleViewAction, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 /*--------------------------------------------------------------------------------------------- */
 

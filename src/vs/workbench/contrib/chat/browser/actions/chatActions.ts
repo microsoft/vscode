@@ -29,7 +29,7 @@ import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chat
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 

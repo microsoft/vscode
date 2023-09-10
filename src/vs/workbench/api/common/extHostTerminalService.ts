@@ -5,11 +5,11 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixExecuteTerminalCommandDto, TerminalCommandMatchResultDto } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
@@ -23,8 +23,9 @@ import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBu
 import { ThemeColor } from 'vs/base/common/themables';
 import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
+import { TerminalQuickFix, ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -365,6 +366,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	protected _environmentVariableCollections: Map<string, UnifiedEnvironmentVariableCollection> = new Map();
 	private _defaultProfile: ITerminalProfile | undefined;
 	private _defaultAutomationProfile: ITerminalProfile | undefined;
+	private _lastQuickFixCommands: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
@@ -393,6 +395,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	constructor(
 		supportsProcesses: boolean,
+		@IExtHostCommands private readonly _extHostCommands: IExtHostCommands,
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
 		super();
@@ -690,7 +693,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalQuickFixes(id: string, matchResult: vscode.TerminalCommandMatchResult): Promise<(vscode.TerminalQuickFixOpener | vscode.TerminalQuickFixCommand)[] | vscode.TerminalQuickFixOpener | vscode.TerminalQuickFixCommand | undefined> {
+	public async $provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto): Promise<(ITerminalQuickFixExecuteTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto)[] | ITerminalQuickFixExecuteTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested) {
 			return;
@@ -700,11 +703,27 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			return;
 		}
 		const quickFixes = await provider.provideTerminalQuickFixes(matchResult, token);
-		if (quickFixes === null) {
+		if (quickFixes === null || (Array.isArray(quickFixes) && quickFixes.length === 0)) {
 			return undefined;
-		} else {
-			return quickFixes;
 		}
+
+		const store = new DisposableStore();
+		this._lastQuickFixCommands.value = store;
+
+		// Single
+		if (!Array.isArray(quickFixes)) {
+			return quickFixes ? TerminalQuickFix.from(quickFixes, this._extHostCommands.converter, store) : undefined;
+		}
+
+		// Many
+		const result = [];
+		for (const fix of quickFixes) {
+			const converted = TerminalQuickFix.from(fix, this._extHostCommands.converter, store);
+			if (converted) {
+				result.push(converted);
+			}
+		}
+		return result;
 	}
 
 	public async $createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
@@ -1110,9 +1129,10 @@ class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableC
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	constructor(
+		@IExtHostCommands extHostCommands: IExtHostCommands,
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
-		super(false, extHostRpc);
+		super(false, extHostCommands, extHostRpc);
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {

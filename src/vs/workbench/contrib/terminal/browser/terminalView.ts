@@ -98,7 +98,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
-		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
+		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 		this._viewShowing = TerminalContextKeys.viewShowing.bindTo(this._contextKeyService);
 		this._register(this.onDidChangeBodyVisibility(e => {
@@ -422,6 +422,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
+		this._terminalGroupService.lastAccessedMenu = 'inline-tab';
 		if (event.altKey && this._menuItemAction.alt) {
 			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.Panel } as ICreateTerminalOptions);
 		} else {

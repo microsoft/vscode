@@ -53,6 +53,7 @@ import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/cha
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -392,7 +393,7 @@ export class InlineChatWidget {
 		}
 		let label = defaultAriaLabel;
 		if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
-			const kbLabel = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			label = kbLabel ? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel) : localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 		}
 		_inputEditorOptions.ariaLabel = label;
