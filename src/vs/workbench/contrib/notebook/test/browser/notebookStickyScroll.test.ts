@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isWeb } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { mock } from 'vs/base/test/common/mock';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { INotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -21,18 +22,21 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 
 (isWeb ? suite.skip : suite)('NotebookEditorStickyScroll', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
 	const domNode: HTMLElement = document.createElement('div');
 
-	suiteSetup(() => {
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 	});
 
-	suiteTeardown(() => disposables.dispose());
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	function getOutline(editor: any) {
 		if (!editor.hasModel()) {
@@ -47,8 +51,11 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 		return outline;
 	}
 
-	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]) {
+	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[], disposables: Pick<DisposableStore, 'add'>) {
 		const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
+		for (const stickyLine of output.values()) {
+			disposables.add(stickyLine.line);
+		}
 		return createStickyTestElement(output.values());
 	}
 
@@ -84,17 +91,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(0);
 				editor.visibleRanges = [{ start: 0, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 	test('test1: should render 0->1, 	visible range 3->8', async function () {
@@ -119,18 +128,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(175);
 				editor.visibleRanges = [{ start: 3, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 	test('test2: should render 0, 		visible range 6->9 so collapsing next 2 against following section', async function () {
@@ -156,18 +167,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(325); // room for a single header
 				editor.visibleRanges = [{ start: 6, end: 9 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 	test('test3: should render 0->1, 	collapsing against equivalent level header', async function () {
@@ -194,18 +207,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(175); // room for a single header
 				editor.visibleRanges = [{ start: 3, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 	// outdated/improper behavior
@@ -231,18 +246,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(50);
 				editor.visibleRanges = [{ start: 0, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 	// outdated/improper behavior
@@ -270,18 +287,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(125);
 				editor.visibleRanges = [{ start: 2, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 	// outdated/improper behavior
@@ -309,18 +328,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(375);
 				editor.visibleRanges = [{ start: 7, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 	// waiting on behavior push to fix this.
@@ -350,18 +371,20 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(350);
 				editor.visibleRanges = [{ start: 7, end: 12 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 
 				await assertSnapshot(resultingMap);
-			});
+				outline.dispose();
+			}, disposables);
 	});
 
 
