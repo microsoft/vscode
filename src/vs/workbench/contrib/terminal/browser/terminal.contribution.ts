@@ -32,7 +32,7 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
@@ -52,8 +52,10 @@ import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 import { Schemas } from 'vs/base/common/network';
+import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
 
 // Register services
+registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
 registerSingleton(ITerminalService, TerminalService, InstantiationType.Delayed);
 registerSingleton(ITerminalEditorService, TerminalEditorService, InstantiationType.Delayed);
 registerSingleton(ITerminalGroupService, TerminalGroupService, InstantiationType.Delayed);

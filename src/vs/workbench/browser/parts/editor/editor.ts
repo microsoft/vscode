@@ -28,7 +28,10 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	tabSizingFixedMinWidth: 50,
+	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
+	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
 	showIcons: true,
@@ -38,9 +41,10 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	openSideBySideDirection: 'right',
 	closeEmptyGroups: true,
 	labelFormat: 'default',
-	splitSizing: 'distribute',
+	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
+	doubleClickTabToToggleEditorGroupSizes: true,
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {

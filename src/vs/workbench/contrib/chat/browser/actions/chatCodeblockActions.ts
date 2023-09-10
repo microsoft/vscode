@@ -21,7 +21,7 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -165,6 +165,7 @@ export function registerChatCodeBlockActions() {
 					value: localize('interactive.insertCodeBlock.label', "Insert at Cursor"),
 					original: 'Insert at Cursor'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -268,6 +269,7 @@ export function registerChatCodeBlockActions() {
 					value: localize('interactive.insertIntoNewFile.label', "Insert Into New File"),
 					original: 'Insert Into New File'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
@@ -305,6 +307,7 @@ export function registerChatCodeBlockActions() {
 					value: localize('interactive.runInTerminal.label', "Run in Terminal"),
 					original: 'Run in Terminal'
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
@@ -314,11 +317,12 @@ export function registerChatCodeBlockActions() {
 					isHiddenByDefault: true,
 				},
 				keybinding: {
-					primary: KeyMod.WinCtrl | KeyCode.Enter,
-					win: {
-						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.EditorContrib,
+					when: CONTEXT_IN_CHAT_SESSION
 				}
 			});
 		}
@@ -332,9 +336,8 @@ export function registerChatCodeBlockActions() {
 
 			let terminal = await terminalService.getActiveOrCreateInstance();
 
-			// Why does getActiveOrCreateInstance return a disposed terminal? #180018
-			// isFeatureTerminal = debug terminal
-			const unusableTerminal = terminal.isDisposed || terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
+			// isFeatureTerminal = debug terminal or task terminal
+			const unusableTerminal = terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
 			terminal = unusableTerminal ? await terminalService.createTerminal() : terminal;
 
 			terminalService.setActiveInstance(terminal);
@@ -371,15 +374,18 @@ export function registerChatCodeBlockActions() {
 		const editor = codeEditorService.getFocusedCodeEditor();
 		const editorUri = editor?.getModel()?.uri;
 		const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+		const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
+		const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
-		const focusResponse = curCodeBlockInfo ?
+		const currentResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
-			widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item));
-		if (!focusResponse) {
+			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
+		if (!currentResponse) {
 			return;
 		}
 
-		const responseCodeblocks = widget.getCodeBlockInfosForResponse(focusResponse);
+		widget.reveal(currentResponse);
+		const responseCodeblocks = widget.getCodeBlockInfosForResponse(currentResponse);
 		const focusIdx = curCodeBlockInfo ?
 			(curCodeBlockInfo.codeBlockIndex + (reverse ? -1 : 1) + responseCodeblocks.length) % responseCodeblocks.length :
 			reverse ? responseCodeblocks.length - 1 : 0;
@@ -400,6 +406,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -423,6 +430,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});

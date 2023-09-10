@@ -222,12 +222,11 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
-			'window.experimental.windowControlsOverlay.enabled': {
+			'window.experimental.nativeContextMenuLocation': { // TODO@bpasero remove me eventually
 				'type': 'boolean',
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
-				'included': isWindows
+				'description': localize('nativeContextMenuLocation', "Let the OS handle positioning of the context menu in cases where it should appear under the mouse.")
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -345,6 +344,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'log-level': {
 				type: ['string', 'array'],
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+			},
+			'disable-chromium-sandbox': {
+				type: 'boolean',
+				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
 			}
 		}
 	};

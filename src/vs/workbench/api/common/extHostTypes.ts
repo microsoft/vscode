@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
@@ -13,12 +15,11 @@ import { nextCharLength } from 'vs/base/common/strings';
 import { isNumber, isObject, isString, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
-import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 /**
@@ -775,7 +776,7 @@ export interface IFileSnippetTextEdit {
 export interface IFileCellEdit {
 	readonly _type: FileEditType.Cell;
 	readonly uri: URI;
-	readonly edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
+	readonly edit?: ICellMetadataEdit | IDocumentMetadataEdit;
 	readonly notebookMetadata?: Record<string, any>;
 	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
@@ -832,7 +833,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	private replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
 	}
 
 	// --- text
@@ -1022,7 +1023,7 @@ export class SnippetString {
 			defaultValue = nested.value;
 
 		} else if (typeof defaultValue === 'string') {
-			defaultValue = defaultValue.replace(/\$|}/g, '\\$&');
+			defaultValue = defaultValue.replace(/\$|}/g, '\\$&'); // CodeQL [SM02383] I do not want to escape backslashes here
 		}
 
 		this.value += '${';
@@ -1358,7 +1359,6 @@ export class CodeAction {
 	}
 }
 
-
 @es5ClassCompat
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -1373,6 +1373,7 @@ export class CodeActionKind {
 	public static Source: CodeActionKind;
 	public static SourceOrganizeImports: CodeActionKind;
 	public static SourceFixAll: CodeActionKind;
+	public static Notebook: CodeActionKind;
 
 	constructor(
 		public readonly value: string
@@ -1390,6 +1391,17 @@ export class CodeActionKind {
 		return this.value === other.value || other.value.startsWith(this.value + CodeActionKind.sep);
 	}
 }
+
+export class NotebookCodeActionKind extends CodeActionKind {
+	public static override Notebook: CodeActionKind;
+
+	constructor(
+		public override readonly value: string
+	) {
+		super(value);
+	}
+}
+
 CodeActionKind.Empty = new CodeActionKind('');
 CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
 CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
@@ -1400,6 +1412,7 @@ CodeActionKind.RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 CodeActionKind.Source = CodeActionKind.Empty.append('source');
 CodeActionKind.SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 CodeActionKind.SourceFixAll = CodeActionKind.Source.append('fixAll');
+CodeActionKind.Notebook = CodeActionKind.Empty.append('notebook');
 
 @es5ClassCompat
 export class SelectionRange {
@@ -1785,6 +1798,10 @@ export enum ViewColumn {
 export enum StatusBarAlignment {
 	Left = 1,
 	Right = 2
+}
+
+export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: string): string {
+	return `${ExtensionIdentifier.toKey(extension)}.${id}`;
 }
 
 export enum TextEditorLineNumbersStyle {
@@ -2526,10 +2543,9 @@ export class TreeItem {
 	checkboxState?: vscode.TreeItemCheckboxState;
 
 	static isTreeItem(thing: any, extension: IExtensionDescription): thing is TreeItem {
-		const treeItemThing = thing as vscode.TreeItem2;
+		const treeItemThing = thing as vscode.TreeItem;
 
 		if (treeItemThing.checkboxState !== undefined) {
-			checkProposedApiEnabled(extension, 'treeItemCheckbox');
 			const checkbox = isNumber(treeItemThing.checkboxState) ? treeItemThing.checkboxState :
 				isObject(treeItemThing.checkboxState) && isNumber(treeItemThing.checkboxState.state) ? treeItemThing.checkboxState.state : undefined;
 			const tooltip = !isNumber(treeItemThing.checkboxState) && isObject(treeItemThing.checkboxState) ? treeItemThing.checkboxState.tooltip : undefined;
@@ -2739,16 +2755,12 @@ export class DocumentDropEdit {
 
 @es5ClassCompat
 export class DocumentPasteEdit {
-	id: string;
 
 	label: string;
-
 	insertText: string | SnippetString;
-
 	additionalEdit?: WorkspaceEdit;
 
-	constructor(insertText: string | SnippetString, id: string, label: string) {
-		this.id = id;
+	constructor(insertText: string | SnippetString, label: string) {
 		this.label = label;
 		this.insertText = insertText;
 	}
@@ -3836,14 +3848,8 @@ export class LinkedEditingRanges {
 export class PortAttributes {
 	private _autoForwardAction: PortAutoForwardAction;
 
-	constructor(autoForwardAction: PortAutoForwardAction);
-	constructor(port: number, autoForwardAction: PortAutoForwardAction);
-	constructor(portOrAction: number | PortAutoForwardAction, autoForwardAction?: PortAutoForwardAction) {
-		if (typeof portOrAction === 'number') {
-			this._autoForwardAction = autoForwardAction!;
-		} else {
-			this._autoForwardAction = portOrAction;
-		}
+	constructor(autoForwardAction: PortAutoForwardAction) {
+		this._autoForwardAction = autoForwardAction;
 	}
 
 	get autoForwardAction(): PortAutoForwardAction {
@@ -4082,7 +4088,27 @@ export enum InteractiveSessionCopyKind {
 export enum InteractiveEditorResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
-	Undone = 2
+	Undone = 2,
+	Accepted = 3
+}
+
+export enum ChatMessageRole {
+	System = 0,
+	User = 1,
+	Assistant = 2,
+	Function = 3,
+}
+
+export class ChatMessage implements vscode.ChatMessage {
+
+	role: ChatMessageRole;
+	content: string;
+	name?: string;
+
+	constructor(role: ChatMessageRole, content: string) {
+		this.role = role;
+		this.content = content;
+	}
 }
 
 //#endregion

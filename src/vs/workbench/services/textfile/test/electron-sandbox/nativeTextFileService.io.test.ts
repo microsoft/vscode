@@ -53,7 +53,7 @@ suite('Files - NativeTextFileService i/o', function () {
 				await fileProvider.writeFile(
 					URI.file(join(testDir, fileName)),
 					files[fileName],
-					{ create: true, overwrite: false, unlock: false }
+					{ create: true, overwrite: false, unlock: false, atomic: false }
 				);
 			}
 

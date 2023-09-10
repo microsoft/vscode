@@ -546,10 +546,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.51.tgz#b31d716fb8d58eeb95c068a039b9b6292817d5fb"
   integrity sha512-El3+WJk2D/ppWNd2X05aiP5l2k4EwF7KwheknQZls+I26eSICoWRhRIJ56jGgw2dqNGQ5LtNajmBU2ajS28EvQ==
 
-"@types/node@16.x":
-  version "16.18.3"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-16.18.3.tgz#d7f7ba828ad9e540270f01ce00d391c54e6e0abc"
-  integrity sha512-jh6m0QUhIRcZpNv7Z/rpN+ZWXOicUUQbSoWks7Htkbb9IjFQj4kzcX/xFCkjstCj5flMsN8FiSvt+q+Tcs4Llg==
+"@types/node@18.x":
+  version "18.15.13"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.15.13.tgz#f64277c341150c979e42b00e4ac289290c9df469"
+  integrity sha512-N+0kuo9KgrUQ1Sn/ifDXsvg0TTleP7rIy4zOBGECxAljqvqfqpTfzx0Q1NUedOixRMBfe2Whhb056a42cWs26Q==
 
 "@types/p-limit@^2.2.0":
   version "2.2.0"
@@ -631,6 +631,13 @@
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/@types/vinyl/-/vinyl-2.0.2.tgz#4f3b8dae8f5828d3800ef709b0cff488ee852de3"
   integrity sha512-2iYpNuOl98SrLPBZfEN9Mh2JCJ2EI9HU35SfgBEb51DcmaHkhp8cKMblYeBqMQiwXMgAD3W60DbQ4i/UdLiXhw==
+  dependencies:
+    "@types/node" "*"
+
+"@types/workerpool@^6.4.0":
+  version "6.4.0"
+  resolved "https://registry.yarnpkg.com/@types/workerpool/-/workerpool-6.4.0.tgz#c79292915dd08350d10e78e74687b6f401f270b8"
+  integrity sha512-SIF2/169pDsLKeM8GQGHkOFifGalDbZgiBSaLUnnlVSRsAOenkAvQ6h4uhV2W+PZZczS+8LQxACwNkSykdT91A==
   dependencies:
     "@types/node" "*"
 
@@ -2997,6 +3004,11 @@ wide-align@^1.1.0:
   integrity sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==
   dependencies:
     string-width "^1.0.2 || 2 || 3 || 4"
+
+workerpool@^6.4.0:
+  version "6.4.0"
+  resolved "https://registry.yarnpkg.com/workerpool/-/workerpool-6.4.0.tgz#f8d5cfb45fde32fa3b7af72ad617c3369567a462"
+  integrity sha512-i3KR1mQMNwY2wx20ozq2EjISGtQWDIfV56We+yGJ5yDs8jTwQiLLaqHlkBHITlCuJnYlVRmXegxFxZg7gqI++A==
 
 wrappy@1:
   version "1.0.2"

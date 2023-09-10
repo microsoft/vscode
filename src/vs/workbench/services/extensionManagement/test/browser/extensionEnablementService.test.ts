@@ -141,6 +141,7 @@ suite('ExtensionEnablementService Test', () => {
 
 	teardown(() => {
 		(<ExtensionEnablementService>testObject).dispose();
+		instantiationService.dispose();
 	});
 
 	test('test disable an extension globally', async () => {

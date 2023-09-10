@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 use async_trait::async_trait;
 use std::{marker::PhantomData, sync::Arc};
-use tokio::{
-	sync::{
-		broadcast, mpsc,
-		watch::{self, error::RecvError},
-	},
+use tokio::sync::{
+	broadcast, mpsc,
+	watch::{self, error::RecvError},
 };
 
 #[derive(Clone)]

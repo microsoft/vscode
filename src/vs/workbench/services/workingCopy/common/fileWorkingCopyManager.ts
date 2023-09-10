@@ -247,7 +247,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 						color: listErrorForeground,
 						letter: Codicon.lockSmall,
 						strikethrough: true,
-						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
+						tooltip: localize('readonlyAndDeleted', "Deleted, Read-only"),
 					};
 				}
 
@@ -255,7 +255,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				else if (isReadonly) {
 					return {
 						letter: Codicon.lockSmall,
-						tooltip: localize('readonly', "Read Only"),
+						tooltip: localize('readonly', "Read-only"),
 					};
 				}
 

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/580c019674f82ef887a6dcce7bfc75ab0b58486d",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/30d04562e592305b6f6d41a539b3ccf326888aaf",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -1064,7 +1064,7 @@
 			]
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code(?:\\*)?)\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
+			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code|lstlisting|minted|pyglist)(?:\\*)?\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -1337,7 +1337,7 @@
 			]
 		},
 		{
-			"begin": "(\\s*\\\\begin\\{(tabular[xy*]?|xltabular|longtable|(?:long)?tabu|(?:long|tall)?tblr|NiceTabular[X*]?)\\}(\\s*\\n)?)",
+			"begin": "(\\s*\\\\begin\\{(tabular[xy*]?|xltabular|longtable|(?:long)?tabu|(?:long|tall)?tblr|NiceTabular[X*]?|booktabs)\\}(\\s*\\n)?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -2071,28 +2071,19 @@
 			]
 		},
 		{
-			"name": "string.quoted.double.latex",
-			"match": "(?<!\\\\)(\\`\\`)(?:.*?(?<!\\\\))(\\'\\'|\\\")",
-			"captures": {
+			"begin": "(?<!\\\\)(\\`\\`)",
+			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.string.begin.latex"
-				},
-				"2": {
-					"name": "punctuation.definition.string.end.latex"
 				}
-			}
-		},
-		{
-			"name": "string.quoted.single.latex",
-			"match": "(?<!\\\\)(\\`)(?:.*?(?<!\\\\))(\\')",
-			"captures": {
+			},
+			"end": "(?<!\\\\)(\\'\\'|\")",
+			"endCaptures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.latex"
-				},
-				"2": {
 					"name": "punctuation.definition.string.end.latex"
 				}
-			}
+			},
+			"name": "string.quoted.double.latex"
 		},
 		{
 			"begin": "\\$\\$",

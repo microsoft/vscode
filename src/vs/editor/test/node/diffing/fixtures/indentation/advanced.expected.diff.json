@@ -27,8 +27,8 @@
 			]
 		},
 		{
-			"originalRange": "[12,24)",
-			"modifiedRange": "[13,26)",
+			"originalRange": "[12,23)",
+			"modifiedRange": "[13,25)",
 			"innerChanges": [
 				{
 					"originalRange": "[12,1 -> 12,1]",
@@ -76,11 +76,7 @@
 				},
 				{
 					"originalRange": "[23,1 -> 23,1]",
-					"modifiedRange": "[24,1 -> 24,2]"
-				},
-				{
-					"originalRange": "[24,1 -> 24,1]",
-					"modifiedRange": "[25,1 -> 26,1]"
+					"modifiedRange": "[24,1 -> 25,1]"
 				}
 			]
 		}

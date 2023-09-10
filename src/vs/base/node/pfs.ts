@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { ResourceQueue } from 'vs/base/common/async';
+import { ResourceQueue, timeout } from 'vs/base/common/async';
 import { isEqualOrParent, isRootOrDriveLetter, randomPath } from 'vs/base/common/extpath';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { join } from 'vs/base/common/path';
@@ -37,8 +37,13 @@ export enum RimRafMode {
  * - `UNLINK`: direct removal from disk
  * - `MOVE`: faster variant that first moves the target to temp dir and then
  *           deletes it in the background without waiting for that to finish.
+ *           the optional `moveToPath` allows to override where to rename the
+ *           path to before deleting it.
  */
-async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
+async function rimraf(path: string, mode: RimRafMode.UNLINK): Promise<void>;
+async function rimraf(path: string, mode: RimRafMode.MOVE, moveToPath?: string): Promise<void>;
+async function rimraf(path: string, mode?: RimRafMode, moveToPath?: string): Promise<void>;
+async function rimraf(path: string, mode = RimRafMode.UNLINK, moveToPath?: string): Promise<void> {
 	if (isRootOrDriveLetter(path)) {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
@@ -49,12 +54,11 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 	}
 
 	// delete: via move
-	return rimrafMove(path);
+	return rimrafMove(path, moveToPath);
 }
 
-async function rimrafMove(path: string): Promise<void> {
+async function rimrafMove(path: string, moveToPath = randomPath(tmpdir())): Promise<void> {
 	try {
-		const pathInTemp = randomPath(tmpdir());
 		try {
 			// Intentionally using `fs.promises` here to skip
 			// the patched graceful-fs method that can result
@@ -64,7 +68,7 @@ async function rimrafMove(path: string): Promise<void> {
 			// than necessary and we have a fallback to delete
 			// via unlink.
 			// https://github.com/microsoft/vscode/issues/139908
-			await fs.promises.rename(path, pathInTemp);
+			await fs.promises.rename(path, moveToPath);
 		} catch (error) {
 			if (error.code === 'ENOENT') {
 				return; // ignore - path to delete did not exist
@@ -74,7 +78,7 @@ async function rimrafMove(path: string): Promise<void> {
 		}
 
 		// Delete but do not return as promise
-		rimrafUnlink(pathInTemp).catch(error => {/* ignore */ });
+		rimrafUnlink(moveToPath).catch(error => {/* ignore */ });
 	} catch (error) {
 		if (error.code !== 'ENOENT') {
 			throw error;
@@ -487,16 +491,24 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 /**
  * A drop-in replacement for `fs.rename` that:
  * - allows to move across multiple disks
+ * - attempts to retry the operation for certain error codes on Windows
  */
-async function move(source: string, target: string): Promise<void> {
+async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000 /* matches graceful-fs */): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
 	try {
-		await Promises.rename(source, target);
+		if (isWindows && typeof windowsRetryTimeout === 'number') {
+			// On Windows, a rename can fail when either source or target
+			// is locked by AV software. We do leverage graceful-fs to iron
+			// out these issues, however in case the target file exists,
+			// graceful-fs will immediately return without retry for fs.rename().
+			await renameWithRetry(source, target, Date.now(), windowsRetryTimeout);
+		} else {
+			await promisify(fs.rename)(source, target);
+		}
 	} catch (error) {
-
 		// In two cases we fallback to classic copy and delete:
 		//
 		// 1.) The EXDEV error indicates that source and target are on different devices
@@ -511,6 +523,44 @@ async function move(source: string, target: string): Promise<void> {
 		} else {
 			throw error;
 		}
+	}
+}
+
+async function renameWithRetry(source: string, target: string, startTime: number, retryTimeout: number, attempt = 0): Promise<void> {
+	try {
+		return await promisify(fs.rename)(source, target);
+	} catch (error) {
+		if (error.code !== 'EACCES' && error.code !== 'EPERM' && error.code !== 'EBUSY') {
+			throw error; // only for errors we think are temporary
+		}
+
+		if (Date.now() - startTime >= retryTimeout) {
+			console.error(`[node.js fs] rename failed after ${attempt} retries with error: ${error}`);
+
+			throw error; // give up after configurable timeout
+		}
+
+		if (attempt === 0) {
+			let abortRetry = false;
+			try {
+				const { stat } = await SymlinkSupport.stat(target);
+				if (!stat.isFile()) {
+					abortRetry = true; // if target is not a file, EPERM error may be raised and we should not attempt to retry
+				}
+			} catch (error) {
+				// Ignore
+			}
+
+			if (abortRetry) {
+				throw error;
+			}
+		}
+
+		// Delay with incremental backoff up to 100ms
+		await timeout(Math.min(100, attempt * 10));
+
+		// Attempt again
+		return renameWithRetry(source, target, startTime, retryTimeout, attempt + 1);
 	}
 }
 
@@ -690,7 +740,6 @@ export const Promises = new class {
 	get fdatasync() { return promisify(fs.fdatasync); }
 	get truncate() { return promisify(fs.truncate); }
 
-	get rename() { return promisify(fs.rename); }
 	get copyFile() { return promisify(fs.copyFile); }
 
 	get open() { return promisify(fs.open); }
@@ -729,7 +778,7 @@ export const Promises = new class {
 
 	get rm() { return rimraf; }
 
-	get move() { return move; }
+	get rename() { return rename; }
 	get copy() { return copy; }
 
 	//#endregion

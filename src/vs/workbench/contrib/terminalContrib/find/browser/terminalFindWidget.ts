@@ -12,7 +12,10 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
-import { ISearchOptions } from 'xterm-addon-search';
+import type { ISearchOptions } from 'xterm-addon-search';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+
+const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	private _findInputFocused: IContextKey<boolean>;
@@ -27,7 +30,21 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super({ showCommonFindToggles: true, checkImeCompletionState: true, showResultCount: true, type: 'Terminal', matchesLimit: XtermTerminalConstants.SearchHighlightLimit }, _contextViewService, _contextKeyService, keybindingService);
+		super({
+			showCommonFindToggles: true,
+			checkImeCompletionState: true,
+			showResultCount: true,
+			initialWidth: TERMINAL_FIND_WIDGET_INITIAL_WIDTH,
+			enableSash: true,
+			appendCaseSensitiveActionId: TerminalCommandId.ToggleFindCaseSensitive,
+			appendRegexActionId: TerminalCommandId.ToggleFindRegex,
+			appendWholeWordsActionId: TerminalCommandId.ToggleFindWholeWord,
+			previousMatchActionId: TerminalCommandId.FindPrevious,
+			nextMatchActionId: TerminalCommandId.FindNext,
+			closeWidgetActionId: TerminalCommandId.FindHide,
+			type: 'Terminal',
+			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
+		}, _contextViewService, _contextKeyService, keybindingService);
 
 		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();
@@ -45,6 +62,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 				this.find(true, true);
 			}
 		}));
+
+		this.updateResultCount();
 	}
 
 	find(previous: boolean, update?: boolean) {
@@ -84,7 +103,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	override hide() {
 		super.hide();
 		this._findWidgetVisible.reset();
-		this._instance.focus();
+		this._instance.focus(true);
 		this._instance.xterm?.clearSearchDecorations();
 	}
 

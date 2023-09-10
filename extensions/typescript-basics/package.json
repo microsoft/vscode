@@ -55,8 +55,8 @@
       },
       {
         "id": "json",
-        "filenames": [
-          "tsconfig.tsbuildinfo"
+        "extensions": [
+          ".tsbuildinfo"
         ]
       }
     ],

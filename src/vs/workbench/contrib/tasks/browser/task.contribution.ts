@@ -351,6 +351,39 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	},
 	when: TaskExecutionSupportedContext
 });
+
+class UserTasksGlobalActionContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor() {
+		super();
+		this.registerActions();
+	}
+
+	private registerActions() {
+		const id = 'workbench.action.tasks.openUserTasks';
+		const title = nls.localize('userTasks', "User Tasks");
+		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 4
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			command: {
+				id,
+				title
+			},
+			when: TaskExecutionSupportedContext,
+			group: '2_configuration',
+			order: 4
+		}));
+	}
+}
+workbenchRegistry.registerWorkbenchContribution(UserTasksGlobalActionContribution, LifecyclePhase.Restored);
+
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 

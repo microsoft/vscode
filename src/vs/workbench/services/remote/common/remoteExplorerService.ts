@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService, TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -429,7 +429,7 @@ export class TunnelModel extends Disposable {
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	public readonly configPortsAttributes: PortsAttributes;
-	private restoreListener: IDisposable | undefined;
+	private restoreListener: DisposableStore | undefined = undefined;
 	private knownPortsRestoreValue: string | undefined;
 	private unrestoredExtensionTunnels: Map<string, Tunnel> = new Map();
 	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
@@ -579,11 +579,11 @@ export class TunnelModel extends Disposable {
 		if (!this.restoreListener) {
 			// It's possible that at restore time the value hasn't synced.
 			const key = await this.getStorageKey();
-			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+			this.restoreListener = this._register(new DisposableStore());
+			this.restoreListener.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this.restoreListener)(async (e) => {
 				if (e.key === key) {
 					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(key, StorageScope.PROFILE));
 					await this.restoreForwarded();
-
 				}
 			}));
 		}
@@ -743,7 +743,7 @@ export class TunnelModel extends Disposable {
 	async close(host: string, port: number, reason: TunnelCloseReason): Promise<void> {
 		const key = makeAddress(host, port);
 		const oldTunnel = this.forwarded.get(key)!;
-		if (reason === TunnelCloseReason.AutoForwardEnd) {
+		if ((reason === TunnelCloseReason.AutoForwardEnd) && oldTunnel && (oldTunnel.source.source === TunnelSource.Auto)) {
 			this.sessionCachedProperties.set(key, {
 				local: oldTunnel.localPort,
 				name: oldTunnel.name,
@@ -894,13 +894,14 @@ export class TunnelModel extends Disposable {
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
 		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
 		forwardedPorts.forEach(forwardedPort => {
-			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port);
+			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port) ?? forwardedPort;
 			if (matchingCandidate) {
 				matchingCandidates.set(forwardedPort.port, matchingCandidate);
-				if (!pidToPortsMapping.has(matchingCandidate.pid)) {
-					pidToPortsMapping.set(matchingCandidate.pid, []);
+				const pid = isCandidatePort(matchingCandidate) ? matchingCandidate.pid : undefined;
+				if (!pidToPortsMapping.has(pid)) {
+					pidToPortsMapping.set(pid, []);
 				}
-				pidToPortsMapping.get(matchingCandidate.pid)?.push(forwardedPort.port);
+				pidToPortsMapping.get(pid)?.push(forwardedPort.port);
 			}
 		});
 
@@ -962,6 +963,13 @@ export interface CandidatePort {
 	port: number;
 	detail?: string;
 	pid?: number;
+}
+
+export function isCandidatePort(candidate: any): candidate is CandidatePort {
+	return candidate && 'host' in candidate && typeof candidate.host === 'string'
+		&& 'port' in candidate && typeof candidate.port === 'number'
+		&& (!('detail' in candidate) || typeof candidate.detail === 'string')
+		&& (!('pid' in candidate) || typeof candidate.pid === 'string');
 }
 
 export interface IRemoteExplorerService {

@@ -785,7 +785,7 @@ export function setupTerminalMenus(): void {
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		command: {
-			id: TerminalCommandId.CreateTerminalEditor,
+			id: TerminalCommandId.CreateTerminalEditorSameGroup,
 			title: terminalStrings.new,
 			icon: Codicon.plus
 		},

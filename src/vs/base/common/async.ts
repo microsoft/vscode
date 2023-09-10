@@ -166,11 +166,13 @@ export interface ITask<T> {
  * 			throttler.queue(deliver);
  * 		}
  */
-export class Throttler {
+export class Throttler implements IDisposable {
 
 	private activePromise: Promise<any> | null;
 	private queuedPromise: Promise<any> | null;
 	private queuedPromiseFactory: ITask<Promise<any>> | null;
+
+	private isDisposed = false;
 
 	constructor() {
 		this.activePromise = null;
@@ -179,12 +181,20 @@ export class Throttler {
 	}
 
 	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
+		if (this.isDisposed) {
+			throw new Error('Throttler is disposed');
+		}
+
 		if (this.activePromise) {
 			this.queuedPromiseFactory = promiseFactory;
 
 			if (!this.queuedPromise) {
 				const onComplete = () => {
 					this.queuedPromise = null;
+
+					if (this.isDisposed) {
+						return;
+					}
 
 					const result = this.queue(this.queuedPromiseFactory!);
 					this.queuedPromiseFactory = null;
@@ -213,6 +223,10 @@ export class Throttler {
 				reject(err);
 			});
 		});
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
 	}
 }
 
@@ -403,6 +417,7 @@ export class ThrottledDelayer<T> {
 
 	dispose(): void {
 		this.delayer.dispose();
+		this.throttler.dispose();
 	}
 }
 
