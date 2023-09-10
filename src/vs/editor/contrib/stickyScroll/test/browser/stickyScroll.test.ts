@@ -20,6 +20,7 @@ import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 suite('Sticky Scroll Tests', () => {
 
@@ -28,6 +29,10 @@ suite('Sticky Scroll Tests', () => {
 		[ILogService, new NullLogService()],
 		[IContextMenuService, new class extends mock<IContextMenuService>() { }],
 		[ILanguageConfigurationService, new TestLanguageConfigurationService()],
+		[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+			override isBuilt: boolean = true;
+			override isExtensionDevelopment: boolean = false;
+		}],
 		[ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService)],
 	);
 

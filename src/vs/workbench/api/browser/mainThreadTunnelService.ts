@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { MainThreadTunnelServiceShape, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesProviderSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDtoConverter } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, TunnelCloseReason, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -18,12 +18,15 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { CandidatePort, TunnelCloseReason, TunnelSource, makeAddress } from 'vs/workbench/services/remote/common/tunnelModel';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
 	private readonly _proxy: ExtHostTunnelServiceShape;
 	private elevateionRetry: boolean = false;
-	private portsAttributesProviders: Map<number, PortAttributesProviderSelector> = new Map();
+	private portsAttributesProviders: Map<number, PortAttributesSelector> = new Map();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -32,7 +35,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTunnelService);
@@ -63,7 +67,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	private _alreadyRegistered: boolean = false;
-	async $registerPortsAttributesProvider(selector: PortAttributesProviderSelector, providerHandle: number): Promise<void> {
+	async $registerPortsAttributesProvider(selector: PortAttributesSelector, providerHandle: number): Promise<void> {
 		this.portsAttributesProviders.set(providerHandle, selector);
 		if (!this._alreadyRegistered) {
 			this.remoteExplorerService.tunnelModel.addAttributesProvider(this);
@@ -83,11 +87,10 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		// Check all the selectors to make sure it's worth going to the extension host.
 		const appropriateHandles = Array.from(this.portsAttributesProviders.entries()).filter(entry => {
 			const selector = entry[1];
-			const portRange = selector.portRange;
+			const portRange = (typeof selector.portRange === 'number') ? [selector.portRange, selector.portRange + 1] : selector.portRange;
 			const portInRange = portRange ? ports.some(port => portRange[0] <= port && port < portRange[1]) : true;
-			const pidMatches = !selector.pid || (selector.pid === pid);
 			const commandMatches = !selector.commandPattern || (commandLine && (commandLine.match(selector.commandPattern)));
-			return portInRange && pidMatches && commandMatches;
+			return portInRange && commandMatches;
 		}).map(entry => entry[0]);
 
 		if (appropriateHandles.length === 0) {
@@ -193,6 +196,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		if (features) {
 			this.tunnelService.setTunnelFeatures(features);
 		}
+		// At this point we clearly want the ports view/features since we have a tunnel factory
+		this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
 	}
 
 	async $setCandidateFilter(): Promise<void> {

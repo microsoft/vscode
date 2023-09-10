@@ -28,10 +28,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { splitName } from 'vs/base/common/labels';
+import { splitRecentLabel } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Delayer, Throttler } from 'vs/base/common/async';
@@ -42,7 +42,7 @@ import { ILink, LinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -60,7 +60,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFolderAction, OpenFileFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
@@ -73,7 +73,7 @@ import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingS
 import { IFeaturedExtension } from 'vs/base/common/product';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -128,12 +128,13 @@ export class GettingStartedPage extends EditorPane {
 	private dispatchListeners: DisposableStore = new DisposableStore();
 	private stepDisposables: DisposableStore = new DisposableStore();
 	private detailsPageDisposables: DisposableStore = new DisposableStore();
+	private mediaDisposables: DisposableStore = new DisposableStore();
 
 	// Ensure that the these are initialized before use.
 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
-	private recentlyOpened!: IRecentlyOpened;
+	private recentlyOpened!: Promise<IRecentlyOpened>;
 	private gettingStartedCategories!: IResolvedWalkthrough[];
-	private featuredExtensions!: IFeaturedExtension[];
+	private featuredExtensions!: Promise<IFeaturedExtension[]>;
 
 	private currentWalkthrough: IResolvedWalkthrough | undefined;
 
@@ -158,6 +159,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesSlide!: HTMLElement;
 	private stepsContent!: HTMLElement;
 	private stepMediaComponent!: HTMLElement;
+	private webview!: IWebviewElement;
 
 	private layoutMarkdown: (() => void) | undefined;
 
@@ -190,9 +192,7 @@ export class GettingStartedPage extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-	) {
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
 
@@ -212,10 +212,16 @@ export class GettingStartedPage extends EditorPane {
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);
 
+		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+		this.featuredExtensions = this.featuredExtensionService.getExtensions();
+
 		this._register(this.dispatchListeners);
 		this.buildSlideThrottle = new Throttler();
 
 		const rerender = () => {
+			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+			this.featuredExtensions = this.featuredExtensionService.getExtensions();
+
 			this.buildSlideThrottle.queue(async () => await this.buildCategoriesSlide());
 		};
 
@@ -230,7 +236,12 @@ export class GettingStartedPage extends EditorPane {
 
 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
-		this._register(workspacesService.onDidChangeRecentlyOpened(rerender));
+
+		this.recentlyOpened = this.workspacesService.getRecentlyOpened();
+		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
+			this.recentlyOpened = workspacesService.getRecentlyOpened();
+			rerender();
+		}));
 
 		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
@@ -304,7 +315,6 @@ export class GettingStartedPage extends EditorPane {
 	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this.container.classList.remove('animatable');
 		this.editorInput = newInput;
-		await this.lifecycleService.when(LifecyclePhase.Restored);
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
 		if (this.shouldAnimate()) {
@@ -486,6 +496,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private currentMediaComponent: string | undefined = undefined;
+	private currentMediaType: string | undefined = undefined;
 	private async buildMediaComponent(stepId: string) {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
@@ -499,10 +510,28 @@ export class GettingStartedPage extends EditorPane {
 
 		this.stepDisposables.add({
 			dispose: () => {
-				clearNode(this.stepMediaComponent);
 				this.currentMediaComponent = undefined;
 			}
 		});
+
+		if (this.currentMediaType !== stepToExpand.media.type) {
+
+			this.currentMediaType = stepToExpand.media.type;
+
+			this.mediaDisposables.add(toDisposable(() => {
+				this.currentMediaType = undefined;
+			}));
+
+			clearNode(this.stepMediaComponent);
+
+			if (stepToExpand.media.type === 'svg') {
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: { disableServiceWorker: true }, contentOptions: {}, extension: undefined }));
+				this.webview.mountTo(this.stepMediaComponent);
+			} else if (stepToExpand.media.type === 'markdown') {
+				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined }));
+				this.webview.mountTo(this.stepMediaComponent);
+			}
+		}
 
 		if (stepToExpand.media.type === 'image') {
 
@@ -511,6 +540,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 			const mediaElement = $<HTMLImageElement>('img');
+			clearNode(this.stepMediaComponent);
 			this.stepMediaComponent.appendChild(mediaElement);
 			mediaElement.setAttribute('alt', media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
@@ -534,10 +564,7 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: {}, contentOptions: {}, extension: undefined }));
-			webview.mountTo(this.stepMediaComponent);
-
-			webview.setHtml(await this.detailsRenderer.renderSVG(media.path));
+			this.webview.setHtml(await this.detailsRenderer.renderSVG(media.path));
 
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
@@ -546,7 +573,7 @@ export class GettingStartedPage extends EditorPane {
 				// Render again since color vars change
 				const body = await this.detailsRenderer.renderSVG(media.path);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.setHtml(body);
+					this.webview.setHtml(body);
 				}
 			}));
 
@@ -561,7 +588,7 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}));
 
-			this.stepDisposables.add(webview.onDidClickLink(link => {
+			this.stepDisposables.add(this.webview.onDidClickLink(link => {
 				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
 					this.openerService.open(link, { allowCommands: true });
 				}
@@ -575,11 +602,8 @@ export class GettingStartedPage extends EditorPane {
 
 			const media = stepToExpand.media;
 
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [media.root], allowScripts: true }, title: '', extension: undefined }));
-			webview.mountTo(this.stepMediaComponent);
-
 			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
-			webview.setHtml(rawHTML);
+			this.webview.setHtml(rawHTML);
 
 			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
 				.replace(/&#39;/g, '\'')
@@ -588,7 +612,7 @@ export class GettingStartedPage extends EditorPane {
 			const postTrueKeysMessage = () => {
 				const enabledContextKeys = serializedContextKeyExprs?.filter(expr => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(expr)));
 				if (enabledContextKeys) {
-					webview.postMessage({
+					this.webview.postMessage({
 						enabledContextKeys
 					});
 				}
@@ -606,7 +630,7 @@ export class GettingStartedPage extends EditorPane {
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
-			this.stepDisposables.add(webview.onDidClickLink(link => {
+			this.stepDisposables.add(this.webview.onDidClickLink(link => {
 				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
 					this.openerService.open(link, { allowCommands: true });
 				}
@@ -617,7 +641,7 @@ export class GettingStartedPage extends EditorPane {
 				this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 					const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
 					if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-						webview.setHtml(body);
+						this.webview.setHtml(body);
 						postTrueKeysMessage();
 					}
 				}));
@@ -627,7 +651,7 @@ export class GettingStartedPage extends EditorPane {
 
 			this.layoutMarkdown = () => {
 				layoutDelayer.trigger(() => {
-					webview.postMessage({ layoutMeNow: true });
+					this.webview.postMessage({ layoutMeNow: true });
 				});
 			};
 
@@ -636,16 +660,13 @@ export class GettingStartedPage extends EditorPane {
 
 			postTrueKeysMessage();
 
-			this.stepDisposables.add(webview.onMessage(e => {
+			this.stepDisposables.add(this.webview.onMessage(e => {
 				const message: string = e.message as string;
 				if (message.startsWith('command:')) {
 					this.openerService.open(message, { allowCommands: true });
 				} else if (message.startsWith('setTheme:')) {
 					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-				} else if (message === 'unloaded') {
-					this.buildMediaComponent(stepId);
-				}
-				else {
+				} else {
 					console.error('Unexpected message', message);
 				}
 			}));
@@ -728,10 +749,6 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
-
-		this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
-		this.gettingStartedCategories = await this.gettingStartedService.getWalkthroughs();
-		this.featuredExtensions = await this.featuredExtensionService.getExtensions();
 
 		this.categoriesSlideDisposables.clear();
 		const showOnStartupCheckbox = new Toggle({
@@ -832,17 +849,13 @@ export class GettingStartedPage extends EditorPane {
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
+				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
-			}
-
-			if (!this.currentWalkthrough) {
-				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
-				this.editorInput.selectedCategory = undefined;
-				this.editorInput.selectedStep = undefined;
-			} else {
-				await this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
-				this.setSlide('details');
-				return;
+				if (this.currentWalkthrough) {
+					this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
+					this.setSlide('details');
+					return;
+				}
 			}
 		}
 
@@ -862,7 +875,7 @@ export class GettingStartedPage extends EditorPane {
 				if (first) {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
-					await this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
 					this.setSlide('details');
 					return;
 				}
@@ -884,7 +897,7 @@ export class GettingStartedPage extends EditorPane {
 				windowOpenable = { workspaceUri: recent.workspace.configPath };
 			}
 
-			const { name, parentPath } = splitName(fullPath);
+			const { name, parentPath } = splitRecentLabel(fullPath);
 
 			const li = $('li');
 			const link = $('button.button-link');
@@ -936,11 +949,19 @@ export class GettingStartedPage extends EditorPane {
 			});
 
 		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
+		this.recentlyOpened.then(({ workspaces }) => {
+			// Filter out the current workspace
+			const workspacesWithID = workspaces
+				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
+				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
 
-		const entries = this.recentlyOpened.workspaces.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
-			.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+			const updateEntries = () => {
+				recentlyOpenedList.setEntries(workspacesWithID);
+			};
 
-		recentlyOpenedList.setEntries(entries);
+			updateEntries();
+			recentlyOpenedList.register(this.labelService.onDidChangeFormatters(() => updateEntries()));
+		}).catch(onUnexpectedError);
 
 		return recentlyOpenedList;
 	}
@@ -1104,7 +1125,9 @@ export class GettingStartedPage extends EditorPane {
 				contextService: this.contextService,
 			});
 
-		featuredExtensionsList.setEntries(this.featuredExtensions);
+		this.featuredExtensions?.then(extensions => {
+			featuredExtensionsList.setEntries(extensions);
+		});
 
 		this.featuredExtensionsList?.onDidChange(() => {
 			this.registerDispatchListeners();
@@ -1124,11 +1147,21 @@ export class GettingStartedPage extends EditorPane {
 		this.featuredExtensionsList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
 
+		if (this.editorInput?.selectedStep && this.currentMediaType) {
+			this.mediaDisposables.clear();
+			this.stepDisposables.clear();
+			this.buildMediaComponent(this.editorInput.selectedStep);
+		}
+
 		this.layoutMarkdown?.();
 
 		this.container.classList.toggle('height-constrained', size.height <= 600);
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 800);
+
+		this.categoriesPageScrollbar?.scanDomNode();
+		this.detailsPageScrollbar?.scanDomNode();
+		this.detailsScrollbar?.scanDomNode();
 	}
 
 	private updateCategoryProgress() {
@@ -1160,7 +1193,7 @@ export class GettingStartedPage extends EditorPane {
 	private async scrollToCategory(categoryID: string, stepId?: string) {
 
 		if (!this.gettingStartedCategories.some(c => c.id === categoryID)) {
-			this.gettingStartedCategories = await this.gettingStartedService.getWalkthroughs();
+			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 		}
 
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
@@ -1173,7 +1206,7 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedCategory = categoryID;
 			this.editorInput.selectedStep = stepId;
 			this.currentWalkthrough = ourCategory;
-			await this.buildCategorySlide(categoryID);
+			this.buildCategorySlide(categoryID);
 			this.setSlide('details');
 		});
 	}
@@ -1228,6 +1261,28 @@ export class GettingStartedPage extends EditorPane {
 			if (!Array.isArray(args)) {
 				args = [args];
 			}
+
+			// If a step is requesting the OpenFolder action to be executed in an empty workspace...
+			if ((commandURI.path === OpenFileFolderAction.ID.toString() ||
+				commandURI.path === OpenFolderAction.ID.toString()) &&
+				this.workspaceContextService.getWorkspace().folders.length === 0) {
+
+				const selectedStepIndex = this.currentWalkthrough?.steps.findIndex(step => step.id === this.editorInput.selectedStep);
+
+				// and there are a few more steps after this step which are yet to be completed...
+				if (selectedStepIndex !== undefined &&
+					selectedStepIndex > -1 &&
+					this.currentWalkthrough?.steps.slice(selectedStepIndex + 1).some(step => !step.done)) {
+					const restoreData: RestoreWalkthroughsConfigurationValue = { folder: UNKNOWN_EMPTY_WINDOW_WORKSPACE.id, category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
+
+					// save state to restore after reload
+					this.storageService.store(
+						restoreWalkthroughsConfigurationKey,
+						JSON.stringify(restoreData),
+						StorageScope.PROFILE, StorageTarget.MACHINE);
+				}
+			}
+
 			this.commandService.executeCommand(commandURI.path, ...args).then(result => {
 				const toOpen: URI = result?.openFolder;
 				if (toOpen) {
@@ -1306,15 +1361,16 @@ export class GettingStartedPage extends EditorPane {
 		super.clearInput();
 	}
 
-	private async buildCategorySlide(categoryID: string, selectedStep?: string) {
+	private buildCategorySlide(categoryID: string, selectedStep?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
-		await this.extensionService.whenInstalledExtensionsRegistered();
-
-		// Remove internal extension id specifier from exposed id's
-		await this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			// Remove internal extension id specifier from exposed id's
+			this.extensionService.activateByEvent(`onWalkthrough:${categoryID.replace(/[^#]+#/, '')}`);
+		});
 
 		this.detailsPageDisposables.clear();
+		this.mediaDisposables.clear();
 
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 		if (!category) {

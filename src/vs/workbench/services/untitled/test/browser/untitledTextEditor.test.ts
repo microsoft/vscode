@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorInputCapabilities, isUntitledWithAssociatedResource } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isReadable, isReadableStream } from 'vs/base/common/stream';
 import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -46,15 +46,17 @@ suite('Untitled text editors', () => {
 		const input1 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		await input1.resolve();
 		assert.strictEqual(service.get(input1.resource), input1.model);
-		assert.ok(!isUntitledWithAssociatedResource(input1.resource));
+		assert.ok(!accessor.untitledTextEditorService.isUntitledWithAssociatedResource(input1.resource));
 
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
 
 		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input1.isReadonly());
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Scratchpad));
 
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		assert.strictEqual(service.get(input2.resource), input2.model);
@@ -138,7 +140,7 @@ suite('Untitled text editors', () => {
 		});
 
 		const model = service.create({ associatedResource: file });
-		assert.ok(isUntitledWithAssociatedResource(model.resource));
+		assert.ok(accessor.untitledTextEditorService.isUntitledWithAssociatedResource(model.resource));
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, model);
 		assert.ok(untitled.isDirty());
 		assert.strictEqual(model, onDidChangeDirtyModel);

@@ -49,7 +49,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 
 			this._foldingModel = new FoldingModel();
 			this._localStore.add(this._foldingModel);
-			this._foldingModel.attachViewModel(this._notebookEditor._getViewModel());
+			this._foldingModel.attachViewModel(this._notebookEditor.getViewModel());
 
 			this._localStore.add(this._foldingModel.onDidFoldingRegionChanged(() => {
 				this._updateEditorFoldingRanges();
@@ -103,7 +103,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			return;
 		}
 
-		const vm = this._notebookEditor._getViewModel() as NotebookViewModel;
+		const vm = this._notebookEditor.getViewModel() as NotebookViewModel;
 
 		vm.updateFoldingRanges(this._foldingModel.regions);
 		const hiddenRanges = vm.getHiddenRanges();
@@ -119,7 +119,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			return;
 		}
 
-		const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel;
+		const viewModel = this._notebookEditor.getViewModel() as NotebookViewModel;
 		const target = e.event.target as HTMLElement;
 
 		if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {
@@ -243,7 +243,7 @@ registerAction2(class extends Action2 {
 				controller.setFoldingStateDown(index, CellFoldingState.Collapsed, levels);
 			}
 
-			const viewIndex = editor._getViewModel().getNearestVisibleCellIndexUpwards(index);
+			const viewIndex = editor.getViewModel().getNearestVisibleCellIndexUpwards(index);
 			editor.focusElement(editor.cellAt(viewIndex));
 		}
 	}

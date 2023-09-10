@@ -8,7 +8,7 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
 import { ViewQuickAccessProvider, OpenViewPickerAction, QuickAccessViewPickerAction } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
-import { CommandsQuickAccessProvider, ShowAllCommandsAction, ClearCommandHistoryAction, AskInInteractiveAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
+import { CommandsQuickAccessProvider, ShowAllCommandsAction, ClearCommandHistoryAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -112,7 +112,6 @@ registerAction2(ClearCommandHistoryAction);
 registerAction2(ShowAllCommandsAction);
 registerAction2(OpenViewPickerAction);
 registerAction2(QuickAccessViewPickerAction);
-registerAction2(AskInInteractiveAction);
 
 const inViewsPickerContextKey = 'inViewsPicker';
 const inViewsPickerContext = ContextKeyExpr.and(inQuickPickContext, ContextKeyExpr.has(inViewsPickerContextKey));

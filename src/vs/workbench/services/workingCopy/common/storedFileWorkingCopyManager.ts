@@ -371,15 +371,16 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 			if (workingCopiesToRestore) {
 				this.mapCorrelationIdToWorkingCopiesToRestore.delete(e.correlationId);
 
-				workingCopiesToRestore.forEach(workingCopy => {
+				for (const workingCopy of workingCopiesToRestore) {
 
-					// Snapshot presence means this working copy used to be dirty and so we restore that
+					// Snapshot presence means this working copy used to be modified and so we restore that
 					// flag. we do NOT have to restore the content because the working copy was only soft
-					// reverted and did not loose its original dirty contents.
+					// reverted and did not loose its original modified contents.
+
 					if (workingCopy.snapshot) {
-						this.get(workingCopy.source)?.markDirty();
+						this.get(workingCopy.source)?.markModified();
 					}
-				});
+				}
 			}
 		}
 	}

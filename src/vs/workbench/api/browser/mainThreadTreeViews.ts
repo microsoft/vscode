@@ -18,6 +18,7 @@ import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dat
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -90,8 +91,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return Promise.resolve();
 	}
 
-	$setMessage(treeViewId: string, message: string): void {
-		this.logService.trace('MainThreadTreeViews#$setMessage', treeViewId, message);
+	$setMessage(treeViewId: string, message: string | IMarkdownString): void {
+		this.logService.trace('MainThreadTreeViews#$setMessage', treeViewId, message.toString());
 
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
@@ -177,8 +178,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	private registerListeners(treeViewId: string, treeView: ITreeView): void {
 		this._register(treeView.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
 		this._register(treeView.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
-		this._register(treeView.onDidChangeSelection(items => this._proxy.$setSelection(treeViewId, items.map(({ handle }) => handle))));
-		this._register(treeView.onDidChangeFocus(item => this._proxy.$setFocus(treeViewId, item.handle)));
+		this._register(treeView.onDidChangeSelectionAndFocus(items => this._proxy.$setSelectionAndFocus(treeViewId, items.selection.map(({ handle }) => handle), items.focus.handle)));
 		this._register(treeView.onDidChangeVisibility(isVisible => this._proxy.$setVisible(treeViewId, isVisible)));
 		this._register(treeView.onDidChangeCheckboxState(items => {
 			this._proxy.$changeCheckboxState(treeViewId, <CheckboxUpdate[]>items.map(item => {

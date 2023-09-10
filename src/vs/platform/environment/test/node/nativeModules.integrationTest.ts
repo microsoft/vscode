@@ -6,13 +6,17 @@
 import * as assert from 'assert';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
-import { Encryption } from 'vs/platform/encryption/node/encryptionMainService';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
 }
 
 flakySuite('Native Modules (all platforms)', () => {
+
+	test('kerberos', async () => {
+		const kerberos = await import('kerberos');
+		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
+	});
 
 	test('native-is-elevated', async () => {
 		const isElevated = await import('native-is-elevated');
@@ -54,21 +58,6 @@ flakySuite('Native Modules (all platforms)', () => {
 	test('@vscode/sqlite3', async () => {
 		const sqlite3 = await import('@vscode/sqlite3');
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
-	});
-
-	test('vscode-encrypt', async () => {
-		try {
-			const vscodeEncrypt: Encryption = globalThis._VSCODE_NODE_MODULES['vscode-encrypt'];
-			const encrypted = await vscodeEncrypt.encrypt('salt', 'value');
-			const decrypted = await vscodeEncrypt.decrypt('salt', encrypted);
-
-			assert.ok(typeof encrypted === 'string', testErrorMessage('vscode-encrypt'));
-			assert.ok(typeof decrypted === 'string', testErrorMessage('vscode-encrypt'));
-		} catch (error) {
-			if (error.code !== 'MODULE_NOT_FOUND') {
-				throw error;
-			}
-		}
 	});
 
 	test('vsda', async () => {

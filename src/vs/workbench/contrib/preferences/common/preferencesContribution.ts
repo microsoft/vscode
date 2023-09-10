@@ -103,39 +103,32 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): Promise<ITextModel | null> | null => {
+			provideTextContent: async (uri: URI): Promise<ITextModel | null> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
 				if (uri.authority === 'schemas') {
-					const schemaModel = this.getSchemaModel(uri);
-					if (schemaModel) {
-						return Promise.resolve(schemaModel);
-					}
+					return this.getSchemaModel(uri);
 				}
-				return Promise.resolve(this.preferencesService.resolveModel(uri));
+				return this.preferencesService.resolveModel(uri);
 			}
 		});
 	}
 
-	private getSchemaModel(uri: URI): ITextModel | null {
-		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
-		if (schema) {
-			const modelContent = JSON.stringify(schema);
-			const languageSelection = this.languageService.createById('jsonc');
-			const model = this.modelService.createModel(modelContent, languageSelection, uri);
-			const disposables = new DisposableStore();
-			disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
-				if (schemaUri === uri.toString()) {
-					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
-					model.setValue(JSON.stringify(schema));
-				}
-			}));
-			disposables.add(model.onWillDispose(() => disposables.dispose()));
-
-			return model;
-		}
-		return null;
+	private getSchemaModel(uri: URI): ITextModel {
+		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()] ?? {} /* Use empty schema if not yet registered */;
+		const modelContent = JSON.stringify(schema);
+		const languageSelection = this.languageService.createById('jsonc');
+		const model = this.modelService.createModel(modelContent, languageSelection, uri);
+		const disposables = new DisposableStore();
+		disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
+			if (schemaUri === uri.toString()) {
+				schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
+				model.setValue(JSON.stringify(schema));
+			}
+		}));
+		disposables.add(model.onWillDispose(() => disposables.dispose()));
+		return model;
 	}
 
 	dispose(): void {

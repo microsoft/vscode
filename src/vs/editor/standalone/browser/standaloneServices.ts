@@ -91,6 +91,7 @@ import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -199,6 +200,39 @@ class StandaloneProgressService implements IProgressService {
 			report: () => { },
 		});
 	}
+}
+
+class StandaloneEnvironmentService implements IEnvironmentService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly stateResource: URI = URI.from({ scheme: 'monaco', authority: 'stateResource' });
+	readonly userRoamingDataHome: URI = URI.from({ scheme: 'monaco', authority: 'userRoamingDataHome' });
+	readonly keyboardLayoutResource: URI = URI.from({ scheme: 'monaco', authority: 'keyboardLayoutResource' });
+	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
+	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
+	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
+	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
+	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
+	readonly userDataSyncHome: URI = URI.from({ scheme: 'monaco', authority: 'userDataSyncHome' });
+	readonly sync: 'on' | 'off' | undefined = undefined;
+	readonly continueOn?: string | undefined = undefined;
+	readonly editSessionId?: string | undefined = undefined;
+	readonly debugExtensionHost: IExtensionHostDebugParams = { port: null, break: false };
+	readonly isExtensionDevelopment: boolean = false;
+	readonly disableExtensions: boolean | string[] = false;
+	readonly enableExtensions?: readonly string[] | undefined = undefined;
+	readonly extensionDevelopmentLocationURI?: URI[] | undefined = undefined;
+	readonly extensionDevelopmentKind?: ExtensionKind[] | undefined = undefined;
+	readonly extensionTestsLocationURI?: URI | undefined = undefined;
+	readonly logsHome: URI = URI.from({ scheme: 'monaco', authority: 'logsHome' });
+	readonly logLevel?: string | undefined = undefined;
+	readonly extensionLogLevel?: [string, string][] | undefined = undefined;
+	readonly verbose: boolean = false;
+	readonly isBuilt: boolean = false;
+	readonly disableTelemetry: boolean = false;
+	readonly serviceMachineIdResource: URI = URI.from({ scheme: 'monaco', authority: 'serviceMachineIdResource' });
+	readonly policyFile?: URI | undefined = undefined;
 }
 
 class StandaloneDialogService implements IDialogService {
@@ -683,6 +717,11 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		});
 	}
 
+	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>> {
+		const language = resource ? this.getLanguage(resource, position) : undefined;
+		return this.configurationService.inspect<T>(section, { resource, overrideIdentifier: language });
+	}
+
 	private getLanguage(resource: URI, position: IPosition | null): string | null {
 		const model = this.modelService.getModel(resource);
 		if (model) {
@@ -1000,7 +1039,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 
 class StandaloneAudioService implements IAudioCueService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
 	}
 
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
@@ -1016,6 +1055,9 @@ class StandaloneAudioService implements IAudioCueService {
 
 	async playSound(cue: Sound, allowManyInParallel?: boolean | undefined): Promise<void> {
 	}
+	playAudioCueLoop(cue: AudioCue): IDisposable {
+		return toDisposable(() => { });
+	}
 }
 
 export interface IEditorOverrideServices {
@@ -1029,6 +1071,7 @@ registerSingleton(IWorkspaceContextService, StandaloneWorkspaceContextService, I
 registerSingleton(ILabelService, StandaloneUriLabelService, InstantiationType.Eager);
 registerSingleton(ITelemetryService, StandaloneTelemetryService, InstantiationType.Eager);
 registerSingleton(IDialogService, StandaloneDialogService, InstantiationType.Eager);
+registerSingleton(IEnvironmentService, StandaloneEnvironmentService, InstantiationType.Eager);
 registerSingleton(INotificationService, StandaloneNotificationService, InstantiationType.Eager);
 registerSingleton(IMarkerService, MarkerService, InstantiationType.Eager);
 registerSingleton(ILanguageService, StandaloneLanguageService, InstantiationType.Eager);
@@ -1083,6 +1126,7 @@ export module StandaloneServices {
 	}
 
 	let initialized = false;
+	const onDidInitialize = new Emitter<void>();
 	export function initialize(overrides: IEditorOverrideServices): IInstantiationService {
 		if (initialized) {
 			return instantiationService;
@@ -1118,6 +1162,27 @@ export module StandaloneServices {
 			}
 		}
 
+		onDidInitialize.fire();
+
 		return instantiationService;
 	}
+
+	/**
+	 * Executes callback once services are initialized.
+	 */
+	export function withServices(callback: () => IDisposable): IDisposable {
+		if (initialized) {
+			return callback();
+		}
+
+		const disposable = new DisposableStore();
+
+		const listener = disposable.add(onDidInitialize.event(() => {
+			listener.dispose();
+			disposable.add(callback());
+		}));
+
+		return disposable;
+	}
+
 }

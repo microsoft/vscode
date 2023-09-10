@@ -35,8 +35,7 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -80,19 +79,10 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
-			noResultsPick: (filter) => {
-				const info = this.chatService.getProviderInfos()[0];
-				return info
-					? {
-						label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
-						commandId: AskInInteractiveAction.ID,
-						accept: () => commandService.executeCommand(AskInInteractiveAction.ID, filter)
-					}
-					: {
-						label: localize('noCommandResults', "No matching commands"),
-						commandId: ''
-					};
-			},
+			noResultsPick: () => ({
+				label: localize('noCommandResults', "No matching commands"),
+				commandId: ''
+			}),
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 
 		this._register(configurationService.onDidChangeConfiguration((e) => this.updateOptions(e)));
@@ -175,12 +165,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
 		const setOfPicksSoFar = new Set(picksSoFar.map(p => p.commandId));
-		const additionalPicks: Array<ICommandQuickPick | IQuickPickSeparator> = picksSoFar.length > 0
-			? [{
-				type: 'separator',
-				label: localize('semanticSimilarity', "similar commands")
-			}]
-			: [];
+		const additionalPicks = new Array<ICommandQuickPick | IQuickPickSeparator>();
 
 		let numOfSmartPicks = 0;
 		for (const i of sortedIndices) {
@@ -194,6 +179,28 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				additionalPicks.push(pick);
 				numOfSmartPicks++;
 			}
+		}
+
+		if (numOfSmartPicks) {
+			additionalPicks.unshift({
+				type: 'separator',
+				label: localize('semanticSimilarity', "similar commands")
+			});
+		}
+
+		if (picksSoFar.length || additionalPicks.length) {
+			additionalPicks.push({
+				type: 'separator'
+			});
+		}
+
+		const info = this.chatService.getProviderInfos()[0];
+		if (info) {
+			additionalPicks.push({
+				label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
+				commandId: ASK_QUICK_QUESTION_ACTION_ID,
+				args: [filter]
+			});
 		}
 
 		return additionalPicks;
@@ -295,50 +302,6 @@ export class ClearCommandHistoryAction extends Action2 {
 			}
 
 			CommandsHistory.clearHistory(configurationService, storageService);
-		}
-	}
-}
-
-// TODO: Should this live here? It seems fairly generic and could live in the interactive code.
-export class AskInInteractiveAction extends Action2 {
-
-	static readonly ID = 'workbench.action.askCommandInChat';
-
-	constructor() {
-		super({
-			id: AskInInteractiveAction.ID,
-			title: { value: localize('askInChat', "Ask In Chat"), original: 'Ask In Chat' },
-			f1: false
-		});
-	}
-
-	async run(accessor: ServicesAccessor, filter?: string): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const logService = accessor.get(ILogService);
-
-		if (!filter) {
-			throw new Error('No filter provided.');
-		}
-
-		let providerId: string;
-		const providerInfos = chatService.getProviderInfos();
-		switch (providerInfos.length) {
-			case 0:
-				throw new Error('No chat provider found.');
-			case 1:
-				providerId = providerInfos[0].id;
-				break;
-			default:
-				logService.warn('Multiple chat providers found. Using the first one.');
-				providerId = providerInfos[0].id;
-				break;
-		}
-
-		const widget = await chatWidgetService.revealViewForProvider(providerId);
-		if (widget?.viewModel) {
-			// TODO: Maybe this could provide metadata saying it came from the command palette?
-			chatService.sendRequestToProvider(widget.viewModel.sessionId, { message: filter });
 		}
 	}
 }

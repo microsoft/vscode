@@ -9,7 +9,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
@@ -37,7 +37,7 @@ import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics'
 import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
+import { EncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
@@ -121,6 +121,8 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/electronPtyHostStarter';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
+import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
+import { Lazy } from 'vs/base/common/lazy';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -186,7 +188,7 @@ export class CodeApplication extends Disposable {
 		//#region Request filtering
 
 		// Block all SVG requests from unsupported origins
-		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
 		// But allow them if the are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
@@ -334,7 +336,11 @@ export class CodeApplication extends Disposable {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
 		setUnexpectedErrorHandler(error => this.onUnexpectedError(error));
-		process.on('uncaughtException', error => onUnexpectedError(error));
+		process.on('uncaughtException', error => {
+			if (!isSigPipeError(error)) {
+				onUnexpectedError(error);
+			}
+		});
 		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Dispose on shutdown
@@ -569,6 +575,9 @@ export class CodeApplication extends Disposable {
 		// Setup Protocol URL Handlers
 		const initialProtocolUrls = appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
 
+		// Setup vscode-remote-resource protocol handler.
+		this.setupManagedRemoteResourceUrlHandler(mainProcessElectronServer);
+
 		// Signal phase: ready - before opening first window
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
 
@@ -618,6 +627,28 @@ export class CodeApplication extends Disposable {
 		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		return initialProtocolUrls;
+	}
+
+	private setupManagedRemoteResourceUrlHandler(mainProcessElectronServer: ElectronIPCServer) {
+		const notFound = (): Electron.ProtocolResponse => ({ statusCode: 404, data: 'Not found' });
+		const remoteResourceChannel = new Lazy(() => mainProcessElectronServer.getChannel(
+			NODE_REMOTE_RESOURCE_CHANNEL_NAME,
+			new NodeRemoteResourceRouter(),
+		));
+
+		protocol.registerBufferProtocol(Schemas.vscodeManagedRemoteResource, (request, callback) => {
+			const url = URI.parse(request.url);
+			if (!url.authority.startsWith('window:')) {
+				return callback(notFound());
+			}
+
+			remoteResourceChannel.value.call<NodeRemoteResourceResponse>(NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, [url]).then(
+				r => callback({ ...r, data: Buffer.from(r.body, 'base64') }),
+				err => {
+					this.logService.warn('error dispatching remote resource call', err);
+					callback({ statusCode: 500, data: String(err) });
+				});
+		});
 	}
 
 	private resolveInitialProtocolUrls(): IInitialProtocolUrls | undefined {
@@ -903,7 +934,7 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
-		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
@@ -935,7 +966,7 @@ export class CodeApplication extends Disposable {
 			graceTime: LocalReconnectConstants.GraceTime,
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: this.configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		}, this.environmentMainService, this.lifecycleMainService, this.logService);
+		}, this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 		const ptyHostService = new PtyHostService(
 			ptyHostStarter,
 			this.configurationService,
@@ -1251,6 +1282,11 @@ export class CodeApplication extends Disposable {
 
 		// Crash reporter
 		this.updateCrashReporterEnablement();
+
+		if (isMacintosh && app.runningUnderARM64Translation) {
+			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
+		}
+
 	}
 
 	private async installMutex(): Promise<void> {

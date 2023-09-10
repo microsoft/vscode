@@ -7,43 +7,43 @@
 	display: inherit;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-message-container {
+.monaco-workbench .pane>.pane-body>.profile-view-message-container {
 	display: flex;
 	padding: 13px 20px 0px 20px;
 	box-sizing: border-box;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-message-container p {
+.monaco-workbench .pane>.pane-body>.profile-view-message-container p {
 	margin-block-start: 0em;
 	margin-block-end: 0em;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-message-container a {
+.monaco-workbench .pane>.pane-body>.profile-view-message-container a {
 	color: var(--vscode-textLink-foreground)
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-message-container a:hover {
+.monaco-workbench .pane>.pane-body>.profile-view-message-container a:hover {
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground)
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-message-container a:active {
+.monaco-workbench .pane>.pane-body>.profile-view-message-container a:active {
 	color: var(--vscode-textLink-activeForeground)
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-message-container.hide {
+.monaco-workbench .pane>.pane-body>.profile-view-message-container.hide {
 	display: none;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-buttons-container {
+.monaco-workbench .pane>.pane-body>.profile-view-buttons-container {
 	display: flex;
 	flex-direction: column;
 	padding: 13px 20px;
 	box-sizing: border-box;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button,
-.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown {
+.monaco-workbench .pane>.pane-body>.profile-view-buttons-container>.monaco-button,
+.monaco-workbench .pane>.pane-body>.profile-view-buttons-container>.monaco-button-dropdown {
 	margin-block-start: 13px;
 	margin-inline-start: 0px;
 	margin-inline-end: 0px;
@@ -52,12 +52,36 @@
 	margin-right: auto;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown {
+.monaco-workbench .pane>.pane-body>.profile-view-buttons-container>.monaco-button-dropdown {
 	width: 100%;
 }
 
-.monaco-workbench .pane > .pane-body > .profile-view-buttons-container > .monaco-button-dropdown > .monaco-dropdown-button {
+.monaco-workbench .pane>.pane-body>.profile-view-buttons-container>.monaco-button-dropdown>.monaco-dropdown-button {
 	display: flex;
 	align-items: center;
 	padding: 0 4px;
+}
+
+.profile-type-widget {
+	display: flex;
+	margin: 0px 6px 8px 11px;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 12px;
+}
+
+.profile-type-widget>.profile-type-select-container {
+	overflow: hidden;
+	padding-left: 10px;
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.profile-type-widget>.profile-type-select-container>.monaco-select-box {
+	cursor: pointer;
+	line-height: 17px;
+	padding: 2px 23px 2px 8px;
+	border-radius: 2px;
 }

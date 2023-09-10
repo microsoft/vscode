@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from './tsServer/protocol/protocol';
 import { ITypeScriptServiceClient, ServerResponse } from './typescriptService';
@@ -87,10 +86,10 @@ function inferredProjectConfigSnippet(
 
 export async function openOrCreateConfig(
 	projectType: ProjectType,
-	rootPath: string,
+	rootPath: vscode.Uri,
 	configuration: TypeScriptServiceConfiguration,
 ): Promise<vscode.TextEditor | null> {
-	const configFile = vscode.Uri.file(path.join(rootPath, projectType === ProjectType.TypeScript ? 'tsconfig.json' : 'jsconfig.json'));
+	const configFile = vscode.Uri.joinPath(rootPath, projectType === ProjectType.TypeScript ? 'tsconfig.json' : 'jsconfig.json');
 	const col = vscode.window.activeTextEditor?.viewColumn;
 	try {
 		const doc = await vscode.workspace.openTextDocument(configFile);
@@ -108,11 +107,11 @@ export async function openOrCreateConfig(
 export async function openProjectConfigOrPromptToCreate(
 	projectType: ProjectType,
 	client: ITypeScriptServiceClient,
-	rootPath: string,
-	configFileName: string,
+	rootPath: vscode.Uri,
+	configFilePath: string,
 ): Promise<void> {
-	if (!isImplicitProjectConfigFile(configFileName)) {
-		const doc = await vscode.workspace.openTextDocument(configFileName);
+	if (!isImplicitProjectConfigFile(configFilePath)) {
+		const doc = await vscode.workspace.openTextDocument(client.toResource(configFilePath));
 		vscode.window.showTextDocument(doc, vscode.window.activeTextEditor?.viewColumn);
 		return;
 	}

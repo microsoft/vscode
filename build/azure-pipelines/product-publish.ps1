@@ -60,6 +60,7 @@ do {
 
 	$artifacts | ForEach-Object {
 		$artifactName = $_.name
+
 		if($set.Add($artifactName)) {
 			Write-Host "Processing artifact: '$artifactName. Downloading from: $($_.resource.downloadUrl)"
 
@@ -98,8 +99,11 @@ do {
 			} | Format-Table
 
 			exec { node build/azure-pipelines/common/createAsset.js $product $os $arch $type $asset.Name $asset.FullName }
-			$artifactName >> $ARTIFACT_PROCESSED_FILE_PATH
 		}
+
+		# Mark the artifact as processed. Make sure to keep the previously
+		# processed artifacts in the file as well, not just from this run.
+		$artifactName >> $ARTIFACT_PROCESSED_FILE_PATH
 	}
 
 	# Get the timeline and see if it says the other stage completed
