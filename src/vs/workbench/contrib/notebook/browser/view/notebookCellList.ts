@@ -18,9 +18,9 @@ import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType, CursorAtLineBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { clamp } from 'vs/base/common/numbers';
@@ -172,6 +172,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
+		const notebookEditorCursorAtLineBoundaryContext = NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.bindTo(contextKeyService);
+		notebookEditorCursorAtLineBoundaryContext.set('none');
+
 		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
 		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
 
@@ -188,6 +191,21 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					break;
 				default:
 					notebookEditorCursorAtBoundaryContext.set('none');
+					break;
+			}
+
+			switch (element.cursorAtLineBoundary()) {
+				case CursorAtLineBoundary.Both:
+					notebookEditorCursorAtLineBoundaryContext.set('both');
+					break;
+				case CursorAtLineBoundary.Start:
+					notebookEditorCursorAtLineBoundaryContext.set('start');
+					break;
+				case CursorAtLineBoundary.End:
+					notebookEditorCursorAtLineBoundaryContext.set('end');
+					break;
+				default:
+					notebookEditorCursorAtLineBoundaryContext.set('none');
 					break;
 			}
 

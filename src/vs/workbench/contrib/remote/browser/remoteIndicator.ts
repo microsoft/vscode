@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RunOnceScheduler, retry } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -45,27 +43,12 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { DomEmitter } from 'vs/base/browser/event';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
-
-export const STATUS_BAR_OFFLINE_BACKGROUND = registerColor('statusBar.offlineBackground', {
-	dark: '#6c1717',
-	light: '#6c1717',
-	hcDark: '#6c1717',
-	hcLight: '#6c1717'
-}, nls.localize('statusBarOfflineBackground', "Status bar background color when the workbench is offline. The status bar is shown in the bottom of the window"));
-
-export const STATUS_BAR_OFFLINE_FOREGROUND = registerColor('statusBar.offlineForeground', {
-	dark: STATUS_BAR_HOST_NAME_FOREGROUND,
-	light: STATUS_BAR_HOST_NAME_FOREGROUND,
-	hcDark: STATUS_BAR_HOST_NAME_FOREGROUND,
-	hcLight: STATUS_BAR_HOST_NAME_FOREGROUND
-}, nls.localize('statusBarOfflineForeground', "Status bar foreground color when the workbench is offline. The status bar is shown in the bottom of the window"));
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 
@@ -558,8 +541,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
-			backgroundColor: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_BACKGROUND : STATUS_BAR_HOST_NAME_BACKGROUND),
-			color: themeColorFromId(this.networkState === 'offline' ? STATUS_BAR_OFFLINE_FOREGROUND : STATUS_BAR_HOST_NAME_FOREGROUND),
+			kind: this.networkState === 'offline' ? 'offline' : 'remote',
 			ariaLabel,
 			text,
 			showProgress,

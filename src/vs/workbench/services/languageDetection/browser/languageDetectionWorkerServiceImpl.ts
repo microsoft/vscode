@@ -66,7 +66,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	) {
 		super();
 
-		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
+		this._languageDetectionWorkerClient = this._register(new LanguageDetectionWorkerClient(
 			modelService,
 			languageService,
 			telemetryService,
@@ -84,7 +84,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`).toString(true),
 			languageConfigurationService
-		);
+		));
 
 		this.initEditorOpenedListeners(storageService);
 	}

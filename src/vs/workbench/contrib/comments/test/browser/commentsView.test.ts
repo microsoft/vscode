@@ -16,6 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -54,7 +55,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 	getViewContainerByViewId(id: string): ViewContainer | null {
 		return {
 			id: 'comments',
-			title: 'Comments',
+			title: { value: 'Comments', original: 'Comments' },
 			ctorDescriptor: {} as any
 		};
 	}
@@ -70,6 +71,13 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 }
 
 suite('Comments View', function () {
+	teardown(() => {
+		instantiationService.dispose();
+		commentService.dispose();
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
@@ -85,10 +93,7 @@ suite('Comments View', function () {
 		instantiationService.stub(ICommentService, commentService);
 	});
 
-	teardown(() => {
-		commentService.dispose();
-		disposables.dispose();
-	});
+
 
 	test('collapse all', async function () {
 		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });

@@ -20,7 +20,7 @@
     "tunnelFactory"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onTunnel"
   ],
   "contributes": {
     "commands": [

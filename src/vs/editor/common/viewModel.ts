@@ -445,4 +445,16 @@ export class OverviewRulerDecorationsGroup {
 		}
 		return a.zIndex - b.zIndex;
 	}
+
+	public static equalsArr(a: OverviewRulerDecorationsGroup[], b: OverviewRulerDecorationsGroup[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0, len = a.length; i < len; i++) {
+			if (OverviewRulerDecorationsGroup.cmp(a[i], b[i]) !== 0) {
+				return false;
+			}
+		}
+		return true;
+	}
 }

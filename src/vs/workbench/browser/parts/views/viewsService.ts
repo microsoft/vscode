@@ -46,6 +46,9 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly _onDidChangeViewContainerVisibility = this._register(new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>());
 	readonly onDidChangeViewContainerVisibility = this._onDidChangeViewContainerVisibility.event;
 
+	private readonly _onDidChangeFocusedView = this._register(new Emitter<void>());
+	readonly onDidChangeFocusedView = this._onDidChangeFocusedView.event;
+
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly focusedViewContextKey: IContextKey<string>;
 
@@ -233,6 +236,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			}
 		}
 		return null;
+	}
+
+	getFocusedViewName(): string {
+		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
@@ -616,10 +624,16 @@ export class ViewsService extends Disposable implements IViewsService {
 		disposables.add(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
 		disposables.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
 		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
-		disposables.add(viewPaneContainer.onDidFocusView(view => this.focusedViewContextKey.set(view.id)));
+		disposables.add(viewPaneContainer.onDidFocusView(view => {
+			if (this.focusedViewContextKey.get() !== view.id) {
+				this.focusedViewContextKey.set(view.id);
+				this._onDidChangeFocusedView.fire();
+			}
+		}));
 		disposables.add(viewPaneContainer.onDidBlurView(view => {
 			if (this.focusedViewContextKey.get() === view.id) {
 				this.focusedViewContextKey.reset();
+				this._onDidChangeFocusedView.fire();
 			}
 		}));
 

@@ -34,7 +34,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	content.push(localize('notebook.changeCellType', 'The Change Cell to Code/Markdown commands are used to switch between cell types.'));
 
 
-	return content.join('\n');
+	return content.join('\n\n');
 }
 
 function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
@@ -54,7 +54,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 		onClose: () => {
 			editor.focus();
 		},
-		options: { type: AccessibleViewType.Help, ariaLabel: 'Notebook accessibility help' }
+		options: { type: AccessibleViewType.Help }
 	});
 }
 
@@ -114,10 +114,7 @@ export function showAccessibleOutput(accessibleViewService: IAccessibleViewServi
 			notebookEditor?.setFocus(selections[0]);
 			activePane?.focus();
 		},
-		options: {
-			ariaLabel: localize('NotebookCellOutputAccessibleView', "Notebook Cell Output Accessible View"),
-			type: AccessibleViewType.View
-		}
+		options: { type: AccessibleViewType.View }
 	});
 	return true;
 }

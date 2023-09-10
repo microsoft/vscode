@@ -152,6 +152,15 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditor.focus();
 	}
 
+	public expandReplyAreaAndFocusCommentEditor() {
+		this.expandReplyArea();
+		this.commentEditor.focus();
+	}
+
+	public isCommentEditorFocused(): boolean {
+		return this.commentEditor.hasWidgetFocus();
+	}
+
 	public getCommentModel() {
 		return this.commentEditor.getModel()!;
 	}

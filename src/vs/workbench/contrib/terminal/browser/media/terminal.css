@@ -20,7 +20,7 @@
 	visibility: hidden;
 }
 .monaco-workbench .part.panel .pane-body.integrated-terminal .terminal-outer-container {
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
@@ -32,7 +32,7 @@
 }
 .monaco-workbench .part.sidebar .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .part.auxiliarybar .pane-body.integrated-terminal .terminal-outer-container {
-	background-color: var(--vscode-terminal-background, --vscode-sideBar-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-sideBar-background));
 }
 
 .monaco-workbench .pane-body.integrated-terminal .split-view-view:not(:first-child),
@@ -41,7 +41,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay {
-	background-color: var(--vscode-terminal-dropBackground, --vscode-editorGroup-dropBackground);
+	background-color: var(--vscode-terminal-dropBackground, var(--vscode-editorGroup-dropBackground));
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
@@ -51,6 +51,21 @@
 .monaco-workbench .terminal-editor .xterm textarea:focus {
 	opacity: 0 !important;
 	outline: 0 !important;
+}
+
+.xterm.dev-mode .xterm-helper-textarea {
+	z-index: 36 !important;
+	opacity: 1 !important;
+	left: 0 !important;
+	width: fit-content !important;
+}
+.monaco-workbench .xterm.dev-mode .xterm-helper-textarea:focus {
+	opacity: 1 !important;
+}
+
+.monaco-workbench .xterm .xterm-helper-textarea:focus {
+	/* Override the general vscode style applies `opacity:1!important` to textareas */
+	opacity: 0 !important;
 }
 
 .monaco-workbench .terminal-tab::before {
@@ -63,7 +78,7 @@
 }
 
 .monaco-workbench .terminal-editor .terminal-wrapper {
-	background-color: var(--vscode-terminal-background, --vscode-editorPane-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-editorPane-background));
 }
 .monaco-workbench .terminal-editor .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
@@ -246,11 +261,6 @@
 .monaco-workbench .pane-body.integrated-terminal .xterm .xterm-helpers {
 	position: absolute;
 	top: 0;
-}
-
-.monaco-workbench .xterm .xterm-helper-textarea:focus {
-	/* Override the general vscode style applies `opacity:1!important` to textareas */
-	opacity: 0 !important;
 }
 
 .monaco-workbench.vs-dark.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events),
@@ -459,6 +469,8 @@
 
 .monaco-workbench .terminal .terminal-command-decoration:not(.default):hover {
 	cursor: pointer;
+}
+.monaco-workbench .terminal .terminal-command-decoration:not(.default):hover::before {
 	border-radius: 5px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -474,7 +486,12 @@
 }
 .monaco-workbench .terminal .terminal-command-decoration.quick-fix {
 	color: var(--vscode-editorLightBulb-foreground) !important;
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
+}
+.monaco-workbench .terminal .terminal-command-decoration.quick-fix.explainOnly {
+	/* Use success background to blend in with the terminal better as it's lower priority. We will
+	 * probably want to add an explicit color for this eventually. */
+	color: var(--vscode-terminalCommandDecoration-successBackground) !important;
 }
 
 .terminal-scroll-highlight {
@@ -573,7 +590,7 @@
 	pointer-events: all;
 	opacity: 1;
 	z-index: 33;
-	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 
 .monaco-workbench .xterm.terminal.hide {

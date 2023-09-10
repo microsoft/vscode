@@ -63,11 +63,6 @@ declare module 'vscode' {
 		commands?: Command[];
 
 		/**
-		 * When set, overrides the user setting of `editor.inlineSuggest.suppressSuggestions`.
-		 */
-		suppressSuggestions?: boolean;
-
-		/**
 		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
 		 * Defaults to false (might change).
 		 */

@@ -244,7 +244,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
 		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
 
-		const activeEditorListener = new MutableDisposable();
+		const activeEditorListener = this._register(new MutableDisposable());
 
 		const observeActiveEditor = () => {
 			activeEditorListener.clear();
