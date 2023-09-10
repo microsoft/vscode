@@ -123,7 +123,8 @@
     "commands": [
       {
         "command": "_markdown.copyImage",
-        "title": "%markdown.copyImage.title%"
+        "title": "%markdown.copyImage.title%",
+        "category": "Markdown"
       },
       {
         "command": "markdown.showPreview",
@@ -244,6 +245,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "_markdown.copyImage",
+          "when": "false"
+        },
         {
           "command": "markdown.showPreview",
           "when": "editorLangId == markdown && !notebookEditorFocused",
@@ -721,7 +726,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.5",
+    "@vscode/extension-telemetry": "^0.8.4",
     "dompurify": "^3.0.5",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",

@@ -148,7 +148,8 @@ export class AcceptInlineCompletion extends EditorAction {
 					InlineCompletionContextKeys.inlineSuggestionVisible,
 					EditorContextKeys.tabMovesFocus.toNegated(),
 					InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
-					SuggestContext.Visible.toNegated()
+					SuggestContext.Visible.toNegated(),
+					EditorContextKeys.hoverFocused.toNegated(),
 				),
 			}
 		});

@@ -13,7 +13,6 @@ import { Constants } from 'vs/base/common/uint';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
@@ -461,6 +460,11 @@ export interface IEditorOptions {
 	 */
 	autoClosingBrackets?: EditorAutoClosingStrategy;
 	/**
+	 * Options for auto closing comments.
+	 * Defaults to language defined behavior.
+	 */
+	autoClosingComments?: EditorAutoClosingStrategy;
+	/**
 	 * Options for auto closing quotes.
 	 * Defaults to language defined behavior.
 	 */
@@ -727,9 +731,14 @@ export interface IEditorOptions {
 	pasteAs?: IPasteAsOptions;
 
 	/**
-	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 * Controls whether the editor / terminal receives tabs or defers them to the workbench for navigation.
 	 */
 	tabFocusMode?: boolean;
+
+	/**
+	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+	 */
+	inlineCompletionsAccessibilityVerbose?: boolean;
 }
 
 /**
@@ -812,7 +821,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -820,10 +829,6 @@ export interface IDiffEditorBaseOptions {
 	accessibilityVerbose?: boolean;
 
 	experimental?: {
-		/**
-		 * Defaults to false.
-		 */
-		collapseUnchangedRegions?: boolean;
 		/**
 		 * Defaults to false.
 		 */
@@ -842,6 +847,13 @@ export interface IDiffEditorBaseOptions {
 	 * If the diff editor should only show the difference review mode.
 	 */
 	onlyShowAccessibleDiffViewer?: boolean;
+
+	hideUnchangedRegions?: {
+		enabled?: boolean;
+		revealLineCount?: number;
+		minimumLineCount?: number;
+		contextLineCount?: number;
+	};
 }
 
 /**
@@ -2791,7 +2803,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.scrollWithEditor': {
 					type: 'boolean',
 					default: defaults.scrollWithEditor,
-					description: nls.localize('editor.stickyScroll.scrollWithEditor', "When enabled it is possible to scroll the sticky scroll widget with the editor horizontal scrollbar.")
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of the sticky scroll widget with the editor's horizontal scrollbar.")
 				},
 			}
 		);
@@ -5004,6 +5016,7 @@ export const enum EditorOption {
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
+	autoClosingComments,
 	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
@@ -5143,7 +5156,8 @@ export const enum EditorOption {
 	layoutInfo,
 	wrappingInfo,
 	defaultColorDecorators,
-	colorDecoratorsActivatedOn
+	colorDecoratorsActivatedOn,
+	inlineCompletionsAccessibilityVerbose
 }
 
 export const EditorOptions = {
@@ -5195,6 +5209,20 @@ export const EditorOptions = {
 				'',
 			],
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
+		}
+	)),
+	autoClosingComments: register(new EditorStringEnumOption(
+		EditorOption.autoClosingComments, 'autoClosingComments',
+		'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never',
+		['always', 'languageDefined', 'beforeWhitespace', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingComments.languageDefined', "Use language configurations to determine when to autoclose comments."),
+				nls.localize('editor.autoClosingComments.beforeWhitespace', "Autoclose comments only when the cursor is to the left of whitespace."),
+				'',
+			],
+			description: nls.localize('autoClosingComments', "Controls whether the editor should automatically close comments after the user adds an opening comment.")
 		}
 	)),
 	autoClosingDelete: register(new EditorStringEnumOption(
@@ -5362,7 +5390,7 @@ export const EditorOptions = {
 				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced.")
+			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#cursorSurroundingLines#` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(
@@ -5734,6 +5762,8 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
+	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
+		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,

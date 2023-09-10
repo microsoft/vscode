@@ -99,7 +99,7 @@ export class Terminal {
 				// after 2 seconds.
 				await Promise.race([
 					this.code.waitForElements(Selector.Xterm, true, e => e.length === 0),
-					new Promise<void>(r => setTimeout(r, 2000))
+					this.code.wait(2000)
 				]);
 				break;
 		}

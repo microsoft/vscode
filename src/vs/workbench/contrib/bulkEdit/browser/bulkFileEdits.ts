@@ -18,6 +18,7 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { tail } from 'vs/base/common/arrays';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { Schemas } from 'vs/base/common/network';
 
 interface IFileOperation {
 	uris: URI[];
@@ -173,6 +174,9 @@ class CreateOperation implements IFileOperation {
 		const undoes: DeleteEdit[] = [];
 
 		for (const edit of this._edits) {
+			if (edit.newUri.scheme === Schemas.untitled) {
+				continue; // ignore, will be handled by a later edit
+			}
 			if (edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 				continue; // not overwriting, but ignoring, and the target file exists
 			}

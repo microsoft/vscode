@@ -58,4 +58,12 @@ export namespace TestingContextKeys {
 		type: 'boolean',
 		description: localize('testing.testItemIsHidden', 'Boolean indicating whether the test item is hidden')
 	});
+	export const testMessageContext = new RawContextKey<string>('testMessage', undefined, {
+		type: 'string',
+		description: localize('testing.testMessage', 'Value set in `testMessage.contextValue`, available in editor/content and testing/message/context')
+	});
+	export const testResultOutdated = new RawContextKey<boolean>('testResultOutdated', undefined, {
+		type: 'boolean',
+		description: localize('testing.testResultOutdated', 'Value available in editor/content and testing/message/context when the result is outdated')
+	});
 }

@@ -63,7 +63,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
 	private _isResponsive = true;
-	private _isDisposed = false;
 	private _heartbeatFirstTimeout?: NodeJS.Timeout;
 	private _heartbeatSecondTimeout?: NodeJS.Timeout;
 
@@ -158,7 +157,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		// Handle exit
 		this._register(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
-			if (!this._wasQuitRequested && !this._isDisposed) {
+			if (!this._wasQuitRequested && !this._store.isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
 					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
 					this._restartCount++;
@@ -194,11 +193,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		this._refreshIgnoreProcessNames();
 
 		return [connection, proxy];
-	}
-
-	override dispose() {
-		this._isDisposed = true;
-		super.dispose();
 	}
 
 	async createProcess(

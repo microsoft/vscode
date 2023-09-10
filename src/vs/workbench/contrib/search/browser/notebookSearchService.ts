@@ -18,10 +18,10 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookExclusiveDocumentFilter, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
-import { IFileMatchWithCells, ICellMatch, CellSearchModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
+import { IFileMatchWithCells, ICellMatch, CellSearchModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { IEditorResolverService, priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ITextQuery, IFileQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, ISearchService } from 'vs/workbench/services/search/common/search';
+import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, IFileQuery, ISearchService } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
 
@@ -123,48 +123,67 @@ export class NotebookSearchService implements INotebookSearchService {
 		return Array.from(uris.keys());
 	}
 
-	async notebookSearch(query: ITextQuery, token: CancellationToken, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
+	notebookSearch(query: ITextQuery, token: CancellationToken | undefined, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
+		openFilesToScan: ResourceSet;
+		completeData: Promise<ISearchComplete>;
+		allScannedFiles: Promise<ResourceSet>;
+	} {
 
 		if (query.type !== QueryType.Text) {
 			return {
-				completeData: {
+				openFilesToScan: new ResourceSet(),
+				completeData: Promise.resolve({
 					messages: [],
 					limitHit: false,
 					results: [],
-				},
-				scannedFiles: new ResourceSet()
+				}),
+				allScannedFiles: Promise.resolve(new ResourceSet()),
 			};
 		}
-		const searchStart = Date.now();
 
 		const localNotebookWidgets = this.getLocalNotebookWidgets();
 		const localNotebookFiles = localNotebookWidgets.map(widget => widget.viewModel!.uri);
-		const localResultPromise = this.getLocalNotebookResults(query, token, localNotebookWidgets, searchInstanceID);
-		const searchLocalEnd = Date.now();
+		const getAllResults = (): { completeData: Promise<ISearchComplete>; allScannedFiles: Promise<ResourceSet> } => {
+			const searchStart = Date.now();
 
-		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental?.closedNotebookRichContentResults ?? false;
+			const localResultPromise = this.getLocalNotebookResults(query, token ?? CancellationToken.None, localNotebookWidgets, searchInstanceID);
+			const searchLocalEnd = Date.now();
 
-		let closedResultsPromise: Promise<INotebookSearchMatchResults | undefined> = Promise.resolve(undefined);
-		if (experimentalNotebooksEnabled) {
-			closedResultsPromise = this.getClosedNotebookResults(query, new ResourceSet(localNotebookFiles, uri => this.uriIdentityService.extUri.getComparisonKey(uri)), token);
-		}
+			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental?.closedNotebookRichContentResults ?? false;
 
-		const resolved = (await Promise.all([localResultPromise, closedResultsPromise])).filter((result): result is INotebookSearchMatchResults => !!result);
-		const resultArray = resolved.map(elem => elem.results);
+			let closedResultsPromise: Promise<INotebookSearchMatchResults | undefined> = Promise.resolve(undefined);
+			if (experimentalNotebooksEnabled) {
+				closedResultsPromise = this.getClosedNotebookResults(query, new ResourceSet(localNotebookFiles, uri => this.uriIdentityService.extUri.getComparisonKey(uri)), token ?? CancellationToken.None);
+			}
 
-		const results = arrays.coalesce(resultArray.flatMap(map => Array.from(map.values())));
-		const scannedFiles = new ResourceSet(resultArray.flatMap(map => Array.from(map.keys())), uri => this.uriIdentityService.extUri.getComparisonKey(uri));
-		if (onProgress) {
-			results.forEach(onProgress);
-		}
-		this.logService.trace(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
+			const promise = Promise.all([localResultPromise, closedResultsPromise]);
+			return {
+				completeData: promise.then(resolvedPromise => {
+					const resolved = resolvedPromise.filter((e): e is INotebookSearchMatchResults => !!e);
+					const resultArray = resolved.map(elem => elem.results);
+					const results = arrays.coalesce(resultArray.flatMap(map => Array.from(map.values())));
+					if (onProgress) {
+						results.forEach(onProgress);
+					}
+					this.logService.trace(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
+					return <ISearchComplete>{
+						messages: [],
+						limitHit: resolved.reduce((prev, cur) => prev || cur.limitHit, false),
+						results,
+					};
+				}),
+				allScannedFiles: promise.then(resolvedPromise => {
+					const resolved = resolvedPromise.filter((e): e is INotebookSearchMatchResults => !!e);
+					const resultArray = resolved.map(elem => elem.results);
+					return new ResourceSet(resultArray.flatMap(map => Array.from(map.keys())), uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+				})
+			};
+		};
+		const promiseResults = getAllResults();
 		return {
-			completeData: {
-				messages: [],
-				limitHit: resolved.reduce((prev, cur) => prev || cur.limitHit, false),
-				results,
-			},
-			scannedFiles
+			openFilesToScan: new ResourceSet(localNotebookFiles),
+			completeData: promiseResults.completeData,
+			allScannedFiles: promiseResults.allScannedFiles
 		};
 	}
 
@@ -202,7 +221,8 @@ export class NotebookSearchService implements INotebookSearchService {
 					return;
 				}
 
-				const cells = deserializedNotebooks.get(uri)?.cells ?? (await this._notebookDataCache.getNotebookData(uri)).cells;
+				const notebook = deserializedNotebooks.get(uri) ?? (await this._notebookDataCache.getNotebookData(uri));
+				const cells = notebook.cells;
 
 				if (token.isCancellationRequested) {
 					return;
@@ -210,15 +230,24 @@ export class NotebookSearchService implements INotebookSearchService {
 
 				cells.forEach((cell, index) => {
 					const target = textQuery.contentPattern.pattern;
-					const cellModel = cell instanceof NotebookCellTextModel ? new CellSearchModel('', cell.textBuffer, uri, index) : new CellSearchModel(cell.source, undefined, uri, index);
+					const cellModel = cell instanceof NotebookCellTextModel ? new CellSearchModel('', cell.textBuffer, cell.outputs.flatMap(value => value.outputs), uri, index) : new CellSearchModel(cell.source, undefined, cell.outputs.flatMap(value => value.outputs), uri, index);
 
-					const matches = cellModel.find(target);
-					if (matches.length > 0) {
+					const inputMatches = cellModel.findInInputs(target);
+					const outputMatches = cellModel.findInOutputs(target);
+					const webviewResults = outputMatches
+						.flatMap(outputMatch =>
+							genericCellMatchesToTextSearchMatches(outputMatch.matches, outputMatch.textBuffer, cellModel))
+						.map((textMatch, index) => {
+							textMatch.webviewIndex = index;
+							return textMatch;
+						});
+
+					if (inputMatches.length > 0 || outputMatches.length > 0) {
 						const cellMatch: ICellMatch = {
 							cell: cellModel,
 							index: index,
-							contentResults: contentMatchesToTextSearchMatches(matches, cellModel),
-							webviewResults: []
+							contentResults: contentMatchesToTextSearchMatches(inputMatches, cellModel),
+							webviewResults
 						};
 						cellMatches.push(cellMatch);
 					}
@@ -262,10 +291,10 @@ export class NotebookSearchService implements INotebookSearchService {
 					regex: query.contentPattern.isRegExp,
 					wholeWord: query.contentPattern.isWordMatch,
 					caseSensitive: query.contentPattern.isCaseSensitive,
-					includeMarkupInput: query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-					includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
-					includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput,
-					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput,
+					includeMarkupInput: query.contentPattern.notebookInfo?.isInNotebookMarkdownInput ?? true,
+					includeMarkupPreview: query.contentPattern.notebookInfo?.isInNotebookMarkdownPreview ?? true,
+					includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput ?? true,
+					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput ?? true,
 				}, token, false, true, searchID);
 
 

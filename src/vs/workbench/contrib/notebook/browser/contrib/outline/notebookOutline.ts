@@ -208,6 +208,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	private _outlineProvider: NotebookCellOutlineProvider | undefined;
+	private _localDisposables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: INotebookEditorPane,
@@ -221,17 +222,20 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			if (!notebookEditor?.hasModel()) {
 				this._outlineProvider?.dispose();
 				this._outlineProvider = undefined;
+				this._localDisposables.clear();
 			} else {
 				this._outlineProvider?.dispose();
+				this._localDisposables.clear();
 				this._outlineProvider = instantiationService.createInstance(NotebookCellOutlineProvider, notebookEditor, _target);
+				this._localDisposables.add(this._outlineProvider.onDidChange(e => {
+					this._onDidChange.fire(e);
+				}));
 			}
 		};
 
 		this._dispoables.add(_editor.onDidChangeModel(() => {
 			installSelectionListener();
 		}));
-
-
 
 		installSelectionListener();
 		const treeDataSource: IDataSource<this, OutlineEntry> = { getChildren: parent => parent instanceof NotebookCellOutline ? (this._outlineProvider?.entries ?? []) : parent.children };
@@ -315,6 +319,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this._dispoables.dispose();
 		this._entriesDisposables.dispose();
 		this._outlineProvider?.dispose();
+		this._localDisposables.dispose();
 	}
 }
 

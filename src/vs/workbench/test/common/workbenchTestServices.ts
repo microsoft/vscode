@@ -28,6 +28,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { AutoSaveMode, IAutoSaveConfiguration, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {
@@ -315,3 +316,141 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
 };
+
+export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnablementService {
+	_serviceBrand: undefined;
+
+	constructor(private isEnabled: boolean = true) { }
+
+	isWorkspaceTrustEnabled(): boolean {
+		return this.isEnabled;
+	}
+}
+
+export class TestWorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
+	_serviceBrand: undefined;
+
+	private _onDidChangeTrust = this._register(new Emitter<boolean>());
+	onDidChangeTrust = this._onDidChangeTrust.event;
+
+	private _onDidChangeTrustedFolders = this._register(new Emitter<void>());
+	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
+
+	private _onDidInitiateWorkspaceTrustRequestOnStartup = this._register(new Emitter<void>());
+	onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
+
+
+	constructor(
+		private trusted: boolean = true
+	) {
+		super();
+	}
+
+	get acceptsOutOfWorkspaceFiles(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	set acceptsOutOfWorkspaceFiles(value: boolean) {
+		throw new Error('Method not implemented.');
+	}
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	getTrustedUris(): URI[] {
+		throw new Error('Method not implemented.');
+	}
+
+	setParentFolderTrust(trusted: boolean): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
+		throw new Error('Method not implemented.');
+	}
+
+	async setTrustedUris(folders: URI[]): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	canSetParentFolderTrust(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	canSetWorkspaceTrust(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	isWorkspaceTrusted(): boolean {
+		return this.trusted;
+	}
+
+	isWorkspaceTrustForced(): boolean {
+		return false;
+	}
+
+	get workspaceTrustInitialized(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	get workspaceResolved(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	async setWorkspaceTrust(trusted: boolean): Promise<void> {
+		if (this.trusted !== trusted) {
+			this.trusted = trusted;
+			this._onDidChangeTrust.fire(this.trusted);
+		}
+	}
+}
+
+export class TestWorkspaceTrustRequestService extends Disposable implements IWorkspaceTrustRequestService {
+	_serviceBrand: any;
+
+	private readonly _onDidInitiateOpenFilesTrustRequest = this._register(new Emitter<void>());
+	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
+
+	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions>());
+	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
+
+	private readonly _onDidInitiateWorkspaceTrustRequestOnStartup = this._register(new Emitter<void>());
+	readonly onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
+
+	constructor(private readonly _trusted: boolean) {
+		super();
+	}
+
+	requestOpenUrisHandler = async (uris: URI[]) => {
+		return WorkspaceTrustUriResponse.Open;
+	};
+
+	requestOpenFilesTrust(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
+		return this.requestOpenUrisHandler(uris);
+	}
+
+	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse: boolean): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	cancelWorkspaceTrustRequest(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	async completeWorkspaceTrustRequest(trusted?: boolean): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
+		return this._trusted;
+	}
+
+	requestWorkspaceTrustOnStartup(): void {
+		throw new Error('Method not implemented.');
+	}
+}

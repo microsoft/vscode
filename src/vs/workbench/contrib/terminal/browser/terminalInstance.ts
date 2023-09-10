@@ -23,7 +23,7 @@ import * as path from 'vs/base/common/path';
 import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
-import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -86,6 +86,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { importAMDNodeModule } from 'vs/amdX';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 
 const enum Constants {
 	/**
@@ -321,6 +322,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	private readonly _onDidRunText = this._register(new Emitter<void>());
+	readonly onDidRunText = this._onDidRunText.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -411,7 +414,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
-		this._register(this.capabilities.onDidAddCapability(e => {
+		this._register(this.capabilities.onDidAddCapabilityType(e => {
 			this._logService.debug('terminalInstance added capability', e);
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
@@ -428,7 +431,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			}
 		}));
-		this._register(this.capabilities.onDidRemoveCapability(e => this._logService.debug('terminalInstance removed capability', e)));
+		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
 		// disabled in remote because this needs to be sync and the OS may differ on the remote
@@ -803,7 +806,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._updateProcessCwd();
 				}
 			});
-			this._register(this.capabilities.onDidAddCapability(e => {
+			this._register(this.capabilities.onDidAddCapabilityType(e => {
 				if (e === TerminalCapability.CwdDetection) {
 					onKeyListener?.dispose();
 					onKeyListener = undefined;
@@ -969,8 +972,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.key === 'Tab') {
+			if (TabFocus.getTabFocusMode() && event.key === 'Tab') {
 				return false;
+			}
+
+			// Prevent default when shift+tab is being sent to the terminal to avoid it bubbling up
+			// and changing focus https://github.com/microsoft/vscode/issues/188329
+			if (event.key === 'Tab' && event.shiftKey) {
+				event.preventDefault();
+				return true;
 			}
 
 			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
@@ -1254,6 +1264,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidInputData.fire(this);
 		this.xterm?.suggestController?.handleNonXtermData(text);
 		this.xterm?.scrollToBottom();
+		this._onDidRunText.fire();
 	}
 
 	async sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void> {
@@ -1886,7 +1897,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (!screenReaderOptimized) {
 				labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
 			}
-			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getLabel();
+			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 			if (this._configurationService.getValue(AccessibilityVerbositySettingId.Terminal) && accessibilityHelpKeybinding) {
 				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
 			}
