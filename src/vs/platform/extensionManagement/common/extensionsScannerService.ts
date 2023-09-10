@@ -712,7 +712,7 @@ class ExtensionsScanner extends Disposable {
 					return extensionManifest;
 				}
 				const localized = localizedMessages.values || Object.create(null);
-				return localizeManifest(extensionManifest, localized, defaults);
+				return localizeManifest(this.logService, extensionManifest, localized, defaults);
 			} catch (error) {
 				/*Ignore Error*/
 			}

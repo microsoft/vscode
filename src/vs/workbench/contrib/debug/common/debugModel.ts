@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, findLastIndex } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -26,6 +26,8 @@ import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassem
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILogService } from 'vs/platform/log/common/log';
+import { autorun } from 'vs/base/common/observable';
+import { findLastIdx } from 'vs/base/common/arraysFind';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -471,8 +473,9 @@ export class StackFrame implements IStackFrame {
 		const threadStopReason = this.thread.stoppedDetails?.reason;
 		if (this.instructionPointerReference &&
 			(threadStopReason === 'instruction breakpoint' ||
-				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction'))) {
-			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
+				(threadStopReason === 'step' && this.thread.lastSteppingGranularity === 'instruction') ||
+				editorService.activeEditor instanceof DisassemblyViewInput)) {
+			return editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
 		}
 
 		if (this.source.available) {
@@ -1140,12 +1143,13 @@ export class InstructionBreakpoint extends BaseBreakpoint implements IInstructio
 		hitCondition: string | undefined,
 		condition: string | undefined,
 		logMessage: string | undefined,
+		public readonly address: bigint,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
 
-	override toJSON(): any {
+	override toJSON(): DebugProtocol.InstructionBreakpoint {
 		const result = super.toJSON();
 		result.instructionReference = this.instructionReference;
 		result.offset = this.offset;
@@ -1173,19 +1177,19 @@ export class ThreadAndSessionIds implements ITreeElement {
 	}
 }
 
-export class DebugModel implements IDebugModel {
+export class DebugModel extends Disposable implements IDebugModel {
 
 	private sessions: IDebugSession[];
 	private schedulers = new Map<string, { scheduler: RunOnceScheduler; completeDeferred: DeferredPromise<void> }>();
 	private breakpointsActivated = true;
-	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
-	private readonly _onDidChangeCallStack = new Emitter<void>();
-	private readonly _onDidChangeWatchExpressions = new Emitter<IExpression | undefined>();
-	private breakpoints: Breakpoint[];
-	private functionBreakpoints: FunctionBreakpoint[];
-	private exceptionBreakpoints: ExceptionBreakpoint[];
-	private dataBreakpoints: DataBreakpoint[];
-	private watchExpressions: Expression[];
+	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
+	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
+	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
+	private breakpoints!: Breakpoint[];
+	private functionBreakpoints!: FunctionBreakpoint[];
+	private exceptionBreakpoints!: ExceptionBreakpoint[];
+	private dataBreakpoints!: DataBreakpoint[];
+	private watchExpressions!: Expression[];
 	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
@@ -1194,11 +1198,21 @@ export class DebugModel implements IDebugModel {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.breakpoints = debugStorage.loadBreakpoints();
-		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
-		this.exceptionBreakpoints = debugStorage.loadExceptionBreakpoints();
-		this.dataBreakpoints = debugStorage.loadDataBreakpoints();
-		this.watchExpressions = debugStorage.loadWatchExpressions();
+		super();
+
+		this._register(autorun(reader => {
+			this.breakpoints = debugStorage.breakpoints.read(reader);
+			this.functionBreakpoints = debugStorage.functionBreakpoints.read(reader);
+			this.exceptionBreakpoints = debugStorage.exceptionBreakpoints.read(reader);
+			this.dataBreakpoints = debugStorage.dataBreakpoints.read(reader);
+			this._onDidChangeBreakpoints.fire(undefined);
+		}));
+
+		this._register(autorun(reader => {
+			this.watchExpressions = debugStorage.watchExpressions.read(reader);
+			this._onDidChangeWatchExpressions.fire(undefined);
+		}));
+
 		this.instructionBreakpoints = [];
 		this.sessions = [];
 	}
@@ -1242,7 +1256,7 @@ export class DebugModel implements IDebugModel {
 		let index = -1;
 		if (session.parentSession) {
 			// Make sure that child sessions are placed after the parent session
-			index = findLastIndex(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
+			index = findLastIdx(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
 		}
 		if (index >= 0) {
 			this.sessions.splice(index + 1, 0, session);
@@ -1665,17 +1679,22 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
-	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): void {
-		const newInstructionBreakpoint = new InstructionBreakpoint(address, offset, false, true, hitCondition, condition, undefined);
+	addInstructionBreakpoint(instructionReference: string, offset: number, address: bigint, condition?: string, hitCondition?: string): void {
+		const newInstructionBreakpoint = new InstructionBreakpoint(instructionReference, offset, false, true, hitCondition, condition, undefined, address);
 		this.instructionBreakpoints.push(newInstructionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newInstructionBreakpoint], sessionOnly: true });
 	}
 
-	removeInstructionBreakpoints(address?: string): void {
-		let removed: InstructionBreakpoint[];
-		if (address) {
-			removed = this.instructionBreakpoints.filter(fbp => fbp.instructionReference === address);
-			this.instructionBreakpoints = this.instructionBreakpoints.filter(fbp => fbp.instructionReference !== address);
+	removeInstructionBreakpoints(instructionReference?: string, offset?: number): void {
+		let removed: InstructionBreakpoint[] = [];
+		if (instructionReference) {
+			for (let i = 0; i < this.instructionBreakpoints.length; i++) {
+				const ibp = this.instructionBreakpoints[i];
+				if (ibp.instructionReference === instructionReference && (offset === undefined || ibp.offset === offset)) {
+					removed.push(ibp);
+					this.instructionBreakpoints.splice(i--, 1);
+				}
+			}
 		} else {
 			removed = this.instructionBreakpoints;
 			this.instructionBreakpoints = [];

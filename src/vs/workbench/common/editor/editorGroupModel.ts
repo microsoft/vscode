@@ -180,6 +180,8 @@ export class EditorGroupModel extends Disposable {
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
 
+	private readonly editorListeners = new Set<DisposableStore>();
+
 	private locked = false;
 
 	private preview: EditorInput | null = null; // editor in preview state
@@ -405,6 +407,7 @@ export class EditorGroupModel extends Disposable {
 
 	private registerEditorListeners(editor: EditorInput): void {
 		const listeners = new DisposableStore();
+		this.editorListeners.add(listeners);
 
 		// Re-emit disposal of editor input as our own event
 		listeners.add(Event.once(editor.onWillDispose)(() => {
@@ -453,6 +456,7 @@ export class EditorGroupModel extends Disposable {
 		listeners.add(this.onDidModelChange(event => {
 			if (event.kind === GroupModelChangeKind.EDITOR_CLOSE && event.editor?.matches(editor)) {
 				dispose(listeners);
+				this.editorListeners.delete(listeners);
 			}
 		}));
 	}
@@ -1076,5 +1080,12 @@ export class EditorGroupModel extends Disposable {
 		}
 
 		return this._id;
+	}
+
+	override dispose(): void {
+		dispose(Array.from(this.editorListeners));
+		this.editorListeners.clear();
+
+		super.dispose();
 	}
 }

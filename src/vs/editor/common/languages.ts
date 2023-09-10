@@ -16,7 +16,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
@@ -1280,10 +1280,6 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
-	/**
-	 * The list of multiple ranges to format at once, if the provider supports it.
-	 */
-	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -2032,4 +2028,34 @@ export interface DocumentOnDropEditProvider {
 	readonly dropMimeTypes?: readonly string[];
 
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
+}
+
+export interface RelatedContextItem {
+	readonly uri: URI;
+	readonly range: IRange;
+}
+
+export interface MappedEditsContext {
+	selections: ISelection[];
+	related: RelatedContextItem[];
+}
+
+export interface MappedEditsProvider {
+
+	/**
+	 * Provider maps code blocks from the chat into a workspace edit.
+	 *
+	 * @param document The document to provide mapped edits for.
+	 * @param codeBlocks Code blocks that come from an LLM's reply.
+	 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+	 * @param context The context for providing mapped edits.
+	 * @param token A cancellation token.
+	 * @returns A provider result of text edits.
+	 */
+	provideMappedEdits(
+		document: model.ITextModel,
+		codeBlocks: string[],
+		context: MappedEditsContext,
+		token: CancellationToken
+	): Promise<WorkspaceEdit | null>;
 }

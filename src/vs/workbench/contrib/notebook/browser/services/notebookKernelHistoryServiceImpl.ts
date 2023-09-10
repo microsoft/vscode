@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -36,6 +36,9 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 
 		this._loadState();
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
+		this._register(this._storageService.onDidChangeValue(StorageScope.WORKSPACE, NotebookKernelHistoryService.STORAGE_KEY, this._register(new DisposableStore()))(() => {
+			this._restoreState();
+		}));
 	}
 
 	getKernels(notebook: INotebookTextModelLike): { selected: INotebookKernel | undefined; all: INotebookKernel[] } {
@@ -79,9 +82,27 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 
 		if (notEmpty) {
 			const serialized = this._serialize();
-			this._storageService.store(NotebookKernelHistoryService.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this._storageService.store(NotebookKernelHistoryService.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this._storageService.remove(NotebookKernelHistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+	}
+
+	private _restoreState(): void {
+		const serialized = this._storageService.get(NotebookKernelHistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
+		if (serialized) {
+			try {
+				for (const [viewType, kernels] of JSON.parse(serialized)) {
+					const linkedMap = this._mostRecentKernelsMap[viewType] ?? new LinkedMap<string, string>();
+					for (const entry of kernels.entries) {
+						linkedMap.set(entry, entry, Touch.AsOld);
+					}
+
+					this._mostRecentKernelsMap[viewType] = linkedMap;
+				}
+			} catch (e) {
+				console.error('Deserialize notebook kernel history failed', e);
+			}
 		}
 	}
 

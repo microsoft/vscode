@@ -32,7 +32,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -440,7 +440,7 @@ export class CustomMenubarControl extends MenubarControl {
 						id: `workbench.actions.menubar.focus`,
 						title: { value: localize('focusMenu', "Focus Application Menu"), original: 'Focus Application Menu' },
 						keybinding: {
-							primary: KeyCode.F10,
+							primary: KeyMod.Alt | KeyCode.F10,
 							weight: KeybindingWeight.WorkbenchContrib,
 							when: IsWebContext
 						},

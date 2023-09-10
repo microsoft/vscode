@@ -1783,12 +1783,17 @@ export class CommandCenter {
 				const message = documents.length === 1
 					? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
 					: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
-				const saveAndCommit = l10n.t('Save All & Commit');
-				const commit = l10n.t('Commit Staged Changes');
+				const saveAndCommit = l10n.t('Save All & Commit Changes');
+				const commit = l10n.t('Commit Changes');
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
 					await Promise.all(documents.map(d => d.save()));
+
+					// After saving the dirty documents, if there are any documents that are part of the
+					// index group we have to add them back in order for the saved changes to be committed
+					documents = documents
+						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
 					await repository.add(documents.map(d => d.uri));
 
 					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
