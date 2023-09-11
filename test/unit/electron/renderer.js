@@ -227,6 +227,10 @@ function loadTests(opts) {
 	loader.require(['vs/base/common/errors'], function (errors) {
 
 		const onUnexpectedError = function (err) {
+			if (err.name === 'Canceled') {
+				return; // ignore canceled errors that are common
+			}
+
 			let stack = (err ? err.stack : null);
 			if (!stack) {
 				stack = new Error().stack;
