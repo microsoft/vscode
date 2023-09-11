@@ -52,7 +52,6 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		}
 		this._xterm.raw.onWriteParsed(async () => {
 			if (this._xterm!.raw.buffer.active.baseY === 0) {
-				this.provideContent();
 				this._accessibleViewService.show(this);
 			}
 		});
