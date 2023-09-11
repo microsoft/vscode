@@ -166,7 +166,6 @@ function loadTestModules(opts) {
 	}).then(loadModules);
 }
 
-let currentSuiteTitle;
 let currentTestTitle;
 
 function loadTests(opts) {
@@ -191,15 +190,11 @@ function loadTests(opts) {
 		'guards calls after runs are ended' // https://github.com/microsoft/vscode/issues/192468
 	]);
 
-	const _allowedSuitesWithOutput = new Set([
-		'ExtHostLanguageFeatures'
-	]);
-
 	let _testsWithUnexpectedOutput = false;
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
-			if (!_allowedTestOutput.has(msg) && !_allowedTestsWithOutput.has(currentTestTitle) && !_allowedSuitesWithOutput.has(currentSuiteTitle)) {
+			if (!_allowedTestOutput.has(msg) && !_allowedTestsWithOutput.has(currentTestTitle)) {
 				_testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}
@@ -401,7 +396,6 @@ function runTests(opts) {
 			});
 		});
 
-		runner.on('suite', suite => currentSuiteTitle = suite.title);
 		runner.on('test', test => currentTestTitle = test.title);
 
 		if (opts.dev) {

@@ -69,7 +69,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let originalErrorHandler: (e: any) => any;
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(() => {
+	setup(() => {
 
 		model = createTextModel(
 			[
@@ -137,15 +137,14 @@ suite('ExtHostLanguageFeatures', function () {
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, disposables.add(inst.createInstance(MainThreadLanguageFeatures, rpcProtocol)));
 	});
 
-	suiteTeardown(() => {
+	teardown(() => {
+		disposables.clear();
+
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
 		mainThread.dispose();
 		instantiationService.dispose();
-	});
 
-	teardown(() => {
-		disposables.clear();
 		return rpcProtocol.sync();
 	});
 
