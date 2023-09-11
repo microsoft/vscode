@@ -191,7 +191,7 @@
 	"config.showPushSuccessNotification": "Controls whether to show a notification when a push is successful.",
 	"config.inputValidation": "Controls when to show commit message input validation.",
 	"config.inputValidationLength": "Controls the commit message length threshold for showing a warning.",
-	"config.inputValidationSubjectLength": "Controls the commit message subject length threshold for showing a warning. Unset it to inherit the value of `config.inputValidationLength`.",
+	"config.inputValidationSubjectLength": "Controls the commit message subject length threshold for showing a warning. Unset it to inherit the value of `#git.inputValidationLength#`.",
 	"config.detectSubmodules": "Controls whether to automatically detect git submodules.",
 	"config.detectSubmodulesLimit": "Controls the limit of git submodules detected.",
 	"config.alwaysShowStagedChangesResourceGroup": "Always show the Staged Changes resource group.",
