@@ -128,7 +128,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		const getAsyncResults = async () => {
 			await result.asyncResults;
-			return this.searchModel.searchResult.matches().filter(e => result.syncResults.indexOf(e) === -1);
+			const syncResultURIs = result.syncResults.map(e => e.resource);
+			return this.searchModel.searchResult.matches().filter(e => syncResultURIs.indexOf(e.resource) === -1);
 		};
 		return {
 			syncResults: this.searchModel.searchResult.matches(),
