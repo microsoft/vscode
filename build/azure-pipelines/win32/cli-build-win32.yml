@@ -26,14 +26,14 @@ steps:
     displayName: Download openssl prebuilt
     inputs:
       command: custom
-      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.9
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.10
       customRegistry: useFeed
       customFeed: "Monaco/openssl-prebuilt"
       workingDir: $(Build.ArtifactStagingDirectory)
 
   - powershell: |
       mkdir $(Build.ArtifactStagingDirectory)/openssl
-      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.9.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.10.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
   - template: ../cli/install-rust-win32.yml
@@ -54,9 +54,9 @@ steps:
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_x64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
         VSCODE_CLI_ENV:
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/include
-          RUSTFLAGS: "-C target-feature=+crt-static -C link-args=/MT"
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static/include
+          RUSTFLAGS: "-C target-feature=+crt-static"
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -66,9 +66,9 @@ steps:
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_arm64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
         VSCODE_CLI_ENV:
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/include
-          RUSTFLAGS: "-C target-feature=+crt-static -C link-args=/MT"
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static/include
+          RUSTFLAGS: "-C target-feature=+crt-static"
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -78,6 +78,6 @@ steps:
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_ia32_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
         VSCODE_CLI_ENV:
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/include
-          RUSTFLAGS: "-C target-feature=+crt-static -C link-args=/MT"
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static/include
+          RUSTFLAGS: "-C target-feature=+crt-static"
