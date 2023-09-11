@@ -213,6 +213,12 @@ function loadTests(opts) {
 	const _unexpectedErrors = [];
 	const _loaderErrors = [];
 
+	const _allowedTestsWithUnhandledRejections = new Set([
+		'onWillShutdown - join with error is handled',
+		'onBeforeShutdown - veto with error is treated as veto',
+		'onBeforeShutdown - final veto with error is treated as veto'
+	]);
+
 	loader.require.config({
 		onError(err) {
 			_loaderErrors.push(err);
@@ -223,12 +229,17 @@ function loadTests(opts) {
 	loader.require(['vs/base/common/errors'], function (errors) {
 
 		process.on('uncaughtException', error => errors.onUnexpectedError(error));
-		process.on('unhandledRejection', error => errors.onUnexpectedError(error));
+		process.on('unhandledRejection', (reason, promise) => {
+			errors.onUnexpectedError(reason);
+			promise.catch(() => {});
+		});
 		window.addEventListener('unhandledrejection', event => {
 			event.preventDefault(); // Do not log to test output, we show an error later when test ends
 			event.stopPropagation();
 
-			errors.onUnexpectedError(event.reason);
+			if (!_allowedTestsWithUnhandledRejections.has(currentTestTitle)) {
+				errors.onUnexpectedError(event.reason);
+			}
 		});
 
 		errors.setUnexpectedErrorHandler(function (err) {
