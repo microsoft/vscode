@@ -6,7 +6,7 @@
 /* Title Label */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container {
-	height: var(--editor-group-title-height);
+	height: var(--editor-group-tab-height);
 	display: flex;
 	justify-content: flex-start;
 	align-items: center;
@@ -15,7 +15,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label {
-	line-height: var(--editor-group-title-height);
+	line-height: var(--editor-group-tab-height);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	position: relative;
@@ -26,7 +26,7 @@
 	flex: initial; /* helps to show decorations right next to the label and not at the end while still preserving text overflow ellipsis */
 }
 
-/* Breadcrumbs */
+/* Breadcrumbs (inline next to single editor tab) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
 	flex: none;
@@ -94,7 +94,7 @@
 	flex: initial;
 	opacity: 0.5;
 	padding-right: 8px;
-	height: var(--editor-group-title-height);
+	height: var(--editor-group-tab-height);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions .action-item {

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notabstitlecontrol';
+import 'vs/css!./media/singleeditortabscontrol';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorTabsControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -14,21 +14,25 @@ import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } 
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
+import { BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 
 interface IRenderedEditorLabel {
-	editor?: EditorInput;
-	pinned: boolean;
+	readonly editor?: EditorInput;
+	readonly pinned: boolean;
 }
 
-export class NoTabsTitleControl extends TitleControl {
+export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
+
+	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
+	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	protected override create(parent: HTMLElement): void {
 		super.create(parent);
@@ -36,7 +40,7 @@ export class NoTabsTitleControl extends TitleControl {
 		const titleContainer = this.titleContainer = parent;
 		titleContainer.draggable = true;
 
-		//Container listeners
+		// Container listeners
 		this.registerContainerListeners(titleContainer);
 
 		// Gesture Support
@@ -51,7 +55,14 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() }, showPlaceholder: false });
+		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.group, {
+			showFileIcons: false,
+			showSymbolIcons: true,
+			showDecorationColors: false,
+			widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
+			showPlaceholder: false
+		}));
+		this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
@@ -130,19 +141,21 @@ export class NoTabsTitleControl extends TitleControl {
 		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 	}
 
-	openEditor(editor: EditorInput): void {
-		this.doHandleOpenEditor();
+	openEditor(editor: EditorInput): boolean {
+		return this.doHandleOpenEditor();
 	}
 
-	openEditors(editors: EditorInput[]): void {
-		this.doHandleOpenEditor();
+	openEditors(editors: EditorInput[]): boolean {
+		return this.doHandleOpenEditor();
 	}
 
-	private doHandleOpenEditor(): void {
+	private doHandleOpenEditor(): boolean {
 		const activeEditorChanged = this.ifActiveEditorChanged(() => this.redraw());
 		if (!activeEditorChanged) {
 			this.ifActiveEditorPropertiesChanged(() => this.redraw());
 		}
+
+		return activeEditorChanged;
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
@@ -348,16 +361,13 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	getHeight(): IEditorGroupTitleHeight {
-		return {
-			total: this.titleHeight,
-			offset: 0
-		};
+	getHeight(): number {
+		return this.tabHeight;
 	}
 
-	layout(dimensions: ITitleControlDimensions): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 		this.breadcrumbsControl?.layout(undefined);
 
-		return new Dimension(dimensions.container.width, this.getHeight().total);
+		return new Dimension(dimensions.container.width, this.getHeight());
 	}
 }
