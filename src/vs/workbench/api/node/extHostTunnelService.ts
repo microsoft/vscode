@@ -22,7 +22,7 @@ import { NodeRemoteTunnel } from 'vs/platform/tunnel/node/tunnelService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
+import { CandidatePort, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
 import * as vscode from 'vscode';
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
@@ -349,7 +349,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 			const disposeEmitter = new Emitter<void>();
 
 			return {
-				localAddress: t.localAddress,
+				localAddress: parseAddress(t.localAddress) ?? t.localAddress,
 				remoteAddress: { port: t.tunnelRemotePort, host: t.tunnelRemoteHost },
 				onDidDispose: disposeEmitter.event,
 				dispose: () => {
