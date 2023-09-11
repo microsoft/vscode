@@ -16,7 +16,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.getVersionId(), 0);
@@ -60,7 +60,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
@@ -101,7 +101,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
@@ -133,7 +133,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 				const cellList = createNotebookCellList(accessor, new DisposableStore());
 				cellList.attachViewModel(viewModel);
@@ -174,7 +174,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 
 				editor.textModel.applyEdits([{

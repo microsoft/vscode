@@ -32,17 +32,17 @@ class CellSequence implements ISequence {
 
 
 suite('NotebookCommon', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	let disposables: DisposableStore;
 	const configurationService = new TestConfigurationService();
 
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
 	teardown(() => {
 		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		disposables = new DisposableStore();
 	});
 
 	test('diff different source', async () => {

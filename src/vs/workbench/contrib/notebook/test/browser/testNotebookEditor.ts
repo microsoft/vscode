@@ -196,7 +196,7 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
 
 	const viewType = 'notebook';
 	const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map((cell): ICellDto2 => {
@@ -339,7 +339,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	return { editor: notebookEditor, viewModel };
 }
 
-export function createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate; viewModel: NotebookViewModel } {
+export function createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate; viewModel: NotebookViewModel } {
 	return _createTestNotebookEditor(instantiationService, disposables, cells);
 }
 
@@ -391,12 +391,13 @@ interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegat
 	visibleRanges: ICellRange[];
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService, disposables: DisposableStore) => Promise<R> | R, disposables: DisposableStore = new DisposableStore(), accessor?: TestInstantiationService): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+	const disposables: DisposableStore = new DisposableStore();
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, disposables, cells);
 
 	return runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService, disposables);
+		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, disposables, instantiationService);
 		if (res instanceof Promise) {
 			res.finally(() => {
 				notebookEditor.editor.dispose();
@@ -414,7 +415,7 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 	});
 }
 
-export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>, viewContext?: ViewContext) {
+export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: DisposableStore, viewContext?: ViewContext) {
 	const delegate: IListVirtualDelegate<CellViewModel> = {
 		getHeight(element: CellViewModel) { return element.getHeight(17); },
 		getTemplateId() { return 'template'; }
