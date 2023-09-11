@@ -222,7 +222,6 @@ suite('ExtensionService', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		const testProductService = { _serviceBrand: undefined, ...product };
 		disposables.add(instantiationService = createServices(disposables, [
 			// custom
 			[IExtensionService, MyTestExtensionService],
@@ -236,7 +235,7 @@ suite('ExtensionService', () => {
 			[IExtensionManifestPropertiesService, ExtensionManifestPropertiesService],
 			[IConfigurationService, TestConfigurationService],
 			[IWorkspaceContextService, TestContextService],
-			[IProductService, testProductService],
+			[IProductService, { _serviceBrand: undefined, ...product }],
 			[IFileService, TestFileService],
 			[IWorkbenchExtensionEnablementService, TestWorkbenchExtensionEnablementService],
 			[ITelemetryService, NullTelemetryService],
@@ -246,7 +245,7 @@ suite('ExtensionService', () => {
 			[IUserDataProfileService, TestUserDataProfileService],
 			[IUriIdentityService, UriIdentityService],
 			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
-			[IRemoteAuthorityResolverService, new RemoteAuthorityResolverService(false, undefined, undefined, testProductService, new NullLogService())]
+			[IRemoteAuthorityResolverService, RemoteAuthorityResolverService]
 		]));
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});

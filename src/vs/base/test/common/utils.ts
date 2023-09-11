@@ -109,7 +109,7 @@ export class DisposableTracker implements IDisposableTracker {
 		return leaking;
 	}
 
-	ensureNoLeakingDisposables(logToConsole = true) {
+	ensureNoLeakingDisposables() {
 		const rootParentCache = new Map<DisposableInfo, DisposableInfo>();
 
 		const leakingObjects = [...this.livingDisposables.values()]
@@ -184,9 +184,7 @@ export class DisposableTracker implements IDisposableTracker {
 			message += `\n\n\n... and ${uncoveredLeakingObjs.length - maxReported} more leaking disposables\n\n`;
 		}
 
-		if (logToConsole) {
-			console.error(message);
-		}
+		console.error(message);
 
 		throw new Error(`There are ${uncoveredLeakingObjs.length} undisposed disposables!${message}`);
 	}
@@ -227,12 +225,12 @@ export function ensureNoDisposablesAreLeakedInTestSuite(): Pick<DisposableStore,
 	return testContext;
 }
 
-export function throwIfDisposablesAreLeaked(body: () => void, logToConsole = true): void {
+export function throwIfDisposablesAreLeaked(body: () => void): void {
 	const tracker = new DisposableTracker();
 	setDisposableTracker(tracker);
 	body();
 	setDisposableTracker(null);
-	tracker.ensureNoLeakingDisposables(logToConsole);
+	tracker.ensureNoLeakingDisposables();
 }
 
 export async function throwIfDisposablesAreLeakedAsync(body: () => Promise<void>): Promise<void> {

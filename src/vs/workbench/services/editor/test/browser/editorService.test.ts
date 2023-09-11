@@ -1579,7 +1579,7 @@ suite('EditorService', () => {
 	test('openEditors() extracts proper resources from untyped editors for workspace trust', async () => {
 		const [, service, accessor] = await createEditorService();
 
-		const input = { resource: URI.file('resource-openEditors') };
+		const input = { resource: URI.parse('my://resource-openEditors') };
 		const otherInput: IResourceDiffEditorInput = {
 			original: { resource: URI.parse('my://resource2-openEditors') },
 			modified: { resource: URI.parse('my://resource3-openEditors') }
