@@ -10,12 +10,15 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Notebook Folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(() => {
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		instantiationService.spy(IUndoRedoService, 'pushElement');
@@ -34,8 +37,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingController = ds.add(new FoldingModel());
 				foldingController.attachViewModel(viewModel);
 
 				assert.strictEqual(foldingController.regions.findRange(1), 0);
@@ -45,7 +48,8 @@ suite('Notebook Folding', () => {
 				assert.strictEqual(foldingController.regions.findRange(5), 1);
 				assert.strictEqual(foldingController.regions.findRange(6), 2);
 				assert.strictEqual(foldingController.regions.findRange(7), 2);
-			}
+			},
+			disposables
 		);
 	});
 
@@ -61,8 +65,8 @@ suite('Notebook Folding', () => {
 				['## header 2.1', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'python', CellKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingController = ds.add(new FoldingModel());
 				foldingController.attachViewModel(viewModel);
 
 				assert.strictEqual(foldingController.regions.findRange(1), 0);
@@ -73,7 +77,8 @@ suite('Notebook Folding', () => {
 				assert.strictEqual(foldingController.regions.findRange(6), 0);
 				assert.strictEqual(foldingController.regions.findRange(7), 1);
 				assert.strictEqual(foldingController.regions.findRange(8), 1);
-			}
+			},
+			disposables
 		);
 	});
 
@@ -88,8 +93,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingController = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingController = ds.add(new FoldingModel());
 				foldingController.attachViewModel(viewModel);
 
 				assert.strictEqual(foldingController.regions.findRange(1), 0);
@@ -104,7 +109,8 @@ suite('Notebook Folding', () => {
 				assert.strictEqual(foldingController.regions.findRange(6), 2);
 				assert.strictEqual(foldingController.regions.findRange(7), 2);
 				assert.strictEqual(foldingController.regions.getEndLineNumber(2), 7);
-			}
+			},
+			disposables
 		);
 	});
 
@@ -119,17 +125,19 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
 				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
 					{ start: 1, end: 6 }
 				]);
-			}
+			},
+			disposables
 		);
 
+		const ds2 = new DisposableStore();
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -140,8 +148,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 2, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -149,9 +157,11 @@ suite('Notebook Folding', () => {
 				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
 					{ start: 3, end: 4 }
 				]);
-			}
+			},
+			ds2
 		);
 
+		const ds3 = new DisposableStore();
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -162,8 +172,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 2, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -171,7 +181,8 @@ suite('Notebook Folding', () => {
 				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
 					{ start: 3, end: 6 }
 				]);
-			}
+			},
+			ds3
 		);
 	});
 
@@ -186,8 +197,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -225,7 +236,8 @@ suite('Notebook Folding', () => {
 				// 	// { start: 1,},
 				// 	{ start: 7, end: 8 }
 				// ]);
-			}
+			},
+			disposables
 		);
 	});
 
@@ -245,8 +257,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([{ start: 2, end: 6 }]);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -255,9 +267,11 @@ suite('Notebook Folding', () => {
 				assert.deepStrictEqual(viewModel.getHiddenRanges(), [
 					{ start: 3, end: 6 }
 				]);
-			}
+			},
+			disposables
 		);
 
+		const ds2 = new DisposableStore();
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
@@ -273,8 +287,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
 					{ start: 5, end: 6 },
@@ -287,8 +301,11 @@ suite('Notebook Folding', () => {
 					{ start: 6, end: 6 },
 					{ start: 11, end: 11 }
 				]);
-			}
+			},
+			ds2
 		);
+
+		const ds3 = new DisposableStore();
 
 		await withTestNotebook(
 			[
@@ -305,8 +322,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
 					{ start: 5, end: 6 },
@@ -319,7 +336,8 @@ suite('Notebook Folding', () => {
 					{ start: 6, end: 6 },
 					{ start: 8, end: 11 }
 				]);
-			}
+			},
+			ds3
 		);
 	});
 
@@ -339,8 +357,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([{ start: 2, end: 6 }]);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -357,8 +375,11 @@ suite('Notebook Folding', () => {
 				assert.strictEqual(viewModel.getNextVisibleCellIndex(5), 7);
 				assert.strictEqual(viewModel.getNextVisibleCellIndex(6), 7);
 				assert.strictEqual(viewModel.getNextVisibleCellIndex(7), 8);
-			}
+			},
+			disposables
 		);
+
+		const ds2 = new DisposableStore();
 
 		await withTestNotebook(
 			[
@@ -375,8 +396,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markup, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
 			],
-			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			(editor, viewModel, _accessor, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
 					{ start: 5, end: 6 },
@@ -401,7 +422,8 @@ suite('Notebook Folding', () => {
 				assert.strictEqual(viewModel.getNextVisibleCellIndex(9), 10);
 				assert.strictEqual(viewModel.getNextVisibleCellIndex(10), 12);
 				assert.strictEqual(viewModel.getNextVisibleCellIndex(11), 12);
-			}
+			},
+			ds2
 		);
 	});
 });
