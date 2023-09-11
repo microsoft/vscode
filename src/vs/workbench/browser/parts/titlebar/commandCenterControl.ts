@@ -88,16 +88,15 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		container.classList.add('command-center');
-		if (this._submenu.actions.length === 1 && this._submenu.actions[0].id === CommandCenterCenterViewItem._quickOpenCommandId) {
-			this._renderSingleItem(container);
-		} else {
-			this._renderMultipleItems(container);
-			container.classList.add('multiple');
-		}
-	}
+		container.classList.add('command-center-center');
+		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
 
-	private _renderMultipleItems(container: HTMLElement) {
+		const hover = this._store.add(setupCustomHover(this._hoverDelegate, container, this.getTooltip()));
+
+		// update label & tooltip when window title changes
+		this._store.add(this._windowTitle.onDidChange(() => {
+			hover.update(this.getTooltip());
+		}));
 
 		const groups: (readonly IAction[])[] = [];
 		for (const action of this._submenu.actions) {
@@ -117,9 +116,68 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				telemetrySource: 'commandCenterCenter',
 				actionViewItemProvider: (action, options) => {
-					return createActionViewItem(this._instaService, action, {
+					options = {
 						...options,
 						hoverDelegate: this._hoverDelegate,
+					};
+
+					if (action.id !== CommandCenterCenterViewItem._quickOpenCommandId) {
+						return createActionViewItem(this._instaService, action, options);
+					}
+
+					const that = this;
+
+					return this._instaService.createInstance(class CommandCenterQuickPickItem extends BaseActionViewItem {
+
+						constructor() {
+							super(undefined, action, options);
+						}
+
+						override render(container: HTMLElement): void {
+							super.render(container);
+							container.classList.toggle('command-center-quick-pick');
+
+							const action = this.action;
+
+							// icon (search)
+							const searchIcon = document.createElement('span');
+							searchIcon.className = action.class ?? '';
+							searchIcon.classList.add('search-icon');
+
+							// label: just workspace name and optional decorations
+							const label = this._getLabel();
+							const labelElement = document.createElement('span');
+							labelElement.classList.add('search-label');
+							labelElement.innerText = label;
+							reset(container, searchIcon, labelElement);
+
+							const hover = this._store.add(setupCustomHover(that._hoverDelegate, container, this.getTooltip()));
+
+							// update label & tooltip when window title changes
+							this._store.add(that._windowTitle.onDidChange(() => {
+								hover.update(this.getTooltip());
+								labelElement.innerText = this._getLabel();
+							}));
+						}
+
+						protected override getTooltip() {
+							return that.getTooltip();
+						}
+
+						private _getLabel(): string {
+							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
+							let label = that._windowTitle.isCustomTitleFormat() ? that._windowTitle.getWindowTitle() : that._windowTitle.workspaceName;
+							if (!label) {
+								label = localize('label.dfl', "Search");
+							}
+							if (prefix) {
+								label = localize('label1', "{0} {1}", prefix, label);
+							}
+							if (suffix) {
+								label = localize('label2', "{0} {1}", label, suffix);
+							}
+							return label;
+						}
 					});
 				}
 			});
@@ -132,48 +190,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 				icon.classList.add('spacer');
 				container.appendChild(icon);
 			}
-
 		}
-	}
-
-	private _renderSingleItem(container: HTMLElement) {
-
-		const action = this._submenu.actions[0];
-
-		// icon (search)
-		const searchIcon = document.createElement('span');
-		searchIcon.className = action.class ?? '';
-		searchIcon.classList.add('search-icon');
-
-		// label: just workspace name and optional decorations
-		const label = this._getLabel();
-		const labelElement = document.createElement('span');
-		labelElement.classList.add('search-label');
-		labelElement.innerText = label;
-		reset(container, searchIcon, labelElement);
-
-		const hover = this._store.add(setupCustomHover(this._hoverDelegate, container, this.getTooltip()));
-
-		// update label & tooltip when window title changes
-		this._store.add(this._windowTitle.onDidChange(() => {
-			hover.update(this.getTooltip());
-			labelElement.innerText = this._getLabel();
-		}));
-	}
-
-	private _getLabel(): string {
-		const { prefix, suffix } = this._windowTitle.getTitleDecorations();
-		let label = this._windowTitle.isCustomTitleFormat() ? this._windowTitle.getWindowTitle() : this._windowTitle.workspaceName;
-		if (!label) {
-			label = localize('label.dfl', "Search");
-		}
-		if (prefix) {
-			label = localize('label1', "{0} {1}", prefix, label);
-		}
-		if (suffix) {
-			label = localize('label2', "{0} {1}", label, suffix);
-		}
-		return label;
 	}
 
 	protected override getTooltip() {
@@ -187,7 +204,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		return title;
 	}
 }
-
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.CommandCenterCenter,
