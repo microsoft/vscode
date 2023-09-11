@@ -250,11 +250,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		if (this._pasteAsActionContext) {
 			this.showPasteAsPick(this._pasteAsActionContext.preferredId, allProviders, selections, dataTransfer, metadata);
 		} else {
-			this.doPasteInline(allProviders, selections, dataTransfer, metadata);
+			this.doPasteInline(allProviders, selections, dataTransfer, metadata, e);
 		}
 	}
 
-	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined): void {
+	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, clipboardEvent: ClipboardEvent): void {
 		const p = createCancelablePromise(async (token) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
@@ -274,7 +274,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				if (!supportedProviders.length
 					|| (supportedProviders.length === 1 && supportedProviders[0].id === 'text') // Only our default text provider is active
 				) {
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token, clipboardEvent);
 					return;
 				}
 
@@ -285,7 +285,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				// If the only edit returned is a text edit, use the default paste handler
 				if (providerEdits.length === 1 && providerEdits[0].providerId === 'text') {
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token, clipboardEvent);
 					return;
 				}
 
@@ -294,7 +294,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, tokenSource.token);
 				}
 
-				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token, clipboardEvent);
 			} finally {
 				tokenSource.dispose();
 				if (this._currentPasteOperation === p) {
@@ -452,18 +452,21 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		return edits;
 	}
 
-	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken) {
+	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent) {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
-		if (!textDataTransfer) {
-			return;
+		let text = '';
+		if (textDataTransfer) {
+			text = await textDataTransfer.asString();
+			// return;
 		}
 
-		const text = await textDataTransfer.asString();
+		// const text = await textDataTransfer.asString();
 		if (token.isCancellationRequested) {
 			return;
 		}
 
 		const payload: PastePayload = {
+			clipboardEvent,
 			text,
 			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? false,
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,

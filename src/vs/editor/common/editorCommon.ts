@@ -770,4 +770,5 @@ export interface PastePayload {
 	pasteOnNewLine: boolean;
 	multicursorText: string[] | null;
 	mode: string | null;
+	clipboardEvent?: ClipboardEvent;
 }
