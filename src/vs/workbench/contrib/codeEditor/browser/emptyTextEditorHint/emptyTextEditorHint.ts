@@ -33,6 +33,8 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
+import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { GHOST_TEXT_DESCRIPTION } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 
 const $ = dom.$;
 
@@ -90,17 +92,41 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}));
 	}
 
-	private update(): void {
-		this.textHintContentWidget?.dispose();
+	private _shouldRenderHint() {
 		const configValue = this.configurationService.getValue(emptyTextEditorHintSetting);
+		if (configValue === 'hidden') {
+			return false;
+		}
+
+		if (this.editor.getOption(EditorOption.readOnly)) {
+			return false;
+		}
+
+		const hasGhostText = this.editor.getLineDecorations(0)?.find((d) => d.options.description === GHOST_TEXT_DESCRIPTION);
+		if (hasGhostText) {
+			return false;
+		}
+
 		const model = this.editor.getModel();
+		const languageId = model?.getLanguageId();
+		if (languageId === OUTPUT_MODE_ID || languageId === LOG_MODE_ID || languageId === SEARCH_RESULT_LANGUAGE_ID) {
+			return false;
+		}
+
+		const isNotebookCell = model?.uri.scheme === Schemas.vscodeNotebookCell;
+		if (isNotebookCell) {
+			return false;
+		}
 
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
-		const languageId = model?.getLanguageId();
-		const shouldRenderInlineChatHint = !this.editor.getOption(EditorOption.readOnly) && languageId !== OUTPUT_MODE_ID && languageId !== LOG_MODE_ID && inlineChatProviders.length > 0;
-		const shouldRenderDefaultHint = languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		return inlineChatProviders.length > 0 || shouldRenderDefaultHint;
+	}
 
-		if (model && (model.uri.scheme === Schemas.untitled && shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue !== 'hidden') {
+	private update(): void {
+		this.textHintContentWidget?.dispose();
+
+		if (this._shouldRenderHint()) {
 			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
 				this.editorGroupsService,

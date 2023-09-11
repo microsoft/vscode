@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
@@ -12,17 +11,23 @@ import { expandCellRangesWithHiddenCells, INotebookEditor } from 'vs/workbench/c
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('ListViewInfoAccessor', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(() => {
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 	});
 
-	suiteTeardown(() => disposables.dispose());
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	test('basics', async function () {
 		await withTestNotebook(
@@ -34,12 +39,12 @@ suite('ListViewInfoAccessor', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+				const foldingModel = disposables.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
-				const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
+				const listViewInfoAccessor = disposables.add(new ListViewInfoAccessor(cellList));
 
 				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(0)!), 0);
 				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(1)!), 1);
@@ -74,6 +79,6 @@ suite('ListViewInfoAccessor', () => {
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }]), [{ start: 0, end: 2 }]);
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 2, end: 3 }]), [{ start: 2, end: 5 }]);
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 5 }]);
-			});
+			}, disposables);
 	});
 });

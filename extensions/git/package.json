@@ -2465,7 +2465,7 @@
             "null"
           ],
           "default": 50,
-          "description": "%config.inputValidationSubjectLength%"
+          "markdownDescription": "%config.inputValidationSubjectLength%"
         },
         "git.detectSubmodules": {
           "type": "boolean",
@@ -2659,7 +2659,7 @@
           "description": "%config.useIntegratedAskPass%"
         },
         "git.githubAuthentication": {
-          "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+          "markdownDeprecationMessage": "This setting is now deprecated, please use `#github.gitAuthentication#` instead."
         },
         "git.timeline.date": {
           "type": "string",
