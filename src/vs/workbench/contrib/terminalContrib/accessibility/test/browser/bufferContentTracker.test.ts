@@ -64,7 +64,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(ILoggerService, store.add(new TestLoggerService()));
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		capabilities = store.add(new TerminalCapabilityStore());
 		if (!isWindows) {
@@ -75,7 +75,7 @@ suite('Buffer Content Tracker', () => {
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
-		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
+		bufferTracker = store.add(instantiationService.createInstance(BufferContentTracker, xterm));
 	});
 
 	test('should not clear the prompt line', async () => {

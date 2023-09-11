@@ -25,6 +25,7 @@ export class ToggleCollapseUnchangedRegions extends Action2 {
 			title: { value: localize('toggleCollapseUnchangedRegions', "Toggle Collapse Unchanged Regions"), original: 'Toggle Collapse Unchanged Regions' },
 			icon: Codicon.map,
 			toggled: ContextKeyExpr.has('config.diffEditor.hideUnchangedRegions.enabled'),
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			menu: {
 				id: MenuId.EditorTitle,
 				order: 22,
@@ -47,6 +48,7 @@ export class ToggleShowMovedCodeBlocks extends Action2 {
 		super({
 			id: 'diffEditor.toggleShowMovedCodeBlocks',
 			title: { value: localize('toggleShowMovedCodeBlocks', "Toggle Show Moved Code Blocks"), original: 'Toggle Show Moved Code Blocks' },
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
 		});
 	}
 
@@ -64,6 +66,7 @@ export class ToggleUseInlineViewWhenSpaceIsLimited extends Action2 {
 		super({
 			id: 'diffEditor.toggleUseInlineViewWhenSpaceIsLimited',
 			title: { value: localize('toggleUseInlineViewWhenSpaceIsLimited', "Toggle Use Inline View When Space Is Limited"), original: 'Toggle Use Inline View When Space Is Limited' },
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
 		});
 	}
 
@@ -84,7 +87,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: 11,
 	group: '1_diff',
-	when: EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached,
+	when: ContextKeyExpr.and(
+		EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached,
+		ContextKeyExpr.has('isInDiffEditor'),
+	),
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -96,6 +102,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: 10,
 	group: '1_diff',
+	when: ContextKeyExpr.has('isInDiffEditor'),
 });
 
 const diffEditorCategory: ILocalizedString = {

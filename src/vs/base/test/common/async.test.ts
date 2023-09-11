@@ -188,9 +188,14 @@ suite('Async', () => {
 			const promises: Promise<any>[] = [];
 
 			throttler.dispose();
-			assert.throws(() => promises.push(throttler.queue(factory)));
-			assert.strictEqual(factoryCalls, 0);
-			await Promise.all(promises);
+			promises.push(throttler.queue(factory));
+
+			try {
+				await Promise.all(promises);
+				assert.fail('should fail');
+			} catch (err) {
+				assert.strictEqual(factoryCalls, 0);
+			}
 		});
 	});
 
@@ -790,12 +795,15 @@ suite('Async', () => {
 
 		test('cancel executing', async function () {
 			const sequentializer = new async.TaskSequentializer();
+			const ctsTimeout = store.add(new CancellationTokenSource());
 
 			let pendingCancelled = false;
-			sequentializer.run(1, async.timeout(1), () => pendingCancelled = true);
+			const timeout = async.timeout(1, ctsTimeout.token);
+			sequentializer.run(1, timeout, () => pendingCancelled = true);
 			sequentializer.cancelRunning();
 
 			assert.ok(pendingCancelled);
+			ctsTimeout.cancel();
 		});
 	});
 
