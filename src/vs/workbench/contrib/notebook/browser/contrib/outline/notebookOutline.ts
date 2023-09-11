@@ -35,6 +35,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 
 class NotebookOutlineTemplate {
@@ -352,7 +353,7 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 	async createOutline(editor: NotebookEditor, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 
-		const showAllSymbols = this._configurationService.getValue<boolean>('notebook.experimental.gotoSymbols.showAllSymbols');
+		const showAllSymbols = this._configurationService.getValue<boolean>('notebook.gotoSymbols.showAllSymbols');
 		if (target === OutlineTarget.QuickPick && showAllSymbols) {
 			await outline.setFullSymbols(cancelToken);
 		}
@@ -377,6 +378,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled notebook breadcrumbs contain code cells.")
+		},
+		'notebook.gotoSymbols.showAllSymbols': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled goto symbol quickpick will display full code symbols from the notebook, as well as markdown headers.")
 		},
 	}
 });
