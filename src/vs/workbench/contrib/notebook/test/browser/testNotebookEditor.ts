@@ -173,7 +173,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	}
 }
 
-export function setupInstantiationService(disposables: Pick<DisposableStore, 'add'> = new DisposableStore()) {
+export function setupInstantiationService(disposables: DisposableStore) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
@@ -391,12 +391,12 @@ interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegat
 	visibleRanges: ICellRange[];
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, disposables: DisposableStore = new DisposableStore(), accessor?: TestInstantiationService): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService, disposables: DisposableStore) => Promise<R> | R, disposables: DisposableStore = new DisposableStore(), accessor?: TestInstantiationService): Promise<R> {
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, disposables, cells);
 
 	return runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
+		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService, disposables);
 		if (res instanceof Promise) {
 			res.finally(() => {
 				notebookEditor.editor.dispose();
