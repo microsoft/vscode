@@ -37,7 +37,6 @@ export class MergeEditorModel extends EditorModel {
 		const input2Diffs = this.input2TextModelDiffs.diffs.read(reader);
 		return ModifiedBaseRange.fromDiffs(input1Diffs, input2Diffs, this.base, this.input1.textModel, this.input2.textModel);
 	});
-
 	private readonly modifiedBaseRangeResultStates = derived(this, reader => {
 		const map = new Map<ModifiedBaseRange, ModifiedBaseRangeData>(
 			this.modifiedBaseRanges.read(reader).map<[ModifiedBaseRange, ModifiedBaseRangeData]>((s) => [
@@ -97,7 +96,7 @@ export class MergeEditorModel extends EditorModel {
 						transaction(tx => {
 							/** @description Merge Editor Model: Recompute State */
 
-							this.updateBaseRangeAcceptedState(resultDiffs, states, tx);
+							this.computeBaseRangeAcceptedState(resultDiffs, states, tx);
 
 							if (shouldRecomputeHandledFromAccepted) {
 								shouldRecomputeHandledFromAccepted = false;
@@ -125,25 +124,16 @@ export class MergeEditorModel extends EditorModel {
 		await waitForState(this.inputDiffComputingState, state => state === MergeEditorModelState.upToDate);
 		const states = this.modifiedBaseRangeResultStates.get();
 
+		const result = this.computeAutoMergedResult();
+
+		// TODO update result diffs
+
 		transaction(tx => {
 			/** @description Set initial state */
 
-			for (const [range, state] of states) {
-				let newState: ModifiedBaseRangeState;
-				let handled = false;
-				if (range.input1Diffs.length === 0) {
-					newState = ModifiedBaseRangeState.base.withInputValue(2, true);
-					handled = true;
-				} else if (range.input2Diffs.length === 0) {
-					newState = ModifiedBaseRangeState.base.withInputValue(1, true);
-					handled = true;
-				} else if (range.isEqualChange) {
-					newState = ModifiedBaseRangeState.base.withInputValue(1, true);
-					handled = true;
-				} else {
-					newState = ModifiedBaseRangeState.base;
-					handled = false;
-				}
+			for (const [range, newState] of result.states) {
+				const state = states.get(range)!;
+				const handled = newState.kind === ModifiedBaseRangeStateKind.base;
 
 				state.accepted.set(newState, tx);
 				state.computedFromDiffing = false;
@@ -154,12 +144,12 @@ export class MergeEditorModel extends EditorModel {
 
 			this.resultTextModel.pushEditOperations(null, [{
 				range: new Range(1, 1, Number.MAX_SAFE_INTEGER, 1),
-				text: this.computeAutoMergedResult()
+				text: result.text,
 			}], () => null);
 		});
 	}
 
-	private computeAutoMergedResult(): string {
+	private computeAutoMergedResult(): { text: string; states: Map<ModifiedBaseRange, ModifiedBaseRangeState>; diff: DetailedLineRangeMapping[] } {
 		const baseRanges = this.modifiedBaseRanges.get();
 
 		const baseLines = this.base.getLinesContent();
@@ -167,32 +157,50 @@ export class MergeEditorModel extends EditorModel {
 		const input2Lines = this.input2.textModel.getLinesContent();
 
 		const resultLines: string[] = [];
-		function appendLinesToResult(source: string[], lineRange: LineRange) {
+		function appendLinesToResult(source: string[], lineRange: LineRange): LineRange {
+			const startLineNumber = resultLines.length + 1;
 			for (let i = lineRange.startLineNumber; i < lineRange.endLineNumberExclusive; i++) {
 				resultLines.push(source[i - 1]);
 			}
+			return new LineRange(startLineNumber, resultLines.length);
 		}
 
 		let baseStartLineNumber = 1;
+		const diff: DetailedLineRangeMapping[] = [];
+		const states = new Map<ModifiedBaseRange, ModifiedBaseRangeState>();
 
 		for (const baseRange of baseRanges) {
 			appendLinesToResult(baseLines, LineRange.fromLineNumbers(baseStartLineNumber, baseRange.baseRange.startLineNumber));
 			baseStartLineNumber = baseRange.baseRange.endLineNumberExclusive;
 
+			let newState: ModifiedBaseRangeState;
+			let resultRange: LineRange;
 			if (baseRange.input1Diffs.length === 0) {
-				appendLinesToResult(input2Lines, baseRange.input2Range);
+				resultRange = appendLinesToResult(input2Lines, baseRange.input2Range);
+				newState = ModifiedBaseRangeState.base.withInputValue(2, true);
 			} else if (baseRange.input2Diffs.length === 0) {
-				appendLinesToResult(input1Lines, baseRange.input1Range);
+				resultRange = appendLinesToResult(input1Lines, baseRange.input1Range);
+				newState = ModifiedBaseRangeState.base.withInputValue(1, true);
 			} else if (baseRange.isEqualChange) {
-				appendLinesToResult(input1Lines, baseRange.input1Range);
+				resultRange = appendLinesToResult(input1Lines, baseRange.input1Range);
+				newState = ModifiedBaseRangeState.base.withInputValue(1, true);
 			} else {
-				appendLinesToResult(baseLines, baseRange.baseRange);
+				resultRange = appendLinesToResult(baseLines, baseRange.baseRange);
+				newState = ModifiedBaseRangeState.base;
 			}
+			diff.push(new DetailedLineRangeMapping(baseRange.baseRange, this.base, resultRange, this.resultTextModel));
+			states.set(baseRange, newState);
 		}
 
 		appendLinesToResult(baseLines, LineRange.fromLineNumbers(baseStartLineNumber, baseLines.length + 1));
 
-		return resultLines.join(this.resultTextModel.getEOL());
+		const text = resultLines.join(this.resultTextModel.getEOL());
+
+		return {
+			text,
+			states,
+			diff,
+		};
 	}
 
 	public hasBaseRange(baseRange: ModifiedBaseRange): boolean {
@@ -325,7 +333,7 @@ export class MergeEditorModel extends EditorModel {
 	public readonly onInitialized = waitForState(this.diffComputingState, state => state === MergeEditorModelState.upToDate).then(() => { });
 
 	private firstRun = true;
-	private updateBaseRangeAcceptedState(resultDiffs: DetailedLineRangeMapping[], states: Map<ModifiedBaseRange, ModifiedBaseRangeData>, tx: ITransaction): void {
+	private computeBaseRangeAcceptedState(resultDiffs: DetailedLineRangeMapping[], states: Map<ModifiedBaseRange, ModifiedBaseRangeData>, tx: ITransaction): void {
 		const baseRangeWithStoreAndTouchingDiffs = leftJoin(
 			states,
 			resultDiffs,
@@ -459,19 +467,6 @@ export class MergeEditorModel extends EditorModel {
 		existingState.handledInput2.set(true, tx);
 	}
 
-	public resetDirtyConflictsToBase(): void {
-		transaction(tx => {
-			/** @description Reset Unknown Base Range States */
-			this.resultTextModel.pushStackElement();
-			for (const range of this.modifiedBaseRanges.get()) {
-				if (this.getState(range).get().kind === ModifiedBaseRangeStateKind.unrecognized) {
-					this.setState(range, ModifiedBaseRangeState.base, false, tx, false);
-				}
-			}
-			this.resultTextModel.pushStackElement();
-		});
-	}
-
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {
 		return this.modifiedBaseRangeResultStates.get().get(baseRange)!.handled;
 	}
@@ -551,7 +546,7 @@ export class MergeEditorModel extends EditorModel {
 		return unhandledCount;
 	});
 
-	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(value => /** @description hasUnhandledConflicts */ value > 0);
+	public readonly hasUnhandledConflicts = this.unhandledConflictsCount.map(this, value => value > 0);
 
 	public setLanguageId(languageId: string, source?: string): void {
 		const language = this.languageService.createById(languageId);
@@ -573,52 +568,7 @@ export class MergeEditorModel extends EditorModel {
 		return chunks.join();
 	}
 
-	public async getResultValueWithConflictMarkers(): Promise<string> {
-		await waitForState(this.diffComputingState, state => state === MergeEditorModelState.upToDate);
-
-		if (this.unhandledConflictsCount.get() === 0) {
-			return this.resultTextModel.getValue();
-		}
-
-		const resultLines = this.resultTextModel.getLinesContent();
-		const input1Lines = this.input1.textModel.getLinesContent();
-		const input2Lines = this.input2.textModel.getLinesContent();
-
-		const states = this.modifiedBaseRangeResultStates.get();
-
-		const outputLines: string[] = [];
-		function appendLinesToResult(source: string[], lineRange: LineRange) {
-			for (let i = lineRange.startLineNumber; i < lineRange.endLineNumberExclusive; i++) {
-				outputLines.push(source[i - 1]);
-			}
-		}
-
-		let resultStartLineNumber = 1;
-
-		for (const [range, state] of states) {
-			if (state.handled.get()) {
-				continue;
-			}
-			const resultRange = this.resultTextModelDiffs.getResultLineRange(range.baseRange);
-
-			appendLinesToResult(resultLines, LineRange.fromLineNumbers(resultStartLineNumber, Math.max(resultStartLineNumber, resultRange.startLineNumber)));
-			resultStartLineNumber = resultRange.endLineNumberExclusive;
-
-			outputLines.push('<<<<<<<');
-			if (state.accepted.get().kind === ModifiedBaseRangeStateKind.unrecognized) {
-				// to prevent loss of data, use modified result as "ours"
-				appendLinesToResult(resultLines, resultRange);
-			} else {
-				appendLinesToResult(input1Lines, range.input1Range);
-			}
-			outputLines.push('=======');
-			appendLinesToResult(input2Lines, range.input2Range);
-			outputLines.push('>>>>>>>');
-		}
-
-		appendLinesToResult(resultLines, LineRange.fromLineNumbers(resultStartLineNumber, resultLines.length + 1));
-		return outputLines.join('\n');
-	}
+	// #region telemetry
 
 	public get conflictCount(): number {
 		return arrayCount(this.modifiedBaseRanges.get(), r => r.isConflicting);
@@ -742,6 +692,8 @@ export class MergeEditorModel extends EditorModel {
 			}
 		);
 	}
+
+	// #endregion
 }
 
 function arrayCount<T>(array: Iterable<T>, predicate: (value: T) => boolean): number {
@@ -757,14 +709,19 @@ function arrayCount<T>(array: Iterable<T>, predicate: (value: T) => boolean): nu
 class ModifiedBaseRangeData {
 	constructor(private readonly baseRange: ModifiedBaseRange) { }
 
-	public accepted: ISettableObservable<ModifiedBaseRangeState> = observableValue(`BaseRangeState${this.baseRange.baseRange}`, ModifiedBaseRangeState.base);
-	public handledInput1: ISettableObservable<boolean> = observableValue(`BaseRangeHandledState${this.baseRange.baseRange}.Input1`, false);
-	public handledInput2: ISettableObservable<boolean> = observableValue(`BaseRangeHandledState${this.baseRange.baseRange}.Input2`, false);
+	public readonly accepted: ISettableObservable<ModifiedBaseRangeState> = observableValue(`BaseRangeState${this.baseRange.baseRange}`, ModifiedBaseRangeState.base);
+	public readonly handledInput1: ISettableObservable<boolean> = observableValue(`BaseRangeHandledState${this.baseRange.baseRange}.Input1`, false);
+	public readonly handledInput2: ISettableObservable<boolean> = observableValue(`BaseRangeHandledState${this.baseRange.baseRange}.Input2`, false);
 
+	/** Was this state set by manual user edits? */
 	public computedFromDiffing = false;
 	public previousNonDiffingState: ModifiedBaseRangeState | undefined = undefined;
 
 	public readonly handled = derived(this, reader => this.handledInput1.read(reader) && this.handledInput2.read(reader));
+
+	toString() {
+		return `${ModifiedBaseRangeData}:${this.baseRange.baseRange}`;
+	}
 }
 
 export const enum MergeEditorModelState {
