@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { IntervalTimer, isSupportedEnvironment } from './utils';
+import { isSupportedEnvironment } from './common/uri';
+import { IntervalTimer, SequencerByKey } from './common/async';
 import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
 import { LoopbackAuthServer } from './node/authServer';
@@ -86,9 +87,9 @@ export class AzureActiveDirectoryService {
 	// For details on why this is set to 2/3... see https://github.com/microsoft/vscode/issues/133201#issuecomment-966668197
 	private static REFRESH_TIMEOUT_MODIFIER = 1000 * 2 / 3;
 	private static POLLING_CONSTANT = 1000 * 60 * 30;
+
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
-	private _refreshingPromise: Promise<any> | undefined;
 	private _sessionChangeEmitter: vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
 	// Used to keep track of current requests when not using the local server approach.
@@ -98,6 +99,9 @@ export class AzureActiveDirectoryService {
 
 	// Used to keep track of tokens that we need to store but can't because we aren't the focused window.
 	private _pendingTokensToStore: Map<string, IToken> = new Map<string, IToken>();
+
+	// Used to sequence requests to the same scope.
+	private _sequencer = new SequencerByKey<string>();
 
 	constructor(
 		private readonly _logger: vscode.LogOutputChannel,
@@ -199,12 +203,12 @@ export class AzureActiveDirectoryService {
 		return this._sessionChangeEmitter.event;
 	}
 
-	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+	public getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
 		if (!scopes) {
 			this._logger.info('Getting sessions for all scopes...');
 			const sessions = this._tokens.map(token => this.convertToSessionSync(token));
 			this._logger.info(`Got ${sessions.length} sessions for all scopes...`);
-			return sessions;
+			return Promise.resolve(sessions);
 		}
 
 		let modifiedScopes = [...scopes];
@@ -222,33 +226,7 @@ export class AzureActiveDirectoryService {
 		}
 		modifiedScopes = modifiedScopes.sort();
 
-		let modifiedScopesStr = modifiedScopes.join(' ');
-		this._logger.info(`[${modifiedScopesStr}] Getting sessions`);
-
-		if (this._refreshingPromise) {
-			this._logger.trace('Refreshing in progress. Waiting for completion before continuing.');
-			try {
-				await this._refreshingPromise;
-			} catch (e) {
-				// this will get logged in the refresh function.
-			}
-		}
-
-		let matchingTokens = this._tokens.filter(token => token.scope === modifiedScopesStr);
-
-		// The user may still have a token that doesn't have the openid & email scopes so check for that as well.
-		// Eventually, we should remove this and force the user to re-log in so that we don't have any sessions
-		// without an idtoken.
-		if (!matchingTokens.length) {
-			const fallbackOrderedScopes = scopes.sort().join(' ');
-			this._logger.trace(`[${modifiedScopesStr}] No session found with idtoken scopes... Using fallback scope list of: ${fallbackOrderedScopes}`);
-			matchingTokens = this._tokens.filter(token => token.scope === fallbackOrderedScopes);
-			if (matchingTokens.length) {
-				this._logger.trace(`[${modifiedScopesStr}] Found ${matchingTokens.length} sessions with fallback scope list of: ${fallbackOrderedScopes}`);
-				modifiedScopesStr = fallbackOrderedScopes;
-			}
-		}
-
+		const modifiedScopesStr = modifiedScopes.join(' ');
 		const clientId = this.getClientId(scopes);
 		const scopeData: IScopeData = {
 			clientId,
@@ -260,35 +238,43 @@ export class AzureActiveDirectoryService {
 			tenant: this.getTenantId(scopes),
 		};
 
+		this._logger.trace(`[${scopeData.scopeStr}] Queued getting sessions`);
+		return this._sequencer.queue(modifiedScopesStr, () => this.doGetSessions(scopeData));
+	}
+
+	private async doGetSessions(scopeData: IScopeData): Promise<vscode.AuthenticationSession[]> {
+		this._logger.info(`[${scopeData.scopeStr}] Getting sessions`);
+
+		const matchingTokens = this._tokens.filter(token => token.scope === scopeData.scopeStr);
 		// If we still don't have a matching token try to get a new token from an existing token by using
 		// the refreshToken. This is documented here:
 		// https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#refresh-the-access-token
 		// "Refresh tokens are valid for all permissions that your client has already received consent for."
 		if (!matchingTokens.length) {
 			// Get a token with the correct client id.
-			const token = clientId === DEFAULT_CLIENT_ID
+			const token = scopeData.clientId === DEFAULT_CLIENT_ID
 				? this._tokens.find(t => t.refreshToken && !t.scope.includes('VSCODE_CLIENT_ID'))
-				: this._tokens.find(t => t.refreshToken && t.scope.includes(`VSCODE_CLIENT_ID:${clientId}`));
+				: this._tokens.find(t => t.refreshToken && t.scope.includes(`VSCODE_CLIENT_ID:${scopeData.clientId}`));
 
 			if (token) {
-				this._logger.trace(`[${modifiedScopesStr}] '${token.sessionId}' Found a matching token with a different scopes '${token.scope}'. Attempting to get a new session using the existing session.`);
+				this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Found a matching token with a different scopes '${token.scope}'. Attempting to get a new session using the existing session.`);
 				try {
-					const itoken = await this.refreshToken(token.refreshToken, scopeData);
+					const itoken = await this.doRefreshToken(token.refreshToken, scopeData);
 					matchingTokens.push(itoken);
 				} catch (err) {
-					this._logger.error(`[${modifiedScopesStr}] Attempted to get a new session using the existing session with scopes '${token.scope}' but it failed due to: ${err.message ?? err}`);
+					this._logger.error(`[${scopeData.scopeStr}] Attempted to get a new session using the existing session with scopes '${token.scope}' but it failed due to: ${err.message ?? err}`);
 				}
 			}
 		}
 
-		this._logger.info(`[${modifiedScopesStr}] Got ${matchingTokens.length} sessions`);
+		this._logger.info(`[${scopeData.scopeStr}] Got ${matchingTokens.length} sessions`);
 		const results = await Promise.allSettled(matchingTokens.map(token => this.convertToSession(token, scopeData)));
 		return results
 			.filter(result => result.status === 'fulfilled')
 			.map(result => (result as PromiseFulfilledResult<vscode.AuthenticationSession>).value);
 	}
 
-	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+	public createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		let modifiedScopes = [...scopes];
 		if (!modifiedScopes.includes('openid')) {
 			modifiedScopes.push('openid');
@@ -313,6 +299,11 @@ export class AzureActiveDirectoryService {
 			tenant: this.getTenantId(scopes),
 		};
 
+		this._logger.trace(`[${scopeData.scopeStr}] Queued creating session`);
+		return this._sequencer.queue(scopeData.scopeStr, () => this.doCreateSession(scopeData));
+	}
+
+	private async doCreateSession(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		this._logger.info(`[${scopeData.scopeStr}] Creating session`);
 
 		const runsRemote = vscode.env.remoteName !== undefined;
@@ -446,8 +437,8 @@ export class AzureActiveDirectoryService {
 		}
 
 		const token = this._tokens.splice(tokenIndex, 1)[0];
-		const session = await this.removeSessionByIToken(token, writeToDisk);
-		return session;
+		this._logger.trace(`[${token.scope}] '${sessionId}' Queued removing session`);
+		return this._sequencer.queue(token.scope, () => this.removeSessionByIToken(token, writeToDisk));
 	}
 
 	public async clearSessions() {
@@ -608,14 +599,9 @@ export class AzureActiveDirectoryService {
 
 	//#region refresh logic
 
-	private async refreshToken(refreshToken: string, scopeData: IScopeData, sessionId?: string): Promise<IToken> {
-		this._refreshingPromise = this.doRefreshToken(refreshToken, scopeData, sessionId);
-		try {
-			const result = await this._refreshingPromise;
-			return result;
-		} finally {
-			this._refreshingPromise = undefined;
-		}
+	private refreshToken(refreshToken: string, scopeData: IScopeData, sessionId?: string): Promise<IToken> {
+		this._logger.trace(`[${scopeData.scopeStr}] '${sessionId ?? 'new'}' Queued refreshing token`);
+		return this._sequencer.queue(scopeData.scopeStr, () => this.doRefreshToken(refreshToken, scopeData, sessionId));
 	}
 
 	private async doRefreshToken(refreshToken: string, scopeData: IScopeData, sessionId?: string): Promise<IToken> {

@@ -11,7 +11,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, IDomNodePagePosition } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -19,7 +19,6 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
 import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
@@ -29,12 +28,10 @@ import { MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
-import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -55,6 +52,7 @@ import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUti
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { EditorGroupWatermark } from 'vs/workbench/browser/parts/editor/editorGroupWatermark';
+import { EditorTitleControl } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -118,7 +116,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly scopedInstantiationService: IInstantiationService;
 
 	private readonly titleContainer: HTMLElement;
-	private titleAreaControl: TitleControl;
+	private readonly titleControl: EditorTitleControl;
 
 	private readonly progressBar: ProgressBar;
 
@@ -200,7 +198,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleAreaControl = this.createTitleAreaControl();
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.accessor, this));
 
 			// Editor container
 			this.editorContainer = document.createElement('div');
@@ -458,24 +456,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleContainer.classList.toggle('show-file-icons', this.accessor.partOptions.showIcons);
 	}
 
-	private createTitleAreaControl(): TitleControl {
-
-		// Clear old if existing
-		if (this.titleAreaControl) {
-			this.titleAreaControl.dispose();
-			clearNode(this.titleContainer);
-		}
-
-		// Create new based on options
-		if (this.accessor.partOptions.showTabs) {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(TabsTitleControl, this.titleContainer, this.accessor, this);
-		} else {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(NoTabsTitleControl, this.titleContainer, this.accessor, this);
-		}
-
-		return this.titleAreaControl;
-	}
-
 	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroupModel | null): Promise<void> | undefined {
 		if (this.count === 0) {
 			return; // nothing to show
@@ -702,24 +682,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title container
 		this.updateTitleContainer();
 
+		// Title control
+		this.titleControl.updateOptions(event.oldPartOptions, event.newPartOptions);
+
 		// Title control Switch between showing tabs <=> not showing tabs
 		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
-
-			// Recreate title control
-			this.createTitleAreaControl();
 
 			// Re-layout
 			this.relayout();
 
 			// Ensure to show active editor if any
 			if (this.model.activeEditor) {
-				this.titleAreaControl.openEditor(this.model.activeEditor);
+				this.titleControl.openEditor(this.model.activeEditor);
 			}
-		}
-
-		// Just update title control
-		else {
-			this.titleAreaControl.updateOptions(event.oldPartOptions, event.newPartOptions);
 		}
 
 		// Styles
@@ -739,13 +714,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.pinEditor(editor);
 
 		// Forward to title control
-		this.titleAreaControl.updateEditorDirty(editor);
+		this.titleControl.updateEditorDirty(editor);
 	}
 
 	private onDidChangeEditorLabel(editor: EditorInput): void {
 
 		// Forward to title control
-		this.titleAreaControl.updateEditorLabel(editor);
+		this.titleControl.updateEditorLabel(editor);
 	}
 
 	private onDidVisibilityChange(visible: boolean): void {
@@ -780,7 +755,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get titleHeight(): IEditorGroupTitleHeight {
-		return this.titleAreaControl.getHeight();
+		return this.titleControl.getHeight();
 	}
 
 	notifyIndexChanged(newIndex: number): void {
@@ -798,7 +773,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('inactive', !isActive);
 
 		// Update title control
-		this.titleAreaControl.setActive(isActive);
+		this.titleControl.setActive(isActive);
 
 		// Update styles
 		this.updateStyles();
@@ -925,7 +900,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Forward to title control
 			if (editor) {
-				this.titleAreaControl.pinEditor(editor);
+				this.titleControl.pinEditor(editor);
 			}
 		}
 	}
@@ -952,14 +927,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// title control and also make sure to emit this as an event
 			const newIndexOfEditor = this.getIndexOfEditor(editor);
 			if (newIndexOfEditor !== oldIndexOfEditor) {
-				this.titleAreaControl.moveEditor(editor, oldIndexOfEditor, newIndexOfEditor);
+				this.titleControl.moveEditor(editor, oldIndexOfEditor, newIndexOfEditor);
 			}
 
 			// Forward sticky state to title control
 			if (sticky) {
-				this.titleAreaControl.stickEditor(editor);
+				this.titleControl.stickEditor(editor);
 			} else {
-				this.titleAreaControl.unstickEditor(editor);
+				this.titleControl.unstickEditor(editor);
 			}
 		}
 	}
@@ -1119,7 +1094,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show in title control after editor control because some actions depend on it
 		// but respect the internal options in case title control updates should skip.
 		if (!internalOptions?.skipTitleUpdate) {
-			this.titleAreaControl.openEditor(editor);
+			this.titleControl.openEditor(editor);
 		}
 
 		return openEditorPromise;
@@ -1169,7 +1144,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}));
 
 		// Update the title control all at once with all editors
-		this.titleAreaControl.openEditors(inactiveEditors.map(({ editor }) => editor));
+		this.titleControl.openEditors(inactiveEditors.map(({ editor }) => editor));
 
 		// Opening many editors at once can put any editor to be
 		// the active one depending on options. As such, we simply
@@ -1200,8 +1175,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// in source and target if the title update was skipped
 		if (internalOptions.skipTitleUpdate) {
 			const movedEditors = editors.map(({ editor }) => editor);
-			target.titleAreaControl.openEditors(movedEditors);
-			this.titleAreaControl.closeEditors(movedEditors);
+			target.titleControl.openEditors(movedEditors);
+			this.titleControl.closeEditors(movedEditors);
 		}
 	}
 
@@ -1241,9 +1216,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.model.moveEditor(editor, moveToIndex);
 		this.model.pin(editor);
 
-		// Forward to title area
-		this.titleAreaControl.moveEditor(editor, currentIndex, moveToIndex);
-		this.titleAreaControl.pinEditor(editor);
+		// Forward to title control
+		this.titleControl.moveEditor(editor, currentIndex, moveToIndex);
+		this.titleControl.pinEditor(editor);
 	}
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
@@ -1299,7 +1274,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// in target if the title update was skipped
 		if (internalOptions.skipTitleUpdate) {
 			const copiedEditors = editors.map(({ editor }) => editor);
-			target.titleAreaControl.openEditors(copiedEditors);
+			target.titleControl.openEditors(copiedEditors);
 		}
 	}
 
@@ -1346,7 +1321,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control unless skipped via internal options
 		if (!internalOptions?.skipTitleUpdate) {
-			this.titleAreaControl.beforeCloseEditor(editor);
+			this.titleControl.beforeCloseEditor(editor);
 		}
 
 		// Closing the active editor of the group is a bit more work
@@ -1361,7 +1336,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control unless skipped via internal options
 		if (!internalOptions?.skipTitleUpdate) {
-			this.titleAreaControl.closeEditor(editor);
+			this.titleControl.closeEditor(editor);
 		}
 	}
 
@@ -1711,7 +1686,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control
 		if (editors.length) {
-			this.titleAreaControl.closeEditors(editors);
+			this.titleControl.closeEditors(editors);
 		}
 	}
 
@@ -1763,7 +1738,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to title control
 		if (editorsToClose.length) {
-			this.titleAreaControl.closeEditors(editorsToClose);
+			this.titleControl.closeEditors(editorsToClose);
 		}
 	}
 
@@ -1922,16 +1897,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		// Layout the title area first to receive the size it occupies
-		const titleAreaSize = this.titleAreaControl.layout({
+		// Layout the title control first to receive the size it occupies
+		const titleControlSize = this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		});
 
 		// Pass the container width and remaining height to the editor layout
-		const editorHeight = Math.max(0, height - titleAreaSize.height);
+		const editorHeight = Math.max(0, height - titleControlSize.height);
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout({ width, height: editorHeight, top: top + titleAreaSize.height, left });
+		this.editorPane.layout({ width, height: editorHeight, top: top + titleControlSize.height, left });
 	}
 
 	relayout(): void {
@@ -1955,8 +1930,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._disposed = true;
 
 		this._onWillDispose.fire();
-
-		this.titleAreaControl.dispose();
 
 		super.dispose();
 	}
