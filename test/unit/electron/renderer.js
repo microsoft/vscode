@@ -197,7 +197,7 @@ function loadTests(opts) {
 
 	let _testsWithUnexpectedOutput = false;
 
-	for (const consoleFn of [console.log, console.error, console.info, console.warn]) {
+	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
 			if (!_allowedTestOutput.has(msg) && !_allowedTestsWithOutput.has(currentTestTitle) && !_allowedSuitesWithOutput.has(currentSuiteTitle)) {
 				_testsWithUnexpectedOutput = true;
@@ -214,9 +214,12 @@ function loadTests(opts) {
 	const _loaderErrors = [];
 
 	const _allowedTestsWithUnhandledRejections = new Set([
+		// Lifecycle tests
 		'onWillShutdown - join with error is handled',
 		'onBeforeShutdown - veto with error is treated as veto',
-		'onBeforeShutdown - final veto with error is treated as veto'
+		'onBeforeShutdown - final veto with error is treated as veto',
+		// Search tests
+		'Search Model: Search reports timed telemetry on search when error is called'
 	]);
 
 	loader.require.config({
