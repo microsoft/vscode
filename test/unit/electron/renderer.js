@@ -235,7 +235,7 @@ function loadTests(opts) {
 			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 		};
 
-		process.on('uncaughtException', error => errors.onUnexpectedError(error));
+		process.on('uncaughtException', error => onUnexpectedError(error));
 		process.on('unhandledRejection', (reason, promise) => {
 			onUnexpectedError(reason);
 			promise.catch(() => {});
