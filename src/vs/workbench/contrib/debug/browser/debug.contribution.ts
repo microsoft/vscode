@@ -451,9 +451,15 @@ configurationRegistry.registerConfiguration({
 			default: 'auto'
 		},
 		'debug.toolBarLocation': {
-			enum: ['floating', 'docked', 'hidden'],
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, or `hidden`."),
-			default: 'floating'
+			enum: ['floating', 'docked', 'commandCenter', 'hidden'],
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, `commandCenter` (requires `{0}`), or `hidden`.", '#window.commandCenter#', '#window.titleBarStyle#'),
+			default: 'floating',
+			enumDescriptions: [
+				nls.localize('debugToolBar.floating', "Show debug toolbar in all views."),
+				nls.localize('debugToolBar.docked', "Show debug toolbar only in debug views."),
+				nls.localize('debugToolBar.commandCenter', "Show debug toolbar in the command center."),
+				nls.localize('debugToolBar.hidden', "Do not show debug toolbar."),
+			]
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
