@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/titlecontrol';
+import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
@@ -11,10 +11,9 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,14 +24,11 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IFileService } from 'vs/platform/files/common/files';
 import { assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -41,24 +37,11 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 
 export interface IToolbarActions {
-	primary: IAction[];
-	secondary: IAction[];
-}
-
-export interface ITitleControlDimensions {
-
-	/**
-	 * The size of the parent container the title control is layed out in.
-	 */
-	container: Dimension;
-
-	/**
-	 * The maximum size the title control is allowed to consume based on
-	 * other controls that are positioned inside the container.
-	 */
-	available: Dimension;
+	readonly primary: IAction[];
+	readonly secondary: IAction[];
 }
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
@@ -87,18 +70,16 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 	}
 }
 
-export abstract class TitleControl extends Themable {
+export abstract class EditorTabsControl extends Themable {
 
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
-	private static readonly EDITOR_TITLE_HEIGHT = {
-		normal: 35,
-		compact: 22
+	private static readonly EDITOR_TAB_HEIGHT = {
+		normal: 35 as const,
+		compact: 22 as const
 	};
-
-	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
 
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
 
@@ -131,8 +112,6 @@ export abstract class TitleControl extends Themable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
 	) {
 		super(themeService);
@@ -156,40 +135,8 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected create(parent: HTMLElement): void {
-		this.updateTitleHeight();
+		this.updateTabHeight();
 	}
-
-	protected createBreadcrumbsControl(container: HTMLElement, options: IBreadcrumbsControlOptions): void {
-		const config = this._register(BreadcrumbsConfig.IsEnabled.bindTo(this.configurationService));
-		this._register(config.onDidChange(() => {
-			const value = config.getValue();
-			if (!value && this.breadcrumbsControl) {
-				this.breadcrumbsControl.dispose();
-				this.breadcrumbsControl = undefined;
-				this.handleBreadcrumbsEnablementChange();
-			} else if (value && !this.breadcrumbsControl) {
-				this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
-				this.breadcrumbsControl.update();
-				this.handleBreadcrumbsEnablementChange();
-			}
-		}));
-
-		if (config.getValue()) {
-			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
-		}
-
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (this.breadcrumbsControl?.model && this.breadcrumbsControl.model.resource.scheme !== e.scheme) {
-				// ignore if the scheme of the breadcrumbs resource is not affected
-				return;
-			}
-			if (this.breadcrumbsControl?.update()) {
-				this.handleBreadcrumbsEnablementChange();
-			}
-		}));
-	}
-
-	protected abstract handleBreadcrumbsEnablementChange(): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
@@ -429,25 +376,25 @@ export abstract class TitleControl extends Themable {
 		return keybinding ? keybinding.getLabel() ?? undefined : undefined;
 	}
 
-	protected get titleHeight() {
-		return this.accessor.partOptions.tabHeight !== 'compact' ? TitleControl.EDITOR_TITLE_HEIGHT.normal : TitleControl.EDITOR_TITLE_HEIGHT.compact;
+	protected get tabHeight() {
+		return this.accessor.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
 	}
 
-	protected updateTitleHeight(): void {
-		this.parent.style.setProperty('--editor-group-title-height', `${this.titleHeight}px`);
+	protected updateTabHeight(): void {
+		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 
-		// Update title height
+		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
-			this.updateTitleHeight();
+			this.updateTabHeight();
 		}
 	}
 
-	abstract openEditor(editor: EditorInput): void;
+	abstract openEditor(editor: EditorInput): boolean;
 
-	abstract openEditors(editors: EditorInput[]): void;
+	abstract openEditors(editors: EditorInput[]): boolean;
 
 	abstract beforeCloseEditor(editor: EditorInput): void;
 
@@ -469,14 +416,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateEditorDirty(editor: EditorInput): void;
 
-	abstract layout(dimensions: ITitleControlDimensions): Dimension;
+	abstract layout(dimensions: IEditorTitleControlDimensions): Dimension;
 
-	abstract getHeight(): IEditorGroupTitleHeight;
-
-	override dispose(): void {
-		dispose(this.breadcrumbsControl);
-		this.breadcrumbsControl = undefined;
-
-		super.dispose();
-	}
+	abstract getHeight(): number;
 }
