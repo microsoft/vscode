@@ -41,14 +41,15 @@
 		]
 	},
 	"scripts": {
-		"compile": "npm run build-notebook",
-		"watch": "node ./esbuild --watch",
+		"compile": "npx gulp compile-extension:notebook-renderers && npm run build-notebook",
+		"watch": "npx gulp compile-watch:notebook-renderers",
 		"build-notebook": "node ./esbuild"
 	},
-	"dependencies": {
-	},
+	"dependencies": {},
 	"devDependencies": {
-		"@types/vscode-notebook-renderer": "^1.60.0"
+		"@types/jsdom": "^21.1.0",
+		"@types/vscode-notebook-renderer": "^1.60.0",
+		"jsdom": "^21.1.1"
 	},
 	"repository": {
 		"type": "git",

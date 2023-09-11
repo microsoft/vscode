@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/languages';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -31,7 +31,7 @@ export interface IStatusbarService {
 	 * @param priority items get arranged from highest priority to lowest priority from left to right
 	 * in their respective alignment slot
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number | IStatusbarEntryPriority): IStatusbarEntryAccessor;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
@@ -112,6 +112,35 @@ export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEnt
 	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
 }
 
+export interface IStatusbarEntryPriority {
+
+	/**
+	 * The main priority of the entry that
+	 * defines the order of appearance:
+	 * either a number or a reference to
+	 * another status bar entry to position
+	 * relative to.
+	 *
+	 * May not be unique across all entries.
+	 */
+	readonly primary: number | IStatusbarEntryLocation;
+
+	/**
+	 * The secondary priority of the entry
+	 * is used in case the main priority
+	 * matches another one's priority.
+	 *
+	 * Should be unique across all entries.
+	 */
+	readonly secondary: number;
+}
+
+export function isStatusbarEntryPriority(thing: unknown): thing is IStatusbarEntryPriority {
+	const candidate = thing as IStatusbarEntryPriority | undefined;
+
+	return (typeof candidate?.primary === 'number' || isStatusbarEntryLocation(candidate?.primary)) && typeof candidate?.secondary === 'number';
+}
+
 export const ShowTooltipCommand: Command = {
 	id: 'statusBar.entry.showTooltip',
 	title: ''
@@ -123,6 +152,9 @@ export interface IStatusbarStyleOverride {
 	readonly background?: ColorIdentifier;
 	readonly border?: ColorIdentifier;
 }
+
+export type StatusbarEntryKind = 'standard' | 'warning' | 'error' | 'prominent' | 'remote' | 'offline';
+export const StatusbarEntryKinds: StatusbarEntryKind[] = ['standard', 'warning', 'error', 'prominent', 'remote', 'offline'];
 
 /**
  * A declarative way of describing a status bar entry
@@ -159,12 +191,16 @@ export interface IStatusbarEntry {
 	readonly tooltip?: string | IMarkdownString | HTMLElement;
 
 	/**
-	 * An optional color to use for the entry
+	 * An optional color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly color?: string | ThemeColor;
 
 	/**
-	 * An optional background color to use for the entry
+	 * An optional background color to use for the entry.
+	 *
+	 * @deprecated Use `kind` instead to support themable hover styles.
 	 */
 	readonly backgroundColor?: string | ThemeColor;
 
@@ -182,9 +218,15 @@ export interface IStatusbarEntry {
 	readonly showBeak?: boolean;
 
 	/**
-	 * Will enable a spinning icon in front of the text to indicate progress.
+	 * Will enable a spinning icon in front of the text to indicate progress. When `true` is
+	 * specified, `syncing` will be used.
 	 */
-	readonly showProgress?: boolean;
+	readonly showProgress?: boolean | 'syncing' | 'loading';
+
+	/**
+	 * The kind of status bar entry. This applies different colors to the entry.
+	 */
+	readonly kind?: StatusbarEntryKind;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

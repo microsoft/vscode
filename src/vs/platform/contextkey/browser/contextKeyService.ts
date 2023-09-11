@@ -5,16 +5,16 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledObject } from 'vs/base/common/marshalling';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { cloneAndChange, distinct } from 'vs/base/common/objects';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -115,7 +115,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener = this._configurationService.onDidChangeConfiguration(event => {
 			if (event.source === ConfigurationTarget.DEFAULT) {
 				// new setting, reset everything
-				const allKeys = Array.from(Iterable.map(this._values, ([k]) => k));
+				const allKeys = Array.from(this._values, ([k]) => k);
 				this._values.clear();
 				emitter.fire(new ArrayContextKeyChangeEvent(allKeys));
 			} else {
@@ -264,16 +264,17 @@ function allEventKeysInContext(event: IContextKeyChangeEvent, context: Record<st
 	return event.allKeysContainedIn(new Set(Object.keys(context)));
 }
 
-export abstract class AbstractContextKeyService implements IContextKeyService {
+export abstract class AbstractContextKeyService extends Disposable implements IContextKeyService {
 	declare _serviceBrand: undefined;
 
 	protected _isDisposed: boolean;
 	protected _myContextId: number;
 
-	protected _onDidChangeContext = new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) });
+	protected _onDidChangeContext = this._register(new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) }));
 	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	constructor(myContextId: number) {
+		super();
 		this._isDisposed = false;
 		this._myContextId = myContextId;
 	}
@@ -281,8 +282,6 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	public get contextId(): number {
 		return this._myContextId;
 	}
-
-	abstract dispose(): void;
 
 	public createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T> {
 		if (this._isDisposed) {
@@ -301,7 +300,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		}
 	}
 
-	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
+	public createScoped(domNode: IContextKeyServiceTarget): IScopedContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
@@ -367,6 +366,11 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	public abstract createChildContext(parentContextId?: number): number;
 	public abstract disposeContext(contextId: number): void;
 	public abstract updateParent(parentContextKeyService?: IContextKeyService): void;
+
+	public override dispose(): void {
+		super.dispose();
+		this._isDisposed = true;
+	}
 }
 
 export class ContextKeyService extends AbstractContextKeyService implements IContextKeyService {
@@ -374,16 +378,12 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 	private _lastContextId: number;
 	private readonly _contexts = new Map<number, Context>();
 
-	private readonly _toDispose = new DisposableStore();
-
 	constructor(@IConfigurationService configurationService: IConfigurationService) {
 		super(0);
 		this._lastContextId = 0;
 
-
-		const myContext = new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext);
+		const myContext = this._register(new ConfigAwareContextValuesContainer(this._myContextId, configurationService, this._onDidChangeContext));
 		this._contexts.set(this._myContextId, myContext);
-		this._toDispose.add(myContext);
 
 		// Uncomment this to see the contexts continuously logged
 		// let lastLoggedValue: string | null = null;
@@ -395,12 +395,6 @@ export class ContextKeyService extends AbstractContextKeyService implements ICon
 		// 		console.log(lastLoggedValue);
 		// 	}
 		// }, 2000);
-	}
-
-	public dispose(): void {
-		this._onDidChangeContext.dispose();
-		this._isDisposed = true;
-		this._toDispose.dispose();
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
@@ -435,7 +429,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget;
 
-	private readonly _parentChangeListener = new MutableDisposable();
+	private readonly _parentChangeListener = this._register(new MutableDisposable());
 
 	constructor(parent: AbstractContextKeyService, domNode: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
@@ -466,16 +460,14 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		});
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._isDisposed) {
 			return;
 		}
 
-		this._onDidChangeContext.dispose();
 		this._parent.disposeContext(this._myContextId);
-		this._parentChangeListener.dispose();
 		this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
-		this._isDisposed = true;
+		super.dispose();
 	}
 
 	public getContextValuesContainer(contextId: number): Context {
@@ -500,6 +492,10 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public updateParent(parentContextKeyService: AbstractContextKeyService): void {
+		if (this._parent === parentContextKeyService) {
+			return;
+		}
+
 		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
 		const oldAllValues = thisContainer.collectAllValues();
 		this._parent = parentContextKeyService;
@@ -571,7 +567,7 @@ class OverlayContextKeyService implements IContextKeyService {
 		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getContextKeyValue(key);
 	}
 
-	createScoped(): IContextKeyService {
+	createScoped(): IScopedContextKeyService {
 		throw new Error('Not supported.');
 	}
 
@@ -581,10 +577,6 @@ class OverlayContextKeyService implements IContextKeyService {
 
 	updateParent(): void {
 		throw new Error('Not supported.');
-	}
-
-	dispose(): void {
-		// noop
 	}
 }
 
@@ -603,7 +595,8 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 }
 
 export function setContext(accessor: ServicesAccessor, contextKey: any, contextValue: any) {
-	accessor.get(IContextKeyService).createKey(String(contextKey), stringifyURIs(contextValue));
+	const contextKeyService = accessor.get(IContextKeyService);
+	contextKeyService.createKey(String(contextKey), stringifyURIs(contextValue));
 }
 
 function stringifyURIs(contextValue: any): any {
@@ -618,7 +611,7 @@ function stringifyURIs(contextValue: any): any {
 	});
 }
 
-CommandsRegistry.registerCommand(SET_CONTEXT_COMMAND_ID, setContext);
+CommandsRegistry.registerCommand('_setContext', setContext);
 
 CommandsRegistry.registerCommand({
 	id: 'getContextKeyInfo',

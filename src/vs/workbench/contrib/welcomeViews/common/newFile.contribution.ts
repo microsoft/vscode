@@ -7,6 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -19,7 +20,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const builtInSource = localize('Built-In', "Built-In");
-const category = localize('Create', "Create");
+const category: ILocalizedString = { value: localize('Create', "Create"), original: 'Create' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -72,7 +73,7 @@ class NewFileTemplatesManager extends Disposable {
 		for (const [groupName, group] of this.menu.getActions({ renderShortTitle: true })) {
 			for (const action of group) {
 				if (action instanceof MenuItemAction) {
-					items.push({ commandID: action.item.id, from: action.item.source ?? builtInSource, title: action.label, group: groupName });
+					items.push({ commandID: action.item.id, from: action.item.source?.title ?? builtInSource, title: action.label, group: groupName });
 				}
 			}
 		}
@@ -101,7 +102,9 @@ class NewFileTemplatesManager extends Disposable {
 
 		const disposables = new DisposableStore();
 		const qp = this.quickInputService.createQuickPick();
-		qp.title = localize('createNew', "Create New...");
+		qp.title = localize('newFileTitle', "New File...");
+		qp.placeholder = localize('newFilePlaceholder', "Select File Type or Enter File Name...");
+		qp.sortByLabel = false;
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
 
@@ -168,9 +171,9 @@ class NewFileTemplatesManager extends Disposable {
 				return;
 			}
 			const currentTextEntry: NewFileItem = {
-				commandID: 'workbench.action.files.newUntitledFile',
-				commandArgs: { languageId: undefined, viewType: undefined, path: val },
-				title: localize('miNewFileWithName', "New File ({0})", val),
+				commandID: 'workbench.action.files.newFile',
+				commandArgs: { languageId: undefined, viewType: undefined, fileName: val },
+				title: localize('miNewFileWithName', "Create New File ({0})", val),
 				group: 'file',
 				from: builtInSource,
 			};

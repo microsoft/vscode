@@ -16,7 +16,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -80,6 +79,7 @@ export class MainThreadTextEditorProperties {
 		return {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
+			indentSize: modelOptions.indentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
@@ -109,7 +109,7 @@ export class MainThreadTextEditorProperties {
 		if (!oldProps || !MainThreadTextEditorProperties._selectionsEqual(oldProps.selections, this.selections)) {
 			delta.selections = {
 				selections: this.selections,
-				source: withNullAsUndefined(selectionChangeSource)
+				source: selectionChangeSource ?? undefined,
 			};
 		}
 
@@ -146,6 +146,7 @@ export class MainThreadTextEditorProperties {
 		}
 		return (
 			a.tabSize === b.tabSize
+			&& a.indentSize === b.indentSize
 			&& a.insertSpaces === b.insertSpaces
 			&& a.cursorStyle === b.cursorStyle
 			&& a.lineNumbers === b.lineNumbers
@@ -376,6 +377,9 @@ export class MainThreadTextEditor {
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;
 		}
+		if (typeof newConfiguration.indentSize !== 'undefined') {
+			newOpts.indentSize = newConfiguration.indentSize;
+		}
 		this._model.updateOptions(newOpts);
 	}
 
@@ -518,8 +522,7 @@ export class MainThreadTextEditor {
 		}
 
 		if (this._codeEditor.getModel().getVersionId() !== modelVersionId) {
-			// ignored because emmet tests fail...
-			// return false;
+			return false;
 		}
 
 		const snippetController = SnippetController2.get(this._codeEditor);

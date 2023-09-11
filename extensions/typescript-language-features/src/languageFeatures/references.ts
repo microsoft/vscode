@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DocumentSelector } from '../configuration/documentSelector';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 	public constructor(
@@ -19,7 +19,7 @@ class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 		options: vscode.ReferenceContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.Location[]> {
-		const filepath = this.client.toOpenedFilePath(document);
+		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return [];
 		}

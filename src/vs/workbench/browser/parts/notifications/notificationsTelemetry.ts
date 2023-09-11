@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService, NotificationMessage } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationMessage, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { hash } from 'vs/base/common/hash';
 
 export interface NotificationMetrics {
-	id: string;
-	silent: boolean;
-	source?: string;
+	readonly id: string;
+	readonly silent: boolean;
+	readonly source?: string;
 }
 
 export type NotificationMetricsClassification = {
@@ -44,12 +44,12 @@ export class NotificationsTelemetry extends Disposable implements IWorkbenchCont
 	private registerListeners(): void {
 		this._register(this.notificationService.onDidAddNotification(notification => {
 			const source = notification.source && typeof notification.source !== 'string' ? notification.source.id : notification.source;
-			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', notificationToMetrics(notification.message, source, !!notification.silent));
+			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', notificationToMetrics(notification.message, source, notification.priority === NotificationPriority.SILENT));
 		}));
 
 		this._register(this.notificationService.onDidRemoveNotification(notification => {
 			const source = notification.source && typeof notification.source !== 'string' ? notification.source.id : notification.source;
-			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', notificationToMetrics(notification.message, source, !!notification.silent));
+			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', notificationToMetrics(notification.message, source, notification.priority === NotificationPriority.SILENT));
 		}));
 	}
 }

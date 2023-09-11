@@ -11,7 +11,7 @@ import { getNonWhitespacePrefix } from './snippetsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorCommand, registerEditorCommand, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -132,6 +132,7 @@ export class TabCompletionController implements IEditorContribution {
 		} else {
 			this._hasSnippets.set(true);
 			this._completionProvider = {
+				_debugDisplayName: 'tabCompletion',
 				dispose: () => {
 					registration.dispose();
 				},
@@ -187,7 +188,7 @@ export class TabCompletionController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(TabCompletionController.ID, TabCompletionController);
+registerEditorContribution(TabCompletionController.ID, TabCompletionController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
 

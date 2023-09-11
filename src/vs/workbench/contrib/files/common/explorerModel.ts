@@ -20,6 +20,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { ExplorerFileNestingTrie } from 'vs/workbench/contrib/files/common/explorerFileNestingTrie';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class ExplorerModel implements IDisposable {
 
@@ -32,9 +34,10 @@ export class ExplorerModel implements IDisposable {
 		private readonly uriIdentityService: IUriIdentityService,
 		fileService: IFileService,
 		configService: IConfigurationService,
+		filesConfigService: IFilesConfigurationService,
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, configService, undefined, true, false, false, folder.name));
+			.map(folder => new ExplorerItem(folder.uri, fileService, configService, filesConfigService, undefined, true, false, false, false, folder.name));
 		setRoots();
 
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -83,8 +86,8 @@ export class ExplorerModel implements IDisposable {
 }
 
 export class ExplorerItem {
-	protected _isDirectoryResolved: boolean;
-	public isError = false;
+	_isDirectoryResolved: boolean; // used in tests
+	public error: Error | undefined = undefined;
 	private _isExcluded = false;
 
 	public nestedParent: ExplorerItem | undefined;
@@ -94,10 +97,12 @@ export class ExplorerItem {
 		public resource: URI,
 		private readonly fileService: IFileService,
 		private readonly configService: IConfigurationService,
+		private readonly filesConfigService: IFilesConfigurationService,
 		private _parent: ExplorerItem | undefined,
 		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
 		private _readonly?: boolean,
+		private _locked?: boolean,
 		private _name: string = basenameOrAuthority(resource),
 		private _mtime?: number,
 		private _unknown = false
@@ -144,8 +149,8 @@ export class ExplorerItem {
 		return !!this._isDirectory;
 	}
 
-	get isReadonly(): boolean {
-		return this._readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+	get isReadonly(): boolean | IMarkdownString {
+		return this.filesConfigService.isReadonly(this.resource, { resource: this.resource, name: this.name, readonly: this._readonly, locked: this._locked });
 	}
 
 	get mtime(): number | undefined {
@@ -195,8 +200,8 @@ export class ExplorerItem {
 		return this === this.root;
 	}
 
-	static create(fileService: IFileService, configService: IConfigurationService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, configService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
+	static create(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, fileService, configService, filesConfigService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.locked, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -211,7 +216,7 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(fileService, configService, raw.children[i], stat, resolveTo);
+					const child = ExplorerItem.create(fileService, configService, filesConfigService, raw.children[i], stat, resolveTo);
 					stat.addChild(child);
 				}
 			}
@@ -245,7 +250,7 @@ export class ExplorerItem {
 		local._mtime = disk.mtime;
 		local._isDirectoryResolved = disk._isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
-		local.isError = disk.isError;
+		local.error = disk.error;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk._isDirectoryResolved) {
@@ -310,13 +315,13 @@ export class ExplorerItem {
 				// Resolve metadata only when the mtime is needed since this can be expensive
 				// Mtime is only used when the sort order is 'modified'
 				const resolveMetadata = sortOrder === SortOrder.Modified;
-				this.isError = false;
+				this.error = undefined;
 				try {
 					const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-					const resolved = ExplorerItem.create(this.fileService, this.configService, stat, this);
+					const resolved = ExplorerItem.create(this.fileService, this.configService, this.filesConfigService, stat, this);
 					ExplorerItem.mergeLocalWithDisk(resolved, this);
 				} catch (e) {
-					this.isError = true;
+					this.error = e;
 					throw e;
 				}
 				this._isDirectoryResolved = true;
@@ -376,7 +381,8 @@ export class ExplorerItem {
 				.map(([parentPattern, childrenPatterns]) =>
 					[
 						this.getPlatformAwareName(parentPattern.trim()),
-						childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))
+						childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '').trim()))
+							.filter(p => p !== '')
 					] as [string, string[]]);
 
 			this.root._fileNester = new ExplorerFileNestingTrie(patterns);
@@ -490,8 +496,8 @@ export class ExplorerItem {
 }
 
 export class NewExplorerItem extends ExplorerItem {
-	constructor(fileService: IFileService, configService: IConfigurationService, parent: ExplorerItem, isDirectory: boolean) {
-		super(URI.file(''), fileService, configService, parent, isDirectory);
+	constructor(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, parent: ExplorerItem, isDirectory: boolean) {
+		super(URI.file(''), fileService, configService, filesConfigService, parent, isDirectory);
 		this._isDirectoryResolved = true;
 	}
 }

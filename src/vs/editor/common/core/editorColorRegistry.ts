@@ -5,9 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
-import { activeContrastBorder, editorBackground, editorForeground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, editorBackground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 /**
  * Definition of the editor colors
@@ -22,12 +21,28 @@ export const editorSymbolHighlightBorder = registerColor('editor.symbolHighlight
 export const editorCursorForeground = registerColor('editorCursor.foreground', { dark: '#AEAFAD', light: Color.black, hcDark: Color.white, hcLight: '#0F4A85' }, nls.localize('caret', 'Color of the editor cursor.'));
 export const editorCursorBackground = registerColor('editorCursor.background', null, nls.localize('editorCursorBackground', 'The background color of the editor cursor. Allows customizing the color of a character overlapped by a block cursor.'));
 export const editorWhitespaces = registerColor('editorWhitespace.foreground', { dark: '#e3e4e229', light: '#33333333', hcDark: '#e3e4e229', hcLight: '#CCCCCC' }, nls.localize('editorWhitespaces', 'Color of whitespace characters in the editor.'));
-export const editorIndentGuides = registerColor('editorIndentGuide.background', { dark: editorWhitespaces, light: editorWhitespaces, hcDark: editorWhitespaces, hcLight: editorWhitespaces }, nls.localize('editorIndentGuides', 'Color of the editor indentation guides.'));
-export const editorActiveIndentGuides = registerColor('editorIndentGuide.activeBackground', { dark: editorWhitespaces, light: editorWhitespaces, hcDark: editorWhitespaces, hcLight: editorWhitespaces }, nls.localize('editorActiveIndentGuide', 'Color of the active editor indentation guides.'));
 export const editorLineNumbers = registerColor('editorLineNumber.foreground', { dark: '#858585', light: '#237893', hcDark: Color.white, hcLight: '#292929' }, nls.localize('editorLineNumbers', 'Color of editor line numbers.'));
+
+export const deprecatedEditorIndentGuides = registerColor('editorIndentGuide.background', { dark: editorWhitespaces, light: editorWhitespaces, hcDark: editorWhitespaces, hcLight: editorWhitespaces }, nls.localize('editorIndentGuides', 'Color of the editor indentation guides.'), false, nls.localize('deprecatedEditorIndentGuides', '\'editorIndentGuide.background\' is deprecated. Use \'editorIndentGuide.background1\' instead.'));
+export const deprecatedEditorActiveIndentGuides = registerColor('editorIndentGuide.activeBackground', { dark: editorWhitespaces, light: editorWhitespaces, hcDark: editorWhitespaces, hcLight: editorWhitespaces }, nls.localize('editorActiveIndentGuide', 'Color of the active editor indentation guides.'), false, nls.localize('deprecatedEditorActiveIndentGuide', '\'editorIndentGuide.activeBackground\' is deprecated. Use \'editorIndentGuide.activeBackground1\' instead.'));
+
+export const editorIndentGuide1 = registerColor('editorIndentGuide.background1', { dark: deprecatedEditorIndentGuides, light: deprecatedEditorIndentGuides, hcDark: deprecatedEditorIndentGuides, hcLight: deprecatedEditorIndentGuides }, nls.localize('editorIndentGuides1', 'Color of the editor indentation guides (1).'));
+export const editorIndentGuide2 = registerColor('editorIndentGuide.background2', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorIndentGuides2', 'Color of the editor indentation guides (2).'));
+export const editorIndentGuide3 = registerColor('editorIndentGuide.background3', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorIndentGuides3', 'Color of the editor indentation guides (3).'));
+export const editorIndentGuide4 = registerColor('editorIndentGuide.background4', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorIndentGuides4', 'Color of the editor indentation guides (4).'));
+export const editorIndentGuide5 = registerColor('editorIndentGuide.background5', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorIndentGuides5', 'Color of the editor indentation guides (5).'));
+export const editorIndentGuide6 = registerColor('editorIndentGuide.background6', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorIndentGuides6', 'Color of the editor indentation guides (6).'));
+
+export const editorActiveIndentGuide1 = registerColor('editorIndentGuide.activeBackground1', { dark: deprecatedEditorActiveIndentGuides, light: deprecatedEditorActiveIndentGuides, hcDark: deprecatedEditorActiveIndentGuides, hcLight: deprecatedEditorActiveIndentGuides }, nls.localize('editorActiveIndentGuide1', 'Color of the active editor indentation guides (1).'));
+export const editorActiveIndentGuide2 = registerColor('editorIndentGuide.activeBackground2', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorActiveIndentGuide2', 'Color of the active editor indentation guides (2).'));
+export const editorActiveIndentGuide3 = registerColor('editorIndentGuide.activeBackground3', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorActiveIndentGuide3', 'Color of the active editor indentation guides (3).'));
+export const editorActiveIndentGuide4 = registerColor('editorIndentGuide.activeBackground4', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorActiveIndentGuide4', 'Color of the active editor indentation guides (4).'));
+export const editorActiveIndentGuide5 = registerColor('editorIndentGuide.activeBackground5', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorActiveIndentGuide5', 'Color of the active editor indentation guides (5).'));
+export const editorActiveIndentGuide6 = registerColor('editorIndentGuide.activeBackground6', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorActiveIndentGuide6', 'Color of the active editor indentation guides (6).'));
 
 const deprecatedEditorActiveLineNumber = registerColor('editorActiveLineNumber.foreground', { dark: '#c6c6c6', light: '#0B216F', hcDark: activeContrastBorder, hcLight: activeContrastBorder }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'), false, nls.localize('deprecatedEditorActiveLineNumber', 'Id is deprecated. Use \'editorLineNumber.activeForeground\' instead.'));
 export const editorActiveLineNumber = registerColor('editorLineNumber.activeForeground', { dark: deprecatedEditorActiveLineNumber, light: deprecatedEditorActiveLineNumber, hcDark: deprecatedEditorActiveLineNumber, hcLight: deprecatedEditorActiveLineNumber }, nls.localize('editorActiveLineNumber', 'Color of editor active line number'));
+export const editorDimmedLineNumber = registerColor('editorLineNumber.dimmedForeground', { dark: null, light: null, hcDark: null, hcLight: null }, nls.localize('editorDimmedLineNumber', 'Color of the final editor line when editor.renderFinalNewline is set to dimmed.'));
 
 export const editorRuler = registerColor('editorRuler.foreground', { dark: '#5A5A5A', light: Color.lightgrey, hcDark: Color.white, hcLight: '#292929' }, nls.localize('editorRuler', 'Color of the editor rulers.'));
 
@@ -37,7 +52,7 @@ export const editorBracketMatchBackground = registerColor('editorBracketMatch.ba
 export const editorBracketMatchBorder = registerColor('editorBracketMatch.border', { dark: '#888', light: '#B9B9B9', hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('editorBracketMatchBorder', 'Color for matching brackets boxes'));
 
 export const editorOverviewRulerBorder = registerColor('editorOverviewRuler.border', { dark: '#7f7f7f4d', light: '#7f7f7f4d', hcDark: '#7f7f7f4d', hcLight: '#666666' }, nls.localize('editorOverviewRulerBorder', 'Color of the overview ruler border.'));
-export const editorOverviewRulerBackground = registerColor('editorOverviewRuler.background', null, nls.localize('editorOverviewRulerBackground', 'Background color of the editor overview ruler. Only used when the minimap is enabled and placed on the right side of the editor.'));
+export const editorOverviewRulerBackground = registerColor('editorOverviewRuler.background', null, nls.localize('editorOverviewRulerBackground', 'Background color of the editor overview ruler.'));
 
 export const editorGutter = registerColor('editorGutter.background', { dark: editorBackground, light: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorGutter', 'Background color of the editor gutter. The gutter contains the glyph margins and the line numbers.'));
 
@@ -77,56 +92,16 @@ export const editorBracketPairGuideActiveBackground4 = registerColor('editorBrac
 export const editorBracketPairGuideActiveBackground5 = registerColor('editorBracketPairGuide.activeBackground5', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground5', 'Background color of active bracket pair guides (5). Requires enabling bracket pair guides.'));
 export const editorBracketPairGuideActiveBackground6 = registerColor('editorBracketPairGuide.activeBackground6', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground6', 'Background color of active bracket pair guides (6). Requires enabling bracket pair guides.'));
 
-export const editorUnicodeHighlightBorder = registerColor('editorUnicodeHighlight.border', { dark: '#BD9B03', light: '#CEA33D', hcDark: '#ff0000', hcLight: '' }, nls.localize('editorUnicodeHighlight.border', 'Border color used to highlight unicode characters.'));
-export const editorUnicodeHighlightBackground = registerColor('editorUnicodeHighlight.background', { dark: '#bd9b0326', light: '#cea33d14', hcDark: '#00000000', hcLight: '' }, nls.localize('editorUnicodeHighlight.background', 'Background color used to highlight unicode characters.'));
+export const editorUnicodeHighlightBorder = registerColor('editorUnicodeHighlight.border', { dark: '#BD9B03', light: '#CEA33D', hcDark: '#ff0000', hcLight: '#CEA33D' }, nls.localize('editorUnicodeHighlight.border', 'Border color used to highlight unicode characters.'));
+export const editorUnicodeHighlightBackground = registerColor('editorUnicodeHighlight.background', { dark: '#bd9b0326', light: '#cea33d14', hcDark: '#00000000', hcLight: '#cea33d14' }, nls.localize('editorUnicodeHighlight.background', 'Background color used to highlight unicode characters.'));
 
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
 	const background = theme.getColor(editorBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor, .monaco-editor-background { background-color: ${background}; }`);
-	}
-
 	const lineHighlight = theme.getColor(editorLineHighlight);
 	const imeBackground = (lineHighlight && !lineHighlight.isTransparent() ? lineHighlight : background);
 	if (imeBackground) {
 		collector.addRule(`.monaco-editor .inputarea.ime-input { background-color: ${imeBackground}; }`);
-	}
-
-	const foreground = theme.getColor(editorForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor, .monaco-editor .inputarea.ime-input { color: ${foreground}; }`);
-	}
-
-	const gutter = theme.getColor(editorGutter);
-	if (gutter) {
-		collector.addRule(`.monaco-editor .margin { background-color: ${gutter}; }`);
-	}
-
-	const rangeHighlight = theme.getColor(editorRangeHighlight);
-	if (rangeHighlight) {
-		collector.addRule(`.monaco-editor .rangeHighlight { background-color: ${rangeHighlight}; }`);
-	}
-
-	const rangeHighlightBorder = theme.getColor(editorRangeHighlightBorder);
-	if (rangeHighlightBorder) {
-		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${rangeHighlightBorder}; }`);
-	}
-
-	const symbolHighlight = theme.getColor(editorSymbolHighlight);
-	if (symbolHighlight) {
-		collector.addRule(`.monaco-editor .symbolHighlight { background-color: ${symbolHighlight}; }`);
-	}
-
-	const symbolHighlightBorder = theme.getColor(editorSymbolHighlightBorder);
-	if (symbolHighlightBorder) {
-		collector.addRule(`.monaco-editor .symbolHighlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${symbolHighlightBorder}; }`);
-	}
-
-	const invisibles = theme.getColor(editorWhitespaces);
-	if (invisibles) {
-		collector.addRule(`.monaco-editor .mtkw { color: ${invisibles} !important; }`);
-		collector.addRule(`.monaco-editor .mtkz { color: ${invisibles} !important; }`);
 	}
 });

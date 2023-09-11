@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity, isResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -41,6 +42,9 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		if (this.secondary.hasCapability(EditorInputCapabilities.Singleton)) {
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
+
+		// Indicate we show more than one editor
+		capabilities |= EditorInputCapabilities.MultipleEditors;
 
 		return capabilities;
 	}
@@ -186,7 +190,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			return new SideBySideEditorInput(this.preferredName, this.preferredDescription, primarySaveResult, primarySaveResult, this.editorService);
 		}
 
-		if (!isResourceDiffEditorInput(primarySaveResult) && !isResourceSideBySideEditorInput(primarySaveResult)) {
+		if (!isResourceDiffEditorInput(primarySaveResult) && !isResourceSideBySideEditorInput(primarySaveResult) && !isResourceMergeEditorInput(primarySaveResult)) {
 			return {
 				primary: primarySaveResult,
 				secondary: primarySaveResult,
@@ -243,6 +247,10 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return undefined;
 	}
 
+	override isReadonly(): boolean | IMarkdownString {
+		return this.primary.isReadonly();
+	}
+
 	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceSideBySideEditorInput | undefined {
 		const primaryResourceEditorInput = this.primary.toUntyped(options);
 		const secondaryResourceEditorInput = this.secondary.toUntyped(options);
@@ -251,7 +259,8 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		if (
 			primaryResourceEditorInput && secondaryResourceEditorInput &&
 			!isResourceDiffEditorInput(primaryResourceEditorInput) && !isResourceDiffEditorInput(secondaryResourceEditorInput) &&
-			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput)
+			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput) &&
+			!isResourceMergeEditorInput(primaryResourceEditorInput) && !isResourceMergeEditorInput(secondaryResourceEditorInput)
 		) {
 			const untypedInput: IResourceSideBySideEditorInput = {
 				label: this.preferredName,

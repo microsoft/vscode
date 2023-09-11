@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined } from 'vs/base/common/types';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -28,10 +28,16 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IEditorConfiguration {
 	editor: object;
 	diffEditor: object;
+	accessibility?: {
+		verbosity?: {
+			diffEditor?: boolean;
+		};
+	};
 }
 
 /**
@@ -64,12 +70,8 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	) {
 		super(id, AbstractTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
-			const resource = this.getActiveResource();
-			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
-
-			return this.handleConfigurationChangeEvent(value);
-		}));
+		// Listen to configuration changes
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(e)));
 
 		// ARIA: if a group is added or removed, update the editor's ARIA
 		// label so that it appears in the label for when there are > 1 groups
@@ -86,12 +88,21 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProvider(e.scheme)));
 	}
 
-	private handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
+	private handleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent): void {
+		const resource = this.getActiveResource();
+		if (!this.shouldHandleConfigurationChangeEvent(e, resource)) {
+			return;
+		}
+
 		if (this.isVisible()) {
-			this.updateEditorConfiguration(configuration);
+			this.updateEditorConfiguration(resource);
 		} else {
 			this.hasPendingConfigurationChange = true;
 		}
+	}
+
+	protected shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI | undefined): boolean {
+		return e.affectsConfiguration(resource, 'editor');
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
@@ -134,23 +145,22 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected updateReadonly(input: EditorInput): void {
-		const readOnly = input.hasCapability(EditorInputCapabilities.Readonly);
+		this.updateEditorControlOptions({ ...this.getReadonlyConfiguration(input.isReadonly()) });
+	}
 
-		this.updateEditorControlOptions({
-			readOnly,
-			enableDropIntoEditor: !readOnly
-		});
+	protected getReadonlyConfiguration(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {
+		return {
+			readOnly: !!isReadonly,
+			readOnlyMessage: typeof isReadonly !== 'boolean' ? isReadonly : undefined
+		};
 	}
 
 	protected getConfigurationOverrides(): ICodeEditorOptions {
-		const readOnly = this.input?.hasCapability(EditorInputCapabilities.Readonly);
-
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			readOnly,
-			enableDropIntoEditor: !readOnly,
+			...this.getReadonlyConfiguration(this.input?.isReadonly()),
 			renderValidationDecorations: 'on' // render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
 		};
 	}
@@ -254,12 +264,10 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		return input.resource;
 	}
 
-	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
-		if (!configuration) {
-			const resource = this.getActiveResource();
-			if (resource) {
-				configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
-			}
+	private updateEditorConfiguration(resource = this.getActiveResource()): void {
+		let configuration: IEditorConfiguration | undefined = undefined;
+		if (resource) {
+			configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
 		}
 
 		if (!configuration) {

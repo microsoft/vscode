@@ -55,7 +55,7 @@ suite('Links', () => {
 	}
 
 	function getTestResource(path: string) {
-		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString();
+		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString(true);
 	}
 
 	test('url links', async function () {
@@ -65,6 +65,16 @@ suite('Links', () => {
 
 		await assertLinks('html { background-image: url("hello.html|")',
 			[{ offset: 29, value: '"hello.html"', target: getTestResource('hello.html') }], testUri, folders
+		);
+	});
+
+	test('url links - untitled', async function () {
+
+		const testUri = 'untitled:untitled-1';
+		const folders = [{ name: 'x', uri: getTestResource('') }];
+
+		await assertLinks('@import url("base.css|");")',
+			[{ offset: 12, value: '"base.css"', target: 'untitled:base.css' }], testUri, folders
 		);
 	});
 

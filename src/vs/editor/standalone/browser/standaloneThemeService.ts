@@ -113,7 +113,7 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	public defines(colorId: ColorIdentifier): boolean {
-		return Object.prototype.hasOwnProperty.call(this.getColors(), colorId);
+		return this.getColors().has(colorId);
 	}
 
 	public get type(): ColorScheme {
@@ -274,18 +274,20 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _registerRegularEditorContainer(): IDisposable {
 		if (!this._globalStyleElement) {
-			this._globalStyleElement = dom.createStyleSheet();
-			this._globalStyleElement.className = 'monaco-colors';
-			this._globalStyleElement.textContent = this._allCSS;
+			this._globalStyleElement = dom.createStyleSheet(undefined, style => {
+				style.className = 'monaco-colors';
+				style.textContent = this._allCSS;
+			});
 			this._styleElements.push(this._globalStyleElement);
 		}
 		return Disposable.None;
 	}
 
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-		const styleElement = dom.createStyleSheet(domNode);
-		styleElement.className = 'monaco-colors';
-		styleElement.textContent = this._allCSS;
+		const styleElement = dom.createStyleSheet(domNode, style => {
+			style.className = 'monaco-colors';
+			style.textContent = this._allCSS;
+		});
 		this._styleElements.push(styleElement);
 		return {
 			dispose: () => {
@@ -390,7 +392,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
 			}
 		}
-		ruleCollector.addRule(`.monaco-editor { ${colorVariables.join('\n')} }`);
+		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor { ${colorVariables.join('\n')} }`);
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));

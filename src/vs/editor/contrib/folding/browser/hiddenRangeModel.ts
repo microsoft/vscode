@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findFirstInSorted } from 'vs/base/common/arrays';
+import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -141,7 +141,7 @@ function isInside(line: number, range: IRange) {
 	return line >= range.startLineNumber && line <= range.endLineNumber;
 }
 function findRange(ranges: IRange[], line: number): IRange | null {
-	const i = findFirstInSorted(ranges, r => line < r.startLineNumber) - 1;
+	const i = findFirstIdxMonotonousOrArrLen(ranges, r => line < r.startLineNumber) - 1;
 	if (i >= 0 && ranges[i].endLineNumber >= line) {
 		return ranges[i];
 	}

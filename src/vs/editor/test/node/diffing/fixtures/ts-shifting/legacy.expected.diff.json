@@ -1,0 +1,17 @@
+{
+	"original": {
+		"content": "[\n\t{\n\t\t\"identifier\": {\n\t\t\t\"id\": \"pflannery.vscode-versionlens\",\n\t\t\t\"uuid\": \"07fc4a0a-11fc-4121-ba9a-f0d534c729d8\"\n\t\t},\n\t\t\"preRelease\": false,\n\t\t\"version\": \"1.0.9\",\n\t\t\"installed\": true\n\t},\n\t{\n\t\t\"identifier\": {\n\t\t\t\"id\": \"sumneko.lua\",\n\t\t\t\"uuid\": \"3a15b5a7-be12-47e3-8445-88ee3eabc8b2\"\n\t\t},\n\t\t\"preRelease\": false,\n\t\t\"version\": \"3.5.6\",\n\t\t\"installed\": true\n\t},\n\t{\n\t\t\"identifier\": {\n\t\t\t\"id\": \"vscode.bat\",\n\t\t\t\"uuid\": \"5ef96c58-076f-4167-8e40-62c9deb00496\"\n\t\t},\n\t\t\"preRelease\": false,\n\t\t\"version\": \"1.0.0\"\n\t}\n]",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "[\n\t{\n\t\t\"identifier\": {\n\t\t\t\"id\": \"pflannery.vscode-versionlens\",\n\t\t\t\"uuid\": \"07fc4a0a-11fc-4121-ba9a-f0d534c729d8\"\n\t\t},\n\t\t\"preRelease\": false,\n\t\t\"version\": \"1.0.9\",\n\t\t\"installed\": true\n\t},\n\t{\n\t\t\"identifier\": {\n\t\t\t\"id\": \"vscode.bat\",\n\t\t\t\"uuid\": \"5ef96c58-076f-4167-8e40-62c9deb00496\"\n\t\t},\n\t\t\"preRelease\": false,\n\t\t\"version\": \"1.0.0\"\n\t}\n]",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[13,22)",
+			"modifiedRange": "[13,13)",
+			"innerChanges": null
+		}
+	]
+}

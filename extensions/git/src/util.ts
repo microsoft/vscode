@@ -314,6 +314,13 @@ export function pathEquals(a: string, b: string): boolean {
  * casing.
  */
 export function relativePath(from: string, to: string): string {
+	// On Windows, there are cases in which `from` is a path that contains a trailing `\` character
+	// (ex: C:\, \\server\folder\) due to the implementation of `path.normalize()`. This behavior is
+	// by design as documented in https://github.com/nodejs/node/issues/1765.
+	if (isWindows) {
+		from = from.replace(/\\$/, '');
+	}
+
 	if (isDescendant(from, to) && from.length < to.length) {
 		return to.substring(from.length + 1);
 	}

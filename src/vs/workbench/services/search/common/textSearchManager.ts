@@ -10,7 +10,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
-import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { hasSiblingPromiseFn, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
@@ -31,8 +30,7 @@ export class TextSearchManager {
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
-		const tokenSource = new CancellationTokenSource();
-		token.onCancellationRequested(() => tokenSource.cancel());
+		const tokenSource = new CancellationTokenSource(token);
 
 		return new Promise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
@@ -73,7 +71,7 @@ export class TextSearchManager {
 					limitHit: this.isLimitHit || someFolderHitLImit,
 					messages: flatten(results.map(result => {
 						if (!result?.message) { return []; }
-						if (isArray(result.message)) { return result.message; }
+						if (Array.isArray(result.message)) { return result.message; }
 						else { return [result.message]; }
 					})),
 					stats: {

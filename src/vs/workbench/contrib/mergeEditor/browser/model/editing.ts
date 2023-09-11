@@ -5,7 +5,7 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { LineRange } from './lineRange';
 
 /**
@@ -22,8 +22,8 @@ export class LineRangeEdit {
 		return this.range.equals(other.range) && equals(this.newLines, other.newLines);
 	}
 
-	public apply(model: ITextModel): void {
-		new LineEdits([this]).apply(model);
+	public toEdits(modelLineCount: number): IIdentifiedSingleEditOperation[] {
+		return new LineEdits([this]).toEdits(modelLineCount);
 	}
 }
 
@@ -41,30 +41,26 @@ export class RangeEdit {
 export class LineEdits {
 	constructor(public readonly edits: readonly LineRangeEdit[]) { }
 
-	public apply(model: ITextModel): void {
-		model.pushEditOperations(
-			null,
-			this.edits.map((e) => {
-				if (e.range.endLineNumberExclusive <= model.getLineCount()) {
-					return {
-						range: new Range(e.range.startLineNumber, 1, e.range.endLineNumberExclusive, 1),
-						text: e.newLines.map(s => s + '\n').join(''),
-					};
-				}
-
-				if (e.range.startLineNumber === 1) {
-					return {
-						range: new Range(1, 1, model.getLineCount(), Number.MAX_SAFE_INTEGER),
-						text: e.newLines.join('\n'),
-					};
-				}
-
+	public toEdits(modelLineCount: number): IIdentifiedSingleEditOperation[] {
+		return this.edits.map((e) => {
+			if (e.range.endLineNumberExclusive <= modelLineCount) {
 				return {
-					range: new Range(e.range.startLineNumber - 1, Number.MAX_SAFE_INTEGER, model.getLineCount(), Number.MAX_SAFE_INTEGER),
-					text: e.newLines.map(s => '\n' + s).join(''),
+					range: new Range(e.range.startLineNumber, 1, e.range.endLineNumberExclusive, 1),
+					text: e.newLines.map(s => s + '\n').join(''),
 				};
-			}),
-			() => null
-		);
+			}
+
+			if (e.range.startLineNumber === 1) {
+				return {
+					range: new Range(1, 1, modelLineCount, Number.MAX_SAFE_INTEGER),
+					text: e.newLines.join('\n'),
+				};
+			}
+
+			return {
+				range: new Range(e.range.startLineNumber - 1, Number.MAX_SAFE_INTEGER, modelLineCount, Number.MAX_SAFE_INTEGER),
+				text: e.newLines.map(s => '\n' + s).join(''),
+			};
+		});
 	}
 }

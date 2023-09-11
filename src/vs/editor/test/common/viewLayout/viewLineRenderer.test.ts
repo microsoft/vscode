@@ -191,7 +191,7 @@ suite('viewLineRenderer.renderLine', () => {
 				'<span class="mtk3">l</span>',
 				'<span class="mtk4">o</span>',
 				'<span class="mtk5">\u00a0</span>',
-				'<span>&hellip;</span>'
+				'<span class="mtkoverflow">Show more (6 chars)</span>'
 			],
 			mapping: [
 				[0, 0, 0],

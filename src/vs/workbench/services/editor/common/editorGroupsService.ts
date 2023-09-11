@@ -62,17 +62,33 @@ export const enum GroupsArrangement {
 }
 
 export interface GroupLayoutArgument {
+
+	/**
+	 * Only applies when there are multiple groups
+	 * arranged next to each other in a row or column.
+	 * If provided, their sum must be 1 to be applied
+	 * per row or column.
+	 */
 	size?: number;
+
+	/**
+	 * Editor groups  will be laid out orthogonal to the
+	 * parent orientation.
+	 */
 	groups?: GroupLayoutArgument[];
 }
 
 export interface EditorGroupLayout {
-	orientation: GroupOrientation;
-	groups: GroupLayoutArgument[];
-}
 
-export interface IAddGroupOptions {
-	activate?: boolean;
+	/**
+	 * The initial orientation of the editor groups at the root.
+	 */
+	orientation: GroupOrientation;
+
+	/**
+	 * The editor groups at the root of the layout.
+	 */
+	groups: GroupLayoutArgument[];
 }
 
 export const enum MergeGroupMode {
@@ -302,6 +318,11 @@ export interface IEditorGroupsService {
 	applyLayout(layout: EditorGroupLayout): void;
 
 	/**
+	 * Returns an editor layout describing the current grid
+	 */
+	getLayout(): EditorGroupLayout;
+
+	/**
 	 * Enable or disable centered editor layout.
 	 */
 	centerLayout(active: boolean): void;
@@ -317,7 +338,7 @@ export interface IEditorGroupsService {
 	setGroupOrientation(orientation: GroupOrientation): void;
 
 	/**
-	 * Find a groupd in a specific scope:
+	 * Find a group in a specific scope:
 	 * * `GroupLocation.FIRST`: the first group
 	 * * `GroupLocation.LAST`: the last group
 	 * * `GroupLocation.NEXT`: the next group from either the active one or `source`
@@ -339,9 +360,8 @@ export interface IEditorGroupsService {
 	 *
 	 * @param location the group from which to split to add a new group
 	 * @param direction the direction of where to split to
-	 * @param options configure the newly group with options
 	 */
-	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroup;
+	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.

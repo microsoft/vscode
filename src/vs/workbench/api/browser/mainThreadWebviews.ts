@@ -53,17 +53,21 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public $setHtml(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.getWebview(handle);
-		webview.html = value;
+		this.tryGetWebview(handle)?.setHtml(value);
 	}
 
 	public $setOptions(handle: extHostProtocol.WebviewHandle, options: extHostProtocol.IWebviewContentOptions): void {
-		const webview = this.getWebview(handle);
-		webview.contentOptions = reviveWebviewContentOptions(options);
+		const webview = this.tryGetWebview(handle);
+		if (webview) {
+			webview.contentOptions = reviveWebviewContentOptions(options);
+		}
 	}
 
 	public async $postMessage(handle: extHostProtocol.WebviewHandle, jsonMessage: string, ...buffers: VSBuffer[]): Promise<boolean> {
-		const webview = this.getWebview(handle);
+		const webview = this.tryGetWebview(handle);
+		if (!webview) {
+			return false;
+		}
 		const { message, arrayBuffers } = deserializeWebviewMessage(jsonMessage, buffers);
 		return webview.postMessage(message, arrayBuffers);
 	}
@@ -89,7 +93,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private onDidClickLink(handle: extHostProtocol.WebviewHandle, link: string): void {
 		const webview = this.getWebview(handle);
 		if (this.isSupportedLink(webview, URI.parse(link))) {
-			this._openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
+			this._openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: Array.isArray(webview.contentOptions.enableCommandUris) || webview.contentOptions.enableCommandUris === true, fromWorkspace: true });
 		}
 	}
 
@@ -97,14 +101,28 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		if (MainThreadWebviews.standardSupportedLinkSchemes.has(link.scheme)) {
 			return true;
 		}
+
 		if (!isWeb && this._productService.urlProtocol === link.scheme) {
 			return true;
 		}
-		return !!webview.contentOptions.enableCommandUris && link.scheme === Schemas.command;
+
+		if (link.scheme === Schemas.command) {
+			if (Array.isArray(webview.contentOptions.enableCommandUris)) {
+				return webview.contentOptions.enableCommandUris.includes(link.path);
+			}
+
+			return webview.contentOptions.enableCommandUris === true;
+		}
+
+		return false;
+	}
+
+	private tryGetWebview(handle: extHostProtocol.WebviewHandle): IWebview | undefined {
+		return this._webviews.get(handle);
 	}
 
 	private getWebview(handle: extHostProtocol.WebviewHandle): IWebview {
-		const webview = this._webviews.get(handle);
+		const webview = this.tryGetWebview(handle);
 		if (!webview) {
 			throw new Error(`Unknown webview handle:${handle}`);
 		}

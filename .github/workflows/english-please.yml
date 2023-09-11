@@ -24,6 +24,6 @@ jobs:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           cognitiveServicesAPIKey: ${{secrets.AZURE_TEXT_TRANSLATOR_KEY}}
           nonEnglishLabel: "*english-please"
-          needsMoreInfoLabel: "needs more info"
+          needsMoreInfoLabel: "info-needed"
           translatorRequestedLabelPrefix: "translation-required-"
           translatorRequestedLabelColor: "c29cff"

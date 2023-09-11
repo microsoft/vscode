@@ -11,8 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import 'vs/css!./link';
 
 export interface ILinkDescriptor {
 	readonly label: string | HTMLElement;
@@ -94,10 +93,10 @@ export class Link extends Disposable {
 
 		const onClickEmitter = this._register(new DomEmitter(this.el, 'click'));
 		const onKeyPress = this._register(new DomEmitter(this.el, 'keypress'));
-		const onEnterPress = Event.chain(onKeyPress.event)
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.keyCode === KeyCode.Enter)
-			.event;
+		const onEnterPress = Event.chain(onKeyPress.event, $ =>
+			$.map(e => new StandardKeyboardEvent(e))
+				.filter(e => e.keyCode === KeyCode.Enter)
+		);
 		const onTap = this._register(new DomEmitter(this.el, TouchEventType.Tap)).event;
 		this._register(Gesture.addTarget(this.el));
 		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress, onTap);
@@ -119,15 +118,3 @@ export class Link extends Disposable {
 		this.enabled = true;
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const textLinkForegroundColor = theme.getColor(textLinkForeground);
-	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-link { color: ${textLinkForegroundColor}; }`);
-	}
-
-	const textLinkActiveForegroundColor = theme.getColor(textLinkActiveForeground);
-	if (textLinkActiveForegroundColor) {
-		collector.addRule(`.monaco-link:hover { color: ${textLinkActiveForegroundColor}; }`);
-	}
-});
