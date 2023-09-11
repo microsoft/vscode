@@ -14,6 +14,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
+import { Codicon } from 'vs/base/common/codicons';
 
 //#region Quick access management commands and keys
 
@@ -155,8 +156,9 @@ registerAction2(class QuickAccessAction extends Action2 {
 		super({
 			id: 'workbench.action.quickOpenWithModes',
 			title: localize('quickOpenWithModes', "Quick Open"),
+			icon: Codicon.search,
 			menu: {
-				id: MenuId.CommandCenter,
+				id: MenuId.CommandCenterCenter,
 				order: 100
 			}
 		});
