@@ -702,9 +702,9 @@ registerAction2(class extends Action2 {
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.equals(InteractiveWindowOpen.key, true),
+				when: InteractiveWindowOpen,
 			},
-			precondition: ContextKeyExpr.equals(InteractiveWindowOpen.key, true),
+			precondition: InteractiveWindowOpen,
 		});
 	}
 
