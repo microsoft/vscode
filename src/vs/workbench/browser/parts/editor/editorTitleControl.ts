@@ -14,6 +14,7 @@ import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiE
 import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface IEditorTitleControlDimensions {
 
@@ -32,8 +33,10 @@ export interface IEditorTitleControlDimensions {
 export class EditorTitleControl extends Themable {
 
 	private editorTabsControl: EditorTabsControl;
+	private editorTabsControlDisposable = this._register(new DisposableStore());
 
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
+	private breadcrumbsControlDisposables = this._register(new DisposableStore());
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	constructor(
@@ -50,11 +53,14 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createEditorTabsControl(): EditorTabsControl {
+		let control: EditorTabsControl;
 		if (this.accessor.partOptions.showTabs) {
-			return this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group);
+			control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group);
+		} else {
+			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.group);
 		}
 
-		return this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.group);
+		return this.editorTabsControlDisposable.add(control);
 	}
 
 	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
@@ -67,13 +73,13 @@ export class EditorTitleControl extends Themable {
 		breadcrumbsContainer.classList.add('breadcrumbs-below-tabs');
 		this.parent.appendChild(breadcrumbsContainer);
 
-		const breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.group, {
+		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.group, {
 			showFileIcons: true,
 			showSymbolIcons: true,
 			showDecorationColors: false,
 			showPlaceholder: true
 		}));
-		this._register(breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
+		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
 
 		return breadcrumbsControlFactory;
 	}
@@ -84,11 +90,13 @@ export class EditorTitleControl extends Themable {
 
 	openEditor(editor: EditorInput): void {
 		const didChange = this.editorTabsControl.openEditor(editor);
+
 		this.handleOpenedEditors(didChange);
 	}
 
 	openEditors(editors: EditorInput[]): void {
 		const didChange = this.editorTabsControl.openEditors(editors);
+
 		this.handleOpenedEditors(didChange);
 	}
 
@@ -156,8 +164,8 @@ export class EditorTitleControl extends Themable {
 		if (oldOptions.showTabs !== newOptions.showTabs) {
 
 			// Clear old
-			this.editorTabsControl.dispose();
-			this.breadcrumbsControlFactory?.dispose();
+			this.editorTabsControlDisposable.clear();
+			this.breadcrumbsControlDisposables.clear();
 			clearNode(this.parent);
 
 			// Create new
@@ -195,12 +203,5 @@ export class EditorTitleControl extends Themable {
 			total: tabsControlHeight + breadcrumbsControlHeight,
 			offset: tabsControlHeight
 		};
-	}
-
-	override dispose(): void {
-		this.editorTabsControl.dispose();
-		this.breadcrumbsControlFactory?.dispose();
-
-		super.dispose();
 	}
 }

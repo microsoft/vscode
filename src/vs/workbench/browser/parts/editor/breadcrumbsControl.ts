@@ -509,8 +509,8 @@ export class BreadcrumbsControlFactory {
 	private _control: BreadcrumbsControl | undefined;
 	get control() { return this._control; }
 
-	private readonly _onDidEnablementchange = this._disposables.add(new Emitter<void>());
-	get onDidEnablementChange() { return this._onDidEnablementchange.event; }
+	private readonly _onDidEnablementChange = this._disposables.add(new Emitter<void>());
+	get onDidEnablementChange() { return this._onDidEnablementChange.event; }
 
 	constructor(
 		container: HTMLElement,
@@ -521,41 +521,30 @@ export class BreadcrumbsControlFactory {
 		@IFileService fileService: IFileService
 	) {
 		const config = this._disposables.add(BreadcrumbsConfig.IsEnabled.bindTo(configurationService));
+		this._disposables.add(config.onDidChange(() => {
+			const value = config.getValue();
+			if (!value && this._control) {
+				this._control.dispose();
+				this._control = undefined;
+				this._onDidEnablementChange.fire();
+			} else if (value && !this._control) {
+				this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
+				this._control.update();
+				this._onDidEnablementChange.fire();
+			}
+		}));
 
-		// Create if enabled
 		if (config.getValue()) {
 			this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
 		}
 
-		// Listen to breadcrumbs enablement changes
-		this._disposables.add(config.onDidChange(() => {
-			const value = config.getValue();
-
-			// Hide breadcrumbs if showing
-			if (!value && this._control) {
-				this._control.dispose();
-				this._control = undefined;
-
-				this._onDidEnablementchange.fire();
-			}
-
-			// Show breadcrumbs if hidden
-			else if (value && !this._control) {
-				this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
-				this._control.update();
-
-				this._onDidEnablementchange.fire();
-			}
-		}));
-
-		// Listen to file system provider changes
 		this._disposables.add(fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (this._control?.model && this._control.model.resource.scheme !== e.scheme) {
-				return; // ignore if the scheme of the breadcrumbs resource is not affected
+				// ignore if the scheme of the breadcrumbs resource is not affected
+				return;
 			}
-
 			if (this._control?.update()) {
-				this._onDidEnablementchange.fire();
+				this._onDidEnablementChange.fire();
 			}
 		}));
 	}
