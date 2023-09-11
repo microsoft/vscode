@@ -503,30 +503,23 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private async _recreateTerminalGroup(tabLayout: IRawTerminalTabLayoutInfo<IPtyHostAttachTarget | null>, terminalLayouts: IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget | null>[]): Promise<ITerminalGroup | undefined> {
 		let lastInstance: Promise<ITerminalInstance> | undefined;
-		let group: Promise<ITerminalGroup | undefined> | undefined;
 		for (const terminalLayout of terminalLayouts) {
 			const attachPersistentProcess = terminalLayout.terminal!;
 			if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow && attachPersistentProcess.type === 'Task') {
 				continue;
 			}
 			mark(`code/terminal/willRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
-			if (!lastInstance) {
-				// create group and terminal
-				lastInstance = this.createTerminal({
-					config: { attachPersistentProcess },
-					location: TerminalLocation.Panel
-				});
-				group = lastInstance.then(instance => this._terminalGroupService.getGroupForInstance(instance));
-			} else {
-				// add split terminals to this group
-				lastInstance = this.createTerminal({
-					config: { attachPersistentProcess },
-					location: { parentTerminal: lastInstance }
-				});
-			}
-			mark(`code/terminal/didRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`);
+			lastInstance = this.createTerminal({
+				config: { attachPersistentProcess },
+				location: lastInstance ? { parentTerminal: lastInstance } : TerminalLocation.Panel
+			});
+			lastInstance.then(() => mark(`code/terminal/didRecreateTerminal/${attachPersistentProcess.id}-${attachPersistentProcess.pid}`));
 		}
-		group?.then(g => g?.resizePanes(tabLayout.terminals.map(terminal => terminal.relativeSize)));
+		const group = lastInstance?.then(instance => {
+			const g = this._terminalGroupService.getGroupForInstance(instance);
+			g?.resizePanes(tabLayout.terminals.map(terminal => terminal.relativeSize));
+			return g;
+		});
 		return group;
 	}
 
