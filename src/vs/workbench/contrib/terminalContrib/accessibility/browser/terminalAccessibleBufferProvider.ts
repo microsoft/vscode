@@ -18,7 +18,7 @@ import type { Terminal } from 'xterm';
 import { Event } from 'vs/base/common/event';
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal' };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	constructor(
