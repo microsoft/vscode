@@ -23,13 +23,18 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookKernelHistoryService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 		disposables = new DisposableStore();
@@ -53,10 +58,6 @@ suite('NotebookKernelHistoryService', () => {
 		});
 		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('notebook kernel empty history', function () {
