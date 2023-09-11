@@ -56,7 +56,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/include
-          RUSTFLAGS: "-C target-feature=+crt-static"
+          RUSTFLAGS: "-C target-feature=+crt-static -C link-args=/MT"
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -68,7 +68,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/include
-          RUSTFLAGS: "-C target-feature=+crt-static"
+          RUSTFLAGS: "-C target-feature=+crt-static -C link-args=/MT"
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -80,4 +80,4 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/include
-          RUSTFLAGS: "-C target-feature=+crt-static"
+          RUSTFLAGS: "-C target-feature=+crt-static -C link-args=/MT"
