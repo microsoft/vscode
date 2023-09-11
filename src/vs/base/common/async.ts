@@ -182,7 +182,7 @@ export class Throttler implements IDisposable {
 
 	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
 		if (this.isDisposed) {
-			throw new Error('Throttler is disposed');
+			return Promise.reject(new Error('Throttler is disposed'));
 		}
 
 		if (this.activePromise) {

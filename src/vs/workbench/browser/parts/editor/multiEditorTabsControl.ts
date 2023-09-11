@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tabstitlecontrol';
+import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, ITitleControlDimensions, IToolbarActions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorCommandsContextActionRunner, IToolbarActions, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -34,11 +34,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IFileService } from 'vs/platform/files/common/files';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
@@ -55,46 +52,47 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 
 interface IEditorInputLabel {
-	editor: EditorInput;
+	readonly editor: EditorInput;
 
-	name?: string;
+	readonly name?: string;
 	description?: string;
-	forceDescription?: boolean;
-	title?: string;
-	ariaLabel?: string;
+	readonly forceDescription?: boolean;
+	readonly title?: string;
+	readonly ariaLabel?: string;
 }
 
-interface ITabsTitleControlLayoutOptions {
+interface IMultiEditorTabsControlLayoutOptions {
 
 	/**
 	 * Whether to force revealing the active tab, even when
 	 * the dimensions have not changed. This can be the case
 	 * when a tab was made active and needs to be revealed.
 	 */
-	forceRevealActiveTab?: true;
+	readonly forceRevealActiveTab?: true;
 }
 
-interface IScheduledTabsTitleControlLayout extends IDisposable {
+interface IScheduledMultiEditorTabsControlLayout extends IDisposable {
 
 	/**
 	 * Associated options with the layout call.
 	 */
-	options?: ITabsTitleControlLayoutOptions;
+	options?: IMultiEditorTabsControlLayoutOptions;
 }
 
-export class TabsTitleControl extends TitleControl {
+export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private static readonly SCROLLBAR_SIZES = {
-		default: 3,
-		large: 10
+		default: 3 as const,
+		large: 10 as const
 	};
 
 	private static readonly TAB_WIDTH = {
-		compact: 38,
-		shrink: 80,
-		fit: 120
+		compact: 38 as const,
+		shrink: 80 as const,
+		fit: 120 as const
 	};
 
 	private static readonly DRAG_OVER_OPEN_TAB_THRESHOLD = 1500;
@@ -119,12 +117,12 @@ export class TabsTitleControl extends TitleControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
-	private dimensions: ITitleControlDimensions & { used?: Dimension } = {
+	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
 		available: Dimension.None
 	};
 
-	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledTabsTitleControlLayout>());
+	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledMultiEditorTabsControlLayout>());
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
@@ -144,15 +142,13 @@ export class TabsTitleControl extends TitleControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService fileService: IFileService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
-		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, configurationService, fileService, editorResolverService);
+		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, editorResolverService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -197,12 +193,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
-
-		// Breadcrumbs
-		const breadcrumbsContainer = document.createElement('div');
-		breadcrumbsContainer.classList.add('tabs-breadcrumbs');
-		this.titleContainer.appendChild(breadcrumbsContainer);
-		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, showPlaceholder: true });
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -271,10 +261,10 @@ export class TabsTitleControl extends TitleControl {
 
 	private getTabsScrollbarSizing(): number {
 		if (this.accessor.partOptions.titleScrollbarSizing !== 'large') {
-			return TabsTitleControl.SCROLLBAR_SIZES.default;
+			return MultiEditorTabsControl.SCROLLBAR_SIZES.default;
 		}
 
-		return TabsTitleControl.SCROLLBAR_SIZES.large;
+		return MultiEditorTabsControl.SCROLLBAR_SIZES.large;
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
@@ -421,7 +411,7 @@ export class TabsTitleControl extends TitleControl {
 			// The restriction is relaxed according to the absolute value of `deltaX` and `deltaY`
 			// to support discrete (mouse wheel) and contiguous scrolling (touchpad) equally well
 			const now = Date.now();
-			if (now - this.lastMouseWheelEventTime < TabsTitleControl.MOUSE_WHEEL_EVENT_THRESHOLD - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
+			if (now - this.lastMouseWheelEventTime < MultiEditorTabsControl.MOUSE_WHEEL_EVENT_THRESHOLD - 2 * (Math.abs(e.deltaX) + Math.abs(e.deltaY))) {
 				return;
 			}
 
@@ -429,9 +419,9 @@ export class TabsTitleControl extends TitleControl {
 
 			// Figure out scrolling direction but ignore it if too subtle
 			let tabSwitchDirection: number;
-			if (e.deltaX + e.deltaY < - TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+			if (e.deltaX + e.deltaY < - MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = -1;
-			} else if (e.deltaX + e.deltaY > TabsTitleControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+			} else if (e.deltaX + e.deltaY > MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = 1;
 			} else {
 				return;
@@ -490,15 +480,15 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimensions);
 	}
 
-	openEditor(editor: EditorInput): void {
-		this.handleOpenedEditors();
+	openEditor(editor: EditorInput): boolean {
+		return this.handleOpenedEditors();
 	}
 
-	openEditors(editors: EditorInput[]): void {
-		this.handleOpenedEditors();
+	openEditors(editors: EditorInput[]): boolean {
+		return this.handleOpenedEditors();
 	}
 
-	private handleOpenedEditors(): void {
+	private handleOpenedEditors(): boolean {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
@@ -508,7 +498,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Make sure to recompute tab labels and detect
 		// if a label change occurred that requires a
-		// redraw of tabs and update of breadcrumbs.
+		// redraw of tabs.
 
 		const activeEditorChanged = this.didActiveEditorChange();
 		const oldActiveTabLabel = this.activeTabLabel;
@@ -516,20 +506,22 @@ export class TabsTitleControl extends TitleControl {
 		this.computeTabLabels();
 
 		// Redraw and update in these cases
+		let didChange = false;
 		if (
 			activeEditorChanged ||													// active editor changed
 			oldTabLabelsLength !== this.tabLabels.length ||							// number of tabs changed
 			!this.equalsEditorInputLabel(oldActiveTabLabel, this.activeTabLabel)	// active editor label changed
 		) {
 			this.redraw({ forceRevealActiveTab: true });
-			this.breadcrumbsControl?.update();
+			didChange = true;
 		}
 
-		// Otherwise only layout for revealing in tabs and breadcrumbs
+		// Otherwise only layout for revealing
 		else {
 			this.layout(this.dimensions, { forceRevealActiveTab: true });
-			this.breadcrumbsControl?.revealLast();
 		}
+
+		return didChange;
 	}
 
 	private didActiveEditorChange(): boolean {
@@ -617,8 +609,6 @@ export class TabsTitleControl extends TitleControl {
 			this.tabActionBars = [];
 
 			this.clearEditorActionsToolbar();
-
-			this.breadcrumbsControl?.update();
 		}
 	}
 
@@ -1052,7 +1042,7 @@ export class TabsTitleControl extends TitleControl {
 			},
 
 			onDragOver: (_, dragDuration) => {
-				if (dragDuration >= TabsTitleControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
+				if (dragDuration >= MultiEditorTabsControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
 					const draggedOverTab = this.group.getEditorByIndex(index);
 					if (draggedOverTab && this.group.activeEditor !== draggedOverTab) {
 						this.group.openEditor(draggedOverTab, { preserveFocus: true });
@@ -1089,7 +1079,7 @@ export class TabsTitleControl extends TitleControl {
 			if (Array.isArray(data)) {
 				const group = data[0];
 				if (group.identifier === this.group.id) {
-					return false; // groups cannot be dropped on title area it originates from
+					return false; // groups cannot be dropped on group it originates from
 				}
 			}
 
@@ -1251,7 +1241,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redraw(options?: ITabsTitleControlLayoutOptions): void {
+	private redraw(options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Border below tabs if any with explicit high contrast support
 		if (this.tabsAndActionsContainer) {
@@ -1322,10 +1312,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1525,15 +1515,11 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	getHeight(): IEditorGroupTitleHeight {
-		const showsBreadcrumbs = this.breadcrumbsControl && !this.breadcrumbsControl.isHidden();
+	getHeight(): number {
 
 		// Return quickly if our used dimensions are known
 		if (this.dimensions.used) {
-			return {
-				total: this.dimensions.used.height,
-				offset: showsBreadcrumbs ? this.dimensions.used.height - BreadcrumbsControl.HEIGHT : this.dimensions.used.height
-			};
+			return this.dimensions.used.height;
 		}
 
 		// Otherwise compute via browser APIs
@@ -1542,28 +1528,21 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private computeHeight(): IEditorGroupTitleHeight {
-		let total: number;
+	private computeHeight(): number {
+		let height: number;
 
 		// Wrap: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
-			total = this.tabsAndActionsContainer.offsetHeight;
+			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {
-			total = this.titleHeight;
+			height = this.tabHeight;
 		}
 
-		const offset = total;
-
-		// Account for breadcrumbs if visible
-		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			total += BreadcrumbsControl.HEIGHT; // Account for breadcrumbs if visible
-		}
-
-		return { total, offset };
+		return height;
 	}
 
-	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1591,20 +1570,17 @@ export class TabsTitleControl extends TitleControl {
 
 		// First time layout: compute the dimensions and store it
 		if (!this.dimensions.used) {
-			this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
+			this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
 		}
 
 		return this.dimensions.used;
 	}
 
-	private doLayout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
+	private doLayout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
 		if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
-
-			// Breadcrumbs
-			this.doLayoutBreadcrumbs(dimensions);
 
 			// Tabs
 			const [activeTab, activeIndex] = activeTabAndIndex;
@@ -1615,7 +1591,7 @@ export class TabsTitleControl extends TitleControl {
 		// return it fast from the `layout` call without having to
 		// compute it over and over again
 		const oldDimension = this.dimensions.used;
-		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight().total);
+		const newDimension = this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
 
 		// In case the height of the title control changed from before
 		// (currently only possible if wrapping changed on/off), we need
@@ -1626,17 +1602,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	protected handleBreadcrumbsEnablementChange(): void {
-		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
-	}
-
-	private doLayoutBreadcrumbs(dimensions: ITitleControlDimensions): void {
-		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
-			this.breadcrumbsControl.layout(new Dimension(dimensions.container.width, BreadcrumbsControl.HEIGHT));
-		}
-	}
-
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOptions): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1649,7 +1615,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doLayoutTabsWrapping(dimensions: ITitleControlDimensions): boolean {
+	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:
@@ -1707,9 +1673,9 @@ export class TabsTitleControl extends TitleControl {
 			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
 			if (tabsWrapMultiLine) {
 				if (
-					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
-					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.titleHeight) ||	// if wrapping is not needed anymore
-					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
+					(tabsContainer.offsetHeight > dimensions.available.height) ||							// if height exceeds available height
+					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.tabHeight) ||	// if wrapping is not needed anymore
+					(!lastTabFitsWrapped())																	// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);
 				}
@@ -1778,7 +1744,7 @@ export class TabsTitleControl extends TitleControl {
 		return tabsWrapMultiLine;
 	}
 
-	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: ITabsTitleControlLayoutOptions): void {
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: IMultiEditorTabsControlLayoutOptions): void {
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
@@ -1809,10 +1775,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (this.accessor.partOptions.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
+					stickyTabWidth = MultiEditorTabsControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1827,7 +1793,7 @@ export class TabsTitleControl extends TitleControl {
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
 		let availableTabsContainerWidth = visibleTabsWidth - stickyTabsWidth;
-		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
+		if (this.group.stickyCount > 0 && availableTabsContainerWidth < MultiEditorTabsControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
 			availableTabsContainerWidth = visibleTabsWidth;
@@ -2153,7 +2119,7 @@ registerThemingParticipant((theme, collector) => {
 	// Hover Border
 	//
 	// Unfortunately we need to copy a lot of CSS over from the
-	// tabsTitleControl.css because we want to reuse the same
+	// multiEditorTabsControl.css because we want to reuse the same
 	// styles we already have for the normal bottom-border.
 	const tabHoverBorder = theme.getColor(TAB_HOVER_BORDER);
 	if (tabHoverBorder) {

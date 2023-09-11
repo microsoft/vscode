@@ -188,9 +188,14 @@ suite('Async', () => {
 			const promises: Promise<any>[] = [];
 
 			throttler.dispose();
-			assert.throws(() => promises.push(throttler.queue(factory)));
-			assert.strictEqual(factoryCalls, 0);
-			await Promise.all(promises);
+			promises.push(throttler.queue(factory));
+
+			try {
+				await Promise.all(promises);
+				assert.fail('should fail');
+			} catch (err) {
+				assert.strictEqual(factoryCalls, 0);
+			}
 		});
 	});
 
