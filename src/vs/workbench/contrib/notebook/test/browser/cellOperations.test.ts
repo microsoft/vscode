@@ -64,7 +64,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel, _accessor, ds) => {
+			async (editor, viewModel, ds) => {
 				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -147,7 +147,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel, _accessor, ds) => {
+			async (editor, viewModel, ds) => {
 				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -539,7 +539,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 
 				const insertedCellAbove = insertCell(languageService, editor, 4, CellKind.Code, 'above', 'var a = 0;');

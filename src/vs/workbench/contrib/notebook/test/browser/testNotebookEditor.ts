@@ -391,12 +391,13 @@ interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegat
 	visibleRanges: ICellRange[];
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService, disposables: DisposableStore) => Promise<R> | R, disposables: DisposableStore = new DisposableStore(), accessor?: TestInstantiationService): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+	const disposables: DisposableStore = new DisposableStore();
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, disposables, cells);
 
 	return runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService, disposables);
+		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, disposables, instantiationService);
 		if (res instanceof Promise) {
 			res.finally(() => {
 				notebookEditor.editor.dispose();
