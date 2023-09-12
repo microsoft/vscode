@@ -5,6 +5,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMatch } from 'vs/base/common/filters';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceSet } from 'vs/base/common/map';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -128,7 +129,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		const getAsyncResults = async () => {
 			await result.asyncResults;
-			return this.searchModel.searchResult.matches().filter(e => result.syncResults.indexOf(e) === -1);
+			const syncResultURIs = new ResourceSet(result.syncResults.map(e => e.resource));
+			return this.searchModel.searchResult.matches().filter(e => !syncResultURIs.has(e.resource));
 		};
 		return {
 			syncResults: this.searchModel.searchResult.matches(),
