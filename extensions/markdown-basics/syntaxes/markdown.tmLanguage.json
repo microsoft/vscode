@@ -3001,7 +3001,7 @@
 					"name": "punctuation.definition.raw.markdown"
 				}
 			},
-			"match": "(`+)((?:[^`]|(?!(?<!`)\\1(?!`))`)*+)(\\1)",
+			"match": "(`+)((?:[^`]|(?!(?<!`)\\1(?!`))`)*+)(\\1)?",
 			"name": "markup.inline.raw.string.markdown"
 		},
 		"strikethrough": {

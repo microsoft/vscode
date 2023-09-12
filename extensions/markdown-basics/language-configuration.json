@@ -44,7 +44,11 @@
 		},
 		{
 			"open": "`",
-			"close": "`"
+			"close": "`",
+			"notIn": [
+				"string",
+				"comment"
+			]
 		},
 		{
 			"open": "```",
