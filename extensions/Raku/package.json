@@ -1,0 +1,52 @@
+{
+  "name": "raku",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin Raku/atom-language grammars/raku.tmLanguage.json ./syntaxes/raku.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "raku",
+        "aliases": [
+		  "Raku",
+          "Perl6",
+          "perl6"
+        ],
+        "extensions": [
+          ".raku",
+		  ".rakumod",
+		  ".rakutest",
+		  ".rakudoc",
+		  ".nqp",
+		  ".p6",
+          ".pl6",
+          ".pm6"
+        ],
+        "firstLine": "(^#!.*\\bperl6\\b)|use\\s+v6|raku|=begin\\spod|my\\sclass",
+        "configuration": "./raku.language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "raku",
+        "scopeName": "source.raku",
+        "path": "./syntaxes/raku.tmLanguage.json",
+        "unbalancedBracketScopes": [
+          "variable.other.predefined.perl"
+        ]
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}
