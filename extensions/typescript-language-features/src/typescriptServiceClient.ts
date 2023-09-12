@@ -558,7 +558,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
-				// @ts-expect-error until TS 5.3
 				excludeLibrarySymbolsInNavTo: this._configuration.workspaceSymbolsExcludeLibrarySymbols,
 			},
 			watchOptions
