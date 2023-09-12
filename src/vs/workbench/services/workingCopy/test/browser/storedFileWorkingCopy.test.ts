@@ -216,6 +216,12 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	teardown(() => {
+		workingCopy.dispose();
+
+		for (const workingCopy of accessor.workingCopyService.workingCopies) {
+			(workingCopy as StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>).dispose();
+		}
+
 		disposables.clear();
 	});
 
@@ -256,19 +262,19 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isResolved(), true);
 
 		let changeDirtyCounter = 0;
-		workingCopy.onDidChangeDirty(() => {
+		disposables.add(workingCopy.onDidChangeDirty(() => {
 			changeDirtyCounter++;
-		});
+		}));
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		let savedCounter = 0;
-		workingCopy.onDidSave(() => {
+		disposables.add(workingCopy.onDidSave(() => {
 			savedCounter++;
-		});
+		}));
 
 		// Dirty from: Model content change
 		workingCopy.model?.updateContents('hello dirty');
@@ -338,9 +344,9 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('resolve (without backup)', async () => {
 		let onDidResolveCounter = 0;
-		workingCopy.onDidResolve(() => {
+		disposables.add(workingCopy.onDidResolve(() => {
 			onDidResolveCounter++;
-		});
+		}));
 
 		// resolve from file
 		await workingCopy.resolve();
@@ -476,7 +482,7 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('resolve (FILE_NOT_MODIFIED_SINCE still updates readonly state)', async () => {
 		let readonlyChangeCounter = 0;
-		workingCopy.onDidChangeReadonly(() => readonlyChangeCounter++);
+		disposables.add(workingCopy.onDidChangeReadonly(() => readonlyChangeCounter++));
 
 		await workingCopy.resolve();
 
@@ -541,15 +547,15 @@ suite('StoredFileWorkingCopy', function () {
 	test('save (no errors) - simple', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
 			lastSaveEvent = e;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// unresolved
 		await workingCopy.save();
@@ -573,15 +579,15 @@ suite('StoredFileWorkingCopy', function () {
 	test('save (no errors) - save reason', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
 			lastSaveEvent = e;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// save reason
 		await workingCopy.resolve();
@@ -599,14 +605,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - multiple', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// multiple saves in parallel are fine and result
 		// in a single save when content does not change
@@ -625,14 +631,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - multiple, cancellation', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// multiple saves in parallel are fine and result
 		// in just one save operation (the second one
@@ -651,14 +657,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - not forced but not dirty', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// no save when not forced and not dirty
 		await workingCopy.resolve();
@@ -670,14 +676,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - forced but not dirty', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// save when forced even when not dirty
 		await workingCopy.resolve();
@@ -690,14 +696,14 @@ suite('StoredFileWorkingCopy', function () {
 	test('save (no errors) - save clears orphaned', async () => {
 		runWithFakedTimers({}, async () => {
 			let savedCounter = 0;
-			workingCopy.onDidSave(e => {
+			disposables.add(workingCopy.onDidSave(e => {
 				savedCounter++;
-			});
+			}));
 
 			let saveErrorCounter = 0;
-			workingCopy.onDidSaveError(() => {
+			disposables.add(workingCopy.onDidSaveError(() => {
 				saveErrorCounter++;
-			});
+			}));
 
 			await workingCopy.resolve();
 
@@ -720,14 +726,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (errors)', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(reason => {
+		disposables.add(workingCopy.onDidSave(reason => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 
@@ -898,9 +904,9 @@ suite('StoredFileWorkingCopy', function () {
 		workingCopy.model?.updateContents('hello revert');
 
 		let revertedCounter = 0;
-		workingCopy.onDidRevert(() => {
+		disposables.add(workingCopy.onDidRevert(() => {
 			revertedCounter++;
-		});
+		}));
 
 		// revert: soft
 		await workingCopy.revert({ soft: true });
@@ -994,14 +1000,14 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDisposed(), false);
 
 		let disposedEvent = false;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposedEvent = true;
-		});
+		}));
 
 		let disposedModelEvent = false;
-		workingCopy.model.onWillDispose(() => {
+		disposables.add(workingCopy.model.onWillDispose(() => {
 			disposedModelEvent = true;
-		});
+		}));
 
 		workingCopy.dispose();
 
@@ -1020,13 +1026,15 @@ suite('StoredFileWorkingCopy', function () {
 		accessor.fileService.readonly = false;
 
 		let readonlyEvent = false;
-		workingCopy.onDidChangeReadonly(() => {
+		disposables.add(workingCopy.onDidChangeReadonly(() => {
 			readonlyEvent = true;
-		});
+		}));
 
 		await workingCopy.resolve();
 
 		assert.strictEqual(workingCopy.isReadonly(), false);
 		assert.strictEqual(readonlyEvent, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
