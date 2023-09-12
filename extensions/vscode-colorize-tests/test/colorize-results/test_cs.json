@@ -3,14 +3,14 @@
 		"c": "using",
 		"t": "source.cs keyword.other.directive.using.cs",
 		"r": {
-			"dark_plus": "keyword: #569CD6",
-			"light_plus": "keyword: #0000FF",
+			"dark_plus": "keyword.other.directive.using: #C586C0",
+			"light_plus": "keyword.other.directive.using: #AF00DB",
 			"dark_vs": "keyword: #569CD6",
 			"light_vs": "keyword: #0000FF",
-			"hc_black": "keyword: #569CD6",
-			"dark_modern": "keyword: #569CD6",
-			"hc_light": "keyword: #0F4A85",
-			"light_modern": "keyword: #0000FF"
+			"hc_black": "keyword.other.directive.using: #C586C0",
+			"dark_modern": "keyword.other.directive.using: #C586C0",
+			"hc_light": "keyword.other.directive.using: #B5200D",
+			"light_modern": "keyword.other.directive.using: #AF00DB"
 		}
 	},
 	{
