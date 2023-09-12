@@ -29,7 +29,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { CellRevealType, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -351,7 +351,7 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 	async createOutline(editor: NotebookEditor, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 
-		const showAllSymbols = this._configurationService.getValue<boolean>('notebook.gotoSymbols.showAllSymbols');
+		const showAllSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
 		if (target === OutlineTarget.QuickPick && showAllSymbols) {
 			await outline.setFullSymbols(cancelToken);
 		}
@@ -377,7 +377,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled notebook breadcrumbs contain code cells.")
 		},
-		'notebook.gotoSymbols.showAllSymbols': {
+		[NotebookSetting.gotoSymbolsAllSymbols]: {
 			type: 'boolean',
 			default: false,
 			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled goto symbol quickpick will display full code symbols from the notebook, as well as markdown headers.")
