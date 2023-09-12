@@ -335,7 +335,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else if ((this._willRestart || (e.kind === TaskEventKind.Terminated && e.exitReason === TerminalExitReason.User)) && e.taskId) {
 				this.removePersistentTask(e.taskId);
 			} else if (e.kind === TaskEventKind.DependsOnStarted && e.__task && e.dependencyIsBackgroundTask) {
-				this._setPersistentTask(e.__task);
+				this._setPersistentTask(e.__task, true);
 				const dependencies = e.__task.configurationProperties.dependsOn;
 				if (dependencies) {
 					this._dependencyTaskMap.set(e.__task._id, dependencies);
@@ -1126,7 +1126,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private async _setPersistentTask(task: Task): Promise<void> {
+	private async _setPersistentTask(task: Task, dependencyIsBackgroundTask?: boolean): Promise<void> {
 		if (!this._configurationService.getValue(TaskSettingId.Reconnection)) {
 			return;
 		}
@@ -1144,7 +1144,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					key = customized[configuration].getRecentlyUsedKey()!;
 				}
 			}
-			if (!task.configurationProperties.isBackground) {
+			if (!task.configurationProperties.isBackground || !dependencyIsBackgroundTask) {
 				return;
 			}
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
