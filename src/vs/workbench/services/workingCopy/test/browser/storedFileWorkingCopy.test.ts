@@ -234,7 +234,7 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('orphaned tracking', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);
 
 			let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
@@ -411,7 +411,7 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('resolve (with backup, preserves metadata and orphaned state)', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello backup')) });
 
 			const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
@@ -440,7 +440,7 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('resolve (updates orphaned state accordingly)', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			await workingCopy.resolve();
 
 			const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
@@ -694,7 +694,7 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('save (no errors) - save clears orphaned', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			let savedCounter = 0;
 			disposables.add(workingCopy.onDidSave(e => {
 				savedCounter++;
