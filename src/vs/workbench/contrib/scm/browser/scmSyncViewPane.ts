@@ -211,6 +211,7 @@ interface HistoryItemChangeTemplate {
 	readonly name: HTMLElement;
 	readonly fileLabel: IResourceLabel;
 	readonly decorationIcon: HTMLElement;
+	readonly disposables: IDisposable;
 }
 
 class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTreeElement, void, HistoryItemChangeTemplate> {
@@ -219,7 +220,6 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 	get templateId(): string { return HistoryItemChangeRenderer.TEMPLATE_ID; }
 
 	constructor(
-		// private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
 	) { }
 
@@ -229,29 +229,18 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true });
 		const decorationIcon = append(element, $('.decoration-icon'));
 
-		return { element, name, fileLabel, decorationIcon };
+		return { element, name, fileLabel, decorationIcon, disposables: new DisposableStore() };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemChangeTreeElement, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
-		// const viewModel = this.viewModelProvider();
 		templateData.fileLabel.setFile(node.element.uri, {
 			fileDecorations: { colors: false, badges: true },
 			hidePath: false,
-			//hidePath: viewModel.mode === ViewModelMode.Tree,
 		});
 	}
 
-	// renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMHistoryItemChange | ISCMHistoryItemChangeNode>, FuzzyScore>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
-	// 	const compressed = node.element as ICompressedTreeNode<ISCMHistoryItemChangeNode>;
-
-	// 	const label = compressed.elements.map(e => e.name);
-	// 	const folder = compressed.elements[compressed.elements.length - 1];
-
-	// 	templateData.fileLabel.setResource({ resource: folder.uri, name: label }, { fileKind: FileKind.FOLDER });
-	// }
-
 	disposeTemplate(templateData: HistoryItemChangeTemplate): void {
-		throw new Error('Method not implemented.');
+		templateData.disposables.dispose();
 	}
 }
 

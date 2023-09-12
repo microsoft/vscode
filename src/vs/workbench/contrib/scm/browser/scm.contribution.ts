@@ -82,7 +82,7 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
-	weight: 50,
+	weight: 60,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
@@ -114,11 +114,13 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: SYNC_VIEW_PANE_ID,
-	name: localize('source control sync', "Source Control Sync"),
+	name: localize('source control sync', "Source Control ..."),
 	ctorDescriptor: new SyncDescriptor(SCMSyncViewPane),
-	canToggleVisibility: true,
+	canToggleVisibility: false,
 	canMoveView: true,
-	weight: 30,
+	weight: 20,
+	order: -998,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryView', true),
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
@@ -291,6 +293,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
 			default: true
+		},
+		'scm.experimental.showHistoryView': {
+			type: 'boolean',
+			description: localize('showHistoryView', "Controls whether the Source Control History view is shown."),
+			default: false
 		}
 	}
 });

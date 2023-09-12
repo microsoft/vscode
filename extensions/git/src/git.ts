@@ -1023,8 +1023,7 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
-		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z'];
+		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.reverse) {
 			args.push('--reverse', '--ancestry-path');
@@ -1036,6 +1035,8 @@ export class Repository {
 
 		if (options?.range) {
 			args.push(options.range);
+		} else {
+			args.push(`-n${options?.maxEntries ?? 32}`);
 		}
 
 		if (options?.path) {
