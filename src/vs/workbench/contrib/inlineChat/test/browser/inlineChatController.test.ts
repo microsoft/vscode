@@ -8,6 +8,7 @@ import { equals } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
@@ -147,8 +148,7 @@ suite('InteractiveChatController', function () {
 		ctrl?.dispose();
 	});
 
-	// todo: re-enable this when earlier tests are fixed
-	// ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('creation, not showing anything', function () {
 		ctrl = instaService.createInstance(TestController, editor);
