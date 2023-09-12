@@ -25,6 +25,8 @@ import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { TerminalQuickFix, ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -416,6 +418,17 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
 		this._proxy.$registerProcessSupport(supportsProcesses);
+		this._extHostCommands.registerArgumentProcessor({
+			processArgument: arg => {
+				switch (arg?.$mid) {
+					case MarshalledId.TerminalContext: {
+						const cast = arg as ISerializedTerminalInstanceContext;
+						return cast.instanceIds.map(id => this._getTerminalById(id));
+					}
+					default: return arg;
+				}
+			}
+		});
 		this._register({
 			dispose: () => {
 				for (const [_, terminalProcess] of this._terminalProcesses) {
