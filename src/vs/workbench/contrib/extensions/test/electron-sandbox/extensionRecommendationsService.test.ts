@@ -62,6 +62,8 @@ import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -181,7 +183,7 @@ function aGalleryExtension(name: string, properties: any = {}, galleryExtensionP
 }
 
 suite('ExtensionRecommendationsService Test', () => {
-	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+	let disposableStore: DisposableStore;
 	let workspaceService: IWorkspaceContextService;
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;
@@ -194,7 +196,15 @@ suite('ExtensionRecommendationsService Test', () => {
 	let promptedEmitter: Emitter<void>;
 	let onModelAddedEvent: Emitter<ITextModel>;
 
+	teardown(async () => {
+		disposableStore.dispose();
+		await timeout(0); // allow for async disposables to complete
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
+		disposableStore = new DisposableStore();
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		promptedEmitter = disposableStore.add(new Emitter<void>());
 		installEvent = disposableStore.add(new Emitter<InstallExtensionEvent>());
