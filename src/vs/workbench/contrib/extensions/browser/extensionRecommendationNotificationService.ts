@@ -361,7 +361,7 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 				this.visibleNotification = { recommendationsNotification, source, from: Date.now() };
 				recommendationsNotification.show();
 			}
-			await raceCancellation(Event.toPromise(recommendationsNotification.onDidClose), token);
+			await raceCancellation(new Promise(c => disposables.add(Event.once(recommendationsNotification.onDidClose)(c))), token);
 			return !recommendationsNotification.isCancelled();
 		} finally {
 			disposables.dispose();
