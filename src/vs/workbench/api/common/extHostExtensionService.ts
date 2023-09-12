@@ -44,7 +44,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { setTimeout0 } from 'vs/base/common/platform';
+import { isCI, setTimeout0 } from 'vs/base/common/platform';
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
@@ -164,6 +164,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._activationEventsReader,
 			filterExtensions(this._globalRegistry, myExtensionsSet)
 		);
+
+		if (isCI) {
+			this._logService.info(`Creating extension host with the following global extensions: ${printExtIds(this._globalRegistry)}`);
+			this._logService.info(`Creating extension host with the following local extensions: ${printExtIds(this._myRegistry)}`);
+		}
+
 		this._storage = new ExtHostStorage(this._extHostContext, this._logService);
 		this._secretState = new ExtHostSecretState(this._extHostContext);
 		this._storagePath = storagePath;
@@ -963,6 +969,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
 
+		if (isCI) {
+			this._logService.info(`$startExtensionHost: global extensions: ${printExtIds(this._globalRegistry)}`);
+			this._logService.info(`$startExtensionHost: local extensions: ${printExtIds(this._myRegistry)}`);
+		}
+
 		return this._startExtensionHost();
 	}
 
@@ -998,6 +1009,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		extensionsPaths.setSearchTree(newSearchTree);
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
+
+		if (isCI) {
+			this._logService.info(`$deltaExtensions: global extensions: ${printExtIds(this._globalRegistry)}`);
+			this._logService.info(`$deltaExtensions: local extensions: ${printExtIds(this._myRegistry)}`);
+		}
 
 		return Promise.resolve(undefined);
 	}
@@ -1073,6 +1089,9 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 	return event;
 }
 
+function printExtIds(registry: ExtensionDescriptionRegistry) {
+	return registry.getAllExtensionDescriptions().map(ext => ext.identifier.value).join(',');
+}
 
 export const IExtHostExtensionService = createDecorator<IExtHostExtensionService>('IExtHostExtensionService');
 
