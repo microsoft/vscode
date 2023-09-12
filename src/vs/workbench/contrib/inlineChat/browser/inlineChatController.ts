@@ -151,7 +151,9 @@ export class InlineChatController implements IEditorContribution {
 	dispose(): void {
 		this._strategy?.dispose();
 		this._stashedSession.clear();
-		this.finishExistingSession();
+		if (this._activeSession) {
+			this._inlineChatSessionService.releaseSession(this._activeSession);
+		}
 		this._store.dispose();
 		this._log('controller disposed');
 	}
