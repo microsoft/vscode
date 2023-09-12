@@ -936,7 +936,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			if (trigger === Triggers.reconnect && !!terminal.xterm) {
 				const bufferLines = [];
-
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal?.instanceId));
 				const bufferReverseIterator = terminal.xterm.getBufferReverseIterator();
 				const startRegex = new RegExp(watchingProblemMatcher.beginPatterns.map(pattern => pattern.source).join('|'));
 				for (const nextLine of bufferReverseIterator) {
@@ -948,7 +948,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
 				}
-				this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.Inactive, task, terminal.instanceId));
 			}
 		} else {
 			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
