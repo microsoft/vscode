@@ -8,6 +8,7 @@ import { activate } from '..';
 import { RendererApi } from 'vscode-notebook-renderer';
 import { IDisposable, IRichRenderContext, OutputWithAppend, RenderOptions } from '../rendererTypes';
 import { JSDOM } from "jsdom";
+import { LinkDetector } from '../linkify';
 
 const dom = new JSDOM();
 global.document = dom.window.document;
@@ -273,6 +274,7 @@ suite('Notebook builtin output renderer', () => {
 	});
 
 	test(`Render with wordwrap and scrolling for error output`, async () => {
+		LinkDetector.injectedHtmlCreator = (value: string) => value;
 		const context = createContext({ outputWordWrap: true, outputScrolling: true });
 		const renderer = await activate(context);
 		assert.ok(renderer, 'Renderer not created');
