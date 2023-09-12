@@ -19,7 +19,7 @@ import { toLocalResource, dirname, basenameOrAuthority } from 'vs/base/common/re
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, toDisposable, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -31,7 +31,7 @@ import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } 
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { ThrottledDelayer } from 'vs/base/common/async';
+import { DebouncedSequencer, ThrottledDelayer } from 'vs/base/common/async';
 import { top } from 'vs/base/common/arrays';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -57,19 +57,127 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { GotoLineQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
-interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
-	resource: URI;
-	range: { decoration: IRange; selection: IRange };
+type IPreviewDisposable = IDisposable | (() => Promise<void> | void);
+
+class PreviewDisposableStore extends DisposableStore {
+	private readonly tasks = <(() => Promise<void> | void)[]>[];
+
+	addItem(item: IPreviewDisposable) {
+		if ('dispose' in item) {
+			this.add(item);
+		} else {
+			this.tasks.push(item);
+		}
+	}
+
+	override clear(): Promise<unknown> {
+		super.clear();
+		if (!this.tasks) {
+			return Promise.resolve();
+		}
+		const promises = this.tasks.map(f => f());
+		this.tasks.length = 0;
+		return Promise.all(promises);
+	}
+
+	override dispose(): void {
+		this.clear();
+		super.dispose();
+	}
 }
 
-function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEditorSymbolAnythingQuickPickItem {
-	const candidate = pick as IEditorSymbolAnythingQuickPickItem | undefined;
+type IPreviewHandler = (context: IPreviewContext) => Promise<any>;
 
-	return !!candidate?.range && !!candidate.resource;
+interface IPreviewContext {
+	readonly token: CancellationToken;
+	readonly resource: URI;
+	readonly previewRange: IPreviewRange;
+	readonly disposeOnNextPreview: (d: IPreviewDisposable) => void;
+	readonly disposeOnClosePreview: (d: IPreviewDisposable, dedup: boolean) => void;
 }
+
+interface IPreviewRange {
+	decoration: IRange;
+	selection: IRange;
+}
+
+interface IPreviewRequest {
+	readonly pick?: IAnythingQuickPickItem;
+	readonly previewRange?: IPreviewRange;
+	readonly parentToken?: CancellationToken;
+	readonly handler?: IPreviewHandler;
+}
+
+// PreviewManager sequentializes a stream of preview requests and manages the resources in this process.
+// Pipeline: Request 1 -> Request 2 -> Close Preview -> Request 3 ...
+// A IPreviewHandler recieves an IPreviewContext as argument and returns a promise.
+// With IPreviewContext one can access the information of current request, and register resources to be disposed later.
+// + IPreviewContext.disposeOnNextPreview registers a resource that would be disposed when the next request is processed;
+// + IPreviewContext.disposeOnClosePreview registers a resource that spans the lifetime of multiple requests,
+//   and is only disposed if a special request "Close Preview" arrives.
+// A request with any the following conditions is regarded as "Close Preview":
+//  1) request.pick?.resource === undefined; or
+//  2) request.previewRange === undefined; or
+//  3) request.handler === undefined.
+class PreviewManager implements IDisposable {
+	private isFirstTime = true;
+	private readonly sequencer = new DebouncedSequencer();
+
+	private readonly disposableNextPreview = new PreviewDisposableStore();
+	private readonly disposeOnNextPreview = this.disposableNextPreview.addItem.bind(this.disposableNextPreview);
+
+	private readonly disposableClosePreview = new PreviewDisposableStore();
+	private readonly disposeOnClosePreview = ((self) =>
+		(d: IPreviewDisposable, dedup: boolean) => {
+			if (dedup && !self.isFirstTime) { return; }
+			self.disposableClosePreview.addItem(d);
+		})(this);
+
+	async clear() {
+		this.sequencer.clear();
+		await this.disposableNextPreview.clear();
+		await this.disposableClosePreview.clear();
+	}
+
+	dispose() {
+		this.sequencer.dispose();
+		this.disposableNextPreview.dispose();
+		this.disposableClosePreview.dispose();
+	}
+
+	// An empty request indicates to close the preview
+	request(request?: IPreviewRequest): void {
+		const resource = request?.pick?.resource;
+		const previewRange = request?.previewRange;
+		const handler = request?.handler;
+		const isRequestValid = !!resource && !!previewRange && !!handler;
+
+		this.sequencer.queue(async (token) => {
+			await this.disposableNextPreview.clear();
+			if (!isRequestValid) {
+				await this.disposableClosePreview.clear();
+				this.isFirstTime = true;
+				return;
+			}
+			if (token.isCancellationRequested) { return; }
+			try {
+				await handler({
+					token, resource, previewRange,
+					disposeOnNextPreview: this.disposeOnNextPreview,
+					disposeOnClosePreview: this.disposeOnClosePreview
+				});
+			} finally {
+				this.isFirstTime = false;
+			}
+		}, request?.parentToken);
+	}
+}
+
+type PreviewKind = 'line' | 'symbol' | undefined;
 
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
 
@@ -102,6 +210,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		lastFilter: string | undefined = undefined;
 		lastRange: IRange | undefined = undefined;
 
+		private lastMessage: string | undefined = undefined;
+		private messageIsDirty: boolean = false;
+		previewKind: PreviewKind = undefined;
+
 		lastGlobalPicks: PicksWithActive<IAnythingQuickPickItem> | undefined = undefined;
 
 		isQuickNavigating: boolean | undefined = undefined;
@@ -132,6 +244,26 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			this.lastRange = undefined;
 			this.lastGlobalPicks = undefined;
 			this.editorViewState = undefined;
+			this.lastMessage = undefined;
+			this.messageIsDirty = false;
+			this.previewKind = undefined;
+		}
+
+		rememberAndSetValidationMessage(newMessage: string) {
+			const picker = this.picker;
+			if (!picker) { return; }
+			if (!this.messageIsDirty) {
+				this.messageIsDirty = true;
+				this.lastMessage = picker.validationMessage;
+			}
+			picker.validationMessage = newMessage;
+		}
+
+		restoreValidationMessage() {
+			if (this.messageIsDirty && this.picker) {
+				this.messageIsDirty = false;
+				this.picker.validationMessage = this.lastMessage;
+			}
 		}
 
 		rememberEditorViewState(): void {
@@ -217,18 +349,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Update the pick state for this run
 		this.pickState.set(picker);
+		this.previewManager.clear();
 
 		// Add editor decorations for active editor symbol picks
-		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
 		disposables.add(picker.onDidChangeActive(() => {
-
-			// Clear old decorations
-			editorDecorationsDisposable.value = undefined;
-
-			// Add new decoration if editor symbol is active
-			const [item] = picker.activeItems;
-			if (isEditorSymbolQuickPickItem(item)) {
-				editorDecorationsDisposable.value = this.decorateAndRevealSymbolRange(item);
+			if (this.pickState.previewKind !== undefined) {
+				this.requestPreview(picker.activeItems[0], token);
 			}
 		}));
 
@@ -240,6 +366,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			if (reason === QuickInputHideReason.Gesture) {
 				this.pickState.restoreEditorViewState();
 			}
+			this.previewManager.clear();
 		}));
 
 		// Start picker
@@ -248,27 +375,124 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return disposables;
 	}
 
-	private decorateAndRevealSymbolRange(pick: IEditorSymbolAnythingQuickPickItem): IDisposable {
-		const activeEditor = this.editorService.activeEditor;
-		if (!this.uriIdentityService.extUri.isEqual(pick.resource, activeEditor?.resource)) {
-			return Disposable.None; // active editor needs to be for resource
-		}
+	private readonly previewManager = this._register(new PreviewManager());
 
-		const activeEditorControl = this.editorService.activeTextEditorControl;
+	private requestPreview(pick: IAnythingQuickPickItem | undefined, token?: CancellationToken) {
+		let request: IPreviewRequest | undefined;
+		switch (this.pickState.previewKind) {
+			case 'symbol': {
+				const previewRange = (pick as { range?: IPreviewRange })?.range;
+				request = {
+					pick,
+					previewRange,
+					parentToken: token,
+					handler: (c) => this.showPreviewGeneric(c),
+				};
+				break;
+			}
+			case 'line':
+				request = {
+					pick: pick,
+					previewRange: {
+						selection: this.pickState.lastRange!!,
+						decoration: this.pickState.lastRange!!,
+					},
+					parentToken: token,
+					handler: (c) => this.showPreviewGotoLine(c),
+				};
+				break;
+		}
+		this.previewManager.request(request);
+	}
+
+	private setPreviewKind(newKind: PreviewKind): {
+		picksToRestore: PicksWithActive<IAnythingQuickPickItem> | undefined;
+		lastKind: PreviewKind;
+	} {
+		const oldKind = this.pickState.previewKind;
+		this.pickState.previewKind = newKind;
+		if (oldKind === undefined && newKind !== undefined) {
+			// Remember our pick state before returning new picks
+			// unless we are inside an editor symbol filter or result.
+			// We can use this state to return back to the global pick
+			// when the user is narrowing back out of editor symbols.
+			const picks = this.pickState.picker?.items;
+			const activePick = this.pickState.picker?.activeItems[0];
+			if (picks && activePick) {
+				this.pickState.lastGlobalPicks = {
+					items: picks,
+					active: activePick
+				};
+			}
+		} else if (oldKind !== undefined && newKind === undefined) {
+			this.requestPreview(undefined);
+			return {
+				picksToRestore: this.pickState.lastGlobalPicks,
+				lastKind: oldKind
+			};
+		}
+		return {
+			picksToRestore: undefined,
+			lastKind: oldKind
+		};
+	}
+
+	private readonly editorGotoLineQuickAccess = this.instantiationService.createInstance(GotoLineQuickAccessProvider);
+
+	private async showPreviewGotoLine(context: IPreviewContext): Promise<void> {
+		const activeEditorControl = await this.showPreviewGeneric(context);
 		if (!activeEditorControl) {
-			return Disposable.None; // we need a text editor control to decorate and reveal
+			return;
 		}
 
-		// we must remember our curret view state to be able to restore
+		// Update the message in picker
+		const range = context.previewRange.selection;
+		const pickLabel = this.editorGotoLineQuickAccess.getPickLabel(activeEditorControl, range.startLineNumber, range.startColumn);
+		this.pickState.rememberAndSetValidationMessage(pickLabel);
+		context.disposeOnClosePreview(() => this.pickState.restoreValidationMessage(), true);
+	}
+
+	private async openEditor(resource: URI): Promise<IEditor | undefined> {
 		this.pickState.rememberEditorViewState();
+		const activeEditor = this.editorService.activeEditor;
+
+		if (!this.uriIdentityService.extUri.isEqual(resource, activeEditor?.resource)) {
+			// Bring the editor to front to preview location to go to
+			try {
+				// open it
+				await this.editorService.openEditor({
+					resource: resource,
+					options: { preserveFocus: true, revealIfOpened: true, ignoreError: true }
+				});
+			} catch (error) {
+				// if error caught, ignore it and don't proceed
+				return;
+			}
+		}
+
+		return this.editorService.activeTextEditorControl;
+	}
+
+	private async showPreviewGeneric(context: IPreviewContext): Promise<IEditor | undefined> {
+		const activeEditorControl = await this.openEditor(context.resource);
+		if (!activeEditorControl) {
+			return;
+		}
+
+		if (context.token.isCancellationRequested) {
+			return;
+		}
 
 		// Reveal
-		activeEditorControl.revealRangeInCenter(pick.range.selection, ScrollType.Smooth);
+		activeEditorControl.revealRangeInCenter(context.previewRange.selection, ScrollType.Smooth);
 
 		// Decorate
-		this.addDecorations(activeEditorControl, pick.range.decoration);
+		this.addDecorations(activeEditorControl, context.previewRange.decoration);
 
-		return toDisposable(() => this.clearDecorations(activeEditorControl));
+		context.disposeOnNextPreview(() => this.clearDecorations(activeEditorControl));
+		context.disposeOnClosePreview(() => this.pickState.restoreEditorViewState(), true);
+
+		return activeEditorControl;
 	}
 
 	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
@@ -285,8 +509,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			filter = originalFilter;
 		}
 
-		// Remember as last range
-		this.pickState.lastRange = filterWithRange?.range;
+		const range = filterWithRange?.range;
+		this.pickState.lastRange = range;
+		if (range !== undefined) {
+			this.setPreviewKind('line');
+			this.requestPreview(this.pickState.picker?.activeItems[0], token);
+		}
 
 		// If the original filter value has changed but the normalized
 		// one has not, we return early with a `null` result indicating
@@ -300,23 +528,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const lastWasFiltering = !!this.pickState.lastOriginalFilter;
 		this.pickState.lastOriginalFilter = originalFilter;
 		this.pickState.lastFilter = filter;
-
-		// Remember our pick state before returning new picks
-		// unless we are inside an editor symbol filter or result.
-		// We can use this state to return back to the global pick
-		// when the user is narrowing back out of editor symbols.
-		const picks = this.pickState.picker?.items;
-		const activePick = this.pickState.picker?.activeItems[0];
-		if (picks && activePick) {
-			const activePickIsEditorSymbol = isEditorSymbolQuickPickItem(activePick);
-			const activePickIsNoResultsInEditorSymbols = activePick === AnythingQuickAccessProvider.NO_RESULTS_PICK && filter.indexOf(GotoSymbolQuickAccessProvider.PREFIX) >= 0;
-			if (!activePickIsEditorSymbol && !activePickIsNoResultsInEditorSymbols) {
-				this.pickState.lastGlobalPicks = {
-					items: picks,
-					active: activePick
-				};
-			}
-		}
 
 		// `enableEditorSymbolSearch`: this will enable local editor symbol
 		// search if the filter value includes `@` character. We only want
@@ -343,16 +554,17 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (options.enableEditorSymbolSearch) {
 			const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
 			if (editorSymbolPicks) {
-				return editorSymbolPicks;
+				return editorSymbolPicks.then(picks => {
+					this.setPreviewKind('symbol');
+					return picks;
+				});
 			}
 		}
 
-		// If we have a known last active editor symbol pick, we try to restore
-		// the last global pick to support the case of narrowing out from a
-		// editor symbol search back into the global search
-		const activePick = this.pickState.picker?.activeItems[0];
-		if (isEditorSymbolQuickPickItem(activePick) && this.pickState.lastGlobalPicks) {
-			return this.pickState.lastGlobalPicks;
+		// Restore last picks if switched from preview to non-preview
+		const { picksToRestore } = this.setPreviewKind(undefined);
+		if (picksToRestore) {
+			return picksToRestore;
 		}
 
 		// Otherwise return normally with history and file/symbol results
@@ -847,7 +1059,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return null; // we need to be searched for editor symbols via `@`
 		}
 
-		const activeGlobalPick = this.pickState.lastGlobalPicks?.active;
+		const activeGlobalPick = this.pickState.previewKind === 'symbol'
+			? this.pickState.lastGlobalPicks?.active
+			: this.pickState.picker?.activeItems[0];
 		if (!activeGlobalPick) {
 			return null; // we need an active global pick to find symbols for
 		}
@@ -868,20 +1082,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private async doGetEditorSymbolPicks(activeGlobalPick: IAnythingQuickPickItem, activeGlobalResource: URI, filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> {
 
-		// Bring the editor to front to review symbols to go to
-		try {
-
-			// we must remember our curret view state to be able to restore
-			this.pickState.rememberEditorViewState();
-
-			// open it
-			await this.editorService.openEditor({
-				resource: activeGlobalResource,
-				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true }
-			});
-		} catch (error) {
-			return []; // return if resource cannot be opened
-		}
+		if (!await this.openEditor(activeGlobalResource)) { return []; }
 
 		if (token.isCancellationRequested) {
 			return [];
