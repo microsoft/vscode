@@ -724,7 +724,7 @@ suite('StoredFileWorkingCopy', function () {
 		});
 	});
 
-	test.skip('save (errors)', async () => { // TODO@bpasero enable again
+	test('save (errors)', async () => {
 		let savedCounter = 0;
 		disposables.add(workingCopy.onDidSave(reason => {
 			savedCounter++;
