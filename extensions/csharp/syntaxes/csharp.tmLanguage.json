@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/772323937fedd65c6dc1c8ce6ea41d97415ed7d1",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/525e628edad54c0f7aa15b015310df240803ea66",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -211,9 +211,6 @@
 					"include": "#else-part"
 				},
 				{
-					"include": "#switch-statement"
-				},
-				{
 					"include": "#goto-statement"
 				},
 				{
@@ -238,10 +235,10 @@
 					"include": "#checked-unchecked-statement"
 				},
 				{
-					"include": "#lock-statement"
+					"include": "#context-control-statement"
 				},
 				{
-					"include": "#using-statement"
+					"include": "#context-control-paren-statement"
 				},
 				{
 					"include": "#labeled-statement"
@@ -278,13 +275,10 @@
 					"include": "#comment"
 				},
 				{
-					"include": "#checked-unchecked-expression"
+					"include": "#expression-operator-expression"
 				},
 				{
-					"include": "#typeof-or-default-expression"
-				},
-				{
-					"include": "#nameof-expression"
+					"include": "#type-operator-expression"
 				},
 				{
 					"include": "#default-literal-expression"
@@ -305,13 +299,19 @@
 					"include": "#type-builtin"
 				},
 				{
-					"include": "#this-or-base-expression"
+					"include": "#language-variable"
 				},
 				{
-					"include": "#switch-expression"
+					"include": "#switch-statement-or-expression"
+				},
+				{
+					"include": "#with-expression"
 				},
 				{
 					"include": "#conditional-operator"
+				},
+				{
+					"include": "#assignment-expression"
 				},
 				{
 					"include": "#expression-operators"
@@ -370,36 +370,39 @@
 			]
 		},
 		"extern-alias-directive": {
-			"begin": "\\s*(extern)\\b\\s*(alias)\\b\\s*(@?[_[:alpha:]][_[:alnum:]]*)",
+			"begin": "\\b(extern)\\s+(alias)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.extern.cs"
+					"name": "keyword.other.directive.extern.cs"
 				},
 				"2": {
-					"name": "keyword.other.alias.cs"
-				},
-				"3": {
-					"name": "variable.other.alias.cs"
+					"name": "keyword.other.directive.alias.cs"
 				}
 			},
-			"end": "(?=;)"
+			"end": "(?=;)",
+			"patterns": [
+				{
+					"match": "\\@?[_[:alpha:]][_[:alnum:]]*",
+					"name": "variable.other.alias.cs"
+				}
+			]
 		},
 		"using-directive": {
 			"patterns": [
 				{
-					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(static)\\b\\s+(\\b(unsafe)\\b\\s+)?",
+					"begin": "\\b(?:(global)\\s+)?(using)\\s+(static)\\b\\s*(?:(unsafe)\\b\\s*)?",
 					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.directive.global.cs"
+						},
 						"2": {
-							"name": "keyword.other.global.cs"
+							"name": "keyword.other.directive.using.cs"
 						},
 						"3": {
-							"name": "keyword.other.using.cs"
+							"name": "keyword.other.directive.static.cs"
 						},
 						"4": {
-							"name": "keyword.other.static.cs"
-						},
-						"6": {
-							"name": "storage.modifier.cs"
+							"name": "storage.modifier.unsafe.cs"
 						}
 					},
 					"end": "(?=;)",
@@ -410,19 +413,22 @@
 					]
 				},
 				{
-					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\b\\s+(\\b(unsafe)\\b\\s+)?(?=(@?[_[:alpha:]][_[:alnum:]]*)\\s*=)",
+					"begin": "\\b(?:(global)\\s+)?(using)\\b\\s*(?:(unsafe)\\b\\s*)?(@?[_[:alpha:]][_[:alnum:]]*)\\s*(=)",
 					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.directive.global.cs"
+						},
 						"2": {
-							"name": "keyword.other.global.cs"
+							"name": "keyword.other.directive.using.cs"
 						},
 						"3": {
-							"name": "keyword.other.using.cs"
+							"name": "storage.modifier.unsafe.cs"
+						},
+						"4": {
+							"name": "entity.name.type.alias.cs"
 						},
 						"5": {
-							"name": "storage.modifier.cs"
-						},
-						"6": {
-							"name": "entity.name.type.alias.cs"
+							"name": "keyword.operator.assignment.cs"
 						}
 					},
 					"end": "(?=;)",
@@ -432,20 +438,17 @@
 						},
 						{
 							"include": "#type"
-						},
-						{
-							"include": "#operator-assignment"
 						}
 					]
 				},
 				{
-					"begin": "(\\b(global)\\b\\s+)?\\b(using)\\s*(?!\\(|\\s|var)",
+					"begin": "\\b(?:(global)\\s+)?(using)\\b\\s*+(?!\\(|var\\b)",
 					"beginCaptures": {
-						"2": {
-							"name": "keyword.other.global.cs"
+						"1": {
+							"name": "keyword.other.directive.global.cs"
 						},
-						"3": {
-							"name": "keyword.other.using.cs"
+						"2": {
+							"name": "keyword.other.directive.using.cs"
 						}
 					},
 					"end": "(?=;)",
@@ -455,7 +458,10 @@
 						},
 						{
 							"name": "entity.name.type.namespace.cs",
-							"match": "@?[_[:alpha:]][_[:alnum:]]*"
+							"match": "\\@?[_[:alpha:]][_[:alnum:]]*"
+						},
+						{
+							"include": "#punctuation-accessor"
 						},
 						{
 							"include": "#operator-assignment"
@@ -551,7 +557,7 @@
 			"begin": "\\b(namespace)\\s+",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.namespace.cs"
+					"name": "storage.type.namespace.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
@@ -594,7 +600,7 @@
 			]
 		},
 		"storage-modifier": {
-			"name": "storage.modifier.cs",
+			"name": "storage.modifier.$1.cs",
 			"match": "(?<!\\.)\\b(new|public|protected|internal|private|abstract|virtual|override|sealed|static|partial|readonly|volatile|const|extern|async|unsafe|ref|required|file)\\b"
 		},
 		"class-declaration": {
@@ -605,10 +611,10 @@
 					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n\\b(class)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*",
 					"beginCaptures": {
 						"2": {
-							"name": "keyword.other.record.cs"
+							"name": "storage.type.record.cs"
 						},
 						"3": {
-							"name": "keyword.other.class.cs"
+							"name": "storage.type.class.cs"
 						},
 						"4": {
 							"name": "entity.name.type.class.cs"
@@ -664,7 +670,7 @@
 			"begin": "(?x)\n(?:\\b(delegate)\\b)\\s+\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(<([^<>]+)>)?\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.delegate.cs"
+					"name": "storage.type.delegate.cs"
 				},
 				"2": {
 					"patterns": [
@@ -712,7 +718,7 @@
 							"match": "(enum)\\s+(@?[_[:alpha:]][_[:alnum:]]*)",
 							"captures": {
 								"1": {
-									"name": "keyword.other.enum.cs"
+									"name": "storage.type.enum.cs"
 								},
 								"2": {
 									"name": "entity.name.type.enum.cs"
@@ -796,7 +802,7 @@
 					"begin": "(?x)\n(interface)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
 					"beginCaptures": {
 						"1": {
-							"name": "keyword.other.interface.cs"
+							"name": "storage.type.interface.cs"
 						},
 						"2": {
 							"name": "entity.name.type.interface.cs"
@@ -853,7 +859,7 @@
 					"begin": "(?x)\n(record)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
 					"beginCaptures": {
 						"1": {
-							"name": "keyword.other.record.cs"
+							"name": "storage.type.record.cs"
 						},
 						"2": {
 							"name": "entity.name.type.class.cs"
@@ -913,10 +919,10 @@
 					"begin": "(?x)\n(\\b(record)\\b\\s+)?\n(struct)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
 					"beginCaptures": {
 						"2": {
-							"name": "keyword.other.record.cs"
+							"name": "storage.type.record.cs"
 						},
 						"3": {
-							"name": "keyword.other.struct.cs"
+							"name": "storage.type.struct.cs"
 						},
 						"4": {
 							"name": "entity.name.type.struct.cs"
@@ -984,19 +990,11 @@
 			"patterns": [
 				{
 					"match": "\\b(in|out)\\b",
-					"captures": {
-						"1": {
-							"name": "storage.modifier.cs"
-						}
-					}
+					"name": "storage.modifier.$1.cs"
 				},
 				{
 					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\b",
-					"captures": {
-						"1": {
-							"name": "entity.name.type.type-parameter.cs"
-						}
-					}
+					"name": "entity.name.type.type-parameter.cs"
 				},
 				{
 					"include": "#comment"
@@ -1033,7 +1031,7 @@
 			"begin": "(where)\\s+(@?[_[:alpha:]][_[:alnum:]]*)\\s*(:)",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.where.cs"
+					"name": "storage.modifier.where.cs"
 				},
 				"2": {
 					"name": "entity.name.type.type-parameter.cs"
@@ -1045,18 +1043,18 @@
 			"end": "(?=\\{|where|;|=>)",
 			"patterns": [
 				{
-					"name": "keyword.other.class.cs",
+					"name": "storage.type.class.cs",
 					"match": "\\bclass\\b"
 				},
 				{
-					"name": "keyword.other.struct.cs",
+					"name": "storage.type.struct.cs",
 					"match": "\\bstruct\\b"
 				},
 				{
 					"match": "(new)\\s*(\\()\\s*(\\))",
 					"captures": {
 						"1": {
-							"name": "keyword.other.new.cs"
+							"name": "keyword.operator.expression.new.cs"
 						},
 						"2": {
 							"name": "punctuation.parenthesis.open.cs"
@@ -1112,7 +1110,7 @@
 			]
 		},
 		"property-declaration": {
-			"begin": "(?x)\n\n# The negative lookahead below ensures that we don't match nested types\n# or other declarations as properties.\n(?![[:word:][:space:]]*\\b(?:class|interface|struct|enum|event)\\b)\n\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<property_name>\\g<identifier>)\\s*\n(?=\\{|=>|$)",
+			"begin": "(?x)\n\n# The negative lookahead below ensures that we don't match nested types\n# or other declarations as properties.\n(?![[:word:][:space:]]*\\b(?:class|interface|struct|enum|event)\\b)\n\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<property_name>\\g<identifier>)\\s*\n(?=\\{|=>|//|/\\*|$)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1144,7 +1142,7 @@
 					"include": "#property-accessors"
 				},
 				{
-					"include": "#expression-body"
+					"include": "#accessor-getter-expression"
 				},
 				{
 					"include": "#variable-initializer"
@@ -1175,7 +1173,7 @@
 					]
 				},
 				"8": {
-					"name": "keyword.other.this.cs"
+					"name": "variable.language.this.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
@@ -1190,7 +1188,7 @@
 					"include": "#property-accessors"
 				},
 				{
-					"include": "#expression-body"
+					"include": "#accessor-getter-expression"
 				},
 				{
 					"include": "#variable-initializer"
@@ -1198,10 +1196,10 @@
 			]
 		},
 		"event-declaration": {
-			"begin": "(?x)\n\\b(event)\\b\\s*\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(?<event_names>\\g<identifier>(?:\\s*,\\s*\\g<identifier>)*)\\s*\n(?=\\{|;|$)",
+			"begin": "(?x)\n\\b(event)\\b\\s*\n(?<return_type>\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\\s+\n)\n(?<interface_name>\\g<type_name>\\s*\\.\\s*)?\n(\\g<identifier>)\\s* # first event name\n(?=\\{|;|,|=|//|/\\*|$)",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.event.cs"
+					"name": "storage.type.event.cs"
 				},
 				"2": {
 					"patterns": [
@@ -1221,15 +1219,7 @@
 					]
 				},
 				"9": {
-					"patterns": [
-						{
-							"name": "entity.name.variable.event.cs",
-							"match": "@?[_[:alpha:]][_[:alnum:]]*"
-						},
-						{
-							"include": "#punctuation-comma"
-						}
-					]
+					"name": "entity.name.variable.event.cs"
 				}
 			},
 			"end": "(?<=\\})|(?=;)",
@@ -1241,7 +1231,28 @@
 					"include": "#event-accessors"
 				},
 				{
+					"name": "entity.name.variable.event.cs",
+					"match": "@?[_[:alpha:]][_[:alnum:]]*"
+				},
+				{
 					"include": "#punctuation-comma"
+				},
+				{
+					"begin": "=",
+					"beginCaptures": {
+						"0": {
+							"name": "keyword.operator.assignment.cs"
+						}
+					},
+					"end": "(?<=,)|(?=;)",
+					"patterns": [
+						{
+							"include": "#expression"
+						},
+						{
+							"include": "#punctuation-comma"
+						}
+					]
 				}
 			]
 		},
@@ -1260,35 +1271,42 @@
 			},
 			"patterns": [
 				{
-					"name": "storage.modifier.cs",
-					"match": "\\b(private|protected|internal)\\b"
-				},
-				{
-					"name": "keyword.other.get.cs",
-					"match": "\\b(get)\\b"
-				},
-				{
-					"name": "keyword.other.set.cs",
-					"match": "\\b(set)\\b"
-				},
-				{
-					"name": "keyword.other.init.cs",
-					"match": "\\b(init)\\b"
-				},
-				{
 					"include": "#comment"
 				},
 				{
 					"include": "#attribute-section"
 				},
 				{
-					"include": "#expression-body"
+					"name": "storage.modifier.$1.cs",
+					"match": "\\b(private|protected|internal)\\b"
 				},
 				{
-					"include": "#block"
+					"begin": "\\b(get)\\b\\s*(?=\\{|;|=>|//|/\\*|$)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.accessor.$1.cs"
+						}
+					},
+					"end": "(?<=\\}|;)|(?=\\})",
+					"patterns": [
+						{
+							"include": "#accessor-getter"
+						}
+					]
 				},
 				{
-					"include": "#punctuation-semicolon"
+					"begin": "\\b(set|init)\\b\\s*(?=\\{|;|=>|//|/\\*|$)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.accessor.$1.cs"
+						}
+					},
+					"end": "(?<=\\}|;)|(?=\\})",
+					"patterns": [
+						{
+							"include": "#accessor-setter"
+						}
+					]
 				}
 			]
 		},
@@ -1307,24 +1325,114 @@
 			},
 			"patterns": [
 				{
-					"name": "keyword.other.add.cs",
-					"match": "\\b(add)\\b"
-				},
-				{
-					"name": "keyword.other.remove.cs",
-					"match": "\\b(remove)\\b"
-				},
-				{
 					"include": "#comment"
 				},
 				{
 					"include": "#attribute-section"
 				},
 				{
-					"include": "#expression-body"
+					"begin": "\\b(add|remove)\\b\\s*(?=\\{|;|=>|//|/\\*|$)",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.type.accessor.$1.cs"
+						}
+					},
+					"end": "(?<=\\}|;)|(?=\\})",
+					"patterns": [
+						{
+							"include": "#accessor-setter"
+						}
+					]
+				}
+			]
+		},
+		"accessor-getter": {
+			"patterns": [
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.cs"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.cs"
+						}
+					},
+					"contentName": "meta.accessor.getter.cs",
+					"patterns": [
+						{
+							"include": "#statement"
+						}
+					]
 				},
 				{
-					"include": "#block"
+					"include": "#accessor-getter-expression"
+				},
+				{
+					"include": "#punctuation-semicolon"
+				}
+			]
+		},
+		"accessor-getter-expression": {
+			"begin": "=>",
+			"beginCaptures": {
+				"0": {
+					"name": "keyword.operator.arrow.cs"
+				}
+			},
+			"end": "(?=;|\\})",
+			"contentName": "meta.accessor.getter.cs",
+			"patterns": [
+				{
+					"include": "#ref-modifier"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"accessor-setter": {
+			"patterns": [
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.cs"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.cs"
+						}
+					},
+					"contentName": "meta.accessor.setter.cs",
+					"patterns": [
+						{
+							"include": "#statement"
+						}
+					]
+				},
+				{
+					"begin": "=>",
+					"beginCaptures": {
+						"0": {
+							"name": "keyword.operator.arrow.cs"
+						}
+					},
+					"end": "(?=;|\\})",
+					"contentName": "meta.accessor.setter.cs",
+					"patterns": [
+						{
+							"include": "#ref-modifier"
+						},
+						{
+							"include": "#expression"
+						}
+					]
 				},
 				{
 					"include": "#punctuation-semicolon"
@@ -1425,13 +1533,10 @@
 			]
 		},
 		"constructor-initializer": {
-			"begin": "\\b(?:(base)|(this))\\b\\s*(?=\\()",
+			"begin": "\\b(base|this)\\b\\s*(?=\\()",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.base.cs"
-				},
-				"2": {
-					"name": "keyword.other.this.cs"
+					"name": "variable.language.$1.cs"
 				}
 			},
 			"end": "(?<=\\))",
@@ -1468,7 +1573,7 @@
 			]
 		},
 		"operator-declaration": {
-			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?<operator_keyword>(?:\\b(?:operator)))\\s*\n(?<operator>(?:\\+|-|\\*|/|%|&|\\||\\^|\\<\\<|\\>\\>|==|!=|\\>|\\<|\\>=|\\<=|!|~|\\+\\+|--|true|false))\\s*\n(?=\\()",
+			"begin": "(?x)\n(?<type_name>\n  (?:\n    (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n\\b(?<operator_keyword>operator)\\b\\s*\n(?<operator>[+\\-*/%&|\\^!=~<>]+|true|false)\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -1478,7 +1583,7 @@
 					]
 				},
 				"6": {
-					"name": "keyword.other.operator-decl.cs"
+					"name": "storage.type.operator.cs"
 				},
 				"7": {
 					"name": "entity.name.function.cs"
@@ -1509,7 +1614,7 @@
 							"match": "\\b(explicit)\\b",
 							"captures": {
 								"1": {
-									"name": "keyword.other.explicit.cs"
+									"name": "storage.modifier.explicit.cs"
 								}
 							}
 						},
@@ -1517,14 +1622,14 @@
 							"match": "\\b(implicit)\\b",
 							"captures": {
 								"1": {
-									"name": "keyword.other.implicit.cs"
+									"name": "storage.modifier.implicit.cs"
 								}
 							}
 						}
 					]
 				},
 				"2": {
-					"name": "keyword.other.operator-decl.cs"
+					"name": "storage.type.operator.cs"
 				},
 				"3": {
 					"patterns": [
@@ -1607,19 +1712,19 @@
 			"begin": "(?<!\\.)\\b(goto)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.goto.cs"
+					"name": "keyword.control.flow.goto.cs"
 				}
 			},
-			"end": "(?=;)",
+			"end": "(?=[;}])",
 			"patterns": [
 				{
 					"begin": "\\b(case)\\b",
 					"beginCaptures": {
 						"1": {
-							"name": "keyword.control.case.cs"
+							"name": "keyword.control.conditional.case.cs"
 						}
 					},
-					"end": "(?=;)",
+					"end": "(?=[;}])",
 					"patterns": [
 						{
 							"include": "#expression"
@@ -1630,7 +1735,7 @@
 					"match": "\\b(default)\\b",
 					"captures": {
 						"1": {
-							"name": "keyword.control.default.cs"
+							"name": "keyword.control.conditional.default.cs"
 						}
 					}
 				},
@@ -1647,7 +1752,7 @@
 					"name": "keyword.control.flow.return.cs"
 				}
 			},
-			"end": "(?=;)",
+			"end": "(?=[;}])",
 			"patterns": [
 				{
 					"include": "#ref-modifier"
@@ -1658,15 +1763,8 @@
 			]
 		},
 		"break-or-continue-statement": {
-			"match": "(?<!\\.)\\b(?:(break)|(continue))\\b",
-			"captures": {
-				"1": {
-					"name": "keyword.control.flow.break.cs"
-				},
-				"2": {
-					"name": "keyword.control.flow.continue.cs"
-				}
-			}
+			"match": "(?<!\\.)\\b(break|continue)\\b",
+			"name": "keyword.control.flow.$1.cs"
 		},
 		"throw-statement": {
 			"begin": "(?<!\\.)\\b(throw)\\b",
@@ -1675,7 +1773,7 @@
 					"name": "keyword.control.flow.throw.cs"
 				}
 			},
-			"end": "(?=;)",
+			"end": "(?=[;}])",
 			"patterns": [
 				{
 					"include": "#expression"
@@ -1702,7 +1800,7 @@
 					"name": "keyword.control.flow.return.cs"
 				}
 			},
-			"end": "(?=;)",
+			"end": "(?=[;}])",
 			"patterns": [
 				{
 					"include": "#expression"
@@ -1721,16 +1819,22 @@
 			}
 		},
 		"await-statement": {
-			"begin": "(?<!\\.)\\b(await)\\b",
+			"begin": "(?<!\\.\\s*)\\b(await)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.await.cs"
+					"name": "keyword.operator.expression.await.cs"
 				}
 			},
-			"end": "(?=;)",
+			"end": "(?<=})|(?=;|})",
 			"patterns": [
 				{
-					"include": "#statement"
+					"include": "#foreach-statement"
+				},
+				{
+					"include": "#using-statement"
+				},
+				{
+					"include": "#expression"
 				}
 			]
 		},
@@ -1741,7 +1845,7 @@
 					"name": "keyword.control.conditional.if.cs"
 				}
 			},
-			"end": "(?<=\\})|(?=;)",
+			"end": "(?<=})|(?=;)",
 			"patterns": [
 				{
 					"begin": "\\(",
@@ -1774,22 +1878,50 @@
 					"name": "keyword.control.conditional.else.cs"
 				}
 			},
-			"end": "(?<=\\})|(?=;)",
+			"end": "(?<=})|(?=;)",
 			"patterns": [
 				{
 					"include": "#statement"
 				}
 			]
 		},
-		"switch-statement": {
-			"begin": "(?<!\\.)\\b(switch)\\b\\s*(?=\\()",
+		"switch-statement-or-expression": {
+			"begin": "(?<!\\.)\\b(switch)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.switch.cs"
+					"name": "keyword.control.conditional.switch.cs"
 				}
 			},
-			"end": "(?<=\\})",
+			"end": "(?<=})|(?=})",
 			"patterns": [
+				{
+					"include": "#intrusive"
+				},
+				{
+					"begin": "(?=\\()",
+					"end": "(?<=\\})|(?=\\})",
+					"patterns": [
+						{
+							"include": "#switch-statement"
+						}
+					]
+				},
+				{
+					"begin": "(?=\\{)",
+					"end": "(?<=\\})|(?=\\})",
+					"patterns": [
+						{
+							"include": "#switch-expression"
+						}
+					]
+				}
+			]
+		},
+		"switch-statement": {
+			"patterns": [
+				{
+					"include": "#intrusive"
+				},
 				{
 					"begin": "\\(",
 					"beginCaptures": {
@@ -1833,19 +1965,495 @@
 				}
 			]
 		},
-		"switch-expression": {
-			"begin": "(?x) (?<!\\.)\\b(switch)\\b",
+		"switch-label": {
+			"begin": "\\b(case|default)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.switch.cs"
+					"name": "keyword.control.conditional.$1.cs"
 				}
 			},
-			"end": "(?<=\\})",
+			"end": "(:)|(?=})",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.separator.colon.cs"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "\\b(when)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.conditional.when.cs"
+						}
+					},
+					"end": "(?=:|})",
+					"patterns": [
+						{
+							"include": "#case-guard"
+						}
+					]
+				},
+				{
+					"begin": "(?!\\s)",
+					"end": "(?=\\bwhen\\b|:|})",
+					"patterns": [
+						{
+							"include": "#pattern"
+						}
+					]
+				}
+			]
+		},
+		"switch-expression": {
+			"begin": "\\{",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.curlybrace.open.cs"
+				}
+			},
+			"end": "\\}",
 			"endCaptures": {
 				"0": {
 					"name": "punctuation.curlybrace.close.cs"
 				}
 			},
+			"patterns": [
+				{
+					"include": "#punctuation-comma"
+				},
+				{
+					"begin": "=>",
+					"beginCaptures": {
+						"0": {
+							"name": "keyword.operator.arrow.cs"
+						}
+					},
+					"end": "(?=,|})",
+					"patterns": [
+						{
+							"include": "#expression"
+						}
+					]
+				},
+				{
+					"begin": "\\b(when)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.conditional.when.cs"
+						}
+					},
+					"end": "(?==>|,|})",
+					"patterns": [
+						{
+							"include": "#case-guard"
+						}
+					]
+				},
+				{
+					"begin": "(?!\\s)",
+					"end": "(?=\\bwhen\\b|=>|,|})",
+					"patterns": [
+						{
+							"include": "#pattern"
+						}
+					]
+				}
+			]
+		},
+		"case-guard": {
+			"patterns": [
+				{
+					"include": "#parenthesized-expression"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"is-expression": {
+			"begin": "(?<!\\.)\\b(is)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.operator.expression.pattern.is.cs"
+				}
+			},
+			"end": "(?=[)}\\],;:?=&|^]|!=)",
+			"patterns": [
+				{
+					"include": "#pattern"
+				}
+			]
+		},
+		"pattern": {
+			"patterns": [
+				{
+					"include": "#intrusive"
+				},
+				{
+					"include": "#combinator-pattern"
+				},
+				{
+					"include": "#discard-pattern"
+				},
+				{
+					"include": "#constant-pattern"
+				},
+				{
+					"include": "#relational-pattern"
+				},
+				{
+					"include": "#var-pattern"
+				},
+				{
+					"include": "#type-pattern"
+				},
+				{
+					"include": "#positional-pattern"
+				},
+				{
+					"include": "#property-pattern"
+				},
+				{
+					"include": "#list-pattern"
+				},
+				{
+					"include": "#slice-pattern"
+				}
+			]
+		},
+		"combinator-pattern": {
+			"match": "\\b(and|or|not)\\b",
+			"name": "keyword.operator.expression.pattern.combinator.$1.cs"
+		},
+		"discard-pattern": {
+			"match": "_(?![_[:alnum:]])",
+			"name": "variable.language.discard.cs"
+		},
+		"constant-pattern": {
+			"patterns": [
+				{
+					"include": "#boolean-literal"
+				},
+				{
+					"include": "#null-literal"
+				},
+				{
+					"include": "#numeric-literal"
+				},
+				{
+					"include": "#char-literal"
+				},
+				{
+					"include": "#string-literal"
+				},
+				{
+					"include": "#raw-string-literal"
+				},
+				{
+					"include": "#verbatim-string-literal"
+				},
+				{
+					"include": "#type-operator-expression"
+				},
+				{
+					"include": "#expression-operator-expression"
+				},
+				{
+					"include": "#expression-operators"
+				},
+				{
+					"include": "#casted-constant-pattern"
+				}
+			]
+		},
+		"casted-constant-pattern": {
+			"begin": "(?x)\n(\\()\n  ([\\s.:@_[:alnum:]]+)\n(\\))\n(?=[\\s+\\-!~]*@?[_[:alnum:]('\"]+)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.parenthesis.open.cs"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type-builtin"
+						},
+						{
+							"include": "#type-name"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.parenthesis.close.cs"
+				}
+			},
+			"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+			"patterns": [
+				{
+					"include": "#casted-constant-pattern"
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.open.cs"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#constant-pattern"
+						}
+					]
+				},
+				{
+					"include": "#constant-pattern"
+				},
+				{
+					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(\\:\\:)",
+					"captures": {
+						"1": {
+							"name": "entity.name.type.alias.cs"
+						},
+						"2": {
+							"name": "punctuation.separator.coloncolon.cs"
+						}
+					}
+				},
+				{
+					"match": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(\\.)",
+					"captures": {
+						"1": {
+							"name": "entity.name.type.cs"
+						},
+						"2": {
+							"name": "punctuation.accessor.cs"
+						}
+					}
+				},
+				{
+					"match": "\\@?[_[:alpha:]][_[:alnum:]]*",
+					"name": "variable.other.constant.cs"
+				}
+			]
+		},
+		"relational-pattern": {
+			"begin": "<=?|>=?",
+			"beginCaptures": {
+				"0": {
+					"name": "keyword.operator.relational.cs"
+				}
+			},
+			"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"var-pattern": {
+			"begin": "\\b(var)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.var.cs"
+				}
+			},
+			"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+			"patterns": [
+				{
+					"include": "#designation-pattern"
+				}
+			]
+		},
+		"designation-pattern": {
+			"patterns": [
+				{
+					"include": "#intrusive"
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.open.cs"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#punctuation-comma"
+						},
+						{
+							"include": "#designation-pattern"
+						}
+					]
+				},
+				{
+					"include": "#simple-designation-pattern"
+				}
+			]
+		},
+		"simple-designation-pattern": {
+			"patterns": [
+				{
+					"include": "#discard-pattern"
+				},
+				{
+					"match": "@?[_[:alpha:]][_[:alnum:]]*",
+					"name": "entity.name.variable.local.cs"
+				}
+			]
+		},
+		"type-pattern": {
+			"begin": "(?=@?[_[:alpha:]][_[:alnum:]]*)",
+			"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+			"patterns": [
+				{
+					"begin": "\\G",
+					"end": "(?!\\G[@_[:alpha:]])(?=[\\({@_[:alpha:])}\\],;:=&|^]|(?:\\s|^)\\?|!=|\\b(and|or|when)\\b)",
+					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"include": "#type-subpattern"
+						}
+					]
+				},
+				{
+					"begin": "(?=[\\({@_[:alpha:]])",
+					"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"include": "#positional-pattern"
+						},
+						{
+							"include": "#property-pattern"
+						},
+						{
+							"include": "#simple-designation-pattern"
+						}
+					]
+				}
+			]
+		},
+		"type-subpattern": {
+			"patterns": [
+				{
+					"include": "#type-builtin"
+				},
+				{
+					"begin": "(@?[_[:alpha:]][_[:alnum:]]*)\\s*(::)",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.type.alias.cs"
+						},
+						"2": {
+							"name": "punctuation.separator.coloncolon.cs"
+						}
+					},
+					"end": "(?<=[_[:alnum:]])|(?=[.<\\[\\({)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"match": "\\@?[_[:alpha:]][_[:alnum:]]*",
+							"name": "entity.name.type.cs"
+						}
+					]
+				},
+				{
+					"match": "\\@?[_[:alpha:]][_[:alnum:]]*",
+					"name": "entity.name.type.cs"
+				},
+				{
+					"begin": "\\.",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.accessor.cs"
+						}
+					},
+					"end": "(?<=[_[:alnum:]])|(?=[<\\[\\({)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"match": "\\@?[_[:alpha:]][_[:alnum:]]*",
+							"name": "entity.name.type.cs"
+						}
+					]
+				},
+				{
+					"include": "#type-arguments"
+				},
+				{
+					"include": "#type-array-suffix"
+				},
+				{
+					"match": "(?<!\\s)\\?",
+					"name": "punctuation.separator.question-mark.cs"
+				}
+			]
+		},
+		"positional-pattern": {
+			"begin": "(?=\\()",
+			"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+			"patterns": [
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.open.cs"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#subpattern"
+						},
+						{
+							"include": "#punctuation-comma"
+						}
+					]
+				},
+				{
+					"begin": "(?<=\\))",
+					"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"include": "#property-pattern"
+						},
+						{
+							"include": "#simple-designation-pattern"
+						}
+					]
+				}
+			]
+		},
+		"property-pattern": {
+			"begin": "(?={)",
+			"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
 			"patterns": [
 				{
 					"begin": "\\{",
@@ -1862,182 +2470,96 @@
 					},
 					"patterns": [
 						{
-							"include": "#comment"
-						},
-						{
-							"include": "#literal"
-						},
-						{
-							"include": "#switch-var-pattern"
-						},
-						{
-							"include": "#switch-property-expression"
-						},
-						{
-							"include": "#member-access-expression"
-						},
-						{
-							"include": "#switch-pattern"
-						},
-						{
-							"include": "#expression-body"
+							"include": "#subpattern"
 						},
 						{
 							"include": "#punctuation-comma"
 						}
 					]
-				}
-			]
-		},
-		"switch-pattern": {
-			"begin": "(?x) # e.g. int x OR var x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*",
-			"beginCaptures": {
-				"1": {
+				},
+				{
+					"begin": "(?<=\\})",
+					"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
 					"patterns": [
 						{
-							"include": "#type"
-						}
-					]
-				},
-				"2": {
-					"name": "entity.name.variable.local.cs"
-				}
-			},
-			"end": "(?==>)",
-			"patterns": [
-				{
-					"include": "#comment"
-				},
-				{
-					"include": "#switch-when-clause"
-				}
-			]
-		},
-		"switch-property-expression": {
-			"begin": "(?x) # e.g. int x OR var x\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\\s*\n(\\{)",
-			"beginCaptures": {
-				"1": {
-					"patterns": [
+							"include": "#intrusive"
+						},
 						{
-							"include": "#type"
-						}
-					]
-				},
-				"6": {
-					"name": "punctuation.curlybrace.open.cs"
-				}
-			},
-			"end": "\\}",
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.curlybrace.close.cs"
-				}
-			},
-			"patterns": [
-				{
-					"include": "#expression"
-				},
-				{
-					"include": "#punctuation-comma"
-				}
-			]
-		},
-		"switch-var-pattern": {
-			"begin": "(?x) # match foreach (var (x, y) in ...)\n(?:\\b(var)\\b\\s*)\n(?<tuple>\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s*",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.other.var.cs"
-				},
-				"2": {
-					"patterns": [
-						{
-							"include": "#tuple-declaration-deconstruction-element-list"
+							"include": "#simple-designation-pattern"
 						}
 					]
 				}
-			},
-			"end": "(?==>)",
-			"patterns": [
-				{
-					"include": "#comment"
-				},
-				{
-					"include": "#switch-when-clause"
-				}
 			]
 		},
-		"switch-when-clause": {
-			"begin": "(?<!\\.)\\b(when)\\b\\s*(\\()?",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.control.try.when.cs"
-				},
-				"2": {
-					"name": "punctuation.parenthesis.open.cs"
-				}
-			},
-			"end": "(?==>)",
+		"subpattern": {
 			"patterns": [
 				{
-					"include": "#comment"
-				},
-				{
-					"include": "#expression"
-				},
-				{
-					"include": "#punctuation-comma"
-				},
-				{
-					"match": "\\(",
-					"captures": {
-						"0": {
-							"name": "punctuation.parenthesis.open.cs"
-						}
-					}
-				},
-				{
-					"match": "\\)",
-					"captures": {
-						"0": {
-							"name": "punctuation.parenthesis.close.cs"
-						}
-					}
-				}
-			]
-		},
-		"switch-label": {
-			"patterns": [
-				{
-					"begin": "(?<!\\.)\\b(case)\\b\\s+",
-					"beginCaptures": {
-						"1": {
-							"name": "keyword.control.case.cs"
-						}
-					},
-					"end": ":",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.separator.colon.cs"
-						}
-					},
-					"patterns": [
-						{
-							"include": "#expression"
-						}
-					]
-				},
-				{
-					"match": "(?<!\\.)\\b(default)\\b\\s*(:)",
+					"match": "(@?[_[:alpha:]][_[:alnum:]]*(?:\\s*\\.\\s*@?[_[:alpha:]][_[:alnum:]]*)*)\\s*(:)",
 					"captures": {
 						"1": {
-							"name": "keyword.control.default.cs"
+							"patterns": [
+								{
+									"match": "\\@?[_[:alpha:]][_[:alnum:]]*",
+									"name": "variable.other.object.property.cs"
+								},
+								{
+									"include": "#punctuation-accessor"
+								}
+							]
 						},
 						"2": {
 							"name": "punctuation.separator.colon.cs"
 						}
 					}
+				},
+				{
+					"include": "#pattern"
 				}
 			]
+		},
+		"list-pattern": {
+			"begin": "(?=\\[)",
+			"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+			"patterns": [
+				{
+					"begin": "\\[",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.squarebracket.open.cs"
+						}
+					},
+					"end": "\\]",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.squarebracket.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#pattern"
+						},
+						{
+							"include": "#punctuation-comma"
+						}
+					]
+				},
+				{
+					"begin": "(?<=\\])",
+					"end": "(?=[)}\\],;:?=&|^]|!=|\\b(and|or|when)\\b)",
+					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"include": "#simple-designation-pattern"
+						}
+					]
+				}
+			]
+		},
+		"slice-pattern": {
+			"match": "\\.\\.",
+			"name": "keyword.operator.range.cs"
 		},
 		"do-statement": {
 			"begin": "(?<!\\.)\\b(do)\\b",
@@ -2087,13 +2609,13 @@
 			]
 		},
 		"for-statement": {
-			"begin": "(?<!\\.)\\b(for)\\b\\s*(?=\\()",
+			"begin": "\\b(for)\\b",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.loop.for.cs"
 				}
 			},
-			"end": "(?<=\\})|(?=;)",
+			"end": "(?<=\\))|(?=;|})",
 			"patterns": [
 				{
 					"begin": "\\(",
@@ -2110,33 +2632,51 @@
 					},
 					"patterns": [
 						{
-							"include": "#local-variable-declaration"
+							"begin": "\\G",
+							"end": "(?=;|\\))",
+							"patterns": [
+								{
+									"include": "#intrusive"
+								},
+								{
+									"include": "#local-variable-declaration"
+								}
+							]
 						},
 						{
-							"include": "#expression"
-						},
-						{
-							"include": "#punctuation-comma"
-						},
-						{
-							"include": "#punctuation-semicolon"
+							"begin": "(?=;)",
+							"end": "(?=\\))",
+							"patterns": [
+								{
+									"include": "#intrusive"
+								},
+								{
+									"include": "#expression"
+								},
+								{
+									"include": "#punctuation-comma"
+								},
+								{
+									"include": "#punctuation-semicolon"
+								}
+							]
 						}
 					]
-				},
-				{
-					"include": "#statement"
 				}
 			]
 		},
 		"foreach-statement": {
-			"begin": "(?<!\\.)\\b(foreach)\\b\\s*(?=\\()",
+			"begin": "\\b(foreach)\\b",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.loop.foreach.cs"
 				}
 			},
-			"end": "(?<=\\})|(?=;)",
+			"end": "(?<=\\))|(?=;|})",
 			"patterns": [
+				{
+					"include": "#intrusive"
+				},
 				{
 					"begin": "\\(",
 					"beginCaptures": {
@@ -2152,10 +2692,13 @@
 					},
 					"patterns": [
 						{
+							"include": "#intrusive"
+						},
+						{
 							"match": "(?x)\n(?:\n  (\\bvar\\b)|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s+\n\\b(in)\\b",
 							"captures": {
 								"1": {
-									"name": "keyword.other.var.cs"
+									"name": "storage.type.var.cs"
 								},
 								"2": {
 									"patterns": [
@@ -2176,7 +2719,7 @@
 							"match": "(?x) # match foreach (var (x, y) in ...)\n(?:\\b(var)\\b\\s*)?\n(?<tuple>\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s+\n\\b(in)\\b",
 							"captures": {
 								"1": {
-									"name": "keyword.other.var.cs"
+									"name": "storage.type.var.cs"
 								},
 								"2": {
 									"patterns": [
@@ -2194,9 +2737,6 @@
 							"include": "#expression"
 						}
 					]
-				},
-				{
-					"include": "#statement"
 				}
 			]
 		},
@@ -2217,7 +2757,7 @@
 			"begin": "(?<!\\.)\\b(try)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.try.cs"
+					"name": "keyword.control.exception.try.cs"
 				}
 			},
 			"end": "(?<=\\})",
@@ -2234,7 +2774,7 @@
 			"begin": "(?<!\\.)\\b(finally)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.try.finally.cs"
+					"name": "keyword.control.exception.finally.cs"
 				}
 			},
 			"end": "(?<=\\})",
@@ -2251,7 +2791,7 @@
 			"begin": "(?<!\\.)\\b(catch)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.try.catch.cs"
+					"name": "keyword.control.exception.catch.cs"
 				}
 			},
 			"end": "(?<=\\})",
@@ -2302,7 +2842,7 @@
 			"begin": "(?<!\\.)\\b(when)\\b\\s*(\\()",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.control.try.when.cs"
+					"name": "keyword.control.exception.when.cs"
 				},
 				"2": {
 					"name": "punctuation.parenthesis.open.cs"
@@ -2323,35 +2863,35 @@
 				}
 			]
 		},
-		"checked-unchecked-statement": {
-			"begin": "(?<!\\.)\\b(?:(checked)|(unchecked))\\b\\s*(?!\\()",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.other.checked.cs"
-				},
-				"2": {
-					"name": "keyword.other.unchecked.cs"
-				}
-			},
-			"end": "(?<=\\})",
+		"context-control-statement": {
+			"match": "\\b(checked|unchecked|unsafe)\\b(?!\\s*[@_[:alpha:](])",
+			"name": "keyword.control.context.$1.cs"
+		},
+		"context-control-paren-statement": {
 			"patterns": [
 				{
-					"include": "#block"
+					"include": "#fixed-statement"
 				},
 				{
-					"include": "#comment"
+					"include": "#lock-statement"
+				},
+				{
+					"include": "#using-statement"
 				}
 			]
 		},
-		"lock-statement": {
-			"begin": "(?<!\\.)\\b(lock)\\b\\s*(?=\\()",
+		"fixed-statement": {
+			"begin": "\\b(fixed)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.lock.cs"
+					"name": "keyword.control.context.fixed.cs"
 				}
 			},
-			"end": "(?<=\\})|(?=;)",
+			"end": "(?<=\\))|(?=;|})",
 			"patterns": [
+				{
+					"include": "#intrusive"
+				},
 				{
 					"begin": "\\(",
 					"beginCaptures": {
@@ -2367,24 +2907,27 @@
 					},
 					"patterns": [
 						{
-							"include": "#expression"
+							"include": "#intrusive"
+						},
+						{
+							"include": "#local-variable-declaration"
 						}
 					]
-				},
-				{
-					"include": "#statement"
 				}
 			]
 		},
-		"using-statement": {
-			"begin": "(?<!\\.)\\b(using)\\b\\s*(?=\\()",
+		"lock-statement": {
+			"begin": "\\b(lock)\\b",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.using.cs"
+					"name": "keyword.control.context.lock.cs"
 				}
 			},
-			"end": "(?=\\;|})",
+			"end": "(?<=\\))|(?=;|})",
 			"patterns": [
+				{
+					"include": "#intrusive"
+				},
 				{
 					"begin": "\\(",
 					"beginCaptures": {
@@ -2399,6 +2942,48 @@
 						}
 					},
 					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"include": "#expression"
+						}
+					]
+				}
+			]
+		},
+		"using-statement": {
+			"begin": "\\b(using)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.context.using.cs"
+				}
+			},
+			"end": "(?<=\\))|(?=;|})",
+			"patterns": [
+				{
+					"include": "#intrusive"
+				},
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.open.cs"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.parenthesis.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#intrusive"
+						},
+						{
+							"include": "#await-expression"
+						},
 						{
 							"include": "#local-variable-declaration"
 						},
@@ -2408,7 +2993,7 @@
 					]
 				},
 				{
-					"include": "#statement"
+					"include": "#local-variable-declaration"
 				}
 			]
 		},
@@ -2440,32 +3025,29 @@
 			]
 		},
 		"local-variable-declaration": {
-			"begin": "(?x)\n(?:\n  (?:(\\busing)\\s+)?\n  (?:(\\bref)\\s+(?:(\\breadonly)\\s+)?)?(\\bvar\\b)| # ref local\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref local\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?!=>)\n(?=,|;|=|\\))",
+			"begin": "(?x)\n(?:\n  (?:(\\bref)\\s+(?:(\\breadonly)\\s+)?)?(\\bvar\\b)| # ref local\n  (?<type_name>\n    (?:\n      (?:ref\\s+(?:readonly\\s+)?)?   # ref local\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*[?*]\\s*)? # nullable or pointer suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?!=>)\n(?=,|;|=|\\))",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.using.cs"
+					"name": "storage.modifier.ref.cs"
 				},
 				"2": {
-					"name": "storage.modifier.cs"
+					"name": "storage.modifier.readonly.cs"
 				},
 				"3": {
-					"name": "storage.modifier.cs"
+					"name": "storage.type.var.cs"
 				},
 				"4": {
-					"name": "keyword.other.var.cs"
-				},
-				"5": {
 					"patterns": [
 						{
 							"include": "#type"
 						}
 					]
 				},
-				"10": {
+				"9": {
 					"name": "entity.name.variable.local.cs"
 				}
 			},
-			"end": "(?=;|\\))",
+			"end": "(?=[;)}])",
 			"patterns": [
 				{
 					"name": "entity.name.variable.local.cs",
@@ -2486,7 +3068,7 @@
 			"begin": "(?x)\n(?<const_keyword>\\b(?:const)\\b)\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)\\s*\n(?=,|;|=)",
 			"beginCaptures": {
 				"1": {
-					"name": "storage.modifier.cs"
+					"name": "storage.modifier.const.cs"
 				},
 				"2": {
 					"patterns": [
@@ -2517,9 +3099,49 @@
 			]
 		},
 		"local-function-declaration": {
+			"begin": "(?x)\n\\b((?:(?:async|unsafe|static|extern)\\s+)*)\n(?<type_name>\n  (?:ref\\s+(?:readonly\\s+)?)?   # ref return\n  (?:\n    (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n    (?<name_and_type_args> # identifier + type arguments (if any)\n      \\g<identifier>\\s*\n      (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n    )\n    (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n    (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n  )\n  (?:\\s*\\?)? # nullable suffix?\n  (?:\\s* # array suffix?\n    \\[\n      \\s*(?:,\\s*)* # commata for multi-dimensional arrays\n    \\]\n    (?:\\s*\\?)? # arrays can be nullable reference types\n  )*\n)\\s+\n(\\g<identifier>)\\s*\n(<[^<>]+>)?\\s*\n(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#storage-modifier"
+						}
+					]
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type"
+						}
+					]
+				},
+				"7": {
+					"name": "entity.name.function.cs"
+				},
+				"8": {
+					"patterns": [
+						{
+							"include": "#type-parameter-list"
+						}
+					]
+				}
+			},
+			"end": "(?<=\\})|(?=;)",
 			"patterns": [
 				{
-					"include": "#method-declaration"
+					"include": "#comment"
+				},
+				{
+					"include": "#parenthesized-parameter-list"
+				},
+				{
+					"include": "#generic-constraints"
+				},
+				{
+					"include": "#expression-body"
+				},
+				{
+					"include": "#block"
 				}
 			]
 		},
@@ -2527,7 +3149,7 @@
 			"begin": "(?x) # e.g. var (x, y) = GetPoint();\n(?:\\b(var)\\b\\s*)\n(?<tuple>\\((?:[^\\(\\)]|\\g<tuple>)+\\))\\s*\n(?=;|=|\\))",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.var.cs"
+					"name": "storage.type.var.cs"
 				},
 				"2": {
 					"patterns": [
@@ -2635,7 +3257,7 @@
 			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n      (?:\\s* # array suffix?\n        \\[\n          (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n        \\]\n        \\s*\n        (?:\\?)? # arrays can be nullable reference types\n        \\s*\n      )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*\n(?=[,)\\]])",
 			"captures": {
 				"1": {
-					"name": "keyword.other.var.cs"
+					"name": "storage.type.var.cs"
 				},
 				"2": {
 					"patterns": [
@@ -2653,7 +3275,7 @@
 			"match": "(?x) # e.g. int x OR var x\n(?:\n  \\b(var)\\b|\n  (?<type_name>\n    (?:\n      (?:\n        (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n        (?<name_and_type_args> # identifier + type arguments (if any)\n          \\g<identifier>\\s*\n          (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n        )\n        (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n        (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n      )\n      (?:\\s*\\?\\s*)? # nullable suffix?\n                (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n    )\n  )\n)\\s+\n(\\g<identifier>)\\b\\s*\n(?=[,)])",
 			"captures": {
 				"1": {
-					"name": "keyword.other.var.cs"
+					"name": "storage.type.var.cs"
 				},
 				"2": {
 					"patterns": [
@@ -2667,16 +3289,13 @@
 				}
 			}
 		},
-		"checked-unchecked-expression": {
-			"begin": "(?<!\\.)\\b(?:(checked)|(unchecked))\\b\\s*(\\()",
+		"expression-operator-expression": {
+			"begin": "\\b(checked|unchecked|nameof)\\s*(\\()",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.checked.cs"
+					"name": "keyword.operator.expression.$1.cs"
 				},
 				"2": {
-					"name": "keyword.other.unchecked.cs"
-				},
-				"3": {
 					"name": "punctuation.parenthesis.open.cs"
 				}
 			},
@@ -2692,16 +3311,13 @@
 				}
 			]
 		},
-		"typeof-or-default-expression": {
-			"begin": "(?<!\\.)\\b(?:(typeof)|(default))\\b\\s*(\\()",
+		"type-operator-expression": {
+			"begin": "\\b(default|sizeof|typeof)\\s*(\\()",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.typeof.cs"
+					"name": "keyword.operator.expression.$1.cs"
 				},
 				"2": {
-					"name": "keyword.other.default.cs"
-				},
-				"3": {
 					"name": "punctuation.parenthesis.open.cs"
 				}
 			},
@@ -2717,38 +3333,16 @@
 				}
 			]
 		},
-		"nameof-expression": {
-			"begin": "(?<!\\.)\\b(nameof)\\b\\s*(\\()",
-			"beginCaptures": {
-				"1": {
-					"name": "keyword.other.nameof.cs"
-				},
-				"2": {
-					"name": "punctuation.parenthesis.open.cs"
-				}
-			},
-			"end": "\\)",
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.parenthesis.close.cs"
-				}
-			},
-			"patterns": [
-				{
-					"include": "#expression"
-				}
-			]
-		},
 		"default-literal-expression": {
-			"match": "(?<!\\.)\\b(default)\\b",
+			"match": "\\b(default)\\b",
 			"captures": {
 				"1": {
-					"name": "keyword.other.default.cs"
+					"name": "keyword.operator.expression.default.cs"
 				}
 			}
 		},
 		"throw-expression": {
-			"match": "(?<!\\.)\\b(throw)\\b",
+			"match": "\\b(throw)\\b",
 			"captures": {
 				"1": {
 					"name": "keyword.control.flow.throw.cs"
@@ -3383,7 +3977,28 @@
 				}
 			}
 		},
-		"expression-operators": {
+		"assignment-expression": {
+			"begin": "(?:\\*|/|%|\\+|-|\\?\\?|\\&|\\^|<<|>>>?|\\|)?=(?!=|>)",
+			"beginCaptures": {
+				"0": {
+					"patterns": [
+						{
+							"include": "#assignment-operators"
+						}
+					]
+				}
+			},
+			"end": "(?=[,\\)\\];}])",
+			"patterns": [
+				{
+					"include": "#ref-modifier"
+				},
+				{
+					"include": "#expression"
+				}
+			]
+		},
+		"assignment-operators": {
 			"patterns": [
 				{
 					"name": "keyword.operator.assignment.compound.cs",
@@ -3391,11 +4006,19 @@
 				},
 				{
 					"name": "keyword.operator.assignment.compound.bitwise.cs",
-					"match": "\\&=|\\^=|<<=|>>=|\\|="
+					"match": "\\&=|\\^=|<<=|>>>?=|\\|="
 				},
 				{
+					"name": "keyword.operator.assignment.cs",
+					"match": "\\="
+				}
+			]
+		},
+		"expression-operators": {
+			"patterns": [
+				{
 					"name": "keyword.operator.bitwise.shift.cs",
-					"match": "<<|>>"
+					"match": "<<|>>>?"
 				},
 				{
 					"name": "keyword.operator.comparison.cs",
@@ -3414,10 +4037,6 @@
 					"match": "\\&|~|\\^|\\|"
 				},
 				{
-					"name": "keyword.operator.assignment.cs",
-					"match": "\\="
-				},
-				{
 					"name": "keyword.operator.decrement.cs",
 					"match": "--"
 				},
@@ -3427,56 +4046,50 @@
 				},
 				{
 					"name": "keyword.operator.arithmetic.cs",
-					"match": "%|\\*|/|-|\\+"
+					"match": "\\+|-(?!>)|\\*|/|%"
 				},
 				{
 					"name": "keyword.operator.null-coalescing.cs",
 					"match": "\\?\\?"
+				},
+				{
+					"name": "keyword.operator.range.cs",
+					"match": "\\.\\."
 				}
 			]
 		},
-		"switch-literal": {
-			"name": "constant.language.null.cs",
-			"match": "(?<!\\.)\\bnull\\b",
+		"with-expression": {
+			"begin": "(?<!\\.)\\b(with)\\b\\s*(?=\\{|//|/\\*|$)",
 			"beginCaptures": {
 				"1": {
-					"name": "constant.language.null.cs"
+					"name": "keyword.operator.expression.with.cs"
 				}
 			},
+			"end": "(?<=\\})",
 			"patterns": [
 				{
 					"include": "#comment"
 				},
 				{
-					"include": "#punctuation-comma"
-				},
-				{
-					"include": "#expression-body"
+					"include": "#initializer-expression"
 				}
 			]
 		},
 		"conditional-operator": {
-			"begin": "\\?(?!\\s*[?.\\[]|\\s*$)",
-			"beginCaptures": {
-				"0": {
-					"name": "keyword.operator.conditional.question-mark.cs"
-				}
-			},
-			"end": ":",
-			"endCaptures": {
-				"0": {
-					"name": "keyword.operator.conditional.colon.cs"
-				}
-			},
 			"patterns": [
 				{
-					"include": "#expression"
+					"name": "keyword.operator.conditional.question-mark.cs",
+					"match": "\\?(?!\\?|\\s*[.\\[])"
+				},
+				{
+					"name": "keyword.operator.conditional.colon.cs",
+					"match": ":"
 				}
 			]
 		},
 		"await-expression": {
-			"name": "keyword.other.await.cs",
-			"match": "(?!\\.)\\b(await)\\b"
+			"name": "keyword.operator.expression.await.cs",
+			"match": "(?<!\\.\\s*)\\b(await)\\b"
 		},
 		"parenthesized-expression": {
 			"begin": "\\(",
@@ -3542,10 +4155,10 @@
 			}
 		},
 		"as-expression": {
-			"match": "(?x)\n(?<!\\.)\\b(as)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?",
+			"match": "(?x)\n(?<!\\.)\\b(as)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?(?!\\?))? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        \\s*(?:,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      (?:\\s*\\?(?!\\?))? # arrays can be nullable reference types\n    )*\n  )\n)?",
 			"captures": {
 				"1": {
-					"name": "keyword.other.as.cs"
+					"name": "keyword.operator.expression.as.cs"
 				},
 				"2": {
 					"patterns": [
@@ -3556,34 +4169,20 @@
 				}
 			}
 		},
-		"is-expression": {
-			"match": "(?x)\n(?<!\\.)\\b(is)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?",
-			"captures": {
-				"1": {
-					"name": "keyword.other.is.cs"
+		"language-variable": {
+			"patterns": [
+				{
+					"name": "variable.language.$1.cs",
+					"match": "\\b(base|this)\\b"
 				},
-				"2": {
-					"patterns": [
-						{
-							"include": "#type"
-						}
-					]
+				{
+					"name": "variable.other.$1.cs",
+					"match": "\\b(value)\\b"
 				}
-			}
-		},
-		"this-or-base-expression": {
-			"match": "\\b(?:(base)|(this))\\b",
-			"captures": {
-				"1": {
-					"name": "keyword.other.base.cs"
-				},
-				"2": {
-					"name": "keyword.other.this.cs"
-				}
-			}
+			]
 		},
 		"invocation-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                                     # preceding null-conditional operator?\n(?:(\\.)\\s*)?                                     # preceding dot?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                   # method name\n(?<type_args>\\s*<([^<>]|\\g<type_args>)+>\\s*)?\\s* # type arguments\n(?=\\()                                           # open paren of argument list",
+			"begin": "(?x)\n(?:\n  (?:(\\?)\\s*)?                                    # preceding null-conditional operator?\n  (\\.)\\s*|                                        # preceding dot?\n  (->)\\s*                                         # preceding pointer arrow?\n)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                  # method name\n(\n  <\n  (?<type_args>\n    [^<>()]+|\n    <\\g<type_args>+>|\n    \\(\\g<type_args>+\\)\n  )+\n  >\\s*\n)?                                                # type arguments\n(?=\\()                                            # open paren of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"
@@ -3592,9 +4191,12 @@
 					"name": "punctuation.accessor.cs"
 				},
 				"3": {
-					"name": "entity.name.function.cs"
+					"name": "punctuation.accessor.pointer.cs"
 				},
 				"4": {
+					"name": "entity.name.function.cs"
+				},
+				"5": {
 					"patterns": [
 						{
 							"include": "#type-arguments"
@@ -3610,7 +4212,7 @@
 			]
 		},
 		"element-access-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                        # preceding null-conditional operator?\n(?:(\\.)\\s*)?                        # preceding dot?\n(?:(@?[_[:alpha:]][_[:alnum:]]*)\\s*)? # property name\n(?:(\\?)\\s*)?                        # null-conditional operator?\n(?=\\[)                              # open bracket of argument list",
+			"begin": "(?x)\n(?:\n  (?:(\\?)\\s*)?  # preceding null-conditional operator?\n  (\\.)\\s*|      # preceding dot?\n  (->)\\s*       # preceding pointer arrow?\n)?\n(?:(@?[_[:alpha:]][_[:alnum:]]*)\\s*)? # property name\n(?:(\\?)\\s*)?                        # null-conditional operator?\n(?=\\[)                              # open bracket of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"
@@ -3619,9 +4221,12 @@
 					"name": "punctuation.accessor.cs"
 				},
 				"3": {
-					"name": "variable.other.object.property.cs"
+					"name": "punctuation.accessor.pointer.cs"
 				},
 				"4": {
+					"name": "variable.other.object.property.cs"
+				},
+				"5": {
 					"name": "keyword.operator.null-conditional.cs"
 				}
 			},
@@ -3635,7 +4240,7 @@
 		"member-access-expression": {
 			"patterns": [
 				{
-					"match": "(?x)\n(?:(\\?)\\s*)?                   # preceding null-conditional operator?\n(\\.)\\s*                        # preceding dot\n(@?[_[:alpha:]][_[:alnum:]]*)\\s* # property name\n(?![_[:alnum:]]|\\(|(\\?)?\\[|<)  # next character is not alpha-numeric, nor a (, [, or <. Also, test for ?[",
+					"match": "(?x)\n(?:\n  (?:(\\?)\\s*)?                    # preceding null-conditional operator?\n  (\\.)\\s*|                        # preceding dot?\n  (->)\\s*                         # preceding pointer arrow?\n)\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*  # property name\n(?![_[:alnum:]]|\\(|(\\?)?\\[|<)     # next character is not alpha-numeric, nor a (, [, or <. Also, test for ?[",
 					"captures": {
 						"1": {
 							"name": "keyword.operator.null-conditional.cs"
@@ -3644,6 +4249,9 @@
 							"name": "punctuation.accessor.cs"
 						},
 						"3": {
+							"name": "punctuation.accessor.pointer.cs"
+						},
+						"4": {
 							"name": "variable.other.object.property.cs"
 						}
 					}
@@ -3667,7 +4275,7 @@
 					}
 				},
 				{
-					"match": "(?x)\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?=\n  (\\s*\\?)?\n  \\s*\\.\\s*@?[_[:alpha:]][_[:alnum:]]*\n)",
+					"match": "(?x)\n(@?[_[:alpha:]][_[:alnum:]]*)\n(?=\n  \\s*(?:(?:\\?\\s*)?\\.|->)\n  \\s*@?[_[:alpha:]][_[:alnum:]]*\n)",
 					"captures": {
 						"1": {
 							"name": "variable.other.object.cs"
@@ -3690,7 +4298,7 @@
 			"begin": "(?x)\n(new)(?:\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n))?\\s*\n(?=\\()",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keyword.operator.expression.new.cs"
 				},
 				"2": {
 					"patterns": [
@@ -3708,10 +4316,10 @@
 			]
 		},
 		"object-creation-expression-with-no-parameters": {
-			"match": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\{|$)",
+			"match": "(?x)\n(new)\\s+\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(?=\\{|//|/\\*|$)",
 			"captures": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keyword.operator.expression.new.cs"
 				},
 				"2": {
 					"patterns": [
@@ -3726,7 +4334,7 @@
 			"begin": "(?x)\n\\b(new|stackalloc)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\\s*\n(?=\\[)",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keyword.operator.expression.$1.cs"
 				},
 				"2": {
 					"patterns": [
@@ -3744,14 +4352,17 @@
 			]
 		},
 		"anonymous-object-creation-expression": {
-			"begin": "\\b(new)\\b\\s*(?=\\{|$)",
+			"begin": "\\b(new)\\b\\s*(?=\\{|//|/\\*|$)",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.other.new.cs"
+					"name": "keyword.operator.expression.new.cs"
 				}
 			},
 			"end": "(?<=\\})",
 			"patterns": [
+				{
+					"include": "#comment"
+				},
 				{
 					"include": "#initializer-expression"
 				}
@@ -3829,7 +4440,7 @@
 			"match": "(?x)\n(?:(?:\\b(ref|params|out|in|this)\\b)\\s+)?\n(?<type_name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)",
 			"captures": {
 				"1": {
-					"name": "storage.modifier.cs"
+					"name": "storage.modifier.$1.cs"
 				},
 				"2": {
 					"patterns": [
@@ -3913,11 +4524,25 @@
 		"argument": {
 			"patterns": [
 				{
-					"name": "storage.modifier.cs",
-					"match": "\\b(ref|out|in)\\b"
+					"name": "storage.modifier.$1.cs",
+					"match": "\\b(ref|in)\\b"
 				},
 				{
-					"include": "#declaration-expression-local"
+					"begin": "\\b(out)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.out.cs"
+						}
+					},
+					"end": "(?=,|\\)|\\])",
+					"patterns": [
+						{
+							"include": "#declaration-expression-local"
+						},
+						{
+							"include": "#expression"
+						}
+					]
 				},
 				{
 					"include": "#expression"
@@ -3928,7 +4553,7 @@
 			"begin": "(?x)\n\\b(from)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.query.from.cs"
+					"name": "keyword.operator.expression.query.from.cs"
 				},
 				"2": {
 					"patterns": [
@@ -3941,7 +4566,7 @@
 					"name": "entity.name.variable.range-variable.cs"
 				},
 				"8": {
-					"name": "keyword.query.in.cs"
+					"name": "keyword.operator.expression.query.in.cs"
 				}
 			},
 			"end": "(?=;|\\))",
@@ -3980,7 +4605,7 @@
 			"begin": "(?x)\n\\b(let)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=)\\s*",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.query.let.cs"
+					"name": "keyword.operator.expression.query.let.cs"
 				},
 				"2": {
 					"name": "entity.name.variable.range-variable.cs"
@@ -4003,7 +4628,7 @@
 			"begin": "(?x)\n\\b(where)\\b\\s*",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.query.where.cs"
+					"name": "keyword.operator.expression.query.where.cs"
 				}
 			},
 			"end": "(?=;|\\))",
@@ -4020,7 +4645,7 @@
 			"begin": "(?x)\n\\b(join)\\b\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)?\n\\s+(\\g<identifier>)\\b\\s*\n\\b(in)\\b\\s*",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.query.join.cs"
+					"name": "keyword.operator.expression.query.join.cs"
 				},
 				"2": {
 					"patterns": [
@@ -4033,7 +4658,7 @@
 					"name": "entity.name.variable.range-variable.cs"
 				},
 				"8": {
-					"name": "keyword.query.in.cs"
+					"name": "keyword.operator.expression.query.in.cs"
 				}
 			},
 			"end": "(?=;|\\))",
@@ -4059,7 +4684,7 @@
 			"match": "\\b(on)\\b\\s*",
 			"captures": {
 				"1": {
-					"name": "keyword.query.on.cs"
+					"name": "keyword.operator.expression.query.on.cs"
 				}
 			}
 		},
@@ -4067,7 +4692,7 @@
 			"match": "\\b(equals)\\b\\s*",
 			"captures": {
 				"1": {
-					"name": "keyword.query.equals.cs"
+					"name": "keyword.operator.expression.query.equals.cs"
 				}
 			}
 		},
@@ -4075,7 +4700,7 @@
 			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*",
 			"captures": {
 				"1": {
-					"name": "keyword.query.into.cs"
+					"name": "keyword.operator.expression.query.into.cs"
 				},
 				"2": {
 					"name": "entity.name.variable.range-variable.cs"
@@ -4086,7 +4711,7 @@
 			"begin": "\\b(orderby)\\b\\s*",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.query.orderby.cs"
+					"name": "keyword.operator.expression.query.orderby.cs"
 				}
 			},
 			"end": "(?=;|\\))",
@@ -4106,13 +4731,10 @@
 			]
 		},
 		"ordering-direction": {
-			"match": "\\b(?:(ascending)|(descending))\\b",
+			"match": "\\b(ascending|descending)\\b",
 			"captures": {
 				"1": {
-					"name": "keyword.query.ascending.cs"
-				},
-				"2": {
-					"name": "keyword.query.descending.cs"
+					"name": "keyword.operator.expression.query.$1.cs"
 				}
 			}
 		},
@@ -4120,7 +4742,7 @@
 			"begin": "\\b(select)\\b\\s*",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.query.select.cs"
+					"name": "keyword.operator.expression.query.select.cs"
 				}
 			},
 			"end": "(?=;|\\))",
@@ -4137,7 +4759,7 @@
 			"begin": "\\b(group)\\b\\s*",
 			"beginCaptures": {
 				"1": {
-					"name": "keyword.query.group.cs"
+					"name": "keyword.operator.expression.query.group.cs"
 				}
 			},
 			"end": "(?=;|\\))",
@@ -4160,7 +4782,7 @@
 			"match": "\\b(by)\\b\\s*",
 			"captures": {
 				"1": {
-					"name": "keyword.query.by.cs"
+					"name": "keyword.operator.expression.query.by.cs"
 				}
 			}
 		},
@@ -4168,7 +4790,7 @@
 			"match": "(?x)\n\\b(into)\\b\\s*\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*",
 			"captures": {
 				"1": {
-					"name": "keyword.query.into.cs"
+					"name": "keyword.operator.expression.query.into.cs"
 				},
 				"2": {
 					"name": "entity.name.variable.range-variable.cs"
@@ -4178,10 +4800,15 @@
 		"anonymous-method-expression": {
 			"patterns": [
 				{
-					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=>)",
+					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=>)",
 					"beginCaptures": {
 						"1": {
-							"name": "storage.modifier.cs"
+							"patterns": [
+								{
+									"match": "async|static",
+									"name": "storage.modifier.$0.cs"
+								}
+							]
 						},
 						"2": {
 							"name": "entity.name.variable.parameter.cs"
@@ -4204,10 +4831,15 @@
 					]
 				},
 				{
-					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(\\(.*?\\))\\s*\n(=>)",
+					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n(?<tuple>\n  \\(\n    (?:[^()]|\\g<tuple>)*\n  \\)\n)\\s*\n(=>)",
 					"beginCaptures": {
 						"1": {
-							"name": "storage.modifier.cs"
+							"patterns": [
+								{
+									"match": "async|static",
+									"name": "storage.modifier.$0.cs"
+								}
+							]
 						},
 						"2": {
 							"patterns": [
@@ -4234,13 +4866,18 @@
 					]
 				},
 				{
-					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(?:\\b(delegate)\\b\\s*)",
+					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n(?:\\b(delegate)\\b\\s*)",
 					"beginCaptures": {
 						"1": {
-							"name": "storage.modifier.cs"
+							"patterns": [
+								{
+									"match": "async|static",
+									"name": "storage.modifier.$0.cs"
+								}
+							]
 						},
 						"2": {
-							"name": "keyword.other.delegate.cs"
+							"name": "storage.type.delegate.cs"
 						}
 					},
 					"end": "(?=\\)|;|}|,)",
@@ -4250,9 +4887,6 @@
 						},
 						{
 							"include": "#block"
-						},
-						{
-							"include": "#expression"
 						}
 					]
 				}
@@ -4290,7 +4924,7 @@
 			"match": "(?x)\n(?:\\b(ref|out|in)\\b)?\\s*\n(?:(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+)?\n(\\g<identifier>)\\b\\s*\n(?=[,)])",
 			"captures": {
 				"1": {
-					"name": "storage.modifier.cs"
+					"name": "storage.modifier.$1.cs"
 				},
 				"2": {
 					"patterns": [
@@ -4305,7 +4939,6 @@
 			}
 		},
 		"type": {
-			"name": "meta.type.cs",
 			"patterns": [
 				{
 					"include": "#comment"
@@ -4333,16 +4966,19 @@
 				},
 				{
 					"include": "#type-nullable-suffix"
+				},
+				{
+					"include": "#type-pointer-suffix"
 				}
 			]
 		},
 		"ref-modifier": {
-			"name": "storage.modifier.cs",
-			"match": "\\b(ref)\\b"
+			"name": "storage.modifier.ref.cs",
+			"match": "\\bref\\b"
 		},
 		"readonly-modifier": {
-			"name": "storage.modifier.cs",
-			"match": "\\b(readonly)\\b"
+			"name": "storage.modifier.readonly.cs",
+			"match": "\\breadonly\\b"
 		},
 		"tuple-type": {
 			"begin": "\\(",
@@ -4382,10 +5018,10 @@
 			}
 		},
 		"type-builtin": {
-			"match": "\\b(bool|byte|char|decimal|double|float|int|long|object|sbyte|short|string|uint|ulong|ushort|void|dynamic)\\b",
+			"match": "\\b(bool|s?byte|u?short|n?u?int|u?long|float|double|decimal|char|string|object|void|dynamic)\\b",
 			"captures": {
 				"1": {
-					"name": "keyword.type.cs"
+					"name": "keyword.type.$1.cs"
 				}
 			}
 		},
@@ -4445,9 +5081,6 @@
 			},
 			"patterns": [
 				{
-					"include": "#comment"
-				},
-				{
 					"include": "#type"
 				},
 				{
@@ -4470,17 +5103,20 @@
 			},
 			"patterns": [
 				{
+					"include": "#intrusive"
+				},
+				{
 					"include": "#punctuation-comma"
 				}
 			]
 		},
 		"type-nullable-suffix": {
 			"match": "\\?",
-			"captures": {
-				"0": {
-					"name": "punctuation.separator.question-mark.cs"
-				}
-			}
+			"name": "punctuation.separator.question-mark.cs"
+		},
+		"type-pointer-suffix": {
+			"match": "\\*",
+			"name": "punctuation.separator.asterisk.cs"
 		},
 		"operator-assignment": {
 			"name": "keyword.operator.assignment.cs",
@@ -4497,6 +5133,16 @@
 		"punctuation-accessor": {
 			"name": "punctuation.accessor.cs",
 			"match": "\\."
+		},
+		"intrusive": {
+			"patterns": [
+				{
+					"include": "#preprocessor"
+				},
+				{
+					"include": "#comment"
+				}
+			]
 		},
 		"preprocessor": {
 			"name": "meta.preprocessor.cs",
@@ -4803,38 +5449,47 @@
 		"comment": {
 			"patterns": [
 				{
-					"name": "comment.block.cs",
-					"begin": "/\\*",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.comment.cs"
-						}
-					},
-					"end": "\\*/",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.comment.cs"
-						}
-					}
-				},
-				{
-					"begin": "(^\\s+)?(?=//)",
-					"beginCaptures": {
+					"name": "comment.block.documentation.cs",
+					"begin": "(^\\s+)?(///)(?!/)",
+					"while": "^(\\s*)(///)(?!/)",
+					"captures": {
 						"1": {
 							"name": "punctuation.whitespace.comment.leading.cs"
+						},
+						"2": {
+							"name": "punctuation.definition.comment.cs"
 						}
 					},
-					"end": "(?=$)",
 					"patterns": [
 						{
-							"name": "comment.block.documentation.cs",
-							"begin": "(?<!/)///(?!/)",
-							"beginCaptures": {
-								"0": {
+							"include": "#xml-doc-comment"
+						}
+					]
+				},
+				{
+					"name": "comment.block.documentation.cs",
+					"begin": "(^\\s+)?(/\\*\\*)(?!/)",
+					"end": "(^\\s+)?(\\*/)",
+					"captures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.cs"
+						},
+						"2": {
+							"name": "punctuation.definition.comment.cs"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "\\G(?=(?~\\*/)$)",
+							"while": "^(\\s*+)(\\*(?!/))?(?=(?~\\*/)$)",
+							"whileCaptures": {
+								"1": {
+									"name": "punctuation.whitespace.comment.leading.cs"
+								},
+								"2": {
 									"name": "punctuation.definition.comment.cs"
 								}
 							},
-							"end": "(?=$)",
 							"patterns": [
 								{
 									"include": "#xml-doc-comment"
@@ -4842,16 +5497,32 @@
 							]
 						},
 						{
-							"name": "comment.line.double-slash.cs",
-							"begin": "(?<!/)//(?:(?!/)|(?=//))",
-							"beginCaptures": {
-								"0": {
-									"name": "punctuation.definition.comment.cs"
-								}
-							},
-							"end": "(?=$)"
+							"include": "#xml-doc-comment"
 						}
 					]
+				},
+				{
+					"name": "comment.line.double-slash.cs",
+					"begin": "(^\\s+)?(//).*$",
+					"while": "^(\\s*)(//).*$",
+					"captures": {
+						"1": {
+							"name": "punctuation.whitespace.comment.leading.cs"
+						},
+						"2": {
+							"name": "punctuation.definition.comment.cs"
+						}
+					}
+				},
+				{
+					"name": "comment.block.cs",
+					"begin": "/\\*",
+					"end": "\\*/",
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.comment.cs"
+						}
+					}
 				}
 			]
 		},

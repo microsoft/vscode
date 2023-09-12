@@ -539,6 +539,10 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 		return this._store.has(key);
 	}
 
+	get size(): number {
+		return this._store.size;
+	}
+
 	get(key: K): V | undefined {
 		return this._store.get(key);
 	}

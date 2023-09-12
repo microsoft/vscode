@@ -68,6 +68,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -1492,6 +1493,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				terminal.xterm.write(chunk.buffer, () => pendingWrites.value--);
 			}
 		} else {
+			didWriteData = true;
 			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
 		}
 
@@ -1527,7 +1529,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 
 	private writeNotice(terminal: IDetachedTerminalInstance, str: string) {
-		terminal.xterm.write(`\x1b[2m${str}\x1b[0m`);
+		terminal.xterm.write(formatMessageForTerminal(str));
 	}
 
 	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
@@ -2245,14 +2247,6 @@ class TreeActionsProvider {
 
 		if (element instanceof TestCaseElement) {
 			const extId = element.test.item.extId;
-			primary.push(new Action(
-				'testing.outputPeek.goToFile',
-				localize('testing.goToFile', "Go to Source"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', extId),
-			));
-
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
@@ -2290,6 +2284,14 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
 				));
 			}
+
+			primary.push(new Action(
+				'testing.outputPeek.goToFile',
+				localize('testing.goToFile', "Go to Source"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				undefined,
+				() => this.commandService.executeCommand('vscode.revealTest', extId),
+			));
 		}
 
 		if (element instanceof TestMessageElement) {

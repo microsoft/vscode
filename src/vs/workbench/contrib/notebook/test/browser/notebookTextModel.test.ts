@@ -39,8 +39,8 @@ suite('NotebookTextModel', () => {
 			(editor) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);
@@ -62,8 +62,8 @@ suite('NotebookTextModel', () => {
 			(editor) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [disposables.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);

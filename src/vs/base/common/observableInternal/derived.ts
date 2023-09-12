@@ -26,7 +26,7 @@ export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | object, 
 export function derivedOpts<T>(
 	options: {
 		owner?: object;
-		debugName?: string | (() => string);
+		debugName?: string | (() => string | undefined);
 		equalityComparer?: EqualityComparer<T>;
 	},
 	computeFn: (reader: IReader) => T

@@ -14,6 +14,7 @@ export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewI
 export const accessibleViewSupportsNavigation = new RawContextKey<boolean>('accessibleViewSupportsNavigation', false, true);
 export const accessibleViewVerbosityEnabled = new RawContextKey<boolean>('accessibleViewVerbosityEnabled', false, true);
 export const accessibleViewGoToSymbolSupported = new RawContextKey<boolean>('accessibleViewGoToSymbolSupported', false, true);
+export const accessibleViewOnLastLine = new RawContextKey<boolean>('accessibleViewOnLastLine', false, true);
 export const accessibleViewCurrentProviderId = new RawContextKey<string>('accessibleViewCurrentProviderId', undefined, undefined);
 
 /**
@@ -42,7 +43,7 @@ export const enum AccessibilityVerbositySettingId {
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
-	EditorUntitledHint = 'accessibility.verbosity.untitledHint'
+	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint'
 }
 
 export const enum AccessibleViewProviderId {
@@ -56,7 +57,7 @@ export const enum AccessibleViewProviderId {
 	Editor = 'editor',
 	Hover = 'hover',
 	Notification = 'notification',
-	EditorUntitledHint = 'editor.untitledHint'
+	EmptyEditorHint = 'emptyEditorHint'
 }
 
 const baseProperty: object = {
@@ -106,8 +107,8 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
 			...baseProperty
 		},
-		[AccessibilityVerbositySettingId.EditorUntitledHint]: {
-			description: localize('verbosity.untitledhint', 'Provide information about relevant actions in an untitled text editor.'),
+		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
+			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
 			...baseProperty
 		}
 	}

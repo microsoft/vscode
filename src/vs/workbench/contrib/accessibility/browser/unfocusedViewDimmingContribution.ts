@@ -47,7 +47,7 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 					// Text editors
 					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .monaco-editor { ${filterRule} }`);
 					// Breadcrumbs
-					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .tabs-breadcrumbs { ${filterRule} }`);
+					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .breadcrumbs-below-tabs { ${filterRule} }`);
 					// Terminal editors
 					rules.add(`.monaco-workbench .editor-instance:not(:focus-within) .terminal-wrapper { ${filterRule} }`);
 					// Settings editor
