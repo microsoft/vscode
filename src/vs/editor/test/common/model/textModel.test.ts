@@ -80,7 +80,7 @@ suite('TextModelData.fromString', () => {
 	}
 
 	function testTextModelDataFromString(text: string, expected: ITextBufferData): void {
-		const textBuffer = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL).textBuffer;
+		const { textBuffer, disposable } = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL);
 		const actual: ITextBufferData = {
 			EOL: textBuffer.getEOL(),
 			lines: textBuffer.getLinesContent(),
@@ -88,6 +88,7 @@ suite('TextModelData.fromString', () => {
 			isBasicASCII: !textBuffer.mightContainNonBasicASCII()
 		};
 		assert.deepStrictEqual(actual, expected);
+		disposable.dispose();
 	}
 
 	test('one line text', () => {

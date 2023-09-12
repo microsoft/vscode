@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
@@ -11,6 +12,8 @@ import { EditorSimpleWorker, ICommonModel } from 'vs/editor/common/services/edit
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
 suite('EditorSimpleWorker', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class WorkerWithModels extends EditorSimpleWorker {
 
