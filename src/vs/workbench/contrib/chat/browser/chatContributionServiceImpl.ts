@@ -13,6 +13,7 @@ import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/exte
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { getClearAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
@@ -21,6 +22,8 @@ import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
 
 const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatProviderContribution[]>({
 	extensionPoint: 'interactiveSession',
@@ -59,6 +62,18 @@ const chatExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensi
 	},
 });
 
+export class ChatExtensionPointHandler implements IWorkbenchContribution {
+	constructor(
+		@IChatContributionService readonly _chatContributionService: IChatContributionService
+	) {
+		// noop, just here to depend on _chatContributionService
+	}
+}
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(ChatExtensionPointHandler, LifecyclePhase.Starting);
+
+
 export class ChatContributionService implements IChatContributionService {
 	declare _serviceBrand: undefined;
 
@@ -67,6 +82,18 @@ export class ChatContributionService implements IChatContributionService {
 
 	constructor(
 	) {
+		this.handleAndRegisterChatExtensions();
+	}
+
+	public get registeredProviders(): IChatProviderContribution[] {
+		return Array.from(this._registeredProviders.values());
+	}
+
+	public getViewIdForProvider(providerId: string): string {
+		return ChatViewPane.ID + '.' + providerId;
+	}
+
+	private handleAndRegisterChatExtensions(): void {
 		chatExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				const extensionDisposable = new DisposableStore();
@@ -95,14 +122,6 @@ export class ChatContributionService implements IChatContributionService {
 				}
 			}
 		});
-	}
-
-	public get registeredProviders(): IChatProviderContribution[] {
-		return Array.from(this._registeredProviders.values());
-	}
-
-	public getViewIdForProvider(providerId: string): string {
-		return ChatViewPane.ID + '.' + providerId;
 	}
 
 	private registerChatProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IRawChatProviderContribution): IDisposable {

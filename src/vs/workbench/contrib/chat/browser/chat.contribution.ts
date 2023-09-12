@@ -246,7 +246,7 @@ registerMoveActions();
 registerClearActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
-registerSingleton(IChatContributionService, ChatContributionService, InstantiationType.Delayed);
+registerSingleton(IChatContributionService, ChatContributionService, InstantiationType.Eager);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);
