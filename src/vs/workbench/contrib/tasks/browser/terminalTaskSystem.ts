@@ -948,6 +948,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
 				}
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
 			}
 		} else {
 			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
