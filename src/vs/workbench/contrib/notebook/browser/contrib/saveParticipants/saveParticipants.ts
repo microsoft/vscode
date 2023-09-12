@@ -6,37 +6,37 @@
 import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { CodeActionProvider, CodeActionTriggerType, IWorkspaceTextEdit } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { ICellViewModel, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { isEqual } from 'vs/base/common/resources';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICellViewModel, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { Range } from 'vs/editor/common/core/range';
 
 const NotebookCodeAction = new CodeActionKind('notebook');
-
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -256,15 +256,58 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	}
 }
 
-function getNotebookViewCell(editorService: IEditorService): ICellViewModel | undefined {
-	const activePane = editorService.activeEditorPane;
-	const notebookEditor = getNotebookEditorFromEditorPane(activePane);
-	const notebookViewModel = notebookEditor?.getViewModel();
-	const cellSelections = notebookViewModel?.getSelections();
-	if (!cellSelections || !notebookViewModel || !notebookEditor?.textModel) {
-		return;
+class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		// @IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+	) { }
+
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+		if (this.configurationService.getValue('files.insertFinalNewline')) {
+			this.doInsertFinalNewLine(workingCopy, context, progress);
+		}
 	}
-	return notebookViewModel.viewCells[cellSelections[0].start];
+
+	private async doInsertFinalNewLine(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>): Promise<void> {
+		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
+			return;
+		}
+
+		const disposable = new DisposableStore();
+		const notebook = workingCopy.model.notebookModel;
+
+		try {
+			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
+				if (cell.cellKind !== 2) {
+					return;
+				}
+
+				const ref = await this.textModelService.createModelReference(cell.uri);
+				disposable.add(ref);
+				const model = ref.object.textEditorModel;
+
+				const lineCount = model.getLineCount();
+				const lastLine = model.getLineContent(lineCount);
+				const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
+
+				if (!lineCount || lastLineIsEmptyOrWhitespace) {
+					return;
+				}
+
+				return new ResourceTextEdit(model.uri, { range: new Range(lineCount, model.getLineMaxColumn(lineCount), lineCount, model.getLineMaxColumn(lineCount)), text: model.getEOL() }, model.getVersionId());
+			}));
+
+			const filteredEdits = allCellEdits.flat().filter(edit => edit !== undefined) as ResourceEdit[];
+			await this.bulkEditService.apply(filteredEdits, { label: localize('insertFinalNewLine', "Insert Final New Line"), code: 'undoredo.insertFinalNewLine' });
+
+		} finally {
+			progress.report({ increment: 100 });
+			disposable.dispose();
+		}
+	}
 }
 
 class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
@@ -459,6 +502,17 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	}
 }
 
+function getNotebookViewCell(editorService: IEditorService): ICellViewModel | undefined {
+	const activePane = editorService.activeEditorPane;
+	const notebookEditor = getNotebookEditorFromEditorPane(activePane);
+	const notebookViewModel = notebookEditor?.getViewModel();
+	const cellSelections = notebookViewModel?.getSelections();
+	if (!cellSelections || !notebookViewModel || !notebookEditor?.textModel) {
+		return;
+	}
+	return notebookViewModel.viewCells[cellSelections[0].start];
+}
+
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -472,6 +526,7 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimWhitespaceParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(CodeActionOnSaveParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
+		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FinalNewLineParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimFinalNewLinesParticipant)));
 
 	}
