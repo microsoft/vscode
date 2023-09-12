@@ -154,7 +154,7 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, pathValue: string): Promi
 			return absolutePath;
 		}
 		return absolutePath.with({
-			path: `${absolutePath.path}.json`
+			path: `${absolutePath.path}/tsconfig.json`
 		});
 	}
 
