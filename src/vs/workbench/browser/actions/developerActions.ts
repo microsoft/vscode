@@ -509,7 +509,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 }
 
 let tracker: DisposableTracker | undefined = undefined;
-let disposablesSnapshot = new Set<IDisposable>();
+let trackedDisposables = new Set<IDisposable>();
 
 const DisposablesSnapshotStateContext = new RawContextKey<'started' | 'pending' | 'stopped'>('dirtyWorkingCopies', 'stopped');
 
@@ -529,7 +529,7 @@ class StartTrackDisposables extends Action2 {
 		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
 		disposablesSnapshotStateContext.set('started');
 
-		disposablesSnapshot.clear();
+		trackedDisposables.clear();
 
 		tracker = new DisposableTracker();
 		setDisposableTracker(tracker);
@@ -541,7 +541,7 @@ class SnapshotTrackedDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.snapshotTrackedDisposables',
-			title: { value: localize('snapshotTrackedDisposables', "Snapshot Tracking Disposables"), original: 'Snapshot Tracking Disposables' },
+			title: { value: localize('snapshotTrackedDisposables', "Snapshot Tracked Disposables"), original: 'Snapshot Tracked Disposables' },
 			category: Categories.Developer,
 			f1: true,
 			precondition: DisposablesSnapshotStateContext.isEqualTo('started')
@@ -552,7 +552,7 @@ class SnapshotTrackedDisposables extends Action2 {
 		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
 		disposablesSnapshotStateContext.set('pending');
 
-		disposablesSnapshot = new Set(tracker?.computeLeakingDisposables(1000)?.leaks.map(disposable => disposable.value));
+		trackedDisposables = new Set(tracker?.computeLeakingDisposables(1000)?.leaks.map(disposable => disposable.value));
 	}
 }
 
@@ -578,7 +578,7 @@ class StopTrackDisposables extends Action2 {
 			const disposableLeaks = new Set<DisposableInfo>();
 
 			for (const disposable of new Set(tracker.computeLeakingDisposables(1000)?.leaks) ?? []) {
-				if (disposablesSnapshot.has(disposable.value)) {
+				if (trackedDisposables.has(disposable.value)) {
 					disposableLeaks.add(disposable);
 				}
 			}
@@ -591,7 +591,7 @@ class StopTrackDisposables extends Action2 {
 
 		setDisposableTracker(null);
 		tracker = undefined;
-		disposablesSnapshot.clear();
+		trackedDisposables.clear();
 	}
 }
 
