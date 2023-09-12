@@ -60,22 +60,31 @@ declare module 'vscode' {
 	export interface TextDocumentContext {
 		document: TextDocument;
 		selection: Selection;
-		action?: string;
+	}
+
+	export interface InteractiveEditorSessionProviderMetadata {
+		label: string;
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
+		/**
+		 * @deprecated
+		 */
 		label: string;
 
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse(session: S, request: Omit<InteractiveEditorRequest, 'session'>, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
+
+		/**
+		 * @deprecated
+		 */
 		provideInteractiveEditorResponse2?(request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: S): any;
 
-		// todo@API use enum instead of boolean
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
@@ -210,7 +219,7 @@ declare module 'vscode' {
 
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
-		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
+		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;
 
 		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
 	}
