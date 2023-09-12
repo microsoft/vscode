@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService } from 'vs/editor/standalone/browser/standaloneServices';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
@@ -17,6 +18,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 suite('StandaloneKeybindingService', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
 		public testDispatch(e: IKeyboardEvent): void {
