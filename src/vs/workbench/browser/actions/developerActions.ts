@@ -13,7 +13,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -511,6 +511,8 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 let tracker: DisposableTracker | undefined = undefined;
 let disposablesSnapshot = new Set<IDisposable>();
 
+const DisposablesSnapshotStateContext = new RawContextKey<'started' | 'pending' | 'stopped'>('dirtyWorkingCopies', 'stopped');
+
 class StartTrackDisposables extends Action2 {
 
 	constructor() {
@@ -518,11 +520,15 @@ class StartTrackDisposables extends Action2 {
 			id: 'workbench.action.startTrackDisposables',
 			title: { value: localize('startTrackDisposables', "Start Tracking Disposables"), original: 'Start Tracking Disposables' },
 			category: Categories.Developer,
-			f1: true
+			f1: true,
+			precondition: ContextKeyExpr.and(DisposablesSnapshotStateContext.isEqualTo('pending').negate(), DisposablesSnapshotStateContext.isEqualTo('started').negate())
 		});
 	}
 
-	run(): void {
+	run(accessor: ServicesAccessor): void {
+		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
+		disposablesSnapshotStateContext.set('started');
+
 		disposablesSnapshot.clear();
 
 		tracker = new DisposableTracker();
@@ -537,11 +543,15 @@ class SnapshotTrackedDisposables extends Action2 {
 			id: 'workbench.action.snapshotTrackedDisposables',
 			title: { value: localize('snapshotTrackedDisposables', "Snapshot Tracking Disposables"), original: 'Snapshot Tracking Disposables' },
 			category: Categories.Developer,
-			f1: true
+			f1: true,
+			precondition: DisposablesSnapshotStateContext.isEqualTo('started')
 		});
 	}
 
-	run(): void {
+	run(accessor: ServicesAccessor): void {
+		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
+		disposablesSnapshotStateContext.set('pending');
+
 		disposablesSnapshot = new Set(tracker?.snapshot()?.map(disposable => disposable.value));
 	}
 }
@@ -553,12 +563,16 @@ class StopTrackDisposables extends Action2 {
 			id: 'workbench.action.stopTrackDisposables',
 			title: { value: localize('stopTrackDisposables', "Stop Tracking Disposables"), original: 'Stop Tracking Disposables' },
 			category: Categories.Developer,
-			f1: true
+			f1: true,
+			precondition: DisposablesSnapshotStateContext.isEqualTo('pending')
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
 		const editorService = accessor.get(IEditorService);
+
+		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
+		disposablesSnapshotStateContext.set('stopped');
 
 		if (tracker) {
 			const disposableLeaks = new Set<DisposableInfo>();
