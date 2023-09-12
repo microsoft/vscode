@@ -20,7 +20,11 @@ export interface CancelablePromise<T> extends Promise<T> {
 	cancel(): void;
 }
 
-export function createCancelablePromise<T>(callback: (token: CancellationToken) => Promise<T>, parentToken?: CancellationToken): CancelablePromise<T> {
+export interface IPromiseFactoryWithToken<T> {
+	(token: CancellationToken): Promise<T>;
+}
+
+export function createCancelablePromise<T>(callback: IPromiseFactoryWithToken<T>, parentToken?: CancellationToken): CancelablePromise<T> {
 	const source = new CancellationTokenSource(parentToken);
 
 	const thenable = callback(source.token);
@@ -255,6 +259,36 @@ export class SequencerByKey<TKey> {
 			});
 		this.promiseMap.set(key, newPromise);
 		return newPromise;
+	}
+}
+
+// DebouncedSequencer eagerly cancels the running tasks when a new task is queued.
+export class DebouncedSequencer implements IDisposable {
+	private current?: CancelablePromise<unknown>;
+	private _disposed = false;
+
+	queue(factory: IPromiseFactoryWithToken<unknown>, parentToken?: CancellationToken) {
+		if (this._disposed) {
+			return;
+		}
+		if (!this.current) {
+			this.current = createCancelablePromise(factory, parentToken);
+		} else {
+			const previous = this.current;
+			this.current = createCancelablePromise((token) => {
+				token.onCancellationRequested(() => previous.cancel());
+				return previous.then(() => factory(token), () => factory(token));
+			}, parentToken);
+		}
+	}
+
+	clear() {
+		this.current?.cancel();
+	}
+
+	dispose() {
+		this._disposed = true;
+		this.clear();
 	}
 }
 
