@@ -229,6 +229,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
 	private _willRestart: boolean = false;
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
+	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
+	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -384,6 +386,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		this.getWorkspaceTasks(TaskRunSource.Reconnect).then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
+			this._onDidReconnectToTasks.fire();
 		});
 	}
 
@@ -1862,6 +1865,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			const active = executeResult.active;
+			if (active && active.same && runSource === TaskRunSource.FolderOpen) {
+				// ignore, the task is already active, likely from being reconnected.
+				this._logService.debug('Ignoring task that is already active', executeResult.task);
+				return executeResult.promise;
+			}
 			if (active && active.same) {
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
