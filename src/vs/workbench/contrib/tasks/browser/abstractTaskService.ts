@@ -47,7 +47,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskDependency, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -219,6 +219,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private _persistentTasks: LRUCache<string, string> | undefined;
 
+	private _dependencyTaskMap: Map<string, ITaskDependency[]> = new Map();
+
 	protected _taskRunningState: IContextKey<boolean>;
 
 	protected _outputChannel: IOutputChannel;
@@ -332,8 +334,29 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				// no-op
 			} else if ((this._willRestart || (e.kind === TaskEventKind.Terminated && e.exitReason === TerminalExitReason.User)) && e.taskId) {
 				this.removePersistentTask(e.taskId);
-			} else if (e.kind === TaskEventKind.Start && e.__task && e.__task.getWorkspaceFolder()) {
+			} else if (e.kind === TaskEventKind.DependsOnStarted && e.__task && e.dependencyIsBackgroundTask) {
 				this._setPersistentTask(e.__task);
+				const dependencies = e.__task.configurationProperties.dependsOn;
+				if (dependencies) {
+					this._dependencyTaskMap.set(e.__task._id, dependencies);
+				}
+			} else if (e.kind === TaskEventKind.Start && e.__task && e.__task.getWorkspaceFolder() && !e.dependencyTask) {
+				this._setPersistentTask(e.__task);
+			} else if (!this._willRestart && e.kind === TaskEventKind.ProcessEnded) {
+				this.removePersistentTask(e.taskId);
+				// if this task is a dependent task of one that we've persisted, remove it
+				// and delete the task if there are no more dependencies
+				// There's no such thing as the process ending for a parent task, so we have to do this or it will
+				// persist.
+				for (const [task, dependencies] of [...this._dependencyTaskMap.entries()]) {
+					const updatedDependencies = dependencies.filter(t => t.task && t.task?.toString() !== e.__task._id);
+					if (updatedDependencies.length === 0) {
+						this._dependencyTaskMap.delete(task);
+						this.removePersistentTask(task);
+					} else {
+						this._dependencyTaskMap.set(task, updatedDependencies);
+					}
+				}
 			}
 		}));
 		this._waitForAllSupportedExecutions = new Promise(resolve => {

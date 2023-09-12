@@ -1150,11 +1150,13 @@ export interface ITaskStartedEvent extends ITaskCommon {
 	kind: TaskEventKind.Start;
 	terminalId: number;
 	resolvedVariables: Map<string, string>;
+	dependencyTask?: boolean;
 }
 
 export interface ITaskGeneralEvent extends ITaskCommon {
 	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End;
 	terminalId: number | undefined;
+	dependencyIsBackgroundTask: boolean | undefined;
 }
 
 export type ITaskEvent =
@@ -1184,12 +1186,13 @@ export namespace TaskEvent {
 		};
 	}
 
-	export function start(task: Task, terminalId: number, resolvedVariables: Map<string, string>): ITaskStartedEvent {
+	export function start(task: Task, terminalId: number, resolvedVariables: Map<string, string>, dependencyTask?: boolean): ITaskStartedEvent {
 		return {
 			...common(task),
 			kind: TaskEventKind.Start,
 			terminalId,
 			resolvedVariables,
+			dependencyTask
 		};
 	}
 
@@ -1219,11 +1222,12 @@ export namespace TaskEvent {
 		};
 	}
 
-	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End, task: Task, terminalId?: number): ITaskGeneralEvent {
+	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End, task: Task, terminalId?: number, dependencyIsBackgroundTask?: boolean): ITaskGeneralEvent {
 		return {
 			...common(task),
 			kind,
 			terminalId,
+			dependencyIsBackgroundTask
 		};
 	}
 

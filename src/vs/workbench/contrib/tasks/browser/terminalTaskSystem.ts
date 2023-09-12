@@ -490,7 +490,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._showOutput();
 	}
 
-	private _executeTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
+	private _executeTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>, alreadyResolved?: Map<string, string>, dependencyTask?: boolean): Promise<ITaskSummary> {
 		this._showTaskLoadErrors(task);
 
 		const mapKey = task.getMapKey();
@@ -520,7 +520,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 							}
 						}
 						if (!taskResult) {
-							this._fireTaskEvent(TaskEvent.general(TaskEventKind.DependsOnStarted, task));
+							this._fireTaskEvent(TaskEvent.general(TaskEventKind.DependsOnStarted, task, undefined, dependencyTask.configurationProperties.isBackground ?? false));
 							taskResult = this._executeDependencyTask(dependencyTask, resolver, trigger, nextLiveDependencies, encounteredTasks, alreadyResolved);
 						}
 						encounteredTasks.set(commonKey, taskResult);
@@ -550,9 +550,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 				if ((ContributedTask.is(task) || CustomTask.is(task)) && (task.command)) {
 					if (this._isRerun) {
-						return this._reexecuteCommand(task, trigger, alreadyResolved!);
+						return this._reexecuteCommand(task, trigger, alreadyResolved!, dependencyTask);
 					} else {
-						return this._executeCommand(task, trigger, alreadyResolved!);
+						return this._executeCommand(task, trigger, alreadyResolved!, dependencyTask);
 					}
 				}
 				return { exitCode: 0 };
@@ -613,11 +613,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// If the task is a background task with a watching problem matcher, we don't wait for the whole task to finish,
 		// just for the problem matcher to go inactive.
 		if (!task.configurationProperties.isBackground) {
-			return this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
+			return this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved, true);
 		}
 
 		const inactivePromise = this._createInactiveDependencyPromise(task);
-		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved)]);
+		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved, true)]);
 	}
 
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
@@ -738,7 +738,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	private _executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
+	private _executeCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>, dependencyTask?: boolean): Promise<ITaskSummary> {
 		const taskWorkspaceFolder = task.getWorkspaceFolder();
 		let workspaceFolder: IWorkspaceFolder | undefined;
 		if (taskWorkspaceFolder) {
@@ -756,7 +756,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return resolvedVariables.then((resolvedVariables) => {
 			if (resolvedVariables && !this._isTaskEmpty(task)) {
 				this._currentTask.resolvedVariables = resolvedVariables;
-				return this._executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
+				return this._executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder, dependencyTask);
 			} else {
 				// Allows the taskExecutions array to be updated in the extension host
 				this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
@@ -772,7 +772,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return !((task.command !== undefined) && task.command.runtime && (isCustomExecution || (task.command.name !== undefined)));
 	}
 
-	private _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>): Promise<ITaskSummary> {
+	private _reexecuteCommand(task: CustomTask | ContributedTask, trigger: string, alreadyResolved: Map<string, string>, dependencyTask?: boolean): Promise<ITaskSummary> {
 		const lastTask = this._lastTask;
 		if (!lastTask) {
 			return Promise.reject(new Error('No task previously run'));
@@ -807,7 +807,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	private async _executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
+	private async _executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined, dependencyTask?: boolean): Promise<ITaskSummary> {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
@@ -868,7 +868,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}, (_error) => {
 				this._logService.error('Task terminal process never got ready');
 			});
-			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values));
+			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values, dependencyTask));
 			let onData: IDisposable | undefined;
 			if (problemMatchers.length) {
 				// prevent https://github.com/microsoft/vscode/issues/174511 from happening
@@ -968,7 +968,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}, (_error) => {
 				// The process never got ready. Need to think how to handle this.
 			});
-			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values));
+			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values, dependencyTask));
 			const mapKey = task.getMapKey();
 			this._busyTasks[mapKey] = task;
 			this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
