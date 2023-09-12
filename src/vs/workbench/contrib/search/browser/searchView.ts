@@ -1293,7 +1293,7 @@ export class SearchView extends ViewPane {
 		}
 
 		const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
-		return getSelectionTextFromEditor(allowUnselected, editor, this.configurationService);
+		return getSelectionTextFromEditor(allowUnselected, editor);
 	}
 
 	private showsFileTypes(): boolean {
@@ -2143,7 +2143,7 @@ export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel
 	return undefined;
 }
 
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor, configurationService: IConfigurationService): string | null {
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor): string | null {
 
 	if (!isCodeEditor(editor) || !editor.hasModel()) {
 		return null;
