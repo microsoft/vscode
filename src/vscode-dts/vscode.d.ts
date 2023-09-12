@@ -10001,6 +10001,11 @@ declare module 'vscode' {
 		export const onDidChangeTelemetryEnabled: Event<boolean>;
 
 		/**
+		 * An {@link Event} which fires when the default shell changes.
+		 */
+		export const onDidChangeShell: Event<string>;
+
+		/**
 		 * Creates a new {@link TelemetryLogger telemetry logger}.
 		 *
 		 * @param sender The telemetry sender that is used by the telemetry logger.
