@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -36,6 +36,8 @@ import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import product from 'vs/platform/product/common/product';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -506,12 +508,65 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 	}
 }
 
+let trackedDisposables: DisposableStore | undefined = undefined;
+let tracker: DisposableTracker | undefined = undefined;
+
+class StartTrackDisposables extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.startTrackDisposables',
+			title: { value: localize('startTrackDisposables', "Start Tracking Disposables"), original: 'Start Tracking Disposables' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(): void {
+		trackedDisposables = new DisposableStore();
+		tracker = new DisposableTracker();
+		setDisposableTracker(tracker);
+	}
+}
+
+class StopTrackDisposables extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.stopTrackDisposables',
+			title: { value: localize('stopTrackDisposables', "Stop Tracking Disposables"), original: 'Stop Tracking Disposables' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const editorService = accessor.get(IEditorService);
+		if (trackedDisposables) {
+			trackedDisposables?.dispose();
+			trackedDisposables = undefined;
+		}
+
+		if (tracker) {
+			setDisposableTracker(null);
+			const leaks = tracker.computeLeakingDisposables(1000);
+			if (leaks) {
+				editorService.openEditor({ resource: undefined, contents: leaks.details });
+			}
+		}
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
+if (!product.commit) {
+	registerAction2(StartTrackDisposables);
+	registerAction2(StopTrackDisposables);
+}
 
 // --- Configuration
 
