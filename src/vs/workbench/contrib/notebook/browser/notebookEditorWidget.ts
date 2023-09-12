@@ -101,8 +101,6 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { EmptyCellEditorHintContributionReg } from 'vs/workbench/contrib/notebook/browser/contrib/editorHint/emptyCellEditorHint';
-import { EmptyTextEditorHintContribution } from 'vs/workbench/contrib/codeEditor/browser/emptyTextEditorHint/emptyTextEditorHint';
 
 const $ = DOM.$;
 
@@ -116,12 +114,9 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 		'editor.contrib.testingDecorations',
 		'store.contrib.stickyScrollController',
 		'editor.contrib.findController',
-		EmptyTextEditorHintContribution.ID
+		'editor.contrib.emptyTextEditorHint'
 	];
-	const contributions = [
-		...EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1),
-		EmptyCellEditorHintContributionReg
-	];
+	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
 	return {
 		menuIds: {

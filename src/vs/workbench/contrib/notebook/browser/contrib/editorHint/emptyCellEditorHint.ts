@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionCtor, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -63,6 +64,11 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 			return false;
 		}
 
+		const isNotebookCell = model?.uri.scheme === Schemas.vscodeNotebookCell;
+		if (!isNotebookCell) {
+			return false;
+		}
+
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		if (!activeEditor) {
 			return false;
@@ -78,8 +84,4 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 	}
 }
 
-export const EmptyCellEditorHintContributionReg = {
-	id: EmptyCellEditorHintContribution.CONTRIB_ID,
-	ctor: <EditorContributionCtor>EmptyCellEditorHintContribution,
-	instantiation: EditorContributionInstantiation.Eager
-};
+registerEditorContribution(EmptyCellEditorHintContribution.CONTRIB_ID, EmptyCellEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message
