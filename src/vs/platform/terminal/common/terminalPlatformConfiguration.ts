@@ -353,7 +353,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.IgnoreProcessNames]: {
-			description: localize('terminal.integrated.confirmIgnoreProcesses', "A set of process names to ignore when using the {0} setting.", '`terminal.integrated.confirmOnKill`'),
+			markdownDescription: localize('terminal.integrated.confirmIgnoreProcesses', "A set of process names to ignore when using the {0} setting.", '`#terminal.integrated.confirmOnKill#`'),
 			type: 'array',
 			items: {
 				type: 'string',

@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { AstNode, AstNodeKind, ListAstNode, TextAstNode } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/ast';
-import { toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { concat23Trees } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/concat23Trees';
+import { toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 
 suite('Bracket Pair Colorizer - mergeItems', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Clone', () => {
 		const tree = ListAstNode.create([
 			new TextAstNode(toLength(1, 1)),

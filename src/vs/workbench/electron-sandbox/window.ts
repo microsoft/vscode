@@ -725,7 +725,7 @@ export class NativeWindow extends Disposable {
 
 		// Windows 32-bit warning
 		if (isWindows && this.environmentService.os.arch === 'ia32') {
-			const message = localize('windows32eolmessage', "{0} on Windows 32-bit will soon stop receiving updates. Consider upgrading to the 64-bit build.", this.productService.nameLong);
+			const message = localize('windows32eolmessage', "You are running {0} 32-bit, which will soon stop receiving updates on Windows. Consider upgrading to the 64-bit build.", this.productService.nameLong);
 			const actions = [{
 				label: localize('windowseolBannerLearnMore', "Learn More"),
 				href: 'https://aka.ms/vscode-faq-old-windows'

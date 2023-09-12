@@ -953,7 +953,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.write(data);
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		this._anyTerminalFocusContextKey.reset();
 		this._anyFocusedTerminalHasSelection.reset();
 		this._onDidDispose.fire();

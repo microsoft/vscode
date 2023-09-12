@@ -222,12 +222,6 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
-			'window.experimental.nativeContextMenuLocation': { // TODO@bpasero remove me eventually
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('nativeContextMenuLocation', "Let the OS handle positioning of the context menu in cases where it should appear under the mouse.")
-			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],

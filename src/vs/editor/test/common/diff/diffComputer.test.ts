@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Constants } from 'vs/base/common/uint';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
@@ -222,6 +223,8 @@ function createCharChange(
 }
 
 suite('Editor Diff - DiffComputer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- insertions
 
