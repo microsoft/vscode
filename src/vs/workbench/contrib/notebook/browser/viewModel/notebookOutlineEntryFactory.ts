@@ -98,7 +98,6 @@ export class NotebookOutlineEntryFactory {
 		const outlineModel = await outlineModelService.getOrCreate(textModel, cancelToken);
 		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
 		this.cellOutlineEntryCache[textModel.id] = entries;
-		console.log(`cached ${entries.length} top level symbols for text model ID ${textModel.id}`);
 	}
 }
 
@@ -130,5 +129,5 @@ function getCellFirstNonEmptyLine(cell: ICellViewModel) {
 		}
 	}
 
-	return cell.getText().substring(0, 10_000);
+	return cell.getText().substring(0, 100);
 }
