@@ -552,7 +552,7 @@ class SnapshotTrackedDisposables extends Action2 {
 		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
 		disposablesSnapshotStateContext.set('pending');
 
-		disposablesSnapshot = new Set(tracker?.snapshot()?.map(disposable => disposable.value));
+		disposablesSnapshot = new Set(tracker?.computeLeakingDisposables(1000)?.leaks.map(disposable => disposable.value));
 	}
 }
 
@@ -577,7 +577,7 @@ class StopTrackDisposables extends Action2 {
 		if (tracker) {
 			const disposableLeaks = new Set<DisposableInfo>();
 
-			for (const disposable of new Set(tracker.snapshot()) ?? []) {
+			for (const disposable of new Set(tracker.computeLeakingDisposables(1000)?.leaks) ?? []) {
 				if (disposablesSnapshot.has(disposable.value)) {
 					disposableLeaks.add(disposable);
 				}

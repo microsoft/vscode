@@ -108,30 +108,31 @@ export class DisposableTracker implements IDisposableTracker {
 		return leaking;
 	}
 
-	snapshot(): DisposableInfo[] | undefined {
-		const rootParentCache = new Map<DisposableInfo, DisposableInfo>();
+	computeLeakingDisposables(maxReported = 10, preComputedLeaks?: DisposableInfo[]): { leaks: DisposableInfo[]; details: string } | undefined {
+		let uncoveredLeakingObjs: DisposableInfo[] | undefined;
+		if (preComputedLeaks) {
+			uncoveredLeakingObjs = preComputedLeaks;
+		} else {
+			const rootParentCache = new Map<DisposableInfo, DisposableInfo>();
 
-		const leakingObjects = [...this.livingDisposables.values()]
-			.filter((info) => info.source !== null && !this.getRootParent(info, rootParentCache).isSingleton);
+			const leakingObjects = [...this.livingDisposables.values()]
+				.filter((info) => info.source !== null && !this.getRootParent(info, rootParentCache).isSingleton);
 
-		if (leakingObjects.length === 0) {
-			return;
+			if (leakingObjects.length === 0) {
+				return;
+			}
+			const leakingObjsSet = new Set(leakingObjects.map(o => o.value));
+
+			// Remove all objects that are a child of other leaking objects. Assumes there are no cycles.
+			uncoveredLeakingObjs = leakingObjects.filter(l => {
+				return !(l.parent && leakingObjsSet.has(l.parent));
+			});
+
+			if (uncoveredLeakingObjs.length === 0) {
+				throw new Error('There are cyclic diposable chains!');
+			}
 		}
-		const leakingObjsSet = new Set(leakingObjects.map(o => o.value));
 
-		// Remove all objects that are a child of other leaking objects. Assumes there are no cycles.
-		const uncoveredLeakingObjs = leakingObjects.filter(l => {
-			return !(l.parent && leakingObjsSet.has(l.parent));
-		});
-
-		if (uncoveredLeakingObjs.length === 0) {
-			throw new Error('There are cyclic diposable chains!');
-		}
-
-		return uncoveredLeakingObjs;
-	}
-
-	computeLeakingDisposables(maxReported = 10, uncoveredLeakingObjs = this.snapshot()): { count: number; details: string } | undefined {
 		if (!uncoveredLeakingObjs) {
 			return undefined;
 		}
@@ -189,7 +190,7 @@ export class DisposableTracker implements IDisposableTracker {
 			message += `\n\n\n... and ${uncoveredLeakingObjs.length - maxReported} more leaking disposables\n\n`;
 		}
 
-		return { count: uncoveredLeakingObjs.length, details: message };
+		return { leaks: uncoveredLeakingObjs, details: message };
 	}
 }
 

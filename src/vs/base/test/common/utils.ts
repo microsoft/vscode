@@ -63,10 +63,10 @@ export function ensureNoDisposablesAreLeakedInTestSuite(): Pick<DisposableStore,
 		store.dispose();
 		setDisposableTracker(null);
 		if (this.currentTest?.state !== 'failed') {
-			const leaks = tracker!.computeLeakingDisposables();
-			if (leaks) {
-				console.error(leaks.details);
-				throw new Error(`There are ${leaks.count} undisposed disposables!${leaks.details}`);
+			const result = tracker!.computeLeakingDisposables();
+			if (result) {
+				console.error(result.details);
+				throw new Error(`There are ${result.leaks.length} undisposed disposables!${result.details}`);
 			}
 		}
 	});
@@ -97,11 +97,11 @@ export async function throwIfDisposablesAreLeakedAsync(body: () => Promise<void>
 }
 
 function computeLeakingDisposables(tracker: DisposableTracker, logToConsole = true) {
-	const leaks = tracker.computeLeakingDisposables();
-	if (leaks) {
+	const result = tracker.computeLeakingDisposables();
+	if (result) {
 		if (logToConsole) {
-			console.error(leaks.details);
+			console.error(result.details);
 		}
-		throw new Error(`There are ${leaks.count} undisposed disposables!${leaks.details}`);
+		throw new Error(`There are ${result.leaks.length} undisposed disposables!${result.details}`);
 	}
 }
