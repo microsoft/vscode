@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -71,6 +72,8 @@ function assertGuess(expectedInsertSpaces: boolean | undefined, expectedTabSize:
 }
 
 suite('TextModelData.fromString', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface ITextBufferData {
 		EOL: string;
@@ -166,6 +169,8 @@ suite('TextModelData.fromString', () => {
 });
 
 suite('Editor Model - TextModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('TextModel does not use events internally', () => {
 		// Make sure that all model parts receive text model events explicitly
@@ -1068,6 +1073,8 @@ suite('Editor Model - TextModel', () => {
 
 suite('TextModel.mightContainRTL', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('nope', () => {
 		const model = createTextModel('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
@@ -1099,6 +1106,8 @@ suite('TextModel.mightContainRTL', () => {
 });
 
 suite('TextModel.createSnapshot', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('empty file', () => {
 		const model = createTextModel('');
