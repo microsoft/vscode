@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -29,6 +29,11 @@ import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeA
 import { CodeActionTriggerType, CodeActionProvider, IWorkspaceTextEdit } from 'vs/editor/common/languages';
 import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { isEqual } from 'vs/base/common/resources';
+import { Position } from 'vs/editor/common/core/position';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICellViewModel, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { Range } from 'vs/editor/common/core/range';
 
 const NotebookCodeAction = new CodeActionKind('notebook');
 
@@ -86,13 +91,180 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 				return [];
 			}));
 
-			await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
+			await this.bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('formatNotebook', "Format Notebook"), code: 'undoredo.formatNotebook', });
 
 		} finally {
 			progress.report({ increment: 100 });
 			disposable.dispose();
 		}
 	}
+}
+
+class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant {
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+	) { }
+
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
+			await this.doTrimTrailingWhitespace(workingCopy, context, progress);
+		}
+	}
+
+	private async doTrimTrailingWhitespace(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>) {
+		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
+			return;
+		}
+
+		const disposable = new DisposableStore();
+		const notebook = workingCopy.model.notebookModel;
+
+		const cursors: Position[] = [];
+		let viewCell: ICellViewModel | undefined = undefined;
+
+		// autosave -- don't trim entire line, only up to cursor, so need to track position of cursor(s)
+		if (context.reason === SaveReason.AUTO) {
+			viewCell = getNotebookViewCell(this.editorService);
+			if (!viewCell) {
+				return;
+			}
+			const selections = viewCell.getSelections();
+			for (const sel of selections) {
+				if (viewCell.model.textModel) {
+					cursors.push(new Position(sel.selectionStartLineNumber, sel.startColumn));
+				}
+			}
+
+		}
+
+		try {
+			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
+				if (cell.cellKind !== 2) {
+					return [];
+				}
+
+				const ref = await this.textModelService.createModelReference(cell.uri);
+				disposable.add(ref);
+				const model = ref.object.textEditorModel;
+				const ops = trimTrailingWhitespace(model, (viewCell && viewCell.model.textModel === model) ? cursors : []);
+				if (!ops.length) {
+					return []; // Nothing to do
+				}
+
+				return ops.map(op => new ResourceTextEdit(model.uri, { ...op, text: op.text || '' }, model.getVersionId()));
+			}));
+
+			const filteredEdits = allCellEdits.flat().filter(edit => edit !== undefined) as ResourceEdit[];
+			await this.bulkEditService.apply(filteredEdits, { label: localize('trimNotebookWhitespace', "Notebook Trim Trailing Whitespace"), code: 'undoredo.notebookTrimTrailingWhitespace' });
+
+		} finally {
+			progress.report({ increment: 100 });
+			disposable.dispose();
+		}
+	}
+}
+
+class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticipant {
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+	) { }
+
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
+		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
+			this.doTrimFinalNewLines(workingCopy, context, progress);
+		}
+	}
+
+	/**
+	 * returns 0 if the entire file is empty
+	 */
+	private findLastNonEmptyLine(model: ITextModel): number {
+		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
+			const lineContent = model.getLineContent(lineNumber);
+			if (lineContent.length > 0) {
+				// this line has content
+				return lineNumber;
+			}
+		}
+		// no line has content
+		return 0;
+	}
+
+	private async doTrimFinalNewLines(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>): Promise<void> {
+		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
+			return;
+		}
+
+		const disposable = new DisposableStore();
+		const notebook = workingCopy.model.notebookModel;
+
+		let cannotTouchLineNumber = 0;
+		let viewCell: ICellViewModel | undefined = undefined;
+
+		// autosave -- don't trim entire line, only up to cursor, so need to track position of cursor(s)
+		if (context.reason === SaveReason.AUTO) {
+			viewCell = getNotebookViewCell(this.editorService);
+			if (!viewCell) {
+				return;
+			}
+			const selections = viewCell.getSelections();
+			for (const sel of selections) {
+				if (viewCell.model.textModel) {
+					cannotTouchLineNumber = Math.max(cannotTouchLineNumber, sel.selectionStartLineNumber);
+				}
+			}
+		}
+
+
+		try {
+			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
+				if (cell.cellKind !== 2) {
+					return;
+				}
+
+				const ref = await this.textModelService.createModelReference(cell.uri);
+				disposable.add(ref);
+				const model = ref.object.textEditorModel;
+
+				const lastNonEmptyLine = this.findLastNonEmptyLine(model);
+				const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
+				const deletionRange = model.validateRange(new Range(deleteFromLineNumber, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount())));
+
+				if (deletionRange.isEmpty()) {
+					return;
+				}
+
+				// create the edit to delete all lines in deletionRange
+				return new ResourceTextEdit(model.uri, { range: deletionRange, text: '' }, model.getVersionId());
+			}));
+
+			const filteredEdits = allCellEdits.flat().filter(edit => edit !== undefined) as ResourceEdit[];
+			await this.bulkEditService.apply(filteredEdits, { label: localize('trimNotebookNewlines', "Trim Final New Lines"), code: 'undoredo.trimFinalNewLines' });
+
+		} finally {
+			progress.report({ increment: 100 });
+			disposable.dispose();
+		}
+	}
+}
+
+function getNotebookViewCell(editorService: IEditorService): ICellViewModel | undefined {
+	const activePane = editorService.activeEditorPane;
+	const notebookEditor = getNotebookEditorFromEditorPane(activePane);
+	const notebookViewModel = notebookEditor?.getViewModel();
+	const cellSelections = notebookViewModel?.getSelections();
+	if (!cellSelections || !notebookViewModel || !notebookEditor?.textModel) {
+		return;
+	}
+	return notebookViewModel.viewCells[cellSelections[0].start];
 }
 
 class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
@@ -287,8 +459,6 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	}
 }
 
-
-
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -299,8 +469,11 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 	}
 
 	private registerSaveParticipants(): void {
+		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimWhitespaceParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(CodeActionOnSaveParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
+		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimFinalNewLinesParticipant)));
+
 	}
 }
 
