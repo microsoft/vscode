@@ -43,7 +43,7 @@ export interface IDisposableTracker {
 	markAsSingleton(disposable: IDisposable): void;
 }
 
-interface DisposableInfo {
+export interface DisposableInfo {
 	value: IDisposable;
 	source: string | null;
 	parent: IDisposable | null;
@@ -108,7 +108,7 @@ export class DisposableTracker implements IDisposableTracker {
 		return leaking;
 	}
 
-	computeLeakingDisposables(maxReported = 10): { count: number; details: string } | undefined {
+	snapshot(): DisposableInfo[] | undefined {
 		const rootParentCache = new Map<DisposableInfo, DisposableInfo>();
 
 		const leakingObjects = [...this.livingDisposables.values()]
@@ -126,6 +126,14 @@ export class DisposableTracker implements IDisposableTracker {
 
 		if (uncoveredLeakingObjs.length === 0) {
 			throw new Error('There are cyclic diposable chains!');
+		}
+
+		return uncoveredLeakingObjs;
+	}
+
+	computeLeakingDisposables(maxReported = 10, uncoveredLeakingObjs = this.snapshot()): { count: number; details: string } | undefined {
+		if (!uncoveredLeakingObjs) {
+			return undefined;
 		}
 
 		function getStackTracePath(leaking: DisposableInfo): string[] {

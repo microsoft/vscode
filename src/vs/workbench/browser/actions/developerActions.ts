@@ -10,7 +10,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -508,8 +508,8 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 	}
 }
 
-let trackedDisposables: DisposableStore | undefined = undefined;
 let tracker: DisposableTracker | undefined = undefined;
+let disposablesSnapshot = new Set<IDisposable>();
 
 class StartTrackDisposables extends Action2 {
 
@@ -523,9 +523,26 @@ class StartTrackDisposables extends Action2 {
 	}
 
 	run(): void {
-		trackedDisposables = new DisposableStore();
+		disposablesSnapshot.clear();
+
 		tracker = new DisposableTracker();
 		setDisposableTracker(tracker);
+	}
+}
+
+class SnapshotTrackedDisposables extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.snapshotTrackedDisposables',
+			title: { value: localize('snapshotTrackedDisposables', "Snapshot Tracking Disposables"), original: 'Snapshot Tracking Disposables' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(): void {
+		disposablesSnapshot = new Set(tracker?.snapshot()?.map(disposable => disposable.value));
 	}
 }
 
@@ -542,18 +559,25 @@ class StopTrackDisposables extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const editorService = accessor.get(IEditorService);
-		if (trackedDisposables) {
-			trackedDisposables?.dispose();
-			trackedDisposables = undefined;
-		}
 
 		if (tracker) {
-			setDisposableTracker(null);
-			const leaks = tracker.computeLeakingDisposables(1000);
+			const disposableLeaks = new Set<DisposableInfo>();
+
+			for (const disposable of new Set(tracker.snapshot()) ?? []) {
+				if (disposablesSnapshot.has(disposable.value)) {
+					disposableLeaks.add(disposable);
+				}
+			}
+
+			const leaks = tracker.computeLeakingDisposables(1000, Array.from(disposableLeaks));
 			if (leaks) {
 				editorService.openEditor({ resource: undefined, contents: leaks.details });
 			}
 		}
+
+		setDisposableTracker(null);
+		tracker = undefined;
+		disposablesSnapshot.clear();
 	}
 }
 
@@ -565,6 +589,7 @@ registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);
+	registerAction2(SnapshotTrackedDisposables);
 	registerAction2(StopTrackDisposables);
 }
 
