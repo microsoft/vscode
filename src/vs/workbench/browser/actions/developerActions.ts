@@ -293,7 +293,8 @@ class ToggleScreencastModeAction extends Action2 {
 			}
 
 			const keybinding = keybindingService.resolveKeyboardEvent(event);
-			const command = (this._isKbFound(shortcut) && shortcut.commandId) ? MenuRegistry.getCommand(shortcut.commandId) : null;
+			const commandId = this._isKbFound(shortcut) && shortcut.commandId;
+			const command = (commandId) ? (MenuRegistry.getCommand(commandId) || MenuRegistry.searchMenuItemsForCommand(commandId)) : null;
 
 			let commandAndGroupLabel = '';
 			let keyLabel: string | undefined | null = keybinding.getLabel();

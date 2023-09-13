@@ -311,6 +311,10 @@ export interface IMenuRegistry {
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
+	/**
+	 * Do not use this unless perf is not a concern. It will search through all Menu items linearly.
+	 */
+	searchMenuItemsForCommand(id: string): ICommandAction | undefined;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -364,6 +368,17 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 			result.add(this.appendMenuItem(id, item));
 		}
 		return result;
+	}
+
+	searchMenuItemsForCommand(id: string): ICommandAction | undefined {
+		for (const item of this._menuItems.values()) {
+			for (const subitem of item) {
+				if (isIMenuItem(subitem) && subitem.command.id === id) {
+					return subitem.command;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
