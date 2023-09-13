@@ -343,7 +343,8 @@ export function createTestNotebookEditor(instantiationService: TestInstantiation
 	return _createTestNotebookEditor(instantiationService, disposables, cells);
 }
 
-export async function withTestNotebookDiffModel<R = any>(disposables: DisposableStore, originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+export async function withTestNotebookDiffModel<R = any>(originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+	const disposables = new DisposableStore();
 	const instantiationService = setupInstantiationService(disposables);
 	const originalNotebook = createTestNotebookEditor(instantiationService, disposables, originalCells);
 	const modifiedNotebook = createTestNotebookEditor(instantiationService, disposables, modifiedCells);
@@ -368,7 +369,7 @@ export async function withTestNotebookDiffModel<R = any>(disposables: Disposable
 		}
 	};
 
-	const res = await callback(model, instantiationService);
+	const res = await callback(model, disposables, instantiationService);
 	if (res instanceof Promise) {
 		res.finally(() => {
 			originalNotebook.editor.dispose();
