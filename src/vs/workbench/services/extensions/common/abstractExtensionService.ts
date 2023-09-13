@@ -510,7 +510,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		let exitCode: number;
 		try {
 			exitCode = await extensionHostManager.extensionTestsExecute();
+			if (isCI) {
+				this._logService.info(`Extension host test runner exit code: ${exitCode}`);
+			}
 		} catch (err) {
+			if (isCI) {
+				this._logService.error(`Extension host test runner error`, err);
+			}
 			console.error(err);
 			exitCode = 1 /* ERROR */;
 		}

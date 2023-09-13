@@ -436,6 +436,9 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		if (parseExtensionDevOptions(this._environmentService).isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
+			if (isCI) {
+				this._logService.info(`Asking native host service to exit with code ${code}.`);
+			}
 			this._nativeHostService.exit(code);
 		} else {
 			// Expected development extension termination: When the extension host goes down we also shutdown the window

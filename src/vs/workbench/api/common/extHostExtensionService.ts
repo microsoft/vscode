@@ -740,8 +740,18 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return new Promise<number>((resolve, reject) => {
 			const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
 				if (error) {
+					if (isCI) {
+						this._logService.error(`Test runner called back with error`, error);
+					}
 					reject(error);
 				} else {
+					if (isCI) {
+						if (failures) {
+							this._logService.info(`Test runner called back with ${failures} failures.`);
+						} else {
+							this._logService.info(`Test runner called back with successful outcome.`);
+						}
+					}
 					resolve((typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				}
 			};
@@ -754,9 +764,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			if (runResult && runResult.then) {
 				runResult
 					.then(() => {
+						if (isCI) {
+							this._logService.info(`Test runner finished successfully.`);
+						}
 						resolve(0);
 					})
 					.catch((err: unknown) => {
+						if (isCI) {
+							this._logService.error(`Test runner finished with error`, err);
+						}
 						reject(err instanceof Error && err.stack ? err.stack : String(err));
 					});
 			}
