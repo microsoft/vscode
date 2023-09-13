@@ -271,7 +271,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}
-			_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit'] });
+			_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: 'inherit' });
 		}
 	} else {
 		if (parsedArgs.status) {
