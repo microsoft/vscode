@@ -66,6 +66,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly count?: number;
 	readonly commitTemplate: string;
 	readonly historyItemGroup?: ISCMHistoryItemGroup;
+	readonly historyProviderActionButton?: ISCMActionButtonDescriptor;
 	readonly onDidChangeCommitTemplate: Event<string>;
 	readonly onDidChangeHistoryItemGroup: Event<void>;
 	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;

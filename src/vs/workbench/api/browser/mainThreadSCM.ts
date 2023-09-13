@@ -136,6 +136,7 @@ class MainThreadSCMProvider implements ISCMProvider, ISCMHistoryProvider, QuickD
 
 	get commitTemplate(): string { return this.features.commitTemplate || ''; }
 	get historyItemGroup(): ISCMHistoryItemGroup | undefined { return this.features.historyItemGroup ?? undefined; }
+	get historyProviderActionButton(): ISCMActionButtonDescriptor | undefined { return this.features.historyProviderActionButton ?? undefined; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }

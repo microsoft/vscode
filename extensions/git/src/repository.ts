@@ -19,7 +19,7 @@ import { IFileWatcher, watch } from './watch';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { ActionButtonCommand } from './actionButton';
+import { CommitActionButton, SyncActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
@@ -840,6 +840,11 @@ export class Repository implements Disposable {
 		this._sourceControl.historyProvider = historyProvider;
 		this.disposables.push(historyProvider);
 
+		const syncActionButton = new SyncActionButton(this);
+		this.disposables.push(syncActionButton);
+		syncActionButton.onDidChange(() => this._sourceControl.historyProviderActionButton = syncActionButton.button);
+		this._sourceControl.historyProviderActionButton = syncActionButton.button;
+
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
@@ -927,10 +932,10 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const actionButton = new ActionButtonCommand(this, this.commitCommandCenter);
-		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
-		this._sourceControl.actionButton = actionButton.button;
+		const commitActionButton = new CommitActionButton(this, this.commitCommandCenter);
+		this.disposables.push(commitActionButton);
+		commitActionButton.onDidChange(() => this._sourceControl.actionButton = commitActionButton.button);
+		this._sourceControl.actionButton = commitActionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);

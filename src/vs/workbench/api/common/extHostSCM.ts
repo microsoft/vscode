@@ -538,6 +538,32 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasHistoryProvider: !!historyProvider });
 	}
 
+	private _historyProviderActionButtonDisposables = new MutableDisposable<DisposableStore>();
+	private _historyProviderActionButton: vscode.SourceControlActionButton | undefined;
+
+	get historyProviderActionButton(): vscode.SourceControlActionButton | undefined {
+		checkProposedApiEnabled(this._extension, 'scmActionButton');
+		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
+		return this._historyProviderActionButton;
+	}
+
+	set historyProviderActionButton(actionButton: vscode.SourceControlActionButton | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmActionButton');
+		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
+
+		this._historyProviderActionButtonDisposables.value = new DisposableStore();
+		this._historyProviderActionButton = actionButton;
+
+		const internal = actionButton !== undefined ?
+			{
+				command: this._commands.converter.toInternal(actionButton.command, this._historyProviderActionButtonDisposables.value),
+				description: actionButton.description,
+				enabled: actionButton.enabled
+			} : undefined;
+
+		this.#proxy.$updateSourceControl(this.handle, { historyProviderActionButton: internal ?? null });
+	}
+
 	private _historyItemGroup: vscode.SourceControlHistoryItemGroup | undefined = undefined;
 
 	get historyItemGroup(): vscode.SourceControlHistoryItemGroup | undefined {

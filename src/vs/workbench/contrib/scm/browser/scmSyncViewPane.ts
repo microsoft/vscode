@@ -418,7 +418,8 @@ class SCMSyncPaneViewModel {
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
 		for (const repository of added) {
 			const repositoryDisposable: IDisposable = combinedDisposable(
-				repository.provider.onDidChangeHistoryItemGroup(() => this.refresh(repository)),
+				repository.provider.onDidChange(() => this.refresh(repository)),
+				repository.provider.onDidChangeHistoryItemGroup(() => this.refresh(repository))
 			);
 
 			this.items.set(repository, { dispose() { repositoryDisposable.dispose(); } });
@@ -476,22 +477,13 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			}
 
 			// Action Button
-			const ahead = historyItemGroup?.ahead ? ` ${historyItemGroup.ahead}$(arrow-up)` : '';
-			const behind = historyItemGroup?.behind ? ` ${historyItemGroup.behind}$(arrow-down)` : '';
-			const enabled = ahead !== '' || behind !== '';
-
-			children.push({
-				type: 'actionButton',
-				repository: element,
-				button: {
-					command: {
-						id: 'git.sync',
-						title: `$(sync) Sync Changes${behind}${ahead}`,
-					},
-					description: `$(sync)${behind}${ahead}`,
-					enabled,
-				},
-			});
+			if (scmProvider.historyProviderActionButton) {
+				children.push({
+					type: 'actionButton',
+					repository: element,
+					button: scmProvider.historyProviderActionButton
+				});
+			}
 
 			// Incoming Changes
 			if (historyItemGroup?.behind && historyItemGroup.remote) {

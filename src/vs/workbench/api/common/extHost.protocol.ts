@@ -1353,7 +1353,8 @@ export interface SCMProviderFeatures {
 	quickDiffLabel?: string;
 	count?: number;
 	commitTemplate?: string;
-	historyItemGroup?: any;
+	historyItemGroup?: SCMHistoryItemGroupDto;
+	historyProviderActionButton?: SCMActionButtonDto | null;
 	acceptInputCommand?: languages.Command;
 	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
@@ -1393,8 +1394,12 @@ export type SCMRawResourceSplices = [
 ];
 
 export interface SCMHistoryItemGroupDto {
+	readonly id: string;
+	readonly label: string;
+	readonly ahead?: number;
+	readonly behind?: number;
+	readonly remote?: string;
 }
-
 
 export interface SCMHistoryItemDto {
 	readonly id: string;

@@ -52,6 +52,7 @@ declare module 'vscode' {
 
 	export interface SourceControl {
 		historyProvider?: SourceControlHistoryProvider;
+		historyProviderActionButton?: SourceControlActionButton;
 		historyItemGroup?: SourceControlHistoryItemGroup;
 	}
 }
