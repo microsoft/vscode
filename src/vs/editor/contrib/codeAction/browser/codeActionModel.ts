@@ -206,12 +206,23 @@ export class CodeActionModel extends Disposable {
 					const allMarkers = this._markerService.read({ resource: model.uri });
 					const currPosition: Position = trigger.selection.getPosition();
 					let trackedPosition: Position = currPosition;
+					let rowDistance = Number.MAX_VALUE;
+					let colDistance = Number.MAX_VALUE;
 
 					allMarkers.forEach((marker: IMarker) => {
 						const col = marker.endColumn;
 						const row = marker.endLineNumber;
-						if ((row < currPosition.lineNumber && col >= currPosition.column) || row === currPosition.lineNumber) {
-							trackedPosition = new Position(row, col);
+
+						if (row <= currPosition.lineNumber) {
+							const calculatedRowDistance = Math.abs(row - currPosition.lineNumber);
+							const calculatedColDistance = Math.abs(col - currPosition.column);
+							if (calculatedRowDistance <= rowDistance || (calculatedRowDistance < rowDistance && calculatedColDistance < colDistance)) {
+								rowDistance = calculatedRowDistance;
+								colDistance = calculatedColDistance;
+								if (row < currPosition.lineNumber || row === currPosition.lineNumber) {
+									trackedPosition = new Position(row, col);
+								}
+							}
 						}
 					});
 
