@@ -20,18 +20,24 @@ import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
 import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageService, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookKernelHistoryService', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
-	let disposables: DisposableStore;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(function () {
 		disposables = new DisposableStore();
-
 		onDidAddNotebookDocument = new Emitter();
 		disposables.add(onDidAddNotebookDocument);
 
@@ -50,12 +56,8 @@ suite('NotebookKernelHistoryService', () => {
 				};
 			}
 		});
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('notebook kernel empty history', function () {
@@ -65,8 +67,8 @@ suite('NotebookKernelHistoryService', () => {
 		const k1 = new TestNotebookKernel({ label: 'z', viewType: 'foo' });
 		const k2 = new TestNotebookKernel({ label: 'a', viewType: 'foo' });
 
-		kernelService.registerKernel(k1);
-		kernelService.registerKernel(k2);
+		disposables.add(kernelService.registerKernel(k1));
+		disposables.add(kernelService.registerKernel(k2));
 
 		instantiationService.stub(IStorageService, new class extends mock<IStorageService>() {
 			override onWillSaveState: Event<IWillSaveStateEvent> = Event.None;
@@ -96,7 +98,7 @@ suite('NotebookKernelHistoryService', () => {
 			override debug() { }
 		});
 
-		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);
+		const kernelHistoryService = disposables.add(instantiationService.createInstance(NotebookKernelHistoryService));
 
 		let info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
 		assert.equal(info.all.length, 0);
@@ -119,9 +121,9 @@ suite('NotebookKernelHistoryService', () => {
 		const k2 = new TestNotebookKernel({ label: 'a', viewType: 'foo' });
 		const k3 = new TestNotebookKernel({ label: 'b', viewType: 'foo' });
 
-		kernelService.registerKernel(k1);
-		kernelService.registerKernel(k2);
-		kernelService.registerKernel(k3);
+		disposables.add(kernelService.registerKernel(k1));
+		disposables.add(kernelService.registerKernel(k2));
+		disposables.add(kernelService.registerKernel(k3));
 
 		instantiationService.stub(IStorageService, new class extends mock<IStorageService>() {
 			override onWillSaveState: Event<IWillSaveStateEvent> = Event.None;
@@ -153,7 +155,7 @@ suite('NotebookKernelHistoryService', () => {
 			override debug() { }
 		});
 
-		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);
+		const kernelHistoryService = disposables.add(instantiationService.createInstance(NotebookKernelHistoryService));
 		let info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
 		assert.equal(info.all.length, 1);
 		assert.deepStrictEqual(info.selected, undefined);

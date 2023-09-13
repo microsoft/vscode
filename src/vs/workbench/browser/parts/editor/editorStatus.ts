@@ -28,7 +28,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { EncodingMode, IEncodingSupport, ILanguageSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -43,19 +42,19 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TabFocusMode } from 'vs/workbench/browser/parts/editor/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -279,6 +278,36 @@ class State {
 	}
 }
 
+class TabFocusMode extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<boolean>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
+		super();
+
+		this.registerListeners();
+
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		TabFocus.setTabFocusMode(tabFocusModeConfig);
+
+		this._onDidChange.fire(tabFocusModeConfig);
+	}
+
+	private registerListeners(): void {
+		this._register(TabFocus.onDidChangeTabFocus(tabFocusMode => this._onDidChange.fire(tabFocusMode)));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.tabFocusMode')) {
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				TabFocus.setTabFocusMode(tabFocusModeConfig);
+
+				this._onDidChange.fire(tabFocusModeConfig);
+			}
+		}));
+	}
+}
+
 const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
@@ -311,7 +340,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.tabFocusMode = instantiationService.createInstance(TabFocusMode);
@@ -323,8 +352,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateStatusBar()));
 		this._register(this.textFileService.untitled.onDidChangeEncoding(model => this.onResourceEncodingChange(model.resource)));
 		this._register(this.textFileService.files.onDidChangeEncoding(model => this.onResourceEncodingChange((model.resource))));
-		this._register(Event.runAndSubscribe(TabFocus.onDidChangeTabFocus, () => this.onTabFocusModeChange()));
-		this._register(this.tabFocusMode.onDidChange(() => this.onTabFocusModeChange()));
+		this._register(Event.runAndSubscribe(this.tabFocusMode.onDidChange, (tabFocusMode) => {
+			if (tabFocusMode !== undefined) {
+				this.onTabFocusModeChange(tabFocusMode);
+			} else {
+				this.onTabFocusModeChange(this.configurationService.getValue('editor.tabFocusMode'));
+			}
+		}));
 	}
 
 	private registerCommands(): void {
@@ -820,8 +854,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private onTabFocusModeChange(): void {
-		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode(this.contextKeyService.getContextKeyValue('focusedView') === 'terminal' ? TabFocusContext.Terminal : TabFocusContext.Editor) };
+	private onTabFocusModeChange(tabFocusMode: boolean): void {
+		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode };
 		this.updateState(info);
 	}
 

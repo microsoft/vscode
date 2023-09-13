@@ -814,7 +814,7 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 		if (!this.isRemotelyStored) {
 
 			// Local: persist all on shutdown
-			this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e));
+			this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
 
 			// Local: schedule persist on change
 			this._register(Event.any(this.onDidAddEntry, this.onDidChangeEntry, this.onDidReplaceEntry, this.onDidRemoveEntry)(() => this.onDidChangeModels()));

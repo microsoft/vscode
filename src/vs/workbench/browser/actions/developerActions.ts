@@ -10,10 +10,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -36,6 +36,8 @@ import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import product from 'vs/platform/product/common/product';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -506,12 +508,104 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 	}
 }
 
+let tracker: DisposableTracker | undefined = undefined;
+let trackedDisposables = new Set<IDisposable>();
+
+const DisposablesSnapshotStateContext = new RawContextKey<'started' | 'pending' | 'stopped'>('dirtyWorkingCopies', 'stopped');
+
+class StartTrackDisposables extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.startTrackDisposables',
+			title: { value: localize('startTrackDisposables', "Start Tracking Disposables"), original: 'Start Tracking Disposables' },
+			category: Categories.Developer,
+			f1: true,
+			precondition: ContextKeyExpr.and(DisposablesSnapshotStateContext.isEqualTo('pending').negate(), DisposablesSnapshotStateContext.isEqualTo('started').negate())
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
+		disposablesSnapshotStateContext.set('started');
+
+		trackedDisposables.clear();
+
+		tracker = new DisposableTracker();
+		setDisposableTracker(tracker);
+	}
+}
+
+class SnapshotTrackedDisposables extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.snapshotTrackedDisposables',
+			title: { value: localize('snapshotTrackedDisposables', "Snapshot Tracked Disposables"), original: 'Snapshot Tracked Disposables' },
+			category: Categories.Developer,
+			f1: true,
+			precondition: DisposablesSnapshotStateContext.isEqualTo('started')
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
+		disposablesSnapshotStateContext.set('pending');
+
+		trackedDisposables = new Set(tracker?.computeLeakingDisposables(1000)?.leaks.map(disposable => disposable.value));
+	}
+}
+
+class StopTrackDisposables extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.stopTrackDisposables',
+			title: { value: localize('stopTrackDisposables', "Stop Tracking Disposables"), original: 'Stop Tracking Disposables' },
+			category: Categories.Developer,
+			f1: true,
+			precondition: DisposablesSnapshotStateContext.isEqualTo('pending')
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const editorService = accessor.get(IEditorService);
+
+		const disposablesSnapshotStateContext = DisposablesSnapshotStateContext.bindTo(accessor.get(IContextKeyService));
+		disposablesSnapshotStateContext.set('stopped');
+
+		if (tracker) {
+			const disposableLeaks = new Set<DisposableInfo>();
+
+			for (const disposable of new Set(tracker.computeLeakingDisposables(1000)?.leaks) ?? []) {
+				if (trackedDisposables.has(disposable.value)) {
+					disposableLeaks.add(disposable);
+				}
+			}
+
+			const leaks = tracker.computeLeakingDisposables(1000, Array.from(disposableLeaks));
+			if (leaks) {
+				editorService.openEditor({ resource: undefined, contents: leaks.details });
+			}
+		}
+
+		setDisposableTracker(null);
+		tracker = undefined;
+		trackedDisposables.clear();
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
+if (!product.commit) {
+	registerAction2(StartTrackDisposables);
+	registerAction2(SnapshotTrackedDisposables);
+	registerAction2(StopTrackDisposables);
+}
 
 // --- Configuration
 

@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
+	serverclose(ServerClosedParams),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
 	version(VersionResponse),
@@ -87,6 +88,11 @@ pub struct ServerMessageParams {
 	pub i: u16,
 	#[serde(with = "serde_bytes")]
 	pub body: Vec<u8>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ServerClosedParams {
+	pub i: u16,
 }
 
 #[derive(Serialize, Debug)]

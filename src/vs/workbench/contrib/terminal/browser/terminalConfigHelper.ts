@@ -50,11 +50,11 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 	) {
 		super();
 		this._updateConfig();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 				this._updateConfig();
 			}
-		});
+		}));
 		if (isLinux) {
 			if (navigator.userAgent.includes('Ubuntu')) {
 				this._linuxDistro = LinuxDistro.Ubuntu;

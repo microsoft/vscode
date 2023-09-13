@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { DefaultConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
@@ -19,14 +18,16 @@ import { deepClone } from 'vs/base/common/objects';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('PolicyConfiguration', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let testObject: PolicyConfiguration;
 	let fileService: IFileService;
 	let policyService: IPolicyService;
 	const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
-	const disposables = new DisposableStore();
 	const policyConfigurationNode: IConfigurationNode = {
 		'id': 'policyConfiguration',
 		'order': 1,
@@ -64,12 +65,10 @@ suite('PolicyConfiguration', () => {
 		await defaultConfiguration.initialize();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(policyFile.scheme, diskFileSystemProvider);
-		policyService = new FilePolicyService(policyFile, fileService, new NullLogService());
+		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
+		policyService = disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService()));
 		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('initialize: with policies', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));

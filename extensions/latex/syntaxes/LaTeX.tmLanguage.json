@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/30d04562e592305b6f6d41a539b3ccf326888aaf",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/66ea1422ac817ff7704359b8ec4934a987024aaa",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -2356,7 +2356,7 @@
 			"name": "meta.definition.label.latex",
 			"patterns": [
 				{
-					"match": "[a-zA-Z0-9\\.,:/*!^_-]",
+					"match": "[\\p{Alphabetic}\\p{Number}\\.,:/*!^_-]",
 					"name": "variable.parameter.definition.label.latex"
 				}
 			]

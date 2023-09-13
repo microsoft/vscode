@@ -13,10 +13,10 @@ import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewD
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { compare } from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
@@ -26,12 +26,12 @@ const panelContainer = ViewContainersRegistry.registerViewContainer({ id: `${vie
 
 suite('ViewDescriptorService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		disposables.add(instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables));
-		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(IContextKeyService, disposables.add(instantiationService.createInstance(ContextKeyService)));
 	});
 
 	teardown(() => {
@@ -40,7 +40,6 @@ suite('ViewDescriptorService', () => {
 				ViewsRegistry.deregisterViews(ViewsRegistry.getViews(viewContainer), viewContainer);
 			}
 		}
-		disposables.clear();
 	});
 
 	function aViewDescriptorService(): ViewDescriptorService {
@@ -222,7 +221,6 @@ suite('ViewDescriptorService', () => {
 
 		let expectedSequence = '';
 		let actualSequence = '';
-		const disposables = [];
 
 		const containerMoveString = (view: IViewDescriptor, from: ViewContainer, to: ViewContainer) => {
 			return `Moved ${view.id} from ${from.id} to ${to.id}\n`;
@@ -231,13 +229,13 @@ suite('ViewDescriptorService', () => {
 		const locationMoveString = (view: IViewDescriptor, from: ViewContainerLocation, to: ViewContainerLocation) => {
 			return `Moved ${view.id} from ${from === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'} to ${to === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'}\n`;
 		};
-		disposables.push(testObject.onDidChangeContainer(({ views, from, to }) => {
+		disposables.add(testObject.onDidChangeContainer(({ views, from, to }) => {
 			views.forEach(view => {
 				actualSequence += containerMoveString(view, from, to);
 			});
 		}));
 
-		disposables.push(testObject.onDidChangeLocation(({ views, from, to }) => {
+		disposables.add(testObject.onDidChangeLocation(({ views, from, to }) => {
 			views.forEach(view => {
 				actualSequence += locationMoveString(view, from, to);
 			});
