@@ -665,6 +665,7 @@ export class InlineChatController implements IEditorContribution {
 			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
+			this._zone.value.widget.updateToolbar(true);
 			const content = renderedMarkdown.element.textContent;
 			if (content) {
 				status = localize('markdownResponseMessage', "{0}", content);
@@ -674,6 +675,7 @@ export class InlineChatController implements IEditorContribution {
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
 			this._zone.value.widget.updateMarkdownMessage(undefined);
+			this._zone.value.widget.updateToolbar(true);
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
