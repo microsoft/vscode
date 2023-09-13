@@ -48,7 +48,7 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 	}
 
 	setCommandText(slashCommand: string) {
-		this._domNode.innerText = `/${slashCommand} `;
+		this._domNode.innerText = `@${slashCommand} `;
 		this._lastSlashCommandText = slashCommand;
 	}
 
@@ -63,7 +63,7 @@ export class SlashCommandContentWidget extends Disposable implements IContentWid
 
 		const firstLine = this._editor.getModel()?.getLineContent(1);
 		const selection = this._editor.getSelection();
-		const withSlash = `/${this._lastSlashCommandText} `;
+		const withSlash = `@${this._lastSlashCommandText} `;
 		if (!firstLine?.startsWith(withSlash) || !selection?.isEmpty() || selection?.startLineNumber !== 1 || selection?.startColumn !== withSlash.length + 1) {
 			return;
 		}
