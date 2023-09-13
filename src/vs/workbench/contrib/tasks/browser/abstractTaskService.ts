@@ -2769,6 +2769,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -3043,6 +3046,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runBuildCommand(): void {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		return this._runTaskGroupCommand(TaskGroup.Build, {
 			fetching: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...'),
 			select: nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
