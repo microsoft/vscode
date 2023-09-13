@@ -201,7 +201,7 @@ export class CodeActionModel extends Disposable {
 				let actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
 				const codeActionSet = await actions;
 
-				if (codeActionSet.validActions.length === 0) {
+				if (codeActionSet.validActions.length === 0 && trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					// retrigger
 					const allMarkers = this._markerService.read({ resource: model.uri });
 					const currPosition: Position = trigger.selection.getPosition();

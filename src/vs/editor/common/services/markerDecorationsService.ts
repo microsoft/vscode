@@ -95,7 +95,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	}
 }
 
-export class MarkerDecorations extends Disposable {
+class MarkerDecorations extends Disposable {
 
 	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
 
