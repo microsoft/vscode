@@ -232,10 +232,6 @@ export class CodeActionModel extends Disposable {
 						this._editor.setPosition({ lineNumber: trackedPosition.lineNumber, column: trackedPosition.column });
 						startPosition = trigger.selection.setPosition(trackedPosition.lineNumber, trackedPosition.column);
 					}
-
-
-
-
 				}
 
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
