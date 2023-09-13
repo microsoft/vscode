@@ -227,8 +227,14 @@ export class CodeActionModel extends Disposable {
 					});
 
 					actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection.toPositions(trackedPosition), trigger.trigger, Progress.None, token));
-					startPosition = trigger.selection.setPosition(trackedPosition.lineNumber, trackedPosition.column);
-					this._editor.setPosition({ lineNumber: trackedPosition.lineNumber, column: trackedPosition.column });
+					const checkActions = await actions;
+					if (checkActions.validActions.length !== 0) {
+						this._editor.setPosition({ lineNumber: trackedPosition.lineNumber, column: trackedPosition.column });
+						startPosition = trigger.selection.setPosition(trackedPosition.lineNumber, trackedPosition.column);
+					}
+
+
+
 
 				}
 
