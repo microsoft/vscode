@@ -150,7 +150,8 @@ export interface ICommonCellInfo {
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 	readonly focusEditorLine?: number;
-	readonly minimalScrolling?: boolean;
+	/** Set a value to only scroll as much as needed, partialReveal will bring the element partially into the view */
+	readonly minimalScrolling?: 'fullReveal' | 'partialReveal' | undefined;
 	readonly outputId?: string;
 	readonly altOutputId?: string;
 }
@@ -325,7 +326,8 @@ export const enum CellRevealSyncType {
 	Default = 1,
 	Top = 2,
 	Center = 3,
-	CenterIfOutsideViewport = 4
+	CenterIfOutsideViewport = 4,
+	PartialIfOutsideViewport = 5
 }
 
 export enum CellRevealRangeType {

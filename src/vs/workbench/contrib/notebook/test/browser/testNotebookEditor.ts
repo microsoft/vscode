@@ -433,7 +433,6 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		NotebookCellList,
 		'NotebookCellList',
 		DOM.$('container'),
-		viewContext ?? new ViewContext(disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false)), disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions)),
 		delegate,
 		[renderer],
 		instantiationService.get<IContextKeyService>(IContextKeyService),

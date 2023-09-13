@@ -889,7 +889,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			NotebookCellList,
 			'NotebookCellList',
 			this._body,
-			this._viewContext,
 			this._listDelegate,
 			renderers,
 			this.scopedContextKeyService,
@@ -2073,6 +2072,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.revealCell(cell, CellRevealSyncType.CenterIfOutsideViewport);
 	}
 
+	revealPartialIfOutsideViewport(cell: ICellViewModel) {
+		this._list.revealCell(cell, CellRevealSyncType.PartialIfOutsideViewport);
+	}
+
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
 		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.Default);
 	}
@@ -2360,6 +2363,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this.revealInCenterIfOutsideViewport(cell);
 			}
 		} else {
+			// focus container
 			const itemDOM = this._list.domElementOfElement(cell);
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
 				(document.activeElement as HTMLElement).blur();
@@ -2373,8 +2377,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);
 					this.revealInView(cell);
-				} else if (options?.minimalScrolling) {
+				} else if (options?.minimalScrolling === 'fullReveal') {
 					this.revealInView(cell);
+				} else if (options?.minimalScrolling === 'partialReveal') {
+					this.revealPartialIfOutsideViewport(cell);
 				} else {
 					this.revealInCenterIfOutsideViewport(cell);
 				}
