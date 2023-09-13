@@ -54,7 +54,7 @@
             "%html.completion.attributeDefaultValue.empty%"
           ],
           "default": "doublequotes",
-          "description": "%html.completion.attributeDefaultValue%"
+          "markdownDescription": "%html.completion.attributeDefaultValue%"
         },
         "html.customData": {
           "type": "array",

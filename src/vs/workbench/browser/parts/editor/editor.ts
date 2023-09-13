@@ -31,6 +31,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
+	tabHeight: 'normal',
 	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
@@ -117,7 +118,7 @@ export interface IEditorGroupTitleHeight {
 	/**
 	 * The height offset to e.g. use when drawing drop overlays.
 	 * This number may be smaller than `height` if the title control
-	 * decides to have an `offset` that is within the title area
+	 * decides to have an `offset` that is within the title control
 	 * (e.g. when breadcrumbs are enabled).
 	 */
 	offset: number;

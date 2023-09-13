@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -41,6 +42,8 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 };
 
 suite('Buffer Content Tracker', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
@@ -50,33 +53,31 @@ suite('Buffer Content Tracker', () => {
 	let bufferTracker: BufferContentTracker;
 	const prompt = 'vscode-git:(prompt/more-tests)';
 	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
+
 	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		themeService = new TestThemeService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
-		instantiationService.stub(ILoggerService, new TestLoggerService());
-		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		capabilities = new TerminalCapabilityStore();
+		instantiationService.stub(ILoggerService, store.add(new TestLoggerService()));
+		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
+		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
+		capabilities = store.add(new TerminalCapabilityStore());
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-		xterm = instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true);
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
-		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
-		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
+		bufferTracker = store.add(instantiationService.createInstance(BufferContentTracker, xterm));
 	});
-	teardown(() => {
-		instantiationService.dispose();
-	});
+
 	test('should not clear the prompt line', async () => {
 		assert.strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, prompt);

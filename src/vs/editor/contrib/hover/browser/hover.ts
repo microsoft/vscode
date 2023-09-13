@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -31,18 +31,18 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
 	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
 	;
 
-export class ModesHoverController implements IEditorContribution {
+export class ModesHoverController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
 
 	private readonly _toUnhook = new DisposableStore();
-	private readonly _didChangeConfigurationHandler: IDisposable;
 
 	private _contentWidget: ContentHoverController | null;
 
@@ -54,7 +54,10 @@ export class ModesHoverController implements IEditorContribution {
 	private _hoverClicked: boolean;
 	private _isHoverEnabled!: boolean;
 	private _isHoverSticky!: boolean;
+	private _hidingDelay!: number;
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
+	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
+	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -66,19 +69,24 @@ export class ModesHoverController implements IEditorContribution {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
+		super();
 		this._isMouseDown = false;
 		this._hoverClicked = false;
 		this._contentWidget = null;
 		this._glyphWidget = null;
+		this._reactToEditorMouseMoveRunner = this._register(new RunOnceScheduler(() => this._reactToEditorMouseMove(this._mouseMoveEvent), 0));
 
 		this._hookEvents();
-
-		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
 				this._unhookEvents();
 				this._hookEvents();
 			}
-		});
+		}));
+		this._register(this._editor.onMouseLeave(() => {
+			this._mouseMoveEvent = undefined;
+			this._reactToEditorMouseMoveRunner.cancel();
+		}));
 	}
 
 	private _hookEvents(): void {
@@ -87,6 +95,7 @@ export class ModesHoverController implements IEditorContribution {
 		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._isHoverEnabled = hoverOpts.enabled;
 		this._isHoverSticky = hoverOpts.sticky;
+		this._hidingDelay = hoverOpts.hidingDelay;
 		if (this._isHoverEnabled) {
 			this._toUnhook.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
@@ -152,45 +161,82 @@ export class ModesHoverController implements IEditorContribution {
 		}
 	}
 
-	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+	private _isMouseOverWidget(mouseEvent: IEditorMouseEvent): boolean {
 		const target = mouseEvent.target;
-
-		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
-			return;
-		}
-
-		if (this._isMouseDown && this._hoverClicked) {
-			return;
-		}
-
-		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
-			// mouse moved on top of content hover widget
-			return;
-		}
-
-		if (this._isHoverSticky && this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement) && !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) {
-			// selected text within content hover widget
-			return;
-		}
-
 		if (
-			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
+			this._isHoverSticky
+			&& target.type === MouseTargetType.CONTENT_WIDGET
+			&& target.detail === ContentHoverWidget.ID
+		) {
+			// mouse moved on top of content hover widget
+			return true;
+		}
+		if (
+			this._isHoverSticky
+			&& this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement)
+			&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed
+		) {
+			// selected text within content hover widget
+			return true;
+		}
+		if (
+			!this._isHoverSticky
+			&& target.type === MouseTargetType.CONTENT_WIDGET
+			&& target.detail === ContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible
 		) {
 			// though the hover is not sticky, the color picker needs to.
-			return;
+			return true;
 		}
-
-		if (this._isHoverSticky && target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
+		if (
+			this._isHoverSticky
+			&& target.type === MouseTargetType.OVERLAY_WIDGET
+			&& target.detail === MarginHoverWidget.ID
+		) {
 			// mouse moved on top of overlay hover widget
+			return true;
+		}
+		return false;
+	}
+
+	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		this._mouseMoveEvent = mouseEvent;
+		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
-
+		if (this._isMouseDown && this._hoverClicked) {
+			return;
+		}
 		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
 			return;
 		}
+
+		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
+		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
+		if (mouseIsOverWidget) {
+			this._reactToEditorMouseMoveRunner.cancel();
+			return;
+		}
+
+		// If the mouse is not over the widget, and if sticky is on,
+		// then give it a grace period before reacting to the mouse event
+		if (this._contentWidget?.isVisible && this._isHoverSticky && this._hidingDelay > 0) {
+			if (!this._reactToEditorMouseMoveRunner.isScheduled()) {
+				this._reactToEditorMouseMoveRunner.schedule(this._hidingDelay);
+			}
+			return;
+		}
+		this._reactToEditorMouseMove(mouseEvent);
+	}
+
+	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
+		if (!mouseEvent) {
+			return;
+		}
+
+		const target = mouseEvent.target;
 
 		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
 		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
@@ -311,10 +357,10 @@ export class ModesHoverController implements IEditorContribution {
 		return this._contentWidget?.isVisible;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
+		super.dispose();
 		this._unhookEvents();
 		this._toUnhook.dispose();
-		this._didChangeConfigurationHandler.dispose();
 		this._glyphWidget?.dispose();
 		this._contentWidget?.dispose();
 	}
