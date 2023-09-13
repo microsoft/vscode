@@ -20,10 +20,6 @@ import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { getCodeActions } from './codeAction';
-import { IMarkerNavigationService } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
-import { MarkerDecorations } from 'vs/editor/common/services/markerDecorationsService';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { ResourceMap } from 'vs/base/common/map';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -97,45 +93,6 @@ class CodeActionOracle extends Disposable {
 		}
 		return selection;
 	}
-
-
-	private _getRangeOfSelectionUnlessWhitespaceEnclosed2(trigger: CodeActionTrigger): Selection | undefined {
-		if (!this._editor.hasModel()) {
-			return undefined;
-		}
-
-		const model = this._editor.getModel();
-		let selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
-			const { lineNumber, column } = selection.getPosition();
-			const line = model.getLineContent(lineNumber);
-			if (line.length === 0) {
-				// empty line
-				return undefined;
-			} else if (column === 1) {
-				// look only right
-				if (/\s/.test(line[0])) {
-					return undefined;
-				}
-			} else if (column === model.getLineMaxColumn(lineNumber)) {
-				// look only left
-				if (/\s/.test(line[line.length - 1])) {
-					return undefined;
-				}
-			} else {
-				// look left and right
-				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
-					return undefined;
-				}
-			}
-		}
-
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Invoke && trigger.triggerAction === 'quick fix action') {
-			const { lineNumber, column } = selection.getPosition();
-			selection = selection.setStartPosition(lineNumber, 1);
-		}
-		return selection;
-	}
 }
 
 export namespace CodeActionsState {
@@ -189,7 +146,6 @@ export class CodeActionModel extends Disposable {
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
 	private _disposed = false;
-	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -197,8 +153,6 @@ export class CodeActionModel extends Disposable {
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
 		private readonly _progressService?: IEditorProgressService,
-		@IMarkerNavigationService private readonly _markerNavigationService?: IMarkerNavigationService,
-		@IMarkerDecorationsService private readonly _markerDecorationsService?: IMarkerDecorationsService,
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
