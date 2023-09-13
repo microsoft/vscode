@@ -134,7 +134,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		if (!this._editor.getOption(EditorOption.codeLens)) {
+		if (!this._editor.getOption(EditorOption.codeLens) || model.isTooLargeForTokenization()) {
 			return;
 		}
 
