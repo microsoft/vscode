@@ -280,17 +280,21 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		const textEditorModel = model.textEditorModel;
 		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
 
-		// Keeping string | boolean until fully deprecating boolean options
-		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
+		// Convert boolean values to strings
+		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean }>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
 		}
+		const convertedSetting: { [kind: string]: string } = {};
+		for (const key in setting) {
+			if (typeof setting[key] === 'boolean') {
+				convertedSetting[key] = setting[key] ? 'explicit' : 'never';
+			} else if (typeof setting[key] === 'string') {
+				convertedSetting[key] = setting[key] as string;
+			}
+		}
 
-		const settingItems: string[] = Array.isArray(setting)
-			? setting
-			: Object.keys(setting).filter(x => setting[x]);
-
-		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
+		const codeActionsOnSave = this.createCodeActionsOnSave(Object.keys(convertedSetting));
 
 		if (!Array.isArray(setting)) {
 			codeActionsOnSave.sort((a, b) => {
@@ -311,29 +315,13 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			return undefined;
 		}
 
-		const excludedActions = Array.isArray(setting)
-			? []
-			: Object.keys(setting)
-				.filter(x => setting[x] === 'never' || false)
-				.map(x => new CodeActionKind(x));
-
-		// To be depracated once boolean support is no longer available
-		const includedActions = Array.isArray(setting)
-			? []
-			: Object.keys(setting)
-				.filter(x => setting[x] === true)
-				.map(x => new CodeActionKind(x));
+		const excludedActions = Object.keys(setting)
+			.filter(x => convertedSetting[x] === 'never' || false)
+			.map(x => new CodeActionKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 
-		let filteredSaveList = Array.isArray(setting)
-			? []
-			: codeActionsOnSave.filter(x => setting[x.value] === 'always' || (setting[x.value] === 'explicit') && env.reason === SaveReason.EXPLICIT);
-
-		// To be depracated once boolean support is no longer available
-		if (includedActions.length && env.reason === SaveReason.EXPLICIT) {
-			filteredSaveList = includedActions;
-		}
+		const filteredSaveList = codeActionsOnSave.filter(x => convertedSetting[x.value] === 'always' || (convertedSetting[x.value] === 'explicit') && env.reason === SaveReason.EXPLICIT);
 
 		await this.applyOnSaveActions(textEditorModel, filteredSaveList, excludedActions, progress, token);
 	}
