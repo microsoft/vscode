@@ -129,6 +129,12 @@ export class Selection extends Range {
 	}
 
 	/**
+	 * Create a position using startLineNumber and startColumn as the start position.
+	 */
+	public setPosition(startLineNumber: number, startColumn: number): Position {
+		return new Position(startLineNumber, startColumn);
+	}
+	/**
 	 * Get the position at the start of the selection.
 	*/
 	public getSelectionStart(): Position {
@@ -143,6 +149,13 @@ export class Selection extends Range {
 			return new Selection(startLineNumber, startColumn, this.endLineNumber, this.endColumn);
 		}
 		return new Selection(this.endLineNumber, this.endColumn, startLineNumber, startColumn);
+	}
+
+	/**
+	 * Create a `Selection` from one positions (not IPosition) to mimic Position.
+	 */
+	public toPositions(start: Position): Selection {
+		return new Selection(start.lineNumber, start.column, start.lineNumber, start.column);
 	}
 
 	// ----

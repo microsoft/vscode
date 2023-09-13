@@ -80,7 +80,7 @@ export class QuickFixAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, CodeActionTriggerSource.QuickFix);
+		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), { excludes: [CodeActionKind.Refactor] }, undefined, CodeActionTriggerSource.QuickFix);
 	}
 }
 
