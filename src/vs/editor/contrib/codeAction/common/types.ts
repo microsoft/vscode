@@ -69,7 +69,7 @@ export enum CodeActionTriggerSource {
 
 export interface CodeActionFilter {
 	readonly include?: CodeActionKind;
-	excludes?: readonly CodeActionKind[];
+	readonly excludes?: readonly CodeActionKind[];
 	readonly includeSourceActions?: boolean;
 	readonly onlyIncludePreferredActions?: boolean;
 }

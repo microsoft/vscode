@@ -152,7 +152,7 @@ export class CodeActionModel extends Disposable {
 		private readonly _registry: LanguageFeatureRegistry<CodeActionProvider>,
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
-		private readonly _progressService?: IEditorProgressService,
+		private readonly _progressService?: IEditorProgressService
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -191,8 +191,6 @@ export class CodeActionModel extends Disposable {
 			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-
-
 			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, async trigger => {
 				if (!trigger) {
 					this.setState(CodeActionsState.Empty);
@@ -204,22 +202,22 @@ export class CodeActionModel extends Disposable {
 				const codeActionSet = await actions;
 
 				if (codeActionSet.validActions.length === 0) {
-					// 	// retrigger
-					// const { lineNumber, column } = trigger.selection.getPosition();
-					const temp2 = this._markerService.read({ resource: model.uri });
-					const curr: Position = trigger.selection.getPosition();
-					let tempPosition: Position = curr;
-					temp2.forEach((marker: IMarker) => {
+					// retrigger
+					const allMarkers = this._markerService.read({ resource: model.uri });
+					const currPosition: Position = trigger.selection.getPosition();
+					let trackedPosition: Position = currPosition;
+
+					allMarkers.forEach((marker: IMarker) => {
 						const col = marker.endColumn;
 						const row = marker.endLineNumber;
-						if ((row < curr.lineNumber && col >= curr.column) || row === curr.lineNumber) {
-							tempPosition = new Position(row, col);
+						if ((row < currPosition.lineNumber && col >= currPosition.column) || row === currPosition.lineNumber) {
+							trackedPosition = new Position(row, col);
 						}
 					});
-					const temp = trigger.selection.toPositions(tempPosition);
-					actions = createCancelablePromise(token => getCodeActions(this._registry, model, temp, trigger.trigger, Progress.None, token));
-					startPosition = trigger.selection.setPosition(tempPosition.lineNumber, tempPosition.column);
-					this._editor.setPosition({ lineNumber: tempPosition.lineNumber, column: tempPosition.column });
+
+					actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection.toPositions(trackedPosition), trigger.trigger, Progress.None, token));
+					startPosition = trigger.selection.setPosition(trackedPosition.lineNumber, trackedPosition.column);
+					this._editor.setPosition({ lineNumber: trackedPosition.lineNumber, column: trackedPosition.column });
 
 				}
 
@@ -227,7 +225,6 @@ export class CodeActionModel extends Disposable {
 					this._progressService?.showWhile(actions, 250);
 				}
 
-				// trigger.trigger.filter?.excludes = [CodeActionKind.QuickFix];
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
