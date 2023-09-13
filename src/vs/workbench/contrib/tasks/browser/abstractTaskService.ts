@@ -344,12 +344,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
 		} else {
-			this._register(this._terminalService.onDidChangeConnectionState(async () => {
-				await this._terminalService.whenConnected;
+			this._terminalService.whenConnected.then(() => {
 				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 					this._attemptTaskReconnection();
+				} else {
+					this._tasksReconnected = true;
 				}
-			}));
+			});
 		}
 		this._upgrade();
 	}
@@ -2769,6 +2770,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -3042,6 +3046,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runBuildCommand(): void {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		return this._runTaskGroupCommand(TaskGroup.Build, {
 			fetching: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...'),
 			select: nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
