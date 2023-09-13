@@ -1299,7 +1299,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata) {
 				checkProposedApiEnabled(extension, 'interactive');
-				return extHostInteractiveEditor.registerProvider(extension, provider, metadata = { label: provider.label ?? extension.displayName ?? extension.name });
+				return extHostInteractiveEditor.registerProvider(extension, provider, metadata = { label: metadata?.label ?? extension.displayName ?? extension.name });
 			},
 			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
 				checkProposedApiEnabled(extension, 'interactive');

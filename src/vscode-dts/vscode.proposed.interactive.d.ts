@@ -27,9 +27,7 @@ declare module 'vscode' {
 
 	// todo@API make classes
 	export interface InteractiveEditorRequest {
-		session: InteractiveEditorSession;
 		prompt: string;
-
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
@@ -67,23 +65,11 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
-		/**
-		 * @deprecated
-		 */
-		label: string;
 
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(session: S, request: Omit<InteractiveEditorRequest, 'session'>, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
-
-		/**
-		 * @deprecated
-		 */
-		provideInteractiveEditorResponse2?(request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
-
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		releaseInteractiveEditorSession?(session: S): any;
+		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
