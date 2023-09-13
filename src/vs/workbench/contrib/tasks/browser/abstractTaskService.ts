@@ -229,6 +229,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
 	private _willRestart: boolean = false;
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
+	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
+	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -342,7 +344,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
 		} else {
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			this._register(this._terminalService.onDidChangeConnectionState(async () => {
+				await this._terminalService.whenConnected;
 				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 					this._attemptTaskReconnection();
 				}
@@ -384,6 +387,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		this.getWorkspaceTasks(TaskRunSource.Reconnect).then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
+			this._onDidReconnectToTasks.fire();
 		});
 	}
 
@@ -1862,6 +1866,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			const active = executeResult.active;
+			if (active && active.same && runSource === TaskRunSource.FolderOpen || runSource === TaskRunSource.Reconnect) {
+				// ignore, the task is already active, likely from being reconnected or from folder open.
+				this._logService.debug('Ignoring task that is already active', executeResult.task);
+				return executeResult.promise;
+			}
 			if (active && active.same) {
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
