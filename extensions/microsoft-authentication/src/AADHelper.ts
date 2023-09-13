@@ -16,12 +16,13 @@ import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { Environment } from '@azure/ms-rest-azure-env';
 
-const redirectUrl = 'https://vscode.dev/redirect';
+const DEFAULT_REDIRECTION_URI = 'https://vscode.dev/redirect';
 const defaultActiveDirectoryEndpointUrl = Environment.AzureCloud.activeDirectoryEndpointUrl;
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
+const ALLOWED_REDIRECTION_URIS: string[] = ['https://vscode.dev/redirect', 'https://login.microsoftonline.com/common/oauth2/nativeclient'];
 
 const enum MicrosoftAccountType {
 	AAD = 'aad',
@@ -79,6 +80,7 @@ interface IScopeData {
 	scopesToSend: string;
 	clientId: string;
 	tenant: string;
+	redirectionUri: string;
 }
 
 export const REFRESH_NETWORK_FAILURE = 'Network failure';
@@ -137,7 +139,7 @@ export class AzureActiveDirectoryService {
 				// filter our special scopes
 				scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
 				clientId: this.getClientId(scopes),
-				tenant: this.getTenantId(scopes),
+				tenant: this.getTenantId(scopes)
 			};
 			try {
 				await this.refreshToken(session.refreshToken, scopeData, session.id);
@@ -236,6 +238,7 @@ export class AzureActiveDirectoryService {
 			// filter our special scopes
 			scopesToSend: modifiedScopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
 			tenant: this.getTenantId(scopes),
+			redirectionUri: this.getRedirectionUri(scopes),
 		};
 
 		this._logger.trace(`[${scopeData.scopeStr}] Queued getting sessions`);
@@ -298,6 +301,7 @@ export class AzureActiveDirectoryService {
 			scopesToSend: modifiedScopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
 			clientId: this.getClientId(scopes),
 			tenant: this.getTenantId(scopes),
+			redirectionUri: this.getRedirectionUri(scopes),
 		};
 
 		this._logger.trace(`[${scopeData.scopeStr}] Queued creating session`);
@@ -340,7 +344,7 @@ export class AzureActiveDirectoryService {
 			response_type: 'code',
 			response_mode: 'query',
 			client_id: scopeData.clientId,
-			redirect_uri: redirectUrl,
+			redirect_uri: scopeData.redirectionUri,
 			scope: scopeData.scopesToSend,
 			prompt: 'select_account',
 			code_challenge_method: 'S256',
@@ -385,7 +389,7 @@ export class AzureActiveDirectoryService {
 			response_type: 'code',
 			client_id: encodeURIComponent(scopeData.clientId),
 			response_mode: 'query',
-			redirect_uri: redirectUrl,
+			redirect_uri: scopeData.redirectionUri,
 			state,
 			scope: scopeData.scopesToSend,
 			prompt: 'select_account',
@@ -659,6 +663,19 @@ export class AzureActiveDirectoryService {
 		}, undefined) ?? DEFAULT_TENANT;
 	}
 
+	private getRedirectionUri(scopes: string[]) {
+		return scopes.reduce<string | undefined>((prev, current) => {
+			if (current.startsWith('VSCODE_REDIRECTION_URI:')) {
+				let redirectionUri = current.split('VSCODE_REDIRECTION_URI:')[1];
+				ALLOWED_REDIRECTION_URIS.forEach((uri) => {
+					if (uri == redirectionUri)
+						return redirectionUri;
+				});
+			}
+			return prev;
+		}, undefined) ?? DEFAULT_REDIRECTION_URI;
+	}
+	
 	//#endregion
 
 	//#region oauth flow
@@ -750,7 +767,7 @@ export class AzureActiveDirectoryService {
 				client_id: scopeData.clientId,
 				scope: scopeData.scopesToSend,
 				code_verifier: codeVerifier,
-				redirect_uri: redirectUrl
+				redirect_uri: scopeData.redirectionUri,
 			}).toString();
 
 			const json = await this.fetchTokenResponse(postData, scopeData);
@@ -906,6 +923,7 @@ export class AzureActiveDirectoryService {
 						scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
 						clientId: this.getClientId(scopes),
 						tenant: this.getTenantId(scopes),
+						redirectionUri: this.getRedirectionUri(scopes),
 					};
 					this._logger.trace(`[${scopeData.scopeStr}] '${session.id}' Session added in another window`);
 					const token = await this.refreshToken(session.refreshToken, scopeData, session.id);
