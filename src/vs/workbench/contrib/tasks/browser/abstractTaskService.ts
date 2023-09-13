@@ -2886,7 +2886,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
-					this._doRunTaskCommand();
 					return Promise.resolve(undefined);
 				}
 			});
