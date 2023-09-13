@@ -138,7 +138,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
 	});
 
-	test.skip('basics (multi group)', async () => { // todo@bpasero
+	test('basics (multi group)', async () => {
 		const [part, observer] = await createEditorObserver();
 
 		const rootGroup = part.activeGroup;
@@ -287,7 +287,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: secondary.resource, typeId: secondary.typeId, editorId: secondary.editorId }), false);
 	});
 
-	test.skip('copy group', async function () { // TODO@bpasero
+	test('copy group', async function () {
 		const [part, observer] = await createEditorObserver();
 
 		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));

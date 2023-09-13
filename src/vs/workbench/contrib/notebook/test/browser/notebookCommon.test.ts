@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -14,17 +15,17 @@ import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/w
 import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCommon', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageService: ILanguageService;
 
-	suiteSetup(() => {
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 		languageService = instantiationService.get(ILanguageService);
 	});
-
-	suiteTeardown(() => disposables.dispose());
 
 	test('sortMimeTypes default orders', function () {
 		assert.deepStrictEqual(new MimeTypeDisplayOrder().sort(
@@ -99,6 +100,8 @@ suite('NotebookCommon', () => {
 				Mimes.text
 			]
 		);
+
+		disposables.dispose();
 	});
 
 
@@ -163,6 +166,8 @@ suite('NotebookCommon', () => {
 				Mimes.text
 			]
 		);
+
+		disposables.dispose();
 	});
 
 	test('prioritizes mimetypes', () => {
@@ -197,6 +202,8 @@ suite('NotebookCommon', () => {
 		const m2 = new MimeTypeDisplayOrder(['a', 'b']);
 		m2.prioritize('b', ['a', 'b', 'a', 'q']);
 		assert.deepStrictEqual(m2.toArray(), ['b', 'a']);
+
+		disposables.dispose();
 	});
 
 	test('sortMimeTypes glob', function () {
@@ -224,6 +231,8 @@ suite('NotebookCommon', () => {
 			],
 			'glob *'
 		);
+
+		disposables.dispose();
 	});
 
 	test('diff cells', function () {
@@ -231,7 +240,7 @@ suite('NotebookCommon', () => {
 
 		for (let i = 0; i < 5; i++) {
 			cells.push(
-				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], languageService)
+				disposables.add(new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], languageService))
 			);
 		}
 
@@ -257,8 +266,8 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], languageService);
-		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], languageService);
+		const cellA = disposables.add(new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], languageService));
+		const cellB = disposables.add(new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], languageService));
 
 		const modifiedCells = [
 			cells[0],
@@ -287,7 +296,10 @@ suite('NotebookCommon', () => {
 				}
 			]
 		);
+
+		disposables.dispose();
 	});
+
 });
 
 

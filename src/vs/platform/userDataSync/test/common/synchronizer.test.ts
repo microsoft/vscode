@@ -8,10 +8,10 @@ import { Barrier } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -177,18 +177,18 @@ class TestSynchroniser extends AbstractSynchroniser {
 
 suite('TestSynchronizer - Auto Sync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp();
-	});
-
-	teardown(async () => {
-		await client.instantiationService.get(IUserDataSyncStoreService).clear();
-		disposableStore.clear();
 	});
 
 	test('status is syncing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -484,18 +484,18 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 suite('TestSynchronizer - Manual Sync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp();
-	});
-
-	teardown(async () => {
-		await client.instantiationService.get(IUserDataSyncStoreService).clear();
-		disposableStore.clear();
 	});
 
 	test('preview', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -1062,18 +1062,18 @@ suite('TestSynchronizer - Manual Sync', () => {
 });
 
 suite('TestSynchronizer - Last Sync Data', () => {
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
 		await client.setUp();
-	});
-
-	teardown(async () => {
-		await client.instantiationService.get(IUserDataSyncStoreService).clear();
-		disposableStore.clear();
 	});
 
 	test('last sync data is null when not synced before', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

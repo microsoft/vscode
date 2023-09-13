@@ -32,8 +32,47 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
+export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
+
+class QuickChatGlobalAction extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_OPEN_ACTION_ID,
+			title: { value: localize('quickChat', "Quick Chat"), original: 'Quick Chat' },
+			precondition: CONTEXT_PROVIDER_EXISTS,
+			icon: Codicon.commentDiscussion,
+			f1: false,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+				}
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, query?: string): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const providers = chatService.getProviderInfos();
+		if (!providers.length) {
+			return;
+		}
+		const chatWidget = await chatWidgetService.revealViewForProvider(providers[0].id);
+		if (!chatWidget) {
+			return;
+		}
+		if (query) {
+			chatWidget.acceptInput(query);
+		}
+		chatWidget.focusInput();
+	}
+}
 
 export function registerChatActions() {
+	registerAction2(QuickChatGlobalAction);
 	registerEditorAction(class ChatAcceptInput extends EditorAction {
 		constructor() {
 			super({

@@ -37,6 +37,7 @@ import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { Codicon } from 'vs/base/common/codicons';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -102,8 +103,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
 			if (
 				state === State.Inactive ||
-				toolBarLocation === 'docked' ||
-				toolBarLocation === 'hidden' ||
+				toolBarLocation !== 'floating' ||
 				this.debugService.getModel().getSessions().every(s => s.suppressDebugToolbar) ||
 				(state === State.Initializing && this.debugService.initializingOptions?.suppressDebugToolbar)
 			) {
@@ -333,6 +333,15 @@ MenuRegistry.onDidChangeMenu(e => {
 			}));
 		}
 	}
+});
+
+
+MenuRegistry.appendMenuItem(MenuId.CommandCenterCenter, {
+	submenu: MenuId.DebugToolBar,
+	title: 'Debug',
+	icon: Codicon.debug,
+	order: 1,
+	when: ContextKeyExpr.and(CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'commandCenter'))
 });
 
 registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));

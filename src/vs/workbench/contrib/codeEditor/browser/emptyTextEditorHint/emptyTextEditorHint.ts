@@ -32,6 +32,9 @@ import { status } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
+import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { GHOST_TEXT_DESCRIPTION } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 
 const $ = dom.$;
 
@@ -50,22 +53,22 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 		])
 	}]);
 
-const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
+export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 export class EmptyTextEditorHintContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.emptyTextEditorHint';
 
-	private toDispose: IDisposable[];
+	protected toDispose: IDisposable[];
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
 	constructor(
-		private readonly editor: ICodeEditor,
+		protected readonly editor: ICodeEditor,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
-		@IInlineChatService private readonly inlineChatService: IInlineChatService,
+		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
 	) {
@@ -89,16 +92,36 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}));
 	}
 
-	private update(): void {
-		this.textHintContentWidget?.dispose();
+	protected _shouldRenderHint() {
 		const configValue = this.configurationService.getValue(emptyTextEditorHintSetting);
+		if (configValue === 'hidden') {
+			return false;
+		}
+
+		if (this.editor.getOption(EditorOption.readOnly)) {
+			return false;
+		}
+
+		const hasGhostText = this.editor.getLineDecorations(0)?.find((d) => d.options.description === GHOST_TEXT_DESCRIPTION);
+		if (hasGhostText) {
+			return false;
+		}
+
 		const model = this.editor.getModel();
+		const languageId = model?.getLanguageId();
+		if (languageId === OUTPUT_MODE_ID || languageId === LOG_MODE_ID || languageId === SEARCH_RESULT_LANGUAGE_ID) {
+			return false;
+		}
 
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
-		const shouldRenderInlineChatHint = inlineChatProviders.length > 0;
-		const shouldRenderDefaultHint = model?.getLanguageId() === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		return inlineChatProviders.length > 0 || shouldRenderDefaultHint;
+	}
 
-		if (model && (model.uri.scheme === Schemas.untitled && shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue !== 'hidden') {
+	protected update(): void {
+		this.textHintContentWidget?.dispose();
+
+		if (this._shouldRenderHint()) {
 			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
 				this.editorGroupsService,

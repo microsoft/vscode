@@ -19,12 +19,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 
 suite('GlobalStateSync', () => {
 
-	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 	const server = new UserDataSyncTestServer();
 	let testClient: UserDataSyncClient;
 	let client2: UserDataSyncClient;
 
 	let testObject: GlobalStateSynchroniser;
+
+	teardown(async () => {
+		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
@@ -33,10 +38,6 @@ suite('GlobalStateSync', () => {
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
-	});
-
-	teardown(async () => {
-		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
 	});
 
 	test('when global state does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
