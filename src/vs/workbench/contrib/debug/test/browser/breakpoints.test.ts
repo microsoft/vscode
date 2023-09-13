@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { OverviewRulerLane } from 'vs/editor/common/model';
@@ -58,8 +57,6 @@ suite('Debug - Breakpoints', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Breakpoints
 

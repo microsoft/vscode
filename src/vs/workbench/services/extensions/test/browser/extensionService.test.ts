@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
@@ -49,6 +50,9 @@ import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemo
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('BrowserExtensionService', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('pickRunningLocation', () => {
 		assert.deepStrictEqual(BrowserExtensionHostKindPicker.pickRunningLocation([], false, false, ExtensionRunningPreference.None), null);
 		assert.deepStrictEqual(BrowserExtensionHostKindPicker.pickRunningLocation([], false, true, ExtensionRunningPreference.None), null);
@@ -255,6 +259,8 @@ suite('ExtensionService', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #152204: Remote extension host not disposed after closing vscode client', async () => {
 		await extService.startExtensionHosts();
 		await extService.stopExtensionHosts('foo');
@@ -270,8 +276,8 @@ suite('ExtensionService', () => {
 	test('Extension host not disposed when vetoed (sync)', async () => {
 		await extService.startExtensionHosts();
 
-		extService.onWillStop(e => e.veto(true, 'test 1'));
-		extService.onWillStop(e => e.veto(false, 'test 2'));
+		disposables.add(extService.onWillStop(e => e.veto(true, 'test 1')));
+		disposables.add(extService.onWillStop(e => e.veto(false, 'test 2')));
 
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
@@ -280,9 +286,9 @@ suite('ExtensionService', () => {
 	test('Extension host not disposed when vetoed (async)', async () => {
 		await extService.startExtensionHosts();
 
-		extService.onWillStop(e => e.veto(false, 'test 1'));
-		extService.onWillStop(e => e.veto(Promise.resolve(true), 'test 2'));
-		extService.onWillStop(e => e.veto(Promise.resolve(false), 'test 3'));
+		disposables.add(extService.onWillStop(e => e.veto(false, 'test 1')));
+		disposables.add(extService.onWillStop(e => e.veto(Promise.resolve(true), 'test 2')));
+		disposables.add(extService.onWillStop(e => e.veto(Promise.resolve(false), 'test 3')));
 
 		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));

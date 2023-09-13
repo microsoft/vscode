@@ -226,9 +226,22 @@ function loadTests(opts) {
 
 	loader.require(['vs/base/common/errors'], function (errors) {
 
-		process.on('uncaughtException', error => errors.onUnexpectedError(error));
+		const onUnexpectedError = function (err) {
+			if (err.name === 'Canceled') {
+				return; // ignore canceled errors that are common
+			}
+
+			let stack = (err ? err.stack : null);
+			if (!stack) {
+				stack = new Error().stack;
+			}
+
+			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+		};
+
+		process.on('uncaughtException', error => onUnexpectedError(error));
 		process.on('unhandledRejection', (reason, promise) => {
-			errors.onUnexpectedError(reason);
+			onUnexpectedError(reason);
 			promise.catch(() => {});
 		});
 		window.addEventListener('unhandledrejection', event => {
@@ -236,18 +249,11 @@ function loadTests(opts) {
 			event.stopPropagation();
 
 			if (!_allowedTestsWithUnhandledRejections.has(currentTestTitle)) {
-				errors.onUnexpectedError(event.reason);
+				onUnexpectedError(event.reason);
 			}
 		});
 
-		errors.setUnexpectedErrorHandler(function (err) {
-			let stack = (err ? err.stack : null);
-			if (!stack) {
-				stack = new Error().stack;
-			}
-
-			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
-		});
+		errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
 	});
 
 	//#endregion

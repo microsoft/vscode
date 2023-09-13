@@ -27,9 +27,21 @@ type LinkPart = {
 };
 
 export class LinkDetector {
-	constructor(
-	) {
-		// noop
+
+	// used by unit tests
+	static injectedHtmlCreator: (value: string) => string;
+
+	private shouldGenerateHtml(trustHtml: boolean) {
+		return trustHtml && (!!LinkDetector.injectedHtmlCreator || !!ttPolicy);
+	}
+
+	private createHtml(value: string) {
+		if (LinkDetector.injectedHtmlCreator) {
+			return LinkDetector.injectedHtmlCreator(value);
+		}
+		else {
+			return ttPolicy?.createHTML(value).toString();
+		}
 	}
 
 	/**
@@ -71,9 +83,9 @@ export class LinkDetector {
 						container.appendChild(this.createWebLink(part.value));
 						break;
 					case 'html':
-						if (ttPolicy && trustHtml) {
+						if (this.shouldGenerateHtml(!!trustHtml)) {
 							const span = document.createElement('span');
-							span.innerHTML = ttPolicy.createHTML(part.value).toString();
+							span.innerHTML = this.createHtml(part.value)!;
 							container.appendChild(span);
 						} else {
 							container.appendChild(document.createTextNode(part.value));
@@ -142,8 +154,8 @@ export class LinkDetector {
 			return [{ kind: 'text', value: text, captures: [] }];
 		}
 
-		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX, HTML_LINK_REGEX];
-		const kinds: LinkKind[] = ['web', 'path', 'html'];
+		const regexes: RegExp[] = [HTML_LINK_REGEX, WEB_LINK_REGEX, PATH_LINK_REGEX];
+		const kinds: LinkKind[] = ['html', 'web', 'path'];
 		const result: LinkPart[] = [];
 
 		const splitOne = (text: string, regexIndex: number) => {

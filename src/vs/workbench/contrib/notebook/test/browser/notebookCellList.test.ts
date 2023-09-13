@@ -11,18 +11,18 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCellList', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	let disposables: DisposableStore;
+	let testDisposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
-	setup(() => {
-		disposables = new DisposableStore();
-		instantiationService = setupInstantiationService(disposables);
+	teardown(() => {
+		testDisposables.dispose();
 	});
 
-	teardown(() => {
-		disposables.dispose();
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		testDisposables = new DisposableStore();
+		instantiationService = setupInstantiationService(testDisposables);
 	});
 
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
@@ -34,7 +34,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					cellLineNumberStates: {},
@@ -69,7 +69,7 @@ suite('NotebookCellList', () => {
 				// reveal cell 3, top 200, bottom 300, which is partially visible in the viewport
 				cellList.revealCellsInView({ start: 3, end: 4 });
 				assert.deepStrictEqual(cellList.scrollTop, 90);
-			}, disposables);
+			});
 	});
 
 	test('revealElementsInView: reveal partially visible cell', async function () {
@@ -81,7 +81,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -113,7 +113,7 @@ suite('NotebookCellList', () => {
 				// reveal cell 0, top 0, bottom 50
 				cellList.revealCellsInView({ start: 0, end: 1 });
 				assert.deepStrictEqual(cellList.scrollTop, 0);
-			}, disposables);
+			});
 	});
 
 	test('revealElementsInView: reveal cell out of viewport', async function () {
@@ -125,7 +125,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -150,7 +150,7 @@ suite('NotebookCellList', () => {
 				cellList.revealCellsInView({ start: 4, end: 5 });
 				assert.deepStrictEqual(cellList.scrollTop, 140);
 				// assert.deepStrictEqual(cellList.getViewScrollBottom(), 330);
-			}, disposables);
+			});
 	});
 
 	test('updateElementHeight', async function () {
@@ -162,7 +162,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -192,7 +192,7 @@ suite('NotebookCellList', () => {
 
 				cellList.updateElementHeight(0, 80);
 				assert.deepStrictEqual(cellList.scrollTop, 5);
-			}, disposables);
+			});
 	});
 
 	test('updateElementHeight with anchor #121723', async function () {
@@ -204,7 +204,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -245,7 +245,7 @@ suite('NotebookCellList', () => {
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 250);
 				assert.deepStrictEqual(cellList.scrollTop, 250 + 100 - cellList.renderHeight);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100 - cellList.renderHeight + 210);
-			}, disposables);
+			});
 	});
 
 	test('updateElementHeight with anchor #121723: focus element out of viewport', async function () {
@@ -257,7 +257,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -281,7 +281,7 @@ suite('NotebookCellList', () => {
 				cellList.updateElementHeight2(viewModel.cellAt(1)!, 130);
 				// the focus cell is not in the viewport, the scrolltop should not change at all
 				assert.deepStrictEqual(cellList.scrollTop, 0);
-			}, disposables);
+			});
 	});
 
 	test('updateElementHeight of cells out of viewport should not trigger scroll #121140', async function () {
@@ -293,7 +293,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -319,14 +319,14 @@ suite('NotebookCellList', () => {
 
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 30);
 				assert.deepStrictEqual(cellList.scrollTop, 60);
-			}, disposables);
+			});
 	});
 
 	test('visibleRanges should be exclusive of end', async function () {
 		await withTestNotebook(
 			[
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
@@ -334,7 +334,7 @@ suite('NotebookCellList', () => {
 				cellList.layout(100, 100);
 
 				assert.deepStrictEqual(cellList.visibleRanges, []);
-			}, disposables);
+			});
 	});
 
 	test('visibleRanges should be exclusive of end 2', async function () {
@@ -342,7 +342,7 @@ suite('NotebookCellList', () => {
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false],
 					editorViewStates: [null],
@@ -359,6 +359,6 @@ suite('NotebookCellList', () => {
 				cellList.layout(100, 100);
 
 				assert.deepStrictEqual(cellList.visibleRanges, [{ start: 0, end: 1 }]);
-			}, disposables);
+			});
 	});
 });

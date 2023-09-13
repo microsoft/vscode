@@ -23,15 +23,21 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookKernelHistoryService', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
 
-	setup(function () {
+	teardown(() => {
+		disposables.dispose();
+	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(function () {
+		disposables = new DisposableStore();
 		onDidAddNotebookDocument = new Emitter();
 		disposables.add(onDidAddNotebookDocument);
 
