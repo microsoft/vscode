@@ -39,6 +39,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -142,7 +143,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 			this._log('session RESUMING', e);
-			await this._nextState(State.CREATE_SESSION, { existingSession });
+			await this.run({ existingSession });
 			this._log('session done or paused');
 		}));
 		this._log('NEW controller');
@@ -191,17 +192,29 @@ export class InlineChatController implements IEditorContribution {
 	private _currentRun?: Promise<void>;
 
 	async run(options: InlineChatRunOptions | undefined = {}): Promise<void> {
-		this.finishExistingSession();
-		if (this._currentRun) {
+		try {
+			this.finishExistingSession();
+			if (this._currentRun) {
+				await this._currentRun;
+			}
+			this._stashedSession.clear();
+			if (options.initialSelection) {
+				this._editor.setSelection(options.initialSelection);
+			}
+			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
+
+		} catch (error) {
+			// this should not happen but when it does make sure to tear down the UI and everything
+			onUnexpectedError(error);
+			if (this._activeSession) {
+				this._inlineChatSessionService.releaseSession(this._activeSession);
+			}
+			this[State.PAUSE]();
+
+		} finally {
+			this._currentRun = undefined;
 		}
-		this._stashedSession.clear();
-		if (options.initialSelection) {
-			this._editor.setSelection(options.initialSelection);
-		}
-		this._currentRun = this._nextState(State.CREATE_SESSION, options);
-		await this._currentRun;
-		this._currentRun = undefined;
 	}
 
 	// ---- state machine
