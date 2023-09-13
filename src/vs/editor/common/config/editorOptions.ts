@@ -13,7 +13,6 @@ import { Constants } from 'vs/base/common/uint';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
@@ -461,6 +460,11 @@ export interface IEditorOptions {
 	 */
 	autoClosingBrackets?: EditorAutoClosingStrategy;
 	/**
+	 * Options for auto closing comments.
+	 * Defaults to language defined behavior.
+	 */
+	autoClosingComments?: EditorAutoClosingStrategy;
+	/**
 	 * Options for auto closing quotes.
 	 * Defaults to language defined behavior.
 	 */
@@ -727,7 +731,7 @@ export interface IEditorOptions {
 	pasteAs?: IPasteAsOptions;
 
 	/**
-	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 * Controls whether the editor / terminal receives tabs or defers them to the workbench for navigation.
 	 */
 	tabFocusMode?: boolean;
 
@@ -817,7 +821,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -2035,6 +2039,11 @@ export interface IEditorHoverOptions {
 	 */
 	sticky?: boolean;
 	/**
+	 * Controls how long the hover is visible after you hovered out of it.
+	 * Require sticky setting to be true.
+	 */
+	hidingDelay?: number;
+	/**
 	 * Should the hover be shown above the line if possible?
 	 * Defaults to false.
 	 */
@@ -2052,6 +2061,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
+			hidingDelay: 300,
 			sticky: true,
 			above: true,
 		};
@@ -2075,6 +2085,12 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
+				'editor.hover.hidingDelay': {
+					type: 'integer',
+					minimum: 0,
+					default: defaults.hidingDelay,
+					description: nls.localize('hover.hidingDelay', "Controls the delay in milliseconds after thich the hover is hidden. Requires `editor.hover.sticky` to be enabled.")
+				},
 				'editor.hover.above': {
 					type: 'boolean',
 					default: defaults.above,
@@ -2093,6 +2109,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
+			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
 		};
 	}
@@ -5012,6 +5029,7 @@ export const enum EditorOption {
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
+	autoClosingComments,
 	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
@@ -5206,6 +5224,20 @@ export const EditorOptions = {
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
 		}
 	)),
+	autoClosingComments: register(new EditorStringEnumOption(
+		EditorOption.autoClosingComments, 'autoClosingComments',
+		'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never',
+		['always', 'languageDefined', 'beforeWhitespace', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingComments.languageDefined', "Use language configurations to determine when to autoclose comments."),
+				nls.localize('editor.autoClosingComments.beforeWhitespace', "Autoclose comments only when the cursor is to the left of whitespace."),
+				'',
+			],
+			description: nls.localize('autoClosingComments', "Controls whether the editor should automatically close comments after the user adds an opening comment.")
+		}
+	)),
 	autoClosingDelete: register(new EditorStringEnumOption(
 		EditorOption.autoClosingDelete, 'autoClosingDelete',
 		'auto' as 'always' | 'auto' | 'never',
@@ -5371,7 +5403,7 @@ export const EditorOptions = {
 				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced.")
+			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#cursorSurroundingLines#` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(

@@ -37,8 +37,8 @@ import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/ed
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -68,6 +68,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -1148,7 +1149,7 @@ const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { act
 	message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 
 class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
-	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget2>());
+	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
 
@@ -1178,13 +1179,13 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 		const model = this.model.value = new SimpleDiffEditorModel(original, modified);
 		if (!this.widget.value) {
 			this.widget.value = this.editor ? this.instantiationService.createInstance(
-				EmbeddedDiffEditorWidget2,
+				EmbeddedDiffEditorWidget,
 				this.container,
 				diffEditorOptions,
 				{},
 				this.editor,
 			) : this.instantiationService.createInstance(
-				DiffEditorWidget2,
+				DiffEditorWidget,
 				this.container,
 				diffEditorOptions,
 				{},
@@ -1492,6 +1493,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				terminal.xterm.write(chunk.buffer, () => pendingWrites.value--);
 			}
 		} else {
+			didWriteData = true;
 			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
 		}
 
@@ -1527,7 +1529,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 
 	private writeNotice(terminal: IDetachedTerminalInstance, str: string) {
-		terminal.xterm.write(`\x1b[2m${str}\x1b[0m`);
+		terminal.xterm.write(formatMessageForTerminal(str));
 	}
 
 	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
@@ -1604,7 +1606,7 @@ function getOuterEditorFromDiffEditor(codeEditorService: ICodeEditorService): IC
 	const diffEditors = codeEditorService.listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget2) {
+		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
 			return diffEditor.getParentEditor();
 		}
 	}
@@ -2245,14 +2247,6 @@ class TreeActionsProvider {
 
 		if (element instanceof TestCaseElement) {
 			const extId = element.test.item.extId;
-			primary.push(new Action(
-				'testing.outputPeek.goToFile',
-				localize('testing.goToFile', "Go to Source"),
-				ThemeIcon.asClassName(Codicon.goToFile),
-				undefined,
-				() => this.commandService.executeCommand('vscode.revealTest', extId),
-			));
-
 			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
@@ -2290,6 +2284,14 @@ class TreeActionsProvider {
 					() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
 				));
 			}
+
+			primary.push(new Action(
+				'testing.outputPeek.goToFile',
+				localize('testing.goToFile', "Go to Source"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				undefined,
+				() => this.commandService.executeCommand('vscode.revealTest', extId),
+			));
 		}
 
 		if (element instanceof TestMessageElement) {

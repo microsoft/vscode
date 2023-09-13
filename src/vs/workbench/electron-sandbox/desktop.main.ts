@@ -190,7 +190,7 @@ export class DesktopMain extends Disposable {
 			...this.configuration.loggers.global.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })),
 			...this.configuration.loggers.window.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: true })),
 		];
-		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.logsHome, loggers, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.windowLogsPath, loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log

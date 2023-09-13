@@ -328,6 +328,7 @@ class InstalledThemesPicker {
 				quickpick.placeholder = this.placeholderMessage;
 				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 				quickpick.canSelectMany = false;
+				quickpick.matchOnDescription = true;
 				quickpick.onDidAccept(async _ => {
 					isCompleted = true;
 					const theme = quickpick.selectedItems[0];
@@ -545,7 +546,13 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 }
 
 function toEntry(theme: IWorkbenchTheme): ThemeItem {
-	const item: ThemeItem = { id: theme.id, theme: theme, label: theme.label, description: theme.description };
+	const settingId = theme.settingsId ?? undefined;
+	const item: ThemeItem = {
+		id: theme.id,
+		theme: theme,
+		label: theme.label,
+		description: theme.description || (theme.label === settingId ? undefined : settingId),
+	};
 	if (theme.extensionData) {
 		item.buttons = [configureButton];
 	}
@@ -659,6 +666,55 @@ registerAction2(class extends Action2 {
 				themeService.setColorTheme(theme.id, 'auto');
 			}
 		}
+	}
+});
+
+const browseColorThemesInMarketplaceCommandId = 'workbench.action.browseColorThemesInMarketplace';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: browseColorThemesInMarketplaceCommandId,
+			title: { value: localize('browseColorThemeInMarketPlace.label', "Browse Color Themes in Marketplace"), original: 'Browse Color Themes in Marketplace' },
+			category: Categories.Preferences,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const marketplaceTag = 'category:themes';
+		const themeService = accessor.get(IWorkbenchThemeService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+		const extensionResourceLoaderService = accessor.get(IExtensionResourceLoaderService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		if (!extensionGalleryService.isEnabled() || !extensionResourceLoaderService.supportsExtensionGalleryResources) {
+			return;
+		}
+		const currentTheme = themeService.getColorTheme();
+		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
+
+		let selectThemeTimeout: number | undefined;
+
+		const selectTheme = (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => {
+			if (selectThemeTimeout) {
+				clearTimeout(selectThemeTimeout);
+			}
+			selectThemeTimeout = window.setTimeout(() => {
+				selectThemeTimeout = undefined;
+				const newTheme = (theme ?? currentTheme) as IWorkbenchTheme;
+				themeService.setColorTheme(newTheme as IWorkbenchColorTheme, applyTheme ? 'auto' : 'preview').then(undefined,
+					err => {
+						onUnexpectedError(err);
+						themeService.setColorTheme(currentTheme, undefined);
+					}
+				);
+			}, applyTheme ? 0 : 200);
+		};
+
+		const marketplaceThemePicker = instantiationService.createInstance(MarketplaceThemesPicker, getMarketplaceColorThemes, marketplaceTag);
+		await marketplaceThemePicker.openQuickPick('', themeService.getColorTheme(), selectTheme).then(undefined, onUnexpectedError);
 	}
 });
 

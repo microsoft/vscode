@@ -7,7 +7,7 @@ import { hostname, release } from 'os';
 import { MessagePortMain, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { firstOrDefault } from 'vs/base/common/arrays';
@@ -367,16 +367,18 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 	private initChannels(accessor: ServicesAccessor): void {
 
+		const disposables = this._register(new DisposableStore());
+
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
 		// Language Packs
-		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService));
+		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService), disposables);
 		this.server.registerChannel('languagePacks', languagePacksChannel);
 
 		// Diagnostics
-		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService), disposables);
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips
@@ -384,11 +386,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
 		// Checksum
-		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
+		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService), disposables);
 		this.server.registerChannel('checksum', checksumChannel);
 
 		// Profiling
-		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService));
+		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService), disposables);
 		this.server.registerChannel('v8InspectProfiling', profilingChannel);
 
 		// Settings Sync
@@ -396,7 +398,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService));
+		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService), disposables);
 		this.server.registerChannel('customEndpointTelemetry', customEndpointTelemetryChannel);
 
 		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
@@ -413,11 +415,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
 
 		// Tunnel
-		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));
+		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService), disposables);
 		this.server.registerChannel(ipcSharedProcessTunnelChannelName, sharedProcessTunnelChannel);
 
 		// Remote Tunnel
-		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
+		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService), disposables);
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
 	}
 

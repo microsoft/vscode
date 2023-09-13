@@ -1469,7 +1469,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['automatic', 'trigger'],
 			default: 'automatic',
-			description: localize('typeNavigationMode', "Controls the how type navigation works in lists and trees in the workbench. When set to 'trigger', type navigation begins once the 'list.triggerTypeNavigation' command is run."),
+			markdownDescription: localize('typeNavigationMode2', "Controls how type navigation works in lists and trees in the workbench. When set to `trigger`, type navigation begins once the `list.triggerTypeNavigation` command is run."),
 		}
 	}
 });

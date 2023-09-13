@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import type { derived } from 'vs/base/common/observableInternal/derived';
+import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 /**
  * Represents an observable value.
+ *
  * @template T The type of the value.
  * @template TChange The type of delta information (usually `void` and only used in advanced scenarios).
  */
@@ -57,6 +58,7 @@ export interface IObservable<T, TChange = unknown> {
 	 * (see {@link ConvenientObservable.map}).
 	 */
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
 	/**
 	 * A human-readable name for debugging purposes.
@@ -118,6 +120,10 @@ export interface IObserver {
 }
 
 export interface ISettable<T, TChange = void> {
+	/**
+	 * Sets the value of the observable.
+	 * Use a transaction to batch multiple changes (with a transaction, observers only react at the end of the transaction).
+	 */
 	set(value: T, transaction: ITransaction | undefined, change: TChange): void;
 }
 
@@ -129,12 +135,12 @@ export interface ITransaction {
 	updateObserver(observer: IObserver, observable: IObservable<any, any>): void;
 }
 
-let _derived: typeof derived;
+let _derived: typeof derivedOpts;
 /**
  * @internal
  * This is to allow splitting files.
 */
-export function _setDerived(derived: typeof _derived) {
+export function _setDerivedOpts(derived: typeof _derived) {
 	_derived = derived;
 }
 
@@ -160,23 +166,34 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	}
 
 	/** @sealed */
-	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew> {
-		return _derived(
-			(reader) => fn(this.read(reader), reader),
-			() => {
-				const name = getFunctionName(fn);
-				if (name !== undefined) {
-					return name;
-				}
+	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(fnOrOwner: object | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as object;
+		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
-				// regexp to match `x => x.y` where x and y can be arbitrary identifiers (uses backref):
-				const regexp = /^\s*\(?\s*([a-zA-Z_$][a-zA-Z_$0-9]*)\s*\)?\s*=>\s*\1\.([a-zA-Z_$][a-zA-Z_$0-9]*)\s*$/;
-				const match = regexp.exec(fn.toString());
-				if (match) {
-					return `${this.debugName}.${match[2]}`;
-				}
-				return `${this.debugName} (mapped)`;
+		return _derived(
+			{
+				owner,
+				debugName: () => {
+					const name = getFunctionName(fn);
+					if (name !== undefined) {
+						return name;
+					}
+
+					// regexp to match `x => x.y` where x and y can be arbitrary identifiers (uses backref):
+					const regexp = /^\s*\(?\s*([a-zA-Z_$][a-zA-Z_$0-9]*)\s*\)?\s*=>\s*\1\.([a-zA-Z_$][a-zA-Z_$0-9]*)\s*$/;
+					const match = regexp.exec(fn.toString());
+					if (match) {
+						return `${this.debugName}.${match[2]}`;
+					}
+					if (!owner) {
+						return `${this.debugName} (mapped)`;
+					}
+					return undefined;
+				},
 			},
+			(reader) => fn(this.read(reader), reader),
 		);
 	}
 
@@ -252,6 +269,38 @@ export class TransactionImpl implements ITransaction {
 	}
 }
 
+export type DebugNameFn = string | (() => string | undefined);
+
+export function getDebugName(debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: object | undefined, self: object): string | undefined {
+	let result: string | undefined;
+	if (debugNameFn !== undefined) {
+		if (typeof debugNameFn === 'function') {
+			result = debugNameFn();
+			if (result !== undefined) {
+				return result;
+			}
+		} else {
+			return debugNameFn;
+		}
+	}
+
+	if (fn !== undefined) {
+		result = getFunctionName(fn);
+		if (result !== undefined) {
+			return result;
+		}
+	}
+
+	if (owner !== undefined) {
+		for (const key in owner) {
+			if ((owner as any)[key] === self) {
+				return key;
+			}
+		}
+	}
+	return undefined;
+}
+
 export function getFunctionName(fn: Function): string | undefined {
 	const fnSrc = fn.toString();
 	// Pattern: /** @description ... */
@@ -268,8 +317,14 @@ export interface ISettableObservable<T, TChange = void> extends IObservable<T, T
  * Creates an observable value.
  * Observers get informed when the value changes.
  */
-export function observableValue<T, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange> {
-	return new ObservableValue(name, initialValue);
+export function observableValue<T, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange>;
+export function observableValue<T, TChange = void>(owner: object, initialValue: T): ISettableObservable<T, TChange>;
+export function observableValue<T, TChange = void>(nameOrOwner: string | object, initialValue: T): ISettableObservable<T, TChange> {
+	if (typeof nameOrOwner === 'string') {
+		return new ObservableValue(undefined, nameOrOwner, initialValue);
+	} else {
+		return new ObservableValue(nameOrOwner, undefined, initialValue);
+	}
 }
 
 export class ObservableValue<T, TChange = void>
@@ -278,7 +333,15 @@ export class ObservableValue<T, TChange = void>
 {
 	protected _value: T;
 
-	constructor(public readonly debugName: string, initialValue: T) {
+	get debugName() {
+		return getDebugName(this._debugName, undefined, this._owner, this) ?? 'ObservableValue';
+	}
+
+	constructor(
+		private readonly _owner: object | undefined,
+		private readonly _debugName: string | undefined,
+		initialValue: T
+	) {
 		super();
 		this._value = initialValue;
 	}
@@ -320,8 +383,12 @@ export class ObservableValue<T, TChange = void>
 	}
 }
 
-export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange> & IDisposable {
-	return new DisposableObservableValue(name, initialValue);
+export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(nameOrOwner: string | object, initialValue: T): ISettableObservable<T, TChange> & IDisposable {
+	if (typeof nameOrOwner === 'string') {
+		return new DisposableObservableValue(undefined, nameOrOwner, initialValue);
+	} else {
+		return new DisposableObservableValue(nameOrOwner, undefined, initialValue);
+	}
 }
 
 export class DisposableObservableValue<T extends IDisposable | undefined, TChange = void> extends ObservableValue<T, TChange> implements IDisposable {

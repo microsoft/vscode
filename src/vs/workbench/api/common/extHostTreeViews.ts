@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import type * as vscode from 'vscode';
-import * as types from './extHostTypes';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -14,7 +13,7 @@ import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeV
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState, NoTreeViewError } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, TreeItemCheckboxState, ThemeIcon, MarkdownString as MarkdownStringType, TreeItem, ViewBadge as ExtHostViewBadge } from 'vs/workbench/api/common/extHostTypes';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -48,7 +47,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 }
 
 
-export class ExtHostTreeViews implements ExtHostTreeViewsShape {
+export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
 	private treeDragAndDropService: ITreeViewsDnDService<vscode.DataTransfer> = new TreeViewsDnDService<vscode.DataTransfer>();
@@ -58,7 +57,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		private commands: ExtHostCommands,
 		private logService: ILogService
 	) {
-
+		super();
 		function isTreeViewConvertableItem(arg: any): boolean {
 			return arg && arg.$treeViewId && (arg.$treeItemHandle || arg.$selectedTreeItems || arg.$focusedTreeItem);
 		}
@@ -134,7 +133,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				return treeView.badge;
 			},
 			set badge(badge: vscode.ViewBadge | undefined) {
-				if ((badge !== undefined) && ExtHostViewBadge.isViewBadge(badge)) {
+				if ((badge !== undefined) && extHostTypes.ViewBadge.isViewBadge(badge)) {
 					treeView.badge = {
 						value: Math.floor(Math.abs(badge.value)),
 						tooltip: badge.tooltip
@@ -153,6 +152,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.dispose();
 			}
 		};
+		this._register(view);
 		return view as vscode.TreeView<T>;
 	}
 
@@ -203,7 +203,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			return Promise.reject(new NoTreeViewError(sourceViewId));
 		}
 
-		const treeDataTransfer = await this.addAdditionalTransferItems(new types.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
+		const treeDataTransfer = await this.addAdditionalTransferItems(new extHostTypes.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
 		if (!treeDataTransfer || token.isCancellationRequested) {
 			return;
 		}
@@ -263,7 +263,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 
 	private createExtHostTreeView<T>(id: string, options: vscode.TreeViewOptions<T>, extension: IExtensionDescription): ExtHostTreeView<T> {
-		const treeView = new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension);
+		const treeView = this._register(new ExtHostTreeView<T>(id, options, this._proxy, this.commands.converter, this.logService, extension));
 		this.treeViews.set(id, treeView);
 		return treeView;
 	}
@@ -360,7 +360,7 @@ class ExtHostTreeView<T> extends Disposable {
 
 		let refreshingPromise: Promise<void> | null;
 		let promiseCallback: () => void;
-		this._register(Event.debounce<TreeData<T>, { message: boolean; elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
+		const onDidChangeData = Event.debounce<TreeData<T>, { message: boolean; elements: (T | Root)[] }>(this._onDidChangeData.event, (result, current) => {
 			if (!result) {
 				result = { message: false, elements: [] };
 			}
@@ -380,7 +380,8 @@ class ExtHostTreeView<T> extends Disposable {
 				result.message = true;
 			}
 			return result;
-		}, 200, true)(({ message, elements }) => {
+		}, 200, true);
+		this._register(onDidChangeData(({ message, elements }) => {
 			if (elements.length) {
 				this.refreshQueue = this.refreshQueue.then(() => {
 					const _promiseCallback = promiseCallback;
@@ -514,21 +515,21 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	async setCheckboxState(checkboxUpdates: CheckboxUpdate[]) {
-		type CheckboxUpdateWithItem = { extensionItem: NonNullable<T>; treeItem: vscode.TreeItem; newState: TreeItemCheckboxState };
+		type CheckboxUpdateWithItem = { extensionItem: NonNullable<T>; treeItem: vscode.TreeItem; newState: extHostTypes.TreeItemCheckboxState };
 		const items = (await Promise.all(checkboxUpdates.map(async checkboxUpdate => {
 			const extensionItem = this.getExtensionElement(checkboxUpdate.treeItemHandle);
 			if (extensionItem) {
 				return {
 					extensionItem: extensionItem,
 					treeItem: await this.dataProvider.getTreeItem(extensionItem),
-					newState: checkboxUpdate.newState ? TreeItemCheckboxState.Checked : TreeItemCheckboxState.Unchecked
+					newState: checkboxUpdate.newState ? extHostTypes.TreeItemCheckboxState.Checked : extHostTypes.TreeItemCheckboxState.Unchecked
 				};
 			}
 			return Promise.resolve(undefined);
 		}))).filter<CheckboxUpdateWithItem>((item): item is CheckboxUpdateWithItem => item !== undefined);
 
 		items.forEach(item => {
-			item.treeItem.checkboxState = item.newState ? TreeItemCheckboxState.Checked : TreeItemCheckboxState.Unchecked;
+			item.treeItem.checkboxState = item.newState ? extHostTypes.TreeItemCheckboxState.Checked : extHostTypes.TreeItemCheckboxState.Unchecked;
 		});
 
 		this._onDidChangeCheckboxState.fire({ items: items.map(item => [item.extensionItem, item.newState]) });
@@ -767,7 +768,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getTooltip(tooltip?: string | vscode.MarkdownString): string | IMarkdownString | undefined {
-		if (MarkdownStringType.isMarkdownString(tooltip)) {
+		if (extHostTypes.MarkdownString.isMarkdownString(tooltip)) {
 			return MarkdownString.from(tooltip);
 		}
 		return tooltip;
@@ -781,7 +782,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (extensionTreeItem.checkboxState === undefined) {
 			return undefined;
 		}
-		let checkboxState: TreeItemCheckboxState;
+		let checkboxState: extHostTypes.TreeItemCheckboxState;
 		let tooltip: string | undefined = undefined;
 		let accessibilityInformation: IAccessibilityInformation | undefined = undefined;
 		if (typeof extensionTreeItem.checkboxState === 'number') {
@@ -791,18 +792,18 @@ class ExtHostTreeView<T> extends Disposable {
 			tooltip = extensionTreeItem.checkboxState.tooltip;
 			accessibilityInformation = extensionTreeItem.checkboxState.accessibilityInformation;
 		}
-		return { isChecked: checkboxState === TreeItemCheckboxState.Checked, tooltip, accessibilityInformation };
+		return { isChecked: checkboxState === extHostTypes.TreeItemCheckboxState.Checked, tooltip, accessibilityInformation };
 	}
 
 	private validateTreeItem(extensionTreeItem: vscode.TreeItem) {
-		if (!TreeItem.isTreeItem(extensionTreeItem, this.extension)) {
+		if (!extHostTypes.TreeItem.isTreeItem(extensionTreeItem, this.extension)) {
 			throw new Error(`Extension ${this.extension.identifier.value} has provided an invalid tree item.`);
 		}
 	}
 
 	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
 		this.validateTreeItem(extensionTreeItem);
-		const disposableStore = new DisposableStore();
+		const disposableStore = this._register(new DisposableStore());
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
 		const item: ITreeItem = {
@@ -817,7 +818,7 @@ class ExtHostTreeView<T> extends Disposable {
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			themeIcon: this.getThemeIcon(extensionTreeItem),
-			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
+			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? extHostTypes.TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
 			accessibilityInformation: extensionTreeItem.accessibilityInformation,
 			checkbox: this.getCheckbox(extensionTreeItem),
 		};
@@ -832,8 +833,8 @@ class ExtHostTreeView<T> extends Disposable {
 		};
 	}
 
-	private getThemeIcon(extensionTreeItem: vscode.TreeItem): ThemeIcon | undefined {
-		return extensionTreeItem.iconPath instanceof ThemeIcon ? extensionTreeItem.iconPath : undefined;
+	private getThemeIcon(extensionTreeItem: vscode.TreeItem): extHostTypes.ThemeIcon | undefined {
+		return extensionTreeItem.iconPath instanceof extHostTypes.ThemeIcon ? extensionTreeItem.iconPath : undefined;
 	}
 
 	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode | Root, returnFirst?: boolean): TreeItemHandle {
@@ -865,7 +866,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getLightIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon)) {
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof extHostTypes.ThemeIcon)) {
 			if (typeof extensionTreeItem.iconPath === 'string'
 				|| URI.isUri(extensionTreeItem.iconPath)) {
 				return this.getIconPath(extensionTreeItem.iconPath);
@@ -876,7 +877,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private getDarkIconPath(extensionTreeItem: vscode.TreeItem): URI | undefined {
-		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof ThemeIcon) && (<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark) {
+		if (extensionTreeItem.iconPath && !(extensionTreeItem.iconPath instanceof extHostTypes.ThemeIcon) && (<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark) {
 			return this.getIconPath((<{ light: string | URI; dark: string | URI }>extensionTreeItem.iconPath).dark);
 		}
 		return undefined;
@@ -971,6 +972,7 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	override dispose() {
+		super.dispose();
 		this._refreshCancellationSource.dispose();
 
 		this.clearAll();

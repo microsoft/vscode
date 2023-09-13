@@ -649,7 +649,7 @@ class UserDataSyncTroubleshootViewDataProvider implements ITreeViewDataProvider 
 
 	private async getSyncLogs(): Promise<ITreeItem[]> {
 		const logsFolders: URI[] = [];
-		const stat = await this.fileService.resolve(this.uriIdentityService.extUri.dirname(this.uriIdentityService.extUri.dirname(this.environmentService.logsHome)));
+		const stat = await this.fileService.resolve(this.uriIdentityService.extUri.dirname(this.environmentService.logsHome));
 		if (stat.children) {
 			logsFolders.push(...stat.children
 				.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name))

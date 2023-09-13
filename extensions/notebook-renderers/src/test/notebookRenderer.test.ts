@@ -8,6 +8,7 @@ import { activate } from '..';
 import { RendererApi } from 'vscode-notebook-renderer';
 import { IDisposable, IRichRenderContext, OutputWithAppend, RenderOptions } from '../rendererTypes';
 import { JSDOM } from "jsdom";
+import { LinkDetector } from '../linkify';
 
 const dom = new JSDOM();
 global.document = dom.window.document;
@@ -15,13 +16,12 @@ global.document = dom.window.document;
 suite('Notebook builtin output renderer', () => {
 
 	const error = {
-		name: "NameError",
-		message: "name 'x' is not defined",
+		name: "TypeError",
+		message: "Expected type `str`, but received type `<class \'int\'>`",
 		stack: "\u001b[1;31m---------------------------------------------------------------------------\u001b[0m" +
-			"\n\u001b[1;31mNameError\u001b[0m                                 Traceback (most recent call last)" +
-			"\nCell \u001b[1;32mIn[3], line 1\u001b[0m" +
-			"\n\u001b[1;32m----> 1\u001b[0m \u001b[39mprint\u001b[39m(x)" +
-			"\n\n\u001b[1;31mNameError\u001b[0m: name 'x' is not defined"
+			"\u001b[1;31mTypeError\u001b[0m                                 Traceback (most recent call last)" +
+			"\u001b[1;32mc:\\src\\test\\ws1\\testing.py\u001b[0m in \u001b[0;36mline 2\n\u001b[0;32m      <a href='file:///c%3A/src/test/ws1/testing.py?line=34'>35</a>\u001b[0m \u001b[39m# %%\u001b[39;00m\n\u001b[1;32m----> <a href='file:///c%3A/src/test/ws1/testing.py?line=35'>36</a>\u001b[0m \u001b[39mraise\u001b[39;00m \u001b[39mTypeError\u001b[39;00m(\u001b[39m'\u001b[39m\u001b[39merror = f\u001b[39m\u001b[39m\"\u001b[39m\u001b[39mExpected type `str`, but received type `\u001b[39m\u001b[39m{\u001b[39m\u001b[39mtype(name)}`\u001b[39m\u001b[39m\"\u001b[39m\u001b[39m'\u001b[39m)\n" +
+			"\u001b[1;31mTypeError\u001b[0m: Expected type `str`, but received type `<class \'int\'>`\""
 	};
 
 	const errorMimeType = 'application/vnd.code.notebook.error';
@@ -233,7 +233,7 @@ suite('Notebook builtin output renderer', () => {
 
 		assert.ok(firstOutputElement.innerHTML.indexOf('>first stream content') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 		assert.ok(firstOutputElement.innerHTML.indexOf('appended1') > -1, `Content was not appended to output element: ${outputHtml.cellElement.innerHTML}`);
-		assert.ok(secondOutputElement.innerHTML.indexOf('>NameError</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(secondOutputElement.innerHTML.indexOf('>TypeError</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 		assert.ok(thirdOutputElement.innerHTML.indexOf('>second stream content') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 		assert.ok(thirdOutputElement.innerHTML.indexOf('appended3') > -1, `Content was not appended to output element: ${outputHtml.cellElement.innerHTML}`);
 	});
@@ -274,6 +274,7 @@ suite('Notebook builtin output renderer', () => {
 	});
 
 	test(`Render with wordwrap and scrolling for error output`, async () => {
+		LinkDetector.injectedHtmlCreator = (value: string) => value;
 		const context = createContext({ outputWordWrap: true, outputScrolling: true });
 		const renderer = await activate(context);
 		assert.ok(renderer, 'Renderer not created');
@@ -287,7 +288,9 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(outputElement.classList.contains('remove-padding'), 'Padding should be removed for scrollable outputs');
 		assert.ok(inserted.classList.contains('word-wrap') && inserted.classList.contains('scrollable'),
 			`output content classList should contain word-wrap and scrollable ${inserted.classList}`);
-		assert.ok(inserted.innerHTML.indexOf('>: name \'x\' is not defined</') > -1, `Content was not added to output element:\n ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('>Expected type `str`, but received type') > -1, `Content was not added to output element:\n ${outputElement.innerHTML}`);
+		assert.ok(inserted.textContent!.indexOf('Expected type `str`, but received type `<class \'int\'>`') > -1, `Content was not added to output element:\n ${outputElement.textContent}`);
+		assert.ok(inserted.textContent!.indexOf('<a href') === -1, 'HTML links should be rendered');
 	});
 
 	test(`Replace content in element for error output`, async () => {
@@ -303,7 +306,7 @@ suite('Notebook builtin output renderer', () => {
 		await renderer!.renderOutputItem(outputItem2, outputElement);
 
 		const inserted = outputElement.firstChild as HTMLElement;
-		assert.ok(inserted.innerHTML.indexOf('>: name \'x\' is not defined</') === -1, `Content was not removed from output element:\n ${outputElement.innerHTML}`);
+		assert.ok(inserted.innerHTML.indexOf('Expected type `str`, but received type') === -1, `Content was not removed from output element:\n ${outputElement.innerHTML}`);
 		assert.ok(inserted.innerHTML.indexOf('>replaced content</') !== -1, `Content was not added to output element:\n ${outputElement.innerHTML}`);
 	});
 
@@ -392,7 +395,7 @@ suite('Notebook builtin output renderer', () => {
 		await renderer!.renderOutputItem(outputItem3, thirdOutputElement);
 
 		assert.ok(firstOutputElement.innerHTML.indexOf('>first stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
-		assert.ok(secondOutputElement.innerHTML.indexOf('>NameError</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
+		assert.ok(secondOutputElement.innerHTML.indexOf('>TypeError</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 		assert.ok(thirdOutputElement.innerHTML.indexOf('>second stream content</') > -1, `Content was not added to output element: ${outputHtml.cellElement.innerHTML}`);
 	});
 

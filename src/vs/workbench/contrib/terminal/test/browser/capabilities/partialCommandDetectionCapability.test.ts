@@ -9,6 +9,7 @@ import type { IMarker, Terminal } from 'xterm';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { importAMDNodeModule } from 'vs/amdX';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -32,6 +33,8 @@ suite('PartialCommandDetectionCapability', () => {
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should not add commands when the cursor position is too close to the left side', async () => {
 		assertCommands([]);

@@ -5,13 +5,13 @@
 
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
 import { AbstractUserDataProfileStorageService, IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { InMemoryStorageService, loadKeyTargets, StorageTarget, TARGET_KEY } from 'vs/platform/storage/common/storage';
 import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestStorageDatabase extends InMemoryStorageDatabase {
 
@@ -48,18 +48,17 @@ export class TestUserDataProfileStorageService extends AbstractUserDataProfileSt
 
 suite('ProfileStorageService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const profile = toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache'));
 	let testObject: TestUserDataProfileStorageService;
 	let storage: Storage;
 
 	setup(async () => {
-		testObject = disposables.add(new TestUserDataProfileStorageService(new InMemoryStorageService()));
-		storage = new Storage(await testObject.setupStorageDatabase(profile));
+		testObject = disposables.add(new TestUserDataProfileStorageService(disposables.add(new InMemoryStorageService())));
+		storage = disposables.add(new Storage(await testObject.setupStorageDatabase(profile)));
 		await storage.init();
 	});
 
-	teardown(() => disposables.clear());
 
 	test('read empty storage', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const actual = await testObject.readStorageData(profile);

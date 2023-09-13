@@ -55,7 +55,7 @@ suite('Notebook Find', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState<NotebookFindFilters>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
@@ -101,7 +101,7 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState<NotebookFindFilters>();
@@ -152,7 +152,7 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState<NotebookFindFilters>();
@@ -194,7 +194,7 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState<NotebookFindFilters>();
@@ -232,7 +232,7 @@ suite('Notebook Find', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState<NotebookFindFilters>();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
