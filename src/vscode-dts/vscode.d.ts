@@ -7764,9 +7764,8 @@ declare module 'vscode' {
 		readonly logPath: string;
 
 		/**
-		 * The mode the extension is running in. This is specific to the current
-		 * extension. One extension may be in `ExtensionMode.Development` while
-		 * other extensions in the host run in `ExtensionMode.Release`.
+		 * The mode the extension is running in. See {@link ExtensionMode}
+		 * for possible values and scenarios.
 		 */
 		readonly extensionMode: ExtensionMode;
 
@@ -10000,6 +9999,11 @@ declare module 'vscode' {
 		 * `true` if the user has enabled telemetry or `false` if the user has disabled telemetry.
 		 */
 		export const onDidChangeTelemetryEnabled: Event<boolean>;
+
+		/**
+		 * An {@link Event} which fires when the default shell changes.
+		 */
+		export const onDidChangeShell: Event<string>;
 
 		/**
 		 * Creates a new {@link TelemetryLogger telemetry logger}.

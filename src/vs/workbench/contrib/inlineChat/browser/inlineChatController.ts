@@ -151,7 +151,9 @@ export class InlineChatController implements IEditorContribution {
 	dispose(): void {
 		this._strategy?.dispose();
 		this._stashedSession.clear();
-		this.finishExistingSession();
+		if (this._activeSession) {
+			this._inlineChatSessionService.releaseSession(this._activeSession);
+		}
 		this._store.dispose();
 		this._log('controller disposed');
 	}
@@ -543,6 +545,7 @@ export class InlineChatController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(false);
 			this._zone.value.widget.updateProgress(false);
 			this._zone.value.widget.updateInfo('');
+			this._zone.value.widget.updateToolbar(true);
 			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
 
 		}
@@ -662,7 +665,6 @@ export class InlineChatController implements IEditorContribution {
 			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
-			this._zone.value.widget.updateToolbar(true);
 			const content = renderedMarkdown.element.textContent;
 			if (content) {
 				status = localize('markdownResponseMessage', "{0}", content);
@@ -672,7 +674,6 @@ export class InlineChatController implements IEditorContribution {
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
 			this._zone.value.widget.updateMarkdownMessage(undefined);
-			this._zone.value.widget.updateToolbar(true);
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {

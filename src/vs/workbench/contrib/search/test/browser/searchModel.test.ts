@@ -27,7 +27,7 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
 import { ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
@@ -37,6 +37,9 @@ import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -160,14 +163,10 @@ suite('SearchModel', () => {
 
 	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
 		return <ISearchService>{
-			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+			textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
 				token?.onCancellationRequested(() => tokenSource.cancel());
 
-				return new Promise(resolve => {
-					queueMicrotask(() => {
-						resolve(<any>{});
-					});
-				});
+				return this.textSearchSplitSyncAsync(query, token, onProgress).asyncResults;
 			},
 			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 				token?.onCancellationRequested(() => tokenSource.cancel());
@@ -186,7 +185,10 @@ suite('SearchModel', () => {
 					},
 					asyncResults: new Promise(resolve => {
 						queueMicrotask(() => {
-							resolve(<any>{});
+							resolve(<any>{
+								results: [],
+								messages: []
+							});
 						});
 					})
 				};
@@ -460,7 +462,7 @@ suite('SearchModel', () => {
 		const target1 = sinon.stub().returns(nullEvent);
 		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
-		instantiationService.stub(ISearchService, searchServiceWithError(new Error('error')));
+		instantiationService.stub(ISearchService, searchServiceWithError(new Error('This error should be thrown by this test.')));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
@@ -581,6 +583,8 @@ suite('SearchModel', () => {
 
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 });

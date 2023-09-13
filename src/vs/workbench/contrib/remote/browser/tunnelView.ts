@@ -1465,7 +1465,7 @@ namespace ChangeLocalPortAction {
 
 	function validateInput(tunnelService: ITunnelService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		if (!value.match(/^[0-9]+$/)) {
-			return { content: invalidPortString, severity: Severity.Error };
+			return { content: nls.localize('remote.tunnelsView.portShouldBeNumber', "Local port should be a number."), severity: Severity.Error };
 		} else if (Number(value) >= maxPortNumber) {
 			return { content: invalidPortNumberString, severity: Severity.Error };
 		} else if (canElevate && tunnelService.isPortPrivileged(Number(value))) {

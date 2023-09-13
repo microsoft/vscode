@@ -58,6 +58,7 @@ export interface IObservable<T, TChange = unknown> {
 	 * (see {@link ConvenientObservable.map}).
 	 */
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 
 	/**
 	 * A human-readable name for debugging purposes.
@@ -165,9 +166,15 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	}
 
 	/** @sealed */
-	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(fnOrOwner: object | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as object;
+		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
+
 		return _derived(
 			{
+				owner,
 				debugName: () => {
 					const name = getFunctionName(fn);
 					if (name !== undefined) {
@@ -180,7 +187,10 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 					if (match) {
 						return `${this.debugName}.${match[2]}`;
 					}
-					return `${this.debugName} (mapped)`;
+					if (!owner) {
+						return `${this.debugName} (mapped)`;
+					}
+					return undefined;
 				},
 			},
 			(reader) => fn(this.read(reader), reader),

@@ -36,6 +36,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -181,7 +182,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		if (info) {
 			additionalPicks.push({
 				label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
-				commandId: ASK_QUICK_QUESTION_ACTION_ID,
+				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
 				args: [filter]
 			});
 		}

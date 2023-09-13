@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
@@ -182,7 +182,7 @@ export class Throttler implements IDisposable {
 
 	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
 		if (this.isDisposed) {
-			throw new Error('Throttler is disposed');
+			return Promise.reject(new Error('Throttler is disposed'));
 		}
 
 		if (this.activePromise) {
@@ -717,6 +717,9 @@ export class ResourceQueue implements IDisposable {
 
 	private readonly drainers = new Set<DeferredPromise<void>>();
 
+	private drainListeners: DisposableMap<number> | undefined = undefined;
+	private drainListenerCount = 0;
+
 	async whenDrained(): Promise<void> {
 		if (this.isDrained()) {
 			return;
@@ -744,11 +747,24 @@ export class ResourceQueue implements IDisposable {
 		let queue = this.queues.get(key);
 		if (!queue) {
 			queue = new Queue<void>();
-			Event.once(queue.onDrained)(() => {
+			const drainListenerId = this.drainListenerCount++;
+			const drainListener = Event.once(queue.onDrained)(() => {
 				queue?.dispose();
 				this.queues.delete(key);
 				this.onDidQueueDrain();
+
+				this.drainListeners?.deleteAndDispose(drainListenerId);
+
+				if (this.drainListeners?.size === 0) {
+					this.drainListeners.dispose();
+					this.drainListeners = undefined;
+				}
 			});
+
+			if (!this.drainListeners) {
+				this.drainListeners = new DisposableMap();
+			}
+			this.drainListeners.set(drainListenerId, drainListener);
 
 			this.queues.set(key, queue);
 		}
@@ -786,6 +802,8 @@ export class ResourceQueue implements IDisposable {
 		// promises when the resource queue is being
 		// disposed.
 		this.releaseDrainers();
+
+		this.drainListeners?.dispose();
 	}
 }
 

@@ -161,7 +161,7 @@ export class BreakpointsView extends ViewPane {
 			} else if (element instanceof DataBreakpoint) {
 				await this.debugService.removeDataBreakpoints(element.getId());
 			} else if (element instanceof InstructionBreakpoint) {
-				await this.debugService.removeInstructionBreakpoints(element.instructionReference);
+				await this.debugService.removeInstructionBreakpoints(element.instructionReference, element.offset);
 			}
 		});
 
@@ -180,7 +180,7 @@ export class BreakpointsView extends ViewPane {
 			if (e.element instanceof InstructionBreakpoint) {
 				const disassemblyView = await this.editorService.openEditor(DisassemblyViewInput.instance);
 				// Focus on double click
-				(disassemblyView as DisassemblyView).goToAddress(e.element.instructionReference, e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2);
+				(disassemblyView as DisassemblyView).goToInstructionAndOffset(e.element.instructionReference, e.element.offset, e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2);
 			}
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && e.element instanceof FunctionBreakpoint && e.element !== this.inputBoxData?.breakpoint) {
 				// double click
@@ -788,7 +788,8 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		data.context = breakpoint;
 		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
 
-		data.name.textContent = breakpoint.instructionReference;
+		data.name.textContent = '0x' + breakpoint.address.toString(16);
+		data.name.title = `Decimal address: breakpoint.address.toString()`;
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, icon } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService);

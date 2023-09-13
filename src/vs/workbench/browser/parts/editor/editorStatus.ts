@@ -42,7 +42,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -54,7 +54,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TabFocusMode } from 'vs/workbench/browser/parts/editor/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -275,6 +275,36 @@ class State {
 		}
 
 		return change;
+	}
+}
+
+class TabFocusMode extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<boolean>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
+		super();
+
+		this.registerListeners();
+
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		TabFocus.setTabFocusMode(tabFocusModeConfig);
+
+		this._onDidChange.fire(tabFocusModeConfig);
+	}
+
+	private registerListeners(): void {
+		this._register(TabFocus.onDidChangeTabFocus(tabFocusMode => this._onDidChange.fire(tabFocusMode)));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.tabFocusMode')) {
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				TabFocus.setTabFocusMode(tabFocusModeConfig);
+
+				this._onDidChange.fire(tabFocusModeConfig);
+			}
+		}));
 	}
 }
 
