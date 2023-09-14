@@ -44,7 +44,8 @@ export function toMenuItems(
 				item: action,
 				group: uncategorizedCodeActionGroup,
 				disabled: !!action.action.disabled,
-				label: action.action.disabled || action.action.title
+				label: action.action.disabled || action.action.title,
+				canPreview: !!action.action.edit?.edits.length,
 			};
 		});
 	}
