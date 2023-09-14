@@ -574,18 +574,16 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
 			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
-			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix')) {
-				if (Extract_Constant.matches(action)
-					|| Extract_Function.matches(action)
-					|| Extract_Type.matches(action)
-					|| Extract_Interface.matches(action)
-					|| action.name.startsWith('Infer function return')) {
+			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiCodeActions')) {
+				if (Extract_Constant.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractConstant') !== false
+					|| Extract_Function.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractFunction') !== false
+					|| Extract_Type.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractType') !== false
+					|| Extract_Interface.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractInterface') !== false) {
 					const newName = Extract_Constant.matches(action) ? 'newLocal'
 						: Extract_Function.matches(action) ? 'newFunction'
 							: Extract_Type.matches(action) ? 'NewType'
 								: Extract_Interface.matches(action) ? 'NewInterface'
-									: action.name.startsWith('Infer function return') ? 'newReturnType'
-										: '';
+									: '';
 					copilotRename = info => ({
 						title: '',
 						command: EditorChatFollowUp.ID,

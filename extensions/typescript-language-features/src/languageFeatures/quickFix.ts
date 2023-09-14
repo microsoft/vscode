@@ -331,23 +331,23 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		};
 		actions.push(codeAction);
 
-		if (vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix')) {
+		if (vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions')) {
 			let message: string | undefined;
 			let expand: Expand | undefined;
 
-			if (action.fixName === fixNames.classIncorrectlyImplementsInterface) {
+			if (action.fixName === fixNames.classIncorrectlyImplementsInterface && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.classIncorrectlyImplementsInterface') !== false) {
 				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
 				expand = { kind: 'code-action', action };
 			}
-			else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
+			else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.classDoesntImplementInheritedAbstractMember') !== false) {
 				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
 				expand = { kind: 'code-action', action };
 			}
-			else if (action.fixName === fixNames.fixMissingFunctionDeclaration) {
+			else if (action.fixName === fixNames.fixMissingFunctionDeclaration && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.missingFunctionDeclaration') !== false) {
 				message = `Provide a reasonable implementation of the function ${document.getText(diagnostic.range)} given its type and the context it's called in.`;
 				expand = { kind: 'code-action', action };
 			}
-			else if (action.fixName === fixNames.inferFromUsage) {
+			else if (action.fixName === fixNames.inferFromUsage && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.inferAndAddTypes') !== false) {
 				const inferFromBody = new VsCodeCodeAction(action, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
 				inferFromBody.edit = new vscode.WorkspaceEdit();
 				inferFromBody.diagnostics = [diagnostic];
@@ -362,7 +362,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				};
 				actions.push(inferFromBody);
 			}
-			else if (action.fixName === fixNames.addNameToNamelessParameter) {
+			else if (action.fixName === fixNames.addNameToNamelessParameter && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.addNameToNamelessParameter') !== false) {
 				const newText = action.changes.map(change => change.textChanges.map(textChange => textChange.newText).join('')).join('');
 				message = `Rename the parameter ${newText} with a more meaningful name.`;
 				expand = {
