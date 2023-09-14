@@ -77,9 +77,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private container!: HTMLElement;
 
 	private bodyDimension: dom.Dimension | undefined;
-	private visible = false;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
+	private _visible = false;
+	public get visible() {
+		return this._visible;
+	}
 
 	private previousTreeScrollHeight: number = 0;
 
@@ -214,7 +217,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
-		if (this.tree && this.visible) {
+		if (this.tree && this._visible) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map(item => {
 					return <ITreeElement<ChatTreeItem>>{
@@ -261,7 +264,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setVisible(visible: boolean): void {
-		this.visible = visible;
+		this._visible = visible;
 		this.visibleChangeCount++;
 		this.renderer.setVisible(visible);
 
@@ -269,7 +272,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._register(disposableTimeout(() => {
 				// Progressive rendering paused while hidden, so start it up again.
 				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
-				if (this.visible) {
+				if (this._visible) {
 					this.onDidChangeItems(true);
 				}
 			}, 0));

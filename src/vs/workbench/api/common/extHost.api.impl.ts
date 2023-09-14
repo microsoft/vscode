@@ -343,7 +343,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.getDefaultShell(false);
 			},
 			get onDidChangeShell() {
-				checkProposedApiEnabled(extension, 'envShellEvent');
 				return extHostTerminalService.onDidChangeShell;
 			},
 			get isTelemetryEnabled() {
@@ -876,7 +875,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('rootPath');
 			},
 			getWorkspaceFolder(resource) {
 				return extHostWorkspace.getWorkspaceFolder(resource);
@@ -888,13 +887,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWorkspace.name;
 			},
 			set name(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('name');
 			},
 			get workspaceFile() {
 				return extHostWorkspace.workspaceFile;
 			},
 			set workspaceFile(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('workspaceFile');
 			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
@@ -946,7 +945,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
 			},
 			set textDocuments(value) {
-				throw errors.readonly();
+				throw new errors.ReadonlyError('textDocuments');
 			},
 			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string }) {
 				let uriPromise: Thenable<URI>;
@@ -1298,9 +1297,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			// this needs to be updated whenever the API proposal changes
 			_version: 1,
 
-			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider) {
+			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata) {
 				checkProposedApiEnabled(extension, 'interactive');
-				return extHostInteractiveEditor.registerProvider(extension, provider);
+				return extHostInteractiveEditor.registerProvider(extension, provider, metadata = { label: metadata?.label ?? extension.displayName ?? extension.name });
 			},
 			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
 				checkProposedApiEnabled(extension, 'interactive');

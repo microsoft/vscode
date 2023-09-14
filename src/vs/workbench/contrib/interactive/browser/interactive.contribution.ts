@@ -53,6 +53,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -699,7 +700,11 @@ registerAction2(class extends Action2 {
 			id: 'interactive.input.focus',
 			title: { value: localize('interactive.input.focus', "Focus Input Editor"), original: 'Focus Input Editor' },
 			category: interactiveWindowCategory,
-			f1: true
+			menu: {
+				id: MenuId.CommandPalette,
+				when: InteractiveWindowOpen,
+			},
+			precondition: InteractiveWindowOpen,
 		});
 	}
 

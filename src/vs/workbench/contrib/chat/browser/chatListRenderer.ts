@@ -539,6 +539,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		treeDisposables.add(tree.onDidChangeCollapseState(() => {
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		}));
+		treeDisposables.add(tree.onContextMenu((e) => {
+			e.browserEvent.preventDefault();
+			e.browserEvent.stopPropagation();
+		}));
 
 		tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
@@ -1200,7 +1204,8 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 	}
 	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		if (!element.children.length) {
+		const hasExtension = /\.[^/.]+$/.test(element.element.label);
+		if (!element.children.length && hasExtension) {
 			templateData.label.setFile(element.element.uri, {
 				fileKind: FileKind.FILE,
 				hidePath: true,

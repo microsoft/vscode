@@ -241,7 +241,7 @@ suite('NotebookExecutionStateService', () => {
 		});
 	});
 
-	test('getExecution and onDidChangeExecution', async function () {
+	test('getExecution and onDidChangeExecution 2', async function () {
 		return withTestNotebook([], async viewModel => {
 			testNotebookModel = viewModel.notebookDocument;
 

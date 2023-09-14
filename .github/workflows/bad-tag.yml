@@ -8,7 +8,7 @@ jobs:
     if: github.event.ref == '1.999.0'
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable

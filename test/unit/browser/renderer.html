@@ -156,7 +156,7 @@
 		if (Array.isArray(modules) && modules.length > 0) {
 			console.log('MANUALLY running tests', modules);
 
-			loadAndRun(modules, true).then(() => console.log('done'), err => console.log(err));
+			loadAndRun({modules}, true).then(() => console.log('done'), err => console.log(err));
 		}
 	</script>
 </body>

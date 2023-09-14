@@ -252,11 +252,12 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private isValidNPMName(name: string): boolean {
-		// following rules from https://github.com/npm/validate-npm-package-name
-		if (!name || name.length > 214 || name.match(/^[_.]/)) {
+		// following rules from https://github.com/npm/validate-npm-package-name,
+		// leading slash added as additional security measure
+		if (!name || name.length > 214 || name.match(/^[-_.\s]/)) {
 			return false;
 		}
-		const match = name.match(/^(?:@([^/]+?)[/])?([^/]+?)$/);
+		const match = name.match(/^(?:@([^/~\s)('!*]+?)[/])?([^/~)('!*\s]+?)$/);
 		if (match) {
 			const scope = match[1];
 			if (scope && encodeURIComponent(scope) !== scope) {
@@ -284,7 +285,7 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
-			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
+			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
 			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
 				if (!error) {

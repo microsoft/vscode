@@ -319,12 +319,12 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 	private async getIgnoredSettings(content?: string): Promise<string[]> {
 		if (!this._defaultIgnoredSettings) {
 			this._defaultIgnoredSettings = this.userDataSyncUtilService.resolveDefaultIgnoredSettings();
-			const disposable = Event.any<any>(
+			const disposable = this._register(Event.any<any>(
 				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)))(() => {
 					disposable.dispose();
 					this._defaultIgnoredSettings = undefined;
-				});
+				}));
 		}
 		const defaultIgnoredSettings = await this._defaultIgnoredSettings;
 		return getIgnoredSettings(defaultIgnoredSettings, this.configurationService, content);

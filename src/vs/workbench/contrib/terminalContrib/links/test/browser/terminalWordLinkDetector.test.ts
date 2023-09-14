@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -15,13 +16,15 @@ import { TestProductService } from 'vs/workbench/test/common/workbenchTestServic
 import type { Terminal } from 'xterm';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let detector: TerminalWordLinkDetector;
 	let xterm: Terminal;
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: '' } });
 
@@ -29,12 +32,8 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		instantiationService.set(IProductService, TestProductService);
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
-		detector = instantiationService.createInstance(TerminalWordLinkDetector, xterm);
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
+		detector = store.add(instantiationService.createInstance(TerminalWordLinkDetector, xterm));
 	});
 
 	async function assertLink(

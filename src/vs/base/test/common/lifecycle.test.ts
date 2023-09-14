@@ -231,16 +231,16 @@ suite('No Leakage Utilities', () => {
 					eventEmitter.event(() => {
 						// noop
 					});
-				});
-			}, e => e.message.indexOf('These disposables were not disposed') !== -1);
+				}, false);
+			}, e => e.message.indexOf('undisposed disposables') !== -1);
 		});
 
 		test('throws if a disposable is not disposed', () => {
 			assertThrows(() => {
 				throwIfDisposablesAreLeaked(() => {
 					new DisposableStore();
-				});
-			}, e => e.message.indexOf('These disposables were not disposed') !== -1);
+				}, false);
+			}, e => e.message.indexOf('undisposed disposables') !== -1);
 		});
 
 		test('does not throw if all event subscriptions are cleaned up', () => {

@@ -34,7 +34,6 @@ export interface IInlineChatSession {
 	message?: string;
 	slashCommands?: IInlineChatSlashCommand[];
 	wholeRange?: IRange;
-	dispose?(): void;
 }
 
 export interface IInlineChatRequest {

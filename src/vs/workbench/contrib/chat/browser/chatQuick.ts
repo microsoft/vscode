@@ -134,6 +134,7 @@ class QuickChat extends Disposable {
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;
 	private maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
+	private _deferUpdatingDynamicLayout: boolean = false;
 
 	constructor(
 		private readonly _options: IChatViewOptions,
@@ -183,6 +184,10 @@ class QuickChat extends Disposable {
 		this.widget.setVisible(true);
 		// If the mutable disposable is set, then we are keeping the existing scroll position
 		// so we should not update the layout.
+		if (this._deferUpdatingDynamicLayout) {
+			this._deferUpdatingDynamicLayout = false;
+			this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+		}
 		if (!this.maintainScrollTimer.value) {
 			this.widget.layoutDynamicChatTreeItemMode();
 		}
@@ -222,7 +227,14 @@ class QuickChat extends Disposable {
 
 	private registerListeners(parent: HTMLElement): void {
 		this._register(this.layoutService.onDidLayout(() => {
-			this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+			if (this.widget.visible) {
+				this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+			} else {
+				// If the chat is not visible, then we should defer updating the layout
+				// because it relies on offsetHeight which only works correctly
+				// when the chat is visible.
+				this._deferUpdatingDynamicLayout = true;
+			}
 		}));
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
