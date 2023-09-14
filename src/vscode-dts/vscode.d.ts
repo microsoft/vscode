@@ -2479,7 +2479,7 @@ declare module 'vscode' {
 		 *
 		 * Example Kinds/Actions:
 		 * - `notebook.source.organizeImports` (might move all imports to a new top cell)
-		 * - `notebook.normalizeVariableNames` (might rename all variables to a standardized casing format)
+		 * - `notebook.source.normalizeVariableNames` (might rename all variables to a standardized casing format)
 		 */
 		static readonly Notebook: CodeActionKind;
 
