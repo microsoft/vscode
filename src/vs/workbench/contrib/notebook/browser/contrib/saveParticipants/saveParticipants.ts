@@ -7,19 +7,21 @@ import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { CodeActionProvider, CodeActionTriggerType, IWorkspaceTextEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
+import { IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,8 +30,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { SaveReason } from 'vs/workbench/common/editor';
-import { ICellViewModel, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -111,46 +113,46 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
-			await this.doTrimTrailingWhitespace(workingCopy, context, progress);
+			await this.doTrimTrailingWhitespace(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
 
-	private async doTrimTrailingWhitespace(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>) {
+	private async doTrimTrailingWhitespace(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, isAutoSaved: boolean, progress: IProgress<IProgressStep>) {
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
 		}
 
 		const disposable = new DisposableStore();
 		const notebook = workingCopy.model.notebookModel;
+		const activeCellEditor = getActiveCellCodeEditor(this.editorService);
 
-		const cursors: Position[] = [];
-		let viewCell: ICellViewModel | undefined = undefined;
-
-		// autosave -- don't trim entire line, only up to cursor, so need to track position of cursor(s)
-		if (context.reason === SaveReason.AUTO) {
-			viewCell = getNotebookViewCell(this.editorService);
-			if (!viewCell) {
-				return;
-			}
-			const selections = viewCell.getSelections();
-			for (const sel of selections) {
-				if (viewCell.model.textModel) {
-					cursors.push(new Position(sel.selectionStartLineNumber, sel.startColumn));
-				}
-			}
-
-		}
-
+		let cursors: Position[] = [];
+		let prevSelection: Selection[] = [];
 		try {
 			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
-				if (cell.cellKind !== 2) {
+				if (cell.cellKind !== CellKind.Code) {
 					return [];
 				}
 
 				const ref = await this.textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
 				const model = ref.object.textEditorModel;
-				const ops = trimTrailingWhitespace(model, (viewCell && viewCell.model.textModel === model) ? cursors : []);
+
+				const isActiveCell = (activeCellEditor && cell.uri.toString() === activeCellEditor.getModel()?.uri.toString());
+				if (isActiveCell) {
+					prevSelection = activeCellEditor.getSelections() ?? [];
+					if (isAutoSaved) {
+						cursors = prevSelection.map(s => s.getPosition()); // get initial cursor positions
+						const snippetsRange = SnippetController2.get(activeCellEditor)?.getSessionEnclosingRange();
+						if (snippetsRange) {
+							for (let lineNumber = snippetsRange.startLineNumber; lineNumber <= snippetsRange.endLineNumber; lineNumber++) {
+								cursors.push(new Position(lineNumber, model.getLineMaxColumn(lineNumber)));
+							}
+						}
+					}
+				}
+
+				const ops = trimTrailingWhitespace(model, cursors);
 				if (!ops.length) {
 					return []; // Nothing to do
 				}
@@ -179,17 +181,17 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
-			this.doTrimFinalNewLines(workingCopy, context, progress);
+			this.doTrimFinalNewLines(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
 
 	/**
 	 * returns 0 if the entire file is empty
 	 */
-	private findLastNonEmptyLine(model: ITextModel): number {
-		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
-			const lineContent = model.getLineContent(lineNumber);
-			if (lineContent.length > 0) {
+	private findLastNonEmptyLine(textBuffer: IReadonlyTextBuffer): number {
+		for (let lineNumber = textBuffer.getLineCount(); lineNumber >= 1; lineNumber--) {
+			const lineLength = textBuffer.getLineLength(lineNumber);
+			if (lineLength) {
 				// this line has content
 				return lineNumber;
 			}
@@ -198,31 +200,14 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 		return 0;
 	}
 
-	private async doTrimFinalNewLines(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>): Promise<void> {
+	private async doTrimFinalNewLines(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, isAutoSaved: boolean, progress: IProgress<IProgressStep>): Promise<void> {
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
 		}
 
 		const disposable = new DisposableStore();
 		const notebook = workingCopy.model.notebookModel;
-
-		let cannotTouchLineNumber = 0;
-		let viewCell: ICellViewModel | undefined = undefined;
-
-		// autosave -- don't trim entire line, only up to cursor, so need to track position of cursor(s)
-		if (context.reason === SaveReason.AUTO) {
-			viewCell = getNotebookViewCell(this.editorService);
-			if (!viewCell) {
-				return;
-			}
-			const selections = viewCell.getSelections();
-			for (const sel of selections) {
-				if (viewCell.model.textModel) {
-					cannotTouchLineNumber = Math.max(cannotTouchLineNumber, sel.selectionStartLineNumber);
-				}
-			}
-		}
-
+		const activeCellEditor = getActiveCellCodeEditor(this.editorService);
 
 		try {
 			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
@@ -230,20 +215,30 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 					return;
 				}
 
+				// autosave -- don't trim every trailing line, just up to the cursor line
+				let cannotTouchLineNumber = 0;
+				const isActiveCell = (activeCellEditor && cell.uri.toString() === activeCellEditor.getModel()?.uri.toString());
+				if (isAutoSaved && isActiveCell) {
+					const selections = activeCellEditor.getSelections() ?? [];
+					for (const sel of selections) {
+						cannotTouchLineNumber = Math.max(cannotTouchLineNumber, sel.selectionStartLineNumber);
+					}
+				}
+
 				const ref = await this.textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
-				const model = ref.object.textEditorModel;
+				const textBuffer = cell.textBuffer;
 
-				const lastNonEmptyLine = this.findLastNonEmptyLine(model);
+				const lastNonEmptyLine = this.findLastNonEmptyLine(textBuffer);
 				const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
-				const deletionRange = model.validateRange(new Range(deleteFromLineNumber, 1, model.getLineCount(), model.getLineMaxColumn(model.getLineCount())));
+				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
 
 				if (deletionRange.isEmpty()) {
 					return;
 				}
 
 				// create the edit to delete all lines in deletionRange
-				return new ResourceTextEdit(model.uri, { range: deletionRange, text: '' }, model.getVersionId());
+				return new ResourceTextEdit(cell.uri, { range: deletionRange, text: '' }, cell.textModel?.getVersionId());
 			}));
 
 			const filteredEdits = allCellEdits.flat().filter(edit => edit !== undefined) as ResourceEdit[];
@@ -260,7 +255,6 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		// @IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 	) { }
@@ -287,20 +281,18 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 				const ref = await this.textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
-				const model = ref.object.textEditorModel;
 
-				const lineCount = model.getLineCount();
-				const lastLine = model.getLineContent(lineCount);
-				const lastLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(lastLine) === -1;
+				const lineCount = cell.textBuffer.getLineCount();
+				const lastLineIsEmptyOrWhitespace = cell.textBuffer.getLineFirstNonWhitespaceColumn(lineCount) === 0;
 
 				if (!lineCount || lastLineIsEmptyOrWhitespace) {
 					return;
 				}
 
-				return new ResourceTextEdit(model.uri, { range: new Range(lineCount, model.getLineMaxColumn(lineCount), lineCount, model.getLineMaxColumn(lineCount)), text: model.getEOL() }, model.getVersionId());
+				return new ResourceTextEdit(cell.uri, { range: new Range(lineCount + 1, cell.textBuffer.getLineLength(lineCount), lineCount + 1, cell.textBuffer.getLineLength(lineCount)), text: cell.textBuffer.getEOL() }, cell.textModel?.getVersionId());
 			}));
 
-			const filteredEdits = allCellEdits.flat().filter(edit => edit !== undefined) as ResourceEdit[];
+			const filteredEdits = allCellEdits.filter(edit => edit !== undefined) as ResourceEdit[];
 			await this.bulkEditService.apply(filteredEdits, { label: localize('insertFinalNewLine', "Insert Final New Line"), code: 'undoredo.insertFinalNewLine' });
 
 		} finally {
@@ -502,15 +494,11 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	}
 }
 
-function getNotebookViewCell(editorService: IEditorService): ICellViewModel | undefined {
+function getActiveCellCodeEditor(editorService: IEditorService): ICodeEditor | undefined {
 	const activePane = editorService.activeEditorPane;
 	const notebookEditor = getNotebookEditorFromEditorPane(activePane);
-	const notebookViewModel = notebookEditor?.getViewModel();
-	const cellSelections = notebookViewModel?.getSelections();
-	if (!cellSelections || !notebookViewModel || !notebookEditor?.textModel) {
-		return;
-	}
-	return notebookViewModel.viewCells[cellSelections[0].start];
+	const activeCodeEditor = notebookEditor?.activeCodeEditor;
+	return activeCodeEditor;
 }
 
 export class SaveParticipantsContribution extends Disposable implements IWorkbenchContribution {
@@ -528,7 +516,6 @@ export class SaveParticipantsContribution extends Disposable implements IWorkben
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FormatOnSaveParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(FinalNewLineParticipant)));
 		this._register(this.workingCopyFileService.addSaveParticipant(this.instantiationService.createInstance(TrimFinalNewLinesParticipant)));
-
 	}
 }
 
