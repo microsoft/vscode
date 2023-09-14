@@ -279,6 +279,10 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	}
 }
 
+let oldContainer: HTMLElement | undefined;
+let editorPartContainer: HTMLElement | undefined;
+let childWindow: Window | undefined;
+
 class PopEditorPartOutAction extends Action2 {
 
 	constructor() {
@@ -304,79 +308,92 @@ class PopEditorPartOutAction extends Action2 {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const themeService = accessor.get(IThemeService);
 
-		const refs = window.open('about:blank', undefined, `width=800,height=600`);
-		const childWindow = refs?.window as Window;
+		if (oldContainer) {
+			oldContainer.appendChild(editorPartContainer!);
+			childWindow?.close();
 
-		const metaCharset = childWindow.document.head.appendChild(document.createElement('meta'));
-		metaCharset.setAttribute('charset', 'utf-8');
+			layoutService.layout();
 
-		const csp = childWindow.document.head.appendChild(document.createElement('meta'));
-		csp.setAttribute('http-equiv', 'Content-Security-Policy');
-		csp.setAttribute('content', `default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';`);
+			oldContainer = undefined;
+			editorPartContainer = undefined;
+			childWindow = undefined;
+		} else {
+			const refs = window.open('about:blank', undefined, `width=800,height=600`);
+			childWindow = refs?.window as Window;
 
-		// Copy style sheets over from the initial document
-		// so that the player looks the same.
-		[...document.styleSheets].forEach((styleSheet) => {
-			try {
-				const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
-				const style = document.createElement('style');
+			const metaCharset = childWindow.document.head.appendChild(document.createElement('meta'));
+			metaCharset.setAttribute('charset', 'utf-8');
 
-				style.textContent = cssRules;
-				childWindow.document.head.appendChild(style);
-			} catch (e) {
-				const link = document.createElement('link');
+			const csp = childWindow.document.head.appendChild(document.createElement('meta'));
+			csp.setAttribute('http-equiv', 'Content-Security-Policy');
+			csp.setAttribute('content', `default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';`);
 
-				link.rel = 'stylesheet';
-				link.type = styleSheet.type;
-				(link as any).media = styleSheet.media;
-				(link as any).href = styleSheet.href;
-				childWindow.document.head.appendChild(link);
+			// Copy style sheets over from the initial document
+			// so that the player looks the same.
+			[...document.styleSheets].forEach((styleSheet) => {
+				try {
+					const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
+					const style = document.createElement('style');
+
+					style.textContent = cssRules;
+					childWindow!.document.head.appendChild(style);
+				} catch (e) {
+					const link = document.createElement('link');
+
+					link.rel = 'stylesheet';
+					link.type = styleSheet.type;
+					(link as any).media = styleSheet.media;
+					(link as any).href = styleSheet.href;
+					childWindow!.document.head.appendChild(link);
+				}
+			});
+
+			const codiconFontStyle = document.createElement('style');
+			codiconFontStyle.textContent = `
+			@font-face {
+				font-family: "codicon";
+				font-display: block;
+				src: url("vscode-file:/Users/bpasero/Development/Microsoft/vscode/src/vs/base/browser/ui/codicons/codicon/codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 			}
-		});
 
-		const codiconFontStyle = document.createElement('style');
-		codiconFontStyle.textContent = `
-		@font-face {
-			font-family: "codicon";
-			font-display: block;
-			src: url("vscode-file:/Users/bpasero/Development/Microsoft/vscode/src/vs/base/browser/ui/codicons/codicon/codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+			.codicon[class*='codicon-'] {
+				font: normal normal normal 16px/1 codicon;
+				display: inline-block;
+				text-decoration: none;
+				text-rendering: auto;
+				text-align: center;
+				text-transform: none;
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+				user-select: none;
+				-webkit-user-select: none;
+			}
+			`;
+			childWindow.document.head.appendChild(codiconFontStyle);
+
+			const iconsStyleSheet = getIconsStyleSheet(themeService);
+			const iconsStyle = document.createElement('style');
+			iconsStyle.textContent = iconsStyleSheet.getCSS();
+			childWindow.document.head.appendChild(iconsStyle);
+
+			const workbenchContainer = document.createElement('div');
+			workbenchContainer.className = 'file-icons-enabled enable-motion monaco-workbench mac chromium nopanel noauxiliarybar macos-bigsur-or-newer maximized vs vscode-theme-defaults-themes-light_plus-json';
+
+			const editorPart = layoutService.getPart(Parts.EDITOR_PART)!;
+			oldContainer = editorPart.getContainer()?.parentElement as HTMLElement;
+			editorPartContainer = editorPart.element;
+			workbenchContainer.appendChild(editorPart.element);
+
+			childWindow.document.body.className = 'mac';
+			childWindow.document.body.append(workbenchContainer);
+
+			editorPart.layout(800, 600, 0, 0);
+
+			addDisposableListener(childWindow, EventType.RESIZE, e => {
+				const dim = getClientArea(childWindow!.document.body);
+				editorPart.layout(dim.width, dim.height, 0, 0);
+			});
 		}
-
-		.codicon[class*='codicon-'] {
-			font: normal normal normal 16px/1 codicon;
-			display: inline-block;
-			text-decoration: none;
-			text-rendering: auto;
-			text-align: center;
-			text-transform: none;
-			-webkit-font-smoothing: antialiased;
-			-moz-osx-font-smoothing: grayscale;
-			user-select: none;
-			-webkit-user-select: none;
-		}
-		`;
-		childWindow.document.head.appendChild(codiconFontStyle);
-
-		const iconsStyleSheet = getIconsStyleSheet(themeService);
-		const iconsStyle = document.createElement('style');
-		iconsStyle.textContent = iconsStyleSheet.getCSS();
-		childWindow.document.head.appendChild(iconsStyle);
-
-		const workbenchContainer = document.createElement('div');
-		workbenchContainer.className = 'file-icons-enabled enable-motion monaco-workbench mac chromium nopanel noauxiliarybar macos-bigsur-or-newer maximized vs vscode-theme-defaults-themes-light_plus-json';
-
-		const editorPart = layoutService.getPart(Parts.EDITOR_PART)!;
-		workbenchContainer.appendChild(editorPart.element);
-
-		childWindow.document.body.className = 'mac';
-		childWindow.document.body.append(workbenchContainer);
-
-		editorPart.layout(800, 600, 0, 0);
-
-		addDisposableListener(childWindow, EventType.RESIZE, e => {
-			const dim = getClientArea(childWindow.document.body);
-			editorPart.layout(dim.width, dim.height, 0, 0);
-		});
 	}
 }
 
