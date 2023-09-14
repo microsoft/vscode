@@ -704,7 +704,24 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
-	handler: async (accessor: ServicesAccessor) => {
+	handler: async (accessor: ServicesAccessor, debugType: string | unknown) => {
+		if (debugType) {
+			const debugService = accessor.get(IDebugService);
+			const configManager = debugService.getConfigurationManager();
+			const dynamicProviders = await configManager.getDynamicProviders();
+			for (const provider of dynamicProviders) {
+				if (provider.type === debugType) {
+					const pick = await provider.pick();
+					if (pick) {
+						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
+						debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
+
+						return;
+					}
+				}
+			}
+		}
+
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(DEBUG_QUICK_ACCESS_PREFIX);
 	}
