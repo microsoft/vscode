@@ -573,7 +573,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (action.name === 'Move to file') {
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
-			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined
+			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
 			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiQuickFix')) {
 				if (Extract_Constant.matches(action)
 					|| Extract_Function.matches(action)
@@ -582,22 +582,22 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 					|| action.name.startsWith('Infer function return')) {
 					const newName = Extract_Constant.matches(action) ? 'newLocal'
 						: Extract_Function.matches(action) ? 'newFunction'
-						: Extract_Type.matches(action) ? 'NewType'
-						: Extract_Interface.matches(action) ? 'NewInterface'
-						: action.name.startsWith('Infer function return') ? 'newReturnType'
-						: '';
+							: Extract_Type.matches(action) ? 'NewType'
+								: Extract_Interface.matches(action) ? 'NewInterface'
+									: action.name.startsWith('Infer function return') ? 'newReturnType'
+										: '';
 					copilotRename = info => ({
 						title: '',
 						command: EditorChatFollowUp.ID,
 						arguments: [<EditorChatFollowUp.Args>{
 							message: `Rename ${newName} to a better name based on usage.`,
-							expand: Extract_Constant.matches(action) ?  {
+							expand: Extract_Constant.matches(action) ? {
 								kind: 'navtree-function',
 								pos: typeConverters.Position.fromLocation(info.renameLocation!),
-							 } : {
+							} : {
 								kind: 'refactor-info',
 								refactor: info,
-							 },
+							},
 							document,
 						}]
 					});

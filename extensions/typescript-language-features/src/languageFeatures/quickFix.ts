@@ -321,7 +321,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		action: Proto.CodeFixAction
 	): VsCodeCodeAction[] {
 		const actions: VsCodeCodeAction[] = [];
-		let codeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
+		const codeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, action);
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
@@ -332,14 +332,14 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		actions.push(codeAction);
 
 		if (vscode.workspace.getConfiguration('typescript').get('experimental.aiQuickFix')) {
-			let message: string | undefined
-			let expand: Expand | undefined
+			let message: string | undefined;
+			let expand: Expand | undefined;
 
-			if(action.fixName === fixNames.classIncorrectlyImplementsInterface) {
+			if (action.fixName === fixNames.classIncorrectlyImplementsInterface) {
 				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
-				expand = { kind: 'code-action', action }
+				expand = { kind: 'code-action', action };
 			}
-			else if(action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
+			else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
 				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
 				expand = { kind: 'code-action', action };
 			}
@@ -363,18 +363,18 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				actions.push(inferFromBody);
 			}
 			else if (action.fixName === fixNames.addNameToNamelessParameter) {
-				const newText = action.changes.map(change => change.textChanges.map(textChange => textChange.newText).join('')).join('')
-				message = `Rename the parameter ${newText} with a more meaningful name.`,
+				const newText = action.changes.map(change => change.textChanges.map(textChange => textChange.newText).join('')).join('');
+				message = `Rename the parameter ${newText} with a more meaningful name.`;
 				expand = {
 					kind: 'navtree-function',
 					pos: diagnostic.range.start
 				};
 			}
-			if (expand && message != null) {
+			if (expand && message !== undefined) {
 				codeAction.command = {
 					command: CompositeCommand.ID,
 					title: '',
-					arguments: [codeAction.command,  {
+					arguments: [codeAction.command, {
 						command: EditorChatFollowUp.ID,
 						title: '',
 						arguments: [<EditorChatFollowUp.Args>{
@@ -383,7 +383,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 							document
 						}],
 					}],
-				}
+				};
 			}
 		}
 		return actions;
