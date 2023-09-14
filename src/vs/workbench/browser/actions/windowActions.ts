@@ -334,17 +334,12 @@ class PopEditorPartOutAction extends Action2 {
 			}
 		});
 
-		const iconsStyleSheet = getIconsStyleSheet(themeService);
-		let style = document.createElement('style');
-		style.textContent = iconsStyleSheet.getCSS();
-		childWindow.document.head.appendChild(style);
-
-		style = document.createElement('style');
-		style.textContent = `
+		const codiconFontStyle = document.createElement('style');
+		codiconFontStyle.textContent = `
 		@font-face {
 			font-family: "codicon";
 			font-display: block;
-			src: url("/Users/bpasero/Development/Microsoft/vscode/src/vs/base/browser/ui/codicons/codicon/codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+			src: url("vscode-file:/Users/bpasero/Development/Microsoft/vscode/src/vs/base/browser/ui/codicons/codicon/codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 		}
 
 		.codicon[class*='codicon-'] {
@@ -360,7 +355,12 @@ class PopEditorPartOutAction extends Action2 {
 			-webkit-user-select: none;
 		}
 		`;
-		childWindow.document.head.appendChild(style);
+		childWindow.document.head.appendChild(codiconFontStyle);
+
+		const iconsStyleSheet = getIconsStyleSheet(themeService);
+		const iconsStyle = document.createElement('style');
+		iconsStyle.textContent = iconsStyleSheet.getCSS();
+		childWindow.document.head.appendChild(iconsStyle);
 
 		const workbenchContainer = document.createElement('div');
 		workbenchContainer.className = 'file-icons-enabled enable-motion monaco-workbench mac chromium nopanel noauxiliarybar macos-bigsur-or-newer maximized vs vscode-theme-defaults-themes-light_plus-json';
