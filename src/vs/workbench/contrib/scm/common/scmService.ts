@@ -272,7 +272,7 @@ class SCMInputHistory {
 	}
 }
 
-const didMigrate = false;
+let didMigrate = false;
 
 // Migrates from Application scope storage to Workspace scope.
 // TODO@joaomoreno: Remove from January 2024 onwards.
@@ -281,34 +281,26 @@ function migrateStorage(storageService: IStorageService) {
 		return;
 	}
 
-	// /**
-	//  */
-	// private static migrateStorage(storageService: IStorageService): void {
-	// 	if (SCMService.DidMigrate) {
-	// 		return;
-	// 	}
+	// Garbage collect
+	const machineKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
 
-	// 	// Garbage collect
-	// 	const machineKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
+	for (const key of machineKeys) {
+		try {
+			const history = JSON.parse(storageService.get(key, StorageScope.APPLICATION, ''));
 
-	// 	for (const key of machineKeys) {
-	// 		try {
-	// 			const history = JSON.parse(storageService.get(key, StorageScope.APPLICATION, ''));
+			if (!(Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000)) {
+				console.log('ok');
+			}
+		} finally {
+			// storageService.remove(key, StorageScope.APPLICATION);
+		}
+	}
 
-	// 			if (!(Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000)) {
-	// 				// migrate key
-	// 			}
-	// 		} finally {
-	// 			storageService.remove(key, StorageScope.APPLICATION);
-	// 		}
-	// 	}
+	// const history =
 
-	// 	const history =
+	// storageService.store('scm.history', '', StorageScope.WORKSPACE, StorageTarget.USER);
 
-	// 	storageService.store('scm.history', '', StorageScope.WORKSPACE, StorageTarget.USER);
-
-	// 	SCMService.DidMigrate = true;
-	// }
+	didMigrate = true;
 }
 
 export class SCMService implements ISCMService {
