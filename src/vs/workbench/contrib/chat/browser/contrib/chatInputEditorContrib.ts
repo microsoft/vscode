@@ -421,6 +421,37 @@ class AgentCompletions extends Disposable {
 				};
 			}
 		}));
+
+		// list subcommands when the query is empty, insert agent+subcommand
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatAgentAndSubcommand',
+			triggerCharacters: ['/'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					return;
+				}
+
+				if (model.getValue().trim() !== '/') {
+					// Only when the input only contains a slash
+					return;
+				}
+
+				const agents = this.chatAgentService.getAgents();
+				return <CompletionList>{
+					suggestions: agents.flatMap(a => a.metadata.subCommands.map((c, i) => {
+						const withSlash = `/${c.name}`;
+						return <CompletionItem>{
+							label: withSlash,
+							insertText: `@${a.id} ${withSlash} `,
+							detail: c.description,
+							range: new Range(1, 1, 1, 1),
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway
+						};
+					}))
+				};
+			}
+		}));
 	}
 }
 
