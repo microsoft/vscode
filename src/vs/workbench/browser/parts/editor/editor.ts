@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IMutableEditorGroup, IReadableEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -31,6 +31,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
+	pinnedTabsSeparateRow: false,
 	tabHeight: 'normal',
 	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
@@ -124,7 +125,15 @@ export interface IEditorGroupTitleHeight {
 	offset: number;
 }
 
-export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
+export interface IMutableEditorGroupView extends IDisposable, ISerializableView, IMutableEditorGroup {
+
+	setActive(isActive: boolean): void;
+
+	relayout(): void;
+	notifyIndexChanged(newIndex: number): void;
+}
+
+export interface IReadableEditorGroupView extends IDisposable, ISerializableView, IReadableEditorGroup {
 
 	readonly onDidFocus: Event<void>;
 
@@ -142,13 +151,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly titleHeight: IEditorGroupTitleHeight;
 
 	readonly disposed: boolean;
-
-	setActive(isActive: boolean): void;
-
-	notifyIndexChanged(newIndex: number): void;
-
-	relayout(): void;
 }
+
+export interface IEditorGroupView extends IMutableEditorGroupView, IReadableEditorGroupView { }
 
 export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {
 	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
@@ -187,6 +192,12 @@ export interface IInternalEditorTitleControlOptions {
 	 * The caller must ensure to update the title control then.
 	 */
 	skipTitleUpdate?: boolean;
+
+	/**
+	 * Weather to stick the opened editor
+	 * Added to support sticky editor tab bar
+	 */
+	forceOpenWithSticky?: boolean;
 }
 
 export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {

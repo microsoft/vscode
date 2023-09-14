@@ -686,7 +686,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleControl.updateOptions(event.oldPartOptions, event.newPartOptions);
 
 		// Title control Switch between showing tabs <=> not showing tabs
-		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+		if (
+			event.oldPartOptions.showTabs !== event.newPartOptions.showTabs ||
+			event.oldPartOptions.pinnedTabsSeparateRow !== event.newPartOptions.pinnedTabsSeparateRow
+		) {
 
 			// Re-layout
 			this.relayout();
@@ -927,7 +930,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// title control and also make sure to emit this as an event
 			const newIndexOfEditor = this.getIndexOfEditor(editor);
 			if (newIndexOfEditor !== oldIndexOfEditor) {
-				this.titleControl.moveEditor(editor, oldIndexOfEditor, newIndexOfEditor);
+				this.titleControl.moveEditor(editor, oldIndexOfEditor, newIndexOfEditor, true);
 			}
 
 			// Forward sticky state to title control
@@ -974,12 +977,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : undefined,
 			pinned,
-			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
+			sticky: options?.sticky || internalOptions?.forceOpenWithSticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			active: this.count === 0 || !options || !options.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};
 
-		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index)) {
+		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index) && (!internalOptions || !internalOptions.forceOpenWithSticky)) {
 			// Special case: we are to open an editor sticky but at an index that is not sticky
 			// In that case we prefer to open the editor at the index but not sticky. This enables
 			// to drag a sticky editor to an index that is not sticky to unstick it.
@@ -1217,7 +1220,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.model.pin(editor);
 
 		// Forward to title control
-		this.titleControl.moveEditor(editor, currentIndex, moveToIndex);
+		this.titleControl.moveEditor(editor, currentIndex, moveToIndex, false);
 		this.titleControl.pinEditor(editor);
 	}
 
@@ -1249,6 +1252,35 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy) {
 			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
+	}
+
+	moveEditorToLastStickyPosition(candidate: EditorInput, target: EditorGroupView): void {
+		if (this === target) {
+			this.moveEditorToLastStickyPositionInsideGroup(candidate);
+		} else {
+			this.doMoveOrCopyEditorAcrossGroups(candidate, target, undefined, { keepCopy: false, forceOpenWithSticky: true });
+		}
+	}
+
+	private moveEditorToLastStickyPositionInsideGroup(candidate: EditorInput): void {
+		const currentIndex = this.model.indexOf(candidate);
+		if (currentIndex === -1 || currentIndex === this.stickyCount - 1) {
+			return; // do nothing if editor unknown in model or is already at the given index
+		}
+
+		// Update model and make sure to continue to use the editor we get from
+		// the model. It is possible that the editor was already opened and we
+		// want to ensure that we use the existing instance in that case.
+		const editor = this.model.getEditorByIndex(currentIndex);
+		if (!editor) {
+			return;
+		}
+
+		this.model.moveEditorToLastSticky(editor);
+		this.model.pin(editor);
+
+		this.titleControl.moveEditor(editor, currentIndex, this.stickyCount - 1, false);
+		this.titleControl.pinEditor(editor);
 	}
 
 	//#endregion

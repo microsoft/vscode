@@ -912,6 +912,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
+	moveEditorToLastStickyPosition(_editor: EditorInput, _target: IEditorGroup): void { }
 	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean> { return true; }

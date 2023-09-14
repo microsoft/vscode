@@ -32,6 +32,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
+	private actionsContainer: HTMLDivElement | undefined;
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	protected override create(parent: HTMLElement): void {
@@ -55,7 +56,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.group, {
+		const group = assertIsDefined(this.accessor.getGroup(this.tabsModel.id));
+		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, group, {
 			showFileIcons: false,
 			showSymbolIcons: true,
 			showDecorationColors: false,
@@ -67,12 +69,12 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
 		// Right Actions Container
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('title-actions');
-		titleContainer.appendChild(actionsContainer);
+		this.actionsContainer = document.createElement('div');
+		this.actionsContainer.classList.add('title-actions');
+		titleContainer.appendChild(this.actionsContainer);
 
 		// Editor actions toolbar
-		this.createEditorActionsToolBar(actionsContainer);
+		this.createEditorActionsToolBar(this.actionsContainer);
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
@@ -92,11 +94,24 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Context Menu
 		for (const event of [EventType.CONTEXT_MENU, TouchEventType.Contextmenu]) {
 			this._register(addDisposableListener(titleContainer, event, e => {
-				if (this.group.activeEditor) {
-					this.onContextMenu(this.group.activeEditor, e, titleContainer);
+				if (this.tabsModel.activeEditor) {
+					this.onContextMenu(this.tabsModel.activeEditor, e, titleContainer);
 				}
 			}));
 		}
+	}
+
+	override showEditorActionsToolbar(): void {
+		this.setEditorActionsToolbarVisibility(true);
+	}
+
+	override hideEditorActionsToolbar(): void {
+		this.setEditorActionsToolbarVisibility(false);
+	}
+
+	private setEditorActionsToolbarVisibility(visible: boolean): void {
+		const actionsContainer = assertIsDefined(this.actionsContainer);
+		actionsContainer.style.display = visible ? 'flex' : 'none';
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
@@ -109,15 +124,15 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private onTitleDoubleClick(e: MouseEvent): void {
 		EventHelper.stop(e);
 
-		this.group.pinEditor();
+		this.groupViewer.pinEditor();
 	}
 
 	private onTitleAuxClick(e: MouseEvent): void {
-		if (e.button === 1 /* Middle Button */ && this.group.activeEditor) {
+		if (e.button === 1 /* Middle Button */ && this.tabsModel.activeEditor) {
 			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
-			if (!preventEditorClose(this.group, this.group.activeEditor, EditorCloseMethod.MOUSE, this.accessor.partOptions)) {
-				this.group.closeEditor(this.group.activeEditor);
+			if (!preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.accessor.partOptions)) {
+				this.groupViewer.closeEditor(this.tabsModel.activeEditor);
 			}
 		}
 	}
@@ -231,9 +246,9 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private ifActiveEditorChanged(fn: () => void): boolean {
 		if (
-			!this.activeLabel.editor && this.group.activeEditor || 						// active editor changed from null => editor
-			this.activeLabel.editor && !this.group.activeEditor || 						// active editor changed from editor => null
-			(!this.activeLabel.editor || !this.group.isActive(this.activeLabel.editor))	// active editor changed from editorA => editorB
+			!this.activeLabel.editor && this.tabsModel.activeEditor || 						// active editor changed from null => editor
+			this.activeLabel.editor && !this.tabsModel.activeEditor || 						// active editor changed from editor => null
+			(!this.activeLabel.editor || !this.tabsModel.isActive(this.activeLabel.editor))	// active editor changed from editorA => editorB
 		) {
 			fn();
 
@@ -244,27 +259,27 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	private ifActiveEditorPropertiesChanged(fn: () => void): void {
-		if (!this.activeLabel.editor || !this.group.activeEditor) {
+		if (!this.activeLabel.editor || !this.tabsModel.activeEditor) {
 			return; // need an active editor to check for properties changed
 		}
 
-		if (this.activeLabel.pinned !== this.group.isPinned(this.group.activeEditor)) {
+		if (this.activeLabel.pinned !== this.tabsModel.isPinned(this.tabsModel.activeEditor)) {
 			fn(); // only run if pinned state has changed
 		}
 	}
 
 	private ifEditorIsActive(editor: EditorInput, fn: () => void): void {
-		if (this.group.isActive(editor)) {
+		if (this.tabsModel.isActive(editor)) {
 			fn();  // only run if editor is current active
 		}
 	}
 
 	private redraw(): void {
-		const editor = this.group.activeEditor ?? undefined;
+		const editor = this.tabsModel.activeEditor ?? undefined;
 		const options = this.accessor.partOptions;
 
-		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
-		const isGroupActive = this.accessor.activeGroup === this.group;
+		const isEditorPinned = editor ? this.tabsModel.isPinned(editor) : false;
+		const isGroupActive = this.accessor.activeGroup === this.groupViewer;
 
 		this.activeLabel = { editor, pinned: isEditorPinned };
 
@@ -345,7 +360,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
-		const isGroupActive = this.accessor.activeGroup === this.group;
+		const isGroupActive = this.accessor.activeGroup === this.groupViewer;
 
 		// Active: allow all actions
 		if (isGroupActive) {

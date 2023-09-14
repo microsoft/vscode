@@ -15,7 +15,7 @@ import { IInstantiationService, IConstructorSignature, ServicesAccessor, Branded
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IReadableEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { FileType, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/window/common/window';
@@ -1098,6 +1098,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
+	pinnedTabsSeparateRow?: boolean;
 	tabHeight?: 'normal' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
@@ -1350,7 +1351,7 @@ export enum EditorCloseMethod {
 	MOUSE
 }
 
-export function preventEditorClose(group: IEditorGroup, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
+export function preventEditorClose(group: IReadableEditorGroup, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
 	if (!group.isSticky(editor)) {
 		return false; // only interested in sticky editors
 	}

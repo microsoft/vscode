@@ -427,7 +427,146 @@ export const enum OpenEditorContext {
 	COPY_EDITOR = 3
 }
 
-export interface IEditorGroup {
+export interface IMutableEditorGroup {
+	/**
+	 * Get all editors that are currently opened in the group.
+	 *
+	 * @param order the order of the editors to use
+	 * @param options options to select only specific editors as instructed
+	 */
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
+
+	/**
+	 * Open an editor in this group.
+	 *
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor.
+	 */
+	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
+
+	/**
+	 * Opens editors in this group.
+	 *
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor. Since
+	 * a group can only ever have one active editor, even if many editors are
+	 * opened, the result will only be one editor.
+	 */
+	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | undefined>;
+
+	/**
+	 * Move an editor from this group either within this group or to another group.
+	 */
+	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+
+
+	/**
+	 * Move an editor from this group either within this group or to another group.
+	 * The editor will be moved to the last sticky position of the target group.
+	 */
+	moveEditorToLastStickyPosition(editor: EditorInput, target: IEditorGroup): void;
+
+	/**
+	 * Move editors from this group either within this group or to another group.
+	 */
+	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
+
+	/**
+	 * Copy an editor from this group to another group.
+	 *
+	 * Note: It is currently not supported to show the same editor more than once in the same group.
+	 */
+	copyEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
+
+	/**
+	 * Copy editors from this group to another group.
+	 *
+	 * Note: It is currently not supported to show the same editor more than once in the same group.
+	 */
+	copyEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
+
+	/**
+	 * Close an editor from the group. This may trigger a confirmation dialog if
+	 * the editor is dirty and thus returns a promise as value.
+	 *
+	 * @param editor the editor to close, or the currently active editor
+	 * if unspecified.
+	 *
+	 * @returns a promise when the editor is closed or not. If `true`, the editor
+	 * is closed and if `false` there was a veto closing the editor, e.g. when it
+	 * is dirty.
+	 */
+	closeEditor(editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean>;
+
+	/**
+	 * Closes specific editors in this group. This may trigger a confirmation dialog if
+	 * there are dirty editors and thus returns a promise as value.
+	 *
+	 * @returns a promise whether the editors were closed or not. If `true`, the editors
+	 * were closed and if `false` there was a veto closing the editors, e.g. when one
+	 * is dirty.
+	 */
+	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean>;
+
+	/**
+	 * Closes all editors from the group. This may trigger a confirmation dialog if
+	 * there are dirty editors and thus returns a promise as value.
+	 *
+	 * @returns a promise when all editors are closed.
+	 */
+	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Replaces editors in this group with the provided replacement.
+	 *
+	 * @param editors the editors to replace
+	 *
+	 * @returns a promise that is resolved when the replaced active
+	 * editor (if any) has finished loading.
+	 */
+	replaceEditors(editors: IEditorReplacement[]): Promise<void>;
+
+	/**
+	 * Set an editor to be pinned. A pinned editor is not replaced
+	 * when another editor opens at the same location.
+	 *
+	 * @param editor the editor to pin, or the currently active editor
+	 * if unspecified.
+	 */
+	pinEditor(editor?: EditorInput): void;
+
+	/**
+	 * Set an editor to be sticky. A sticky editor is showing in the beginning
+	 * of the tab stripe and will not be impacted by close operations.
+	 *
+	 * @param editor the editor to make sticky, or the currently active editor
+	 * if unspecified.
+	 */
+	stickEditor(editor?: EditorInput): void;
+
+	/**
+	 * Set an editor to be non-sticky and thus moves back to a location after
+	 * sticky editors and can be closed normally.
+	 *
+	 * @param editor the editor to make unsticky, or the currently active editor
+	 * if unspecified.
+	 */
+	unstickEditor(editor?: EditorInput): void;
+
+	/**
+	 * Whether this editor group should be locked or not.
+	 *
+	 * See {@linkcode IEditorGroup.isLocked `isLocked`}
+	 */
+	lock(locked: boolean): void;
+
+	/**
+	 * Move keyboard focus into the group.
+	 */
+	focus(): void;
+}
+
+export interface IReadableEditorGroup {
 
 	/**
 	 * An event which fires whenever the underlying group model changes.
@@ -545,14 +684,6 @@ export interface IEditorGroup {
 	readonly scopedContextKeyService: IContextKeyService;
 
 	/**
-	 * Get all editors that are currently opened in the group.
-	 *
-	 * @param order the order of the editors to use
-	 * @param options options to select only specific editors as instructed
-	 */
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
-
-	/**
 	 * Finds all editors for the given resource that are currently
 	 * opened in the group. This method will return an entry for
 	 * each editor that reports a `resource` that matches the
@@ -584,24 +715,6 @@ export interface IEditorGroup {
 	isLast(editor: EditorInput): boolean;
 
 	/**
-	 * Open an editor in this group.
-	 *
-	 * @returns a promise that resolves around an IEditor instance unless
-	 * the call failed, or the editor was not opened as active editor.
-	 */
-	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
-
-	/**
-	 * Opens editors in this group.
-	 *
-	 * @returns a promise that resolves around an IEditor instance unless
-	 * the call failed, or the editor was not opened as active editor. Since
-	 * a group can only ever have one active editor, even if many editors are
-	 * opened, the result will only be one editor.
-	 */
-	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | undefined>;
-
-	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
 	isPinned(editorOrIndex: EditorInput | number): boolean;
@@ -623,111 +736,9 @@ export interface IEditorGroup {
 	 * @param options fine tune how to match editors
 	 */
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
-
-	/**
-	 * Move an editor from this group either within this group or to another group.
-	 */
-	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
-
-	/**
-	 * Move editors from this group either within this group or to another group.
-	 */
-	moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
-
-	/**
-	 * Copy an editor from this group to another group.
-	 *
-	 * Note: It is currently not supported to show the same editor more than once in the same group.
-	 */
-	copyEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
-
-	/**
-	 * Copy editors from this group to another group.
-	 *
-	 * Note: It is currently not supported to show the same editor more than once in the same group.
-	 */
-	copyEditors(editors: EditorInputWithOptions[], target: IEditorGroup): void;
-
-	/**
-	 * Close an editor from the group. This may trigger a confirmation dialog if
-	 * the editor is dirty and thus returns a promise as value.
-	 *
-	 * @param editor the editor to close, or the currently active editor
-	 * if unspecified.
-	 *
-	 * @returns a promise when the editor is closed or not. If `true`, the editor
-	 * is closed and if `false` there was a veto closing the editor, e.g. when it
-	 * is dirty.
-	 */
-	closeEditor(editor?: EditorInput, options?: ICloseEditorOptions): Promise<boolean>;
-
-	/**
-	 * Closes specific editors in this group. This may trigger a confirmation dialog if
-	 * there are dirty editors and thus returns a promise as value.
-	 *
-	 * @returns a promise whether the editors were closed or not. If `true`, the editors
-	 * were closed and if `false` there was a veto closing the editors, e.g. when one
-	 * is dirty.
-	 */
-	closeEditors(editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<boolean>;
-
-	/**
-	 * Closes all editors from the group. This may trigger a confirmation dialog if
-	 * there are dirty editors and thus returns a promise as value.
-	 *
-	 * @returns a promise when all editors are closed.
-	 */
-	closeAllEditors(options?: ICloseAllEditorsOptions): Promise<boolean>;
-
-	/**
-	 * Replaces editors in this group with the provided replacement.
-	 *
-	 * @param editors the editors to replace
-	 *
-	 * @returns a promise that is resolved when the replaced active
-	 * editor (if any) has finished loading.
-	 */
-	replaceEditors(editors: IEditorReplacement[]): Promise<void>;
-
-	/**
-	 * Set an editor to be pinned. A pinned editor is not replaced
-	 * when another editor opens at the same location.
-	 *
-	 * @param editor the editor to pin, or the currently active editor
-	 * if unspecified.
-	 */
-	pinEditor(editor?: EditorInput): void;
-
-	/**
-	 * Set an editor to be sticky. A sticky editor is showing in the beginning
-	 * of the tab stripe and will not be impacted by close operations.
-	 *
-	 * @param editor the editor to make sticky, or the currently active editor
-	 * if unspecified.
-	 */
-	stickEditor(editor?: EditorInput): void;
-
-	/**
-	 * Set an editor to be non-sticky and thus moves back to a location after
-	 * sticky editors and can be closed normally.
-	 *
-	 * @param editor the editor to make unsticky, or the currently active editor
-	 * if unspecified.
-	 */
-	unstickEditor(editor?: EditorInput): void;
-
-	/**
-	 * Whether this editor group should be locked or not.
-	 *
-	 * See {@linkcode IEditorGroup.isLocked `isLocked`}
-	 */
-	lock(locked: boolean): void;
-
-	/**
-	 * Move keyboard focus into the group.
-	 */
-	focus(): void;
 }
+
+export interface IEditorGroup extends IMutableEditorGroup, IReadableEditorGroup { }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {
 	const group = obj as IEditorGroup | undefined;
