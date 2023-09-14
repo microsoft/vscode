@@ -38,7 +38,6 @@ const variableTextDecorationType = 'chat-variable-text';
 
 class InputEditorDecorations extends Disposable {
 
-	// private _slashCommandContentWidget: SlashCommandContentWidget | undefined;
 	private _previouslyUsedSlashCommands = new Set<string>();
 
 	constructor(
