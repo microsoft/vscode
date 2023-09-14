@@ -35,7 +35,7 @@ export class IndentRangeProvider implements RangeProvider {
 }
 
 // public only for testing
-class RangesCollector {
+export class RangesCollector {
 	private readonly _startIndexes: number[];
 	private readonly _endIndexes: number[];
 	private readonly _indentOccurrences: number[];

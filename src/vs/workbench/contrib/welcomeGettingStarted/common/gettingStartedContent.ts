@@ -65,16 +65,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:welcome.showNewFileEntries',
 		}
 	},
-	// {
-	// 	id: 'welcome.showNewFolderEntries',
-	// 	title: localize('gettingStarted.newFolder.title', "New Folder..."),
-	// 	description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
-	// 	icon: Codicon.newFolder,
-	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'welcome.showNewFolderEntries',
-	// 	}
-	// },
 	{
 		id: 'topLevelOpenMac',
 		title: localize('gettingStarted.openMac.title', "Open..."),
@@ -153,25 +143,25 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
-		id: 'topLevelVideoTutorials',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		icon: Codicon.playCircle,
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == on',
+		id: 'topLevelRemoteOpen',
+		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
+		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
+		when: '!isWeb',
+		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',
-			command: 'https://aka.ms/vscode-getting-started-video',
+			command: 'command:workbench.action.remote.showMenu',
 		}
 	},
 	{
-		id: 'topLevelVideoTutorialsExperimental',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == experimental',
-		icon: Codicon.playCircle,
+		id: 'topLevelOpenTunnel',
+		title: localize('gettingStarted.topLevelOpenTunnel.title', "Open Tunnel..."),
+		description: localize('gettingStarted.topLevelOpenTunnel.description', "Connect to a remote machine through a Tunnel"),
+		when: 'isWeb && showRemoteStartEntryInWeb',
+		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',
-			command: 'https://aka.ms/vscode-videos',
+			command: 'command:workbench.action.remote.showWebStartEntryActions',
 		}
 	},
 ];
@@ -396,6 +386,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
+					id: 'profiles',
+					title: localize('gettingStarted.profiles.title', "Customize VS Code with Profiles"),
+					description: localize('gettingStarted.profiles.description.interpolated', "Profiles let you create sets of VS Code customizations that include settings, extensions and UI state. Create your own profile from scratch or use the predefined set of profile templates for your specific workflow.\n{0}", Button(localize('tryProfiles', "Try Profiles"), 'command:workbench.profiles.actions.createProfile')),
+					media: {
+						type: 'svg', altText: 'VS Code Profiles', path: 'profiles.svg'
+					},
+				},
+				{
 					id: 'workspaceTrust',
 					title: localize('gettingStarted.workspaceTrust.title', "Safely browse and edit code"),
 					description: localize('gettingStarted.workspaceTrust.description.interpolated', "{0} lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always {1} later.", Button(localize('workspaceTrust', "Workspace Trust"), 'https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md'), Button(localize('enableTrust', "enable trust"), 'command:toSide:workbench.action.manageTrustedDomain')),
@@ -470,7 +468,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'installGit',
 					title: localize('gettingStarted.installGit.title', "Install Git"),
-					description: localize('gettingStarted.installGit.description.interpolated', "Install Git to track changes in your projects.\n{0}", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git')),
+					description: localize({ key: 'gettingStarted.installGit.description.interpolated', comment: ['The placeholders are command link items should not be translated'] }, "Install Git to track changes in your projects.\n{0}\n{1}Reload window{2} after installation to complete Git setup.", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git'), '[', '](command:workbench.action.reloadWindow)'),
 					when: 'git.missing',
 					media: {
 						type: 'svg', altText: 'Install Git.', path: 'git.svg',

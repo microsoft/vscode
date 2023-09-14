@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { API } from '../tsServer/api';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { DocumentSelector } from '../utils/documentSelector';
 
 
 interface Directive {

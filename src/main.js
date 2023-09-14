@@ -22,6 +22,7 @@ const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 const { stripComments } = require('./vs/base/common/stripComments');
+const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
@@ -32,16 +33,38 @@ const portable = bootstrapNode.configurePortable(product);
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event
 const args = parseCLIArgs();
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
+// Enable sandbox globally unless
+// 1) disabled via command line using either
+//    `--no-sandbox` or `--disable-chromium-sandbox` argument.
+// 2) argv.json contains `disable-chromium-sandbox: true`.
+if (args['sandbox'] &&
+	!args['disable-chromium-sandbox'] &&
+	!argvConfig['disable-chromium-sandbox']) {
+	app.enableSandbox();
+} else if (app.commandLine.hasSwitch('no-sandbox') &&
+	!app.commandLine.hasSwitch('disable-gpu-sandbox')) {
+	// Disable GPU sandbox whenever --no-sandbox is used.
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+} else {
+	app.commandLine.appendSwitch('no-sandbox');
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
+// Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
+if (process.platform === 'win32') {
+	const userDataUNCHost = getUNCHost(userDataPath);
+	if (userDataUNCHost) {
+		addUNCHostToAllowlist(userDataUNCHost); // enables to use UNC paths in userDataPath
+	}
+}
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
-
-// Configure static command line arguments
-const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Disable default menu (https://github.com/electron/electron/issues/35512)
 Menu.setApplicationMenu(null);
@@ -92,23 +115,20 @@ registerListeners();
  */
 let nlsConfigurationPromise = undefined;
 
-const metaDataFile = path.join(__dirname, 'nls.metadata.json');
-const language = getUserDefinedLocale(argvConfig);
 /**
- * @type {string | undefined}
+ * @type {String}
  **/
 // Use the most preferred OS language for language recommendation.
 // The API might return an empty array on Linux, such as when
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
-let osLocale = app.getPreferredSystemLanguages()?.[0] ?? 'en';
-if (osLocale) {
-	osLocale = processZhLocale(osLocale.toLowerCase());
-}
-
-if (language && osLocale) {
+const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+const osLocale = processZhLocale(resolved.toLowerCase());
+const metaDataFile = path.join(__dirname, 'nls.metadata.json');
+const locale = getUserDefinedLocale(argvConfig);
+if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale, osLocale);
 }
 
 // Pass in the locale to Electron so that the
@@ -120,7 +140,7 @@ if (language && osLocale) {
 // In that case, use `en` as the Electron locale.
 
 if (process.platform === 'win32' || process.platform === 'linux') {
-	const electronLocale = (!language || language === 'qps-ploc') ? 'en' : language;
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
@@ -181,7 +201,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile'
+		'force-color-profile',
+
+		// override which password-store is used
+		'password-store'
 	];
 
 	if (process.platform === 'linux') {
@@ -208,8 +231,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
 
-			// Color profile
-			if (argvKey === 'force-color-profile') {
+			if (
+				// Color profile
+				argvKey === 'force-color-profile' ||
+				// Password store
+				argvKey === 'password-store'
+			) {
 				if (argvValue) {
 					app.commandLine.appendSwitch(argvKey, argvValue);
 				}
@@ -249,10 +276,8 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
-	/* Following features are disabled from the runtime.
-	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
-	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
-	 */
+	// Following features are disabled from the runtime:
+	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 	// Support JS Flags
@@ -444,11 +469,6 @@ function getJSFlags(cliArgs) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
@@ -463,9 +483,17 @@ function parseCLIArgs() {
 			'user-data-dir',
 			'locale',
 			'js-flags',
-			'max-memory',
 			'crash-reporter-directory'
-		]
+		],
+		boolean: [
+			'disable-chromium-sandbox',
+		],
+		default: {
+			'sandbox': true
+		},
+		alias: {
+			'no-sandbox': 'sandbox'
+		}
 	});
 }
 
@@ -600,22 +628,28 @@ async function resolveNlsConfiguration() {
 	// First, we need to test a user defined locale. If it fails we try the app locale.
 	// If that fails we fall back to English.
 	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
-	if (!nlsConfiguration) {
-		// fallback to using app.getLocale() so that we have something for the locale.
-		// This can be removed after the move to Electron 22. Please note that getLocale() is only
-		// valid after we have received the app ready event. This is why the code is here.
-		osLocale ??= processZhLocale(app.getLocale().toLowerCase());
-
-		const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-		nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
-		if (!nlsConfiguration) {
-			nlsConfiguration = { locale: osLocale, availableLanguages: {} };
-		}
-	} else {
-		// We received a valid nlsConfig from a user defined locale
+	if (nlsConfiguration) {
+		return nlsConfiguration;
 	}
 
-	return nlsConfiguration;
+	// Try to use the app locale. Please note that the app locale is only
+	// valid after we have received the app ready event. This is why the
+	// code is here.
+
+	/**
+	 * @type string
+	 */
+	let appLocale = app.getLocale();
+	if (!appLocale) {
+		return { locale: 'en', osLocale, availableLanguages: {} };
+	}
+
+	// See above the comment about the loader and case sensitiveness
+	appLocale = processZhLocale(appLocale.toLowerCase());
+
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale, osLocale);
+	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }
 
 /**

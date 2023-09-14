@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-layering, local/code-import-patterns */
-// TODO@bpasero remove these once utility process is the only way
-import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
-import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-
 import { hostname, release } from 'os';
+import { MessagePortMain, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IPCServer, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
+import { firstOrDefault } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
+import { ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
+import { IClientConnectionFilter, Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
 import { CodeCacheCleaner } from 'vs/code/node/sharedProcess/contrib/codeCacheCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/node/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { LocalizationsUpdater } from 'vs/code/node/sharedProcess/contrib/localizationsUpdater';
@@ -31,7 +28,6 @@ import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsServ
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SharedProcessEnvironmentService } from 'vs/platform/sharedProcess/node/sharedProcessEnvironmentService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService, IExtensionTipsService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -62,8 +58,6 @@ import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogA
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
-import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
@@ -85,7 +79,6 @@ import { ISharedTunnelsService } from 'vs/platform/tunnel/common/tunnel';
 import { SharedTunnelsService } from 'vs/platform/tunnel/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/tunnel/node/sharedProcessTunnelService';
-import { ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { isLinux } from 'vs/base/common/platform';
@@ -107,8 +100,6 @@ import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/co
 import { ExtensionsContributions } from 'vs/code/node/sharedProcess/contrib/extensions';
 import { localize } from 'vs/nls';
 import { LogService } from 'vs/platform/log/common/logService';
-import { ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
-import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/node/sharedProcessLifecycleService';
 import { RemoteTunnelService } from 'vs/platform/remoteTunnel/node/remoteTunnelService';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
@@ -119,23 +110,24 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataA
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { RemoteStorageService } from 'vs/platform/storage/common/storageService';
+import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IVoiceRecognitionService, VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
+import { VoiceTranscriptionManager } from 'vs/code/node/sharedProcess/contrib/voiceTranscriber';
+import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 
-class SharedProcessMain extends Disposable {
+class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
-	private readonly server: IPCServer;
-
-	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
+	private readonly server = this._register(new UtilityProcessMessagePortServer(this));
 
 	private lifecycleService: SharedProcessLifecycleService | undefined = undefined;
 
-	constructor(private configuration: ISharedProcessConfiguration, private ipcRenderer?: typeof import('electron').ipcRenderer) {
-		super();
+	private readonly onDidWindowConnectRaw = this._register(new Emitter<MessagePortMain>());
 
-		if (isUtilityProcess(process)) {
-			this.server = this._register(new UtilityProcessMessagePortServer());
-		} else {
-			this.server = this._register(new BrowserWindowMessagePortServer());
-		}
+	constructor(private configuration: ISharedProcessConfiguration) {
+		super();
 
 		this.registerListeners();
 	}
@@ -153,29 +145,7 @@ class SharedProcessMain extends Disposable {
 			}
 		};
 		process.once('exit', onExit);
-		if (isUtilityProcess(process)) {
-			once(process.parentPort, 'vscode:electron-main->shared-process=exit', onExit);
-		} else {
-			this.ipcRenderer!.once('vscode:electron-main->shared-process=exit', onExit);
-		}
-
-		if (!isUtilityProcess(process)) {
-
-			// Shared process worker lifecycle
-			//
-			// We dispose the listener when the shared process is
-			// disposed to avoid disposing workers when the entire
-			// application is shutting down anyways.
-
-			const eventName = 'vscode:electron-main->shared-process=disposeWorker';
-			const onDisposeWorker = (event: unknown, configuration: IUtilityProcessWorkerConfiguration) => { this.onDisposeWorker(configuration); };
-			this.ipcRenderer!.on(eventName, onDisposeWorker);
-			this._register(toDisposable(() => this.ipcRenderer!.removeListener(eventName, onDisposeWorker)));
-		}
-	}
-
-	private onDisposeWorker(configuration: IUtilityProcessWorkerConfiguration): void {
-		this.sharedProcessWorkerService?.disposeWorker(configuration);
+		once(process.parentPort, SharedProcessLifecycle.exit, onExit);
 	}
 
 	async init(): Promise<void> {
@@ -207,7 +177,8 @@ class SharedProcessMain extends Disposable {
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
-			instantiationService.createInstance(UserDataProfilesCleaner)
+			instantiationService.createInstance(UserDataProfilesCleaner),
+			instantiationService.createInstance(VoiceTranscriptionManager, this.onDidWindowConnectRaw.event)
 		));
 	}
 
@@ -228,7 +199,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IPolicyService, policyService);
 
 		// Environment
-		const environmentService = new SharedProcessEnvironmentService(this.configuration.args, productService);
+		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
@@ -244,10 +215,6 @@ class SharedProcessMain extends Disposable {
 		// Lifecycle
 		this.lifecycleService = this._register(new SharedProcessLifecycleService(logService));
 		services.set(ISharedProcessLifecycleService, this.lifecycleService);
-
-		// Worker
-		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
-		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
@@ -292,7 +259,8 @@ class SharedProcessMain extends Disposable {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
-		services.set(IRequestService, new RequestChannelClient(mainProcessService.getChannel('request')));
+		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
+		services.set(IRequestService, requestService);
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
@@ -301,7 +269,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, false /* proxied to other processes */));
 
 		// Native Host
-		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
+		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'));
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
@@ -319,16 +287,15 @@ class SharedProcessMain extends Disposable {
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
-			const { installSourcePath } = environmentService;
 			if (productService.aiConfig?.ariaKey) {
-				const collectorAppender = new OneDataSystemAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
+				const collectorAppender = new OneDataSystemAppender(requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
 			}
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry, installSourcePath),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);
@@ -379,48 +346,39 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataProfileStorageService, new SyncDescriptor(NativeUserDataProfileStorageService, undefined, true));
 		services.set(IUserDataSyncResourceProviderService, new SyncDescriptor(UserDataSyncResourceProviderService, undefined, true));
 
-		// Terminal
-
-		const ptyHostService = new PtyHostService({
-			graceTime: LocalReconnectConstants.GraceTime,
-			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		},
-			false,
-			configurationService,
-			environmentService,
-			logService,
-			loggerService
-		);
-		ptyHostService.initialize();
-
-		services.set(ILocalPtyService, this._register(ptyHostService));
-
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService, undefined, false /* proxied to other processes */));
 
 		// Tunnel
+		const remoteSocketFactoryService = new RemoteSocketFactoryService();
+		services.set(IRemoteSocketFactoryService, remoteSocketFactoryService);
+		remoteSocketFactoryService.register(RemoteConnectionType.WebSocket, nodeSocketFactory);
 		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
 
 		// Remote Tunnel
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
 
+		// Voice Recognition
+		services.set(IVoiceRecognitionService, new SyncDescriptor(VoiceRecognitionService));
+
 		return new InstantiationService(services);
 	}
 
 	private initChannels(accessor: ServicesAccessor): void {
+
+		const disposables = this._register(new DisposableStore());
 
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
 		// Language Packs
-		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService));
+		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService), disposables);
 		this.server.registerChannel('languagePacks', languagePacksChannel);
 
 		// Diagnostics
-		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService), disposables);
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips
@@ -428,11 +386,11 @@ class SharedProcessMain extends Disposable {
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
 		// Checksum
-		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
+		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService), disposables);
 		this.server.registerChannel('checksum', checksumChannel);
 
 		// Profiling
-		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService));
+		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService), disposables);
 		this.server.registerChannel('v8InspectProfiling', profilingChannel);
 
 		// Settings Sync
@@ -440,7 +398,7 @@ class SharedProcessMain extends Disposable {
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService));
+		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService), disposables);
 		this.server.registerChannel('customEndpointTelemetry', customEndpointTelemetryChannel);
 
 		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
@@ -456,40 +414,20 @@ class SharedProcessMain extends Disposable {
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
 
-		// Terminal
-		const localPtyService = accessor.get(ILocalPtyService);
-		const localPtyChannel = ProxyChannel.fromService(localPtyService);
-		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
-
 		// Tunnel
-		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));
+		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService), disposables);
 		this.server.registerChannel(ipcSharedProcessTunnelChannelName, sharedProcessTunnelChannel);
 
-		// Worker
-		const sharedProcessWorkerChannel = ProxyChannel.fromService(accessor.get(ISharedProcessWorkerService));
-		this.server.registerChannel(ipcUtilityProcessWorkerChannelName, sharedProcessWorkerChannel);
-
 		// Remote Tunnel
-		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
+		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService), disposables);
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on global error events
-		if (isUtilityProcess(process)) {
-			process.on('uncaughtException', error => onUnexpectedError(error));
-			process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
-		} else {
-			(globalThis as any).addEventListener('unhandledrejection', (event: any) => {
-
-				// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
-				onUnexpectedError(event.reason);
-
-				// Prevent the printing of this event to the console
-				event.preventDefault();
-			});
-		}
+		process.on('uncaughtException', error => onUnexpectedError(error));
+		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => {
@@ -501,6 +439,27 @@ class SharedProcessMain extends Disposable {
 			logService.error(`[uncaught exception in sharedProcess]: ${message}`);
 		});
 	}
+
+	handledClientConnection(e: MessageEvent): boolean {
+
+		// This filter on message port messages will look for
+		// attempts of a window to connect raw to the shared
+		// process to handle these connections separate from
+		// our IPC based protocol.
+
+		if (e.data !== SharedProcessRawConnection.response) {
+			return false;
+		}
+
+		const port = firstOrDefault(e.ports);
+		if (port) {
+			this.onDidWindowConnectRaw.fire(port);
+
+			return true;
+		}
+
+		return false;
+	}
 }
 
 export async function main(configuration: ISharedProcessConfiguration): Promise<void> {
@@ -508,31 +467,15 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 	// create shared process and signal back to main that we are
 	// ready to accept message ports as client connections
 
-	let ipcRenderer: typeof import('electron').ipcRenderer | undefined = undefined;
-	if (!isUtilityProcess(process)) {
-		ipcRenderer = (await import('electron')).ipcRenderer;
-	}
-
-	const sharedProcess = new SharedProcessMain(configuration, ipcRenderer);
-
-	if (isUtilityProcess(process)) {
-		process.parentPort.postMessage('vscode:shared-process->electron-main=ipc-ready');
-	} else {
-		ipcRenderer!.send('vscode:shared-process->electron-main=ipc-ready');
-	}
+	const sharedProcess = new SharedProcessMain(configuration);
+	process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
 
 	// await initialization and signal this back to electron-main
 	await sharedProcess.init();
 
-	if (isUtilityProcess(process)) {
-		process.parentPort.postMessage('vscode:shared-process->electron-main=init-done');
-	} else {
-		ipcRenderer!.send('vscode:shared-process->electron-main=init-done');
-	}
+	process.parentPort.postMessage(SharedProcessLifecycle.initDone);
 }
 
-if (isUtilityProcess(process)) {
-	process.parentPort.once('message', (e: Electron.MessageEvent) => {
-		main(e.data as ISharedProcessConfiguration);
-	});
-}
+process.parentPort.once('message', (e: Electron.MessageEvent) => {
+	main(e.data as ISharedProcessConfiguration);
+});

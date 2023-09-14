@@ -342,6 +342,7 @@ export interface CssProperties {
 	fontWeight?: string;
 	fontSize?: string;
 	fontFamily?: string;
+	unicodeBidi?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;

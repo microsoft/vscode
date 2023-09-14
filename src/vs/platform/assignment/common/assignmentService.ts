@@ -9,6 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AssignmentFilterProvider, ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY, IAssignmentService, TargetPopulation } from 'vs/platform/assignment/common/assignment';
+import { importAMDNodeModule } from 'vs/amdX';
 
 export abstract class BaseAssignmentService implements IAssignmentService {
 	_serviceBrand: undefined;
@@ -21,7 +22,7 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 	}
 
 	constructor(
-		private readonly getMachineId: () => Promise<string>,
+		private readonly machineId: string,
 		protected readonly configurationService: IConfigurationService,
 		protected readonly productService: IProductService,
 		protected telemetry: IExperimentationTelemetry,
@@ -77,21 +78,19 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
 				TargetPopulation.Exploration : TargetPopulation.Insiders);
 
-		const machineId = await this.getMachineId();
 		const filterProvider = new AssignmentFilterProvider(
 			this.productService.version,
 			this.productService.nameLong,
-			machineId,
+			this.machineId,
 			targetPopulation
 		);
 
 		const tasConfig = this.productService.tasConfig!;
-		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
+		const tasClient = new (await importAMDNodeModule<typeof import('tas-client-umd')>('tas-client-umd', 'lib/tas-client-umd.js')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: this.telemetry,
 			storageKey: ASSIGNMENT_STORAGE_KEY,
 			keyValueStorage: this.keyValueStorage,
-			featuresTelemetryPropertyName: tasConfig.featuresTelemetryPropertyName,
 			assignmentContextTelemetryPropertyName: tasConfig.assignmentContextTelemetryPropertyName,
 			telemetryEventName: tasConfig.telemetryEventName,
 			endpoint: tasConfig.endpoint,

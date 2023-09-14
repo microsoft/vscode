@@ -45,7 +45,7 @@ export class NotificationService extends Disposable implements INotificationServ
 						message: e.item.message.original,
 						severity: e.item.severity,
 						source: typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source,
-						silent: e.item.silent
+						priority: e.item.priority
 					};
 
 					if (e.kind === NotificationChangeType.ADD) {
@@ -250,7 +250,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		const handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
+		const handle = this.notify({ severity, message, actions, sticky: options?.sticky, priority: options?.priority });
 
 		Event.once(handle.onDidClose)(() => {
 

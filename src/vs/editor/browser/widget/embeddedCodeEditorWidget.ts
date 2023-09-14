@@ -6,20 +6,19 @@
 import * as objects from 'vs/base/common/objects';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { DiffEditorWidget, IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ConfigurationChangedEvent, IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
@@ -29,6 +28,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
+		codeEditorWidgetOptions: ICodeEditorWidgetOptions,
 		parentEditor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -40,7 +40,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(domElement, { ...parentEditor.getRawOptions(), overflowWidgetsDomNode: parentEditor.getOverflowWidgetsDomNode() }, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, { ...parentEditor.getRawOptions(), overflowWidgetsDomNode: parentEditor.getOverflowWidgetsDomNode() }, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -74,17 +74,15 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
+		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		parentEditor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IClipboardService clipboardService: IClipboardService,
+		@IAudioCueService audioCueService: IAudioCueService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 	) {
-		super(domElement, parentEditor.getRawOptions(), {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, contextKeyService, instantiationService, codeEditorService, audioCueService, editorProgressService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

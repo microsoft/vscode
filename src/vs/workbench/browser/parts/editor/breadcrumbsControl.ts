@@ -39,6 +39,7 @@ import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Emitter } from 'vs/base/common/event';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -498,6 +499,59 @@ export class BreadcrumbsControl {
 		} else {
 			return undefined;
 		}
+	}
+}
+
+export class BreadcrumbsControlFactory {
+
+	private readonly _disposables = new DisposableStore();
+
+	private _control: BreadcrumbsControl | undefined;
+	get control() { return this._control; }
+
+	private readonly _onDidEnablementChange = this._disposables.add(new Emitter<void>());
+	get onDidEnablementChange() { return this._onDidEnablementChange.event; }
+
+	constructor(
+		container: HTMLElement,
+		editorGroup: IEditorGroupView,
+		options: IBreadcrumbsControlOptions,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileService fileService: IFileService
+	) {
+		const config = this._disposables.add(BreadcrumbsConfig.IsEnabled.bindTo(configurationService));
+		this._disposables.add(config.onDidChange(() => {
+			const value = config.getValue();
+			if (!value && this._control) {
+				this._control.dispose();
+				this._control = undefined;
+				this._onDidEnablementChange.fire();
+			} else if (value && !this._control) {
+				this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
+				this._control.update();
+				this._onDidEnablementChange.fire();
+			}
+		}));
+
+		if (config.getValue()) {
+			this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
+		}
+
+		this._disposables.add(fileService.onDidChangeFileSystemProviderRegistrations(e => {
+			if (this._control?.model && this._control.model.resource.scheme !== e.scheme) {
+				// ignore if the scheme of the breadcrumbs resource is not affected
+				return;
+			}
+			if (this._control?.update()) {
+				this._onDidEnablementChange.fire();
+			}
+		}));
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+		this._control?.dispose();
 	}
 }
 

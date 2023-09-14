@@ -9,13 +9,13 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import product from 'vs/platform/product/common/product';
 import { UserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -26,11 +26,12 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 	override get extensionsPath() { return joinPath(this.userRoamingDataHome, 'extensions.json').path; }
 	override get stateResource() { return joinPath(this.userRoamingDataHome, 'state.json'); }
+	override get cacheHome() { return joinPath(this.userRoamingDataHome, 'cache'); }
 }
 
 suite('UserDataProfileMainService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let testObject: UserDataProfilesMainService;
 	let environmentService: TestEnvironmentService, stateService: StateService;
 
@@ -41,13 +42,11 @@ suite('UserDataProfileMainService', () => {
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, fileSystemProvider));
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
-		stateService = new StateService(SaveStrategy.DELAYED, environmentService, logService, fileService);
+		stateService = disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, logService, fileService));
 
-		testObject = new UserDataProfilesMainService(stateService, new UriIdentityService(fileService), environmentService, fileService, logService);
+		testObject = disposables.add(new UserDataProfilesMainService(stateService, disposables.add(new UriIdentityService(fileService)), environmentService, fileService, logService));
 		await stateService.init();
 	});
-
-	teardown(() => disposables.clear());
 
 	test('default profile', () => {
 		assert.strictEqual(testObject.defaultProfile.isDefault, true);

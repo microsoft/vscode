@@ -22,9 +22,12 @@ import * as platform from 'vs/base/common/platform';
 import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
 import { findFreePort } from 'vs/base/node/ports';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -548,7 +551,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			const socket = net.createConnection(
 				{
 					host: host,
-					port: port
+					port: port,
+					autoSelectFamily: true
 				}, () => {
 					socket.removeListener('error', e);
 					socket.pause();
@@ -666,14 +670,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		console.warn(connectionToken.message);
 		process.exit(1);
 	}
-	const disposables = new DisposableStore();
-	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
 
-	// Set the unexpected error handler after the services have been initialized, to avoid having
-	// the telemetry service overwrite our handler
-	let didLogAboutSIGPIPE = false;
-	instantiationService.invokeFunction((accessor) => {
-		const logService = accessor.get(ILogService);
+	// setting up error handlers, first with console.error, then, once available, using the log service
+
+	function initUnexpectedErrorHandler(handler: (err: any) => void) {
 		setUnexpectedErrorHandler(err => {
 			// See https://github.com/microsoft/vscode-remote-release/issues/6481
 			// In some circumstances, console.error will throw an asynchronous error. This asynchronous error
@@ -682,18 +682,51 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			if (isSigPipeError(err) && err.stack && /unexpectedErrorHandler/.test(err.stack)) {
 				return;
 			}
-			logService.error(err);
+			handler(err);
 		});
-		process.on('SIGPIPE', () => {
-			// See https://github.com/microsoft/vscode-remote-release/issues/6543
-			// We would normally install a SIGPIPE listener in bootstrap.js
-			// But in certain situations, the console itself can be in a broken pipe state
-			// so logging SIGPIPE to the console will cause an infinite async loop
-			if (!didLogAboutSIGPIPE) {
-				didLogAboutSIGPIPE = true;
-				onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+	}
+
+	const unloggedErrors: any[] = [];
+	initUnexpectedErrorHandler((error: any) => {
+		unloggedErrors.push(error);
+		console.error(error);
+	});
+	let didLogAboutSIGPIPE = false;
+	process.on('SIGPIPE', () => {
+		// See https://github.com/microsoft/vscode-remote-release/issues/6543
+		// We would normally install a SIGPIPE listener in bootstrap.js
+		// But in certain situations, the console itself can be in a broken pipe state
+		// so logging SIGPIPE to the console will cause an infinite async loop
+		if (!didLogAboutSIGPIPE) {
+			didLogAboutSIGPIPE = true;
+			onUnexpectedError(new Error(`Unexpected SIGPIPE`));
+		}
+	});
+
+	const disposables = new DisposableStore();
+	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
+
+	// Set the unexpected error handler after the services have been initialized, to avoid having
+	// the telemetry service overwrite our handler
+	instantiationService.invokeFunction((accessor) => {
+		const logService = accessor.get(ILogService);
+		unloggedErrors.forEach(error => logService.error(error));
+		unloggedErrors.length = 0;
+
+		initUnexpectedErrorHandler((error: any) => logService.error(error));
+	});
+
+	// On Windows, configure the UNC allow list based on settings
+	instantiationService.invokeFunction((accessor) => {
+		const configurationService = accessor.get(IConfigurationService);
+
+		if (platform.isWindows) {
+			if (configurationService.getValue('security.restrictUNCAccess') === false) {
+				disableUNCAccessRestrictions();
+			} else {
+				addUNCHostToAllowlist(configurationService.getValue('security.allowedUNCHosts'));
 			}
-		});
+		}
 	});
 
 	//
@@ -703,7 +736,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	instantiationService.invokeFunction((accessor) => {
 		const logService = accessor.get(ILogService);
 
-		if (process.platform === 'win32' && process.env.HOMEDRIVE && process.env.HOMEPATH) {
+		if (platform.isWindows && process.env.HOMEDRIVE && process.env.HOMEPATH) {
 			const homeDirModulesPath = join(process.env.HOMEDRIVE, 'node_modules');
 			const userDir = dirname(join(process.env.HOMEDRIVE, process.env.HOMEPATH));
 			const userDirModulesPath = join(userDir, 'node_modules');
@@ -757,7 +790,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	const vscodeServerListenTime: number = (<any>global).vscodeServerListenTime;
 	const vscodeServerCodeLoadedTime: number = (<any>global).vscodeServerCodeLoadedTime;
 
-	instantiationService.invokeFunction((accessor) => {
+	instantiationService.invokeFunction(async (accessor) => {
 		const telemetryService = accessor.get(ITelemetryService);
 
 		type ServerStartClassification = {
@@ -780,6 +813,30 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			codeLoadedTime: vscodeServerCodeLoadedTime,
 			readyTime: currentTime
 		});
+
+		if (platform.isLinux) {
+			const logService = accessor.get(ILogService);
+			const releaseInfo = await getOSReleaseInfo(logService.error.bind(logService));
+			if (releaseInfo) {
+				type ServerPlatformInfoClassification = {
+					platformId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system without any version information.' };
+					platformVersionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system version excluding any name information or release code.' };
+					platformIdLike: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system the current OS derivate is closely related to.' };
+					owner: 'deepak1556';
+					comment: 'Provides insight into the distro information on Linux.';
+				};
+				type ServerPlatformInfoEvent = {
+					platformId: string;
+					platformVersionId: string | undefined;
+					platformIdLike: string | undefined;
+				};
+				telemetryService.publicLog2<ServerPlatformInfoEvent, ServerPlatformInfoClassification>('serverPlatformInfo', {
+					platformId: releaseInfo.id,
+					platformVersionId: releaseInfo.version_id,
+					platformIdLike: releaseInfo.id_like
+				});
+			}
+		}
 	});
 
 	if (args['print-startup-performance']) {

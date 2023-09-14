@@ -65,6 +65,7 @@ import { timeout } from 'vs/base/common/async';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -90,7 +91,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
 	) { }
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
@@ -103,7 +105,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return element;
 		}
 
-		const wasError = element.isError;
+		const hasError = element.error;
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		const children = element.fetchChildren(sortOrder);
 		if (Array.isArray(children)) {
@@ -113,7 +115,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		const promise = children.then(
 			children => {
 				// Clear previous error decoration on root folder
-				if (element instanceof ExplorerItem && element.isRoot && !element.isError && wasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+				if (element instanceof ExplorerItem && element.isRoot && !element.error && hasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 					explorerRootErrorEmitter.fire(element.resource);
 				}
 				return children;
@@ -123,8 +125,8 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 				if (element instanceof ExplorerItem && element.isRoot) {
 					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						// Single folder create a dummy explorer item to show error
-						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, undefined, undefined, false);
-						placeholder.isError = true;
+						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, this.filesConfigService, undefined, undefined, false);
+						placeholder.error = e;
 						return [placeholder];
 					} else {
 						explorerRootErrorEmitter.fire(element.resource);
@@ -1142,6 +1144,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return false;
 			}
 
+			if (!isCopy && items.every((source) => source.isReadonly)) {
+				return false; // Cannot move readonly items unless we copy
+			}
+
 			if (items.some((source) => {
 				if (source.isRoot && target instanceof ExplorerItem && !target.isRoot) {
 					return true; // Root folder can not be moved to a non root file stat.
@@ -1389,11 +1395,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const resourceEdit = new ResourceFileEdit(resource, newResource, { copy: true, overwrite: allowOverwrite });
 			resourceFileEdits.push(resourceEdit);
 		}
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
 			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('copy', "Copy {0}", labelSufix),
-			progressLabel: localize('copying', "Copying {0}", labelSufix),
+			undoLabel: localize('copy', "Copy {0}", labelSuffix),
+			progressLabel: localize('copying', "Copying {0}", labelSuffix),
 		});
 
 		const editors = resourceFileEdits.filter(edit => {
@@ -1408,11 +1414,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Do not allow moving readonly items
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('move', "Move {0}", labelSufix),
-			progressLabel: localize('moving', "Moving {0}", labelSufix)
+			undoLabel: localize('move', "Move {0}", labelSuffix),
+			progressLabel: localize('moving', "Moving {0}", labelSuffix)
 		};
 
 		try {
@@ -1516,7 +1522,7 @@ export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<Exp
 	}
 }
 
-function getFileOrFolderLabelSufix(items: ExplorerItem[]): string {
+function getFileOrFolderLabelSuffix(items: ExplorerItem[]): string {
 	if (items.length === 1) {
 		return items[0].name;
 	}

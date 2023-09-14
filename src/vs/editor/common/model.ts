@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
+import { ThemeColor } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -16,13 +17,12 @@ import { TextChange } from 'vs/editor/common/core/textChange';
 import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions } from 'vs/editor/common/languages';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -32,6 +32,14 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+/**
+ * Vertical Lane in the glyph margin of the editor.
+ */
+export enum GlyphMarginLane {
+	Left = 1,
+	Right = 2
 }
 
 /**
@@ -55,6 +63,13 @@ export interface IDecorationOptions {
 	darkColor?: string | ThemeColor;
 }
 
+export interface IModelDecorationGlyphMarginOptions {
+	/**
+	 * The position in the glyph margin.
+	 */
+	position: GlyphMarginLane;
+}
+
 /**
  * Options for rendering a model decoration in the overview ruler.
  */
@@ -66,11 +81,11 @@ export interface IModelDecorationOverviewRulerOptions extends IDecorationOptions
 }
 
 /**
- * Options for rendering a model decoration in the overview ruler.
+ * Options for rendering a model decoration in the minimap.
  */
 export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 	/**
-	 * The position in the overview ruler.
+	 * The position in the minimap.
 	 */
 	position: MinimapPosition;
 }
@@ -93,12 +108,17 @@ export interface IModelDecorationOptions {
 	 * CSS class name describing the decoration.
 	 */
 	className?: string | null;
+	/**
+	 * Indicates whether the decoration should span across the entire line when it continues onto the next line.
+	 */
+	shouldFillLineOnLineBreak?: boolean | null;
 	blockClassName?: string | null;
 	/**
 	 * Indicates if this block should be rendered after the last line.
 	 * In this case, the range must be empty and set to the last line.
 	 */
 	blockIsAfterEnd?: boolean | null;
+	blockDoesNotCollapse?: boolean | null;
 	blockPadding?: [top: number, right: number, bottom: number, left: number] | null;
 
 	/**
@@ -140,6 +160,11 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered in the glyph margin with this CSS class name.
 	 */
 	glyphMarginClassName?: string | null;
+	/**
+	 * If set and the decoration has {@link glyphMarginClassName} set, render this decoration
+	 * with the specified {@link IModelDecorationGlyphMarginOptions} in the glyph margin.
+	 */
+	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
@@ -306,7 +331,7 @@ export interface IModelDecorationsChangeAccessor {
 	 * @param newDecorations Array describing what decorations should result after the call.
 	 * @return An array containing the new decorations identifiers.
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+	deltaDecorations(oldDecorations: readonly string[], newDecorations: readonly IModelDeltaDecoration[]): string[];
 }
 
 /**
@@ -973,9 +998,11 @@ export interface ITextModel {
 	 * @param range The range to search in
 	 * @param ownerId If set, it will ignore decorations belonging to other owners.
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 * @param onlyMinimapDecorations If set, it will return only decorations that render in the minimap.
+	 * @param onlyMarginDecorations If set, it will return only decorations that render in the glyph margin.
 	 * @return An array with the decorations
 	 */
-	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
+	getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean, onlyMarginDecorations?: boolean): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations as an array.
@@ -983,6 +1010,12 @@ export interface ITextModel {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * Gets all decorations that render in the glyph margin as an array.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getAllMarginDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
 	 * Gets all the decorations that should be rendered in the overview ruler as an array.
@@ -1167,12 +1200,12 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	onBeforeAttached(): void;
+	onBeforeAttached(): IAttachedView;
 
 	/**
 	 * @internal
 	 */
-	onBeforeDetached(): void;
+	onBeforeDetached(view: IAttachedView): void;
 
 	/**
 	 * Returns if this model is attached to an editor or not.
@@ -1221,6 +1254,18 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly tokenization: ITokenizationTextModelPart;
+}
+
+/**
+ * @internal
+ */
+export interface IAttachedView {
+	/**
+	 * @param stabilized Indicates if the visible lines are probably going to change soon or can be considered stable.
+	 * Is true on reveal range and false on scroll.
+	 * Tokenizers should tokenize synchronously if stabilized is true.
+	 */
+	setVisibleLines(visibleLines: { startLineNumber: number; endLineNumber: number }[], stabilized: boolean): void;
 }
 
 export const enum PositionAffinity {
@@ -1350,7 +1395,7 @@ export class SearchData {
 /**
  * @internal
  */
-export interface ITextBuffer extends IReadonlyTextBuffer {
+export interface ITextBuffer extends IReadonlyTextBuffer, IDisposable {
 	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
 }

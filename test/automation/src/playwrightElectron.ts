@@ -17,12 +17,12 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	args.push('--enable-smoke-test-driver');
 
 	// Launch electron via playwright
-	const { electron, context, page, windowLoadedPromise } = await launchElectron({ electronPath, args, env }, options);
+	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);
 	const electronProcess = electron.process();
 
 	return {
 		electronProcess,
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, windowLoadedPromise, options)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options)
 	};
 }
 
@@ -32,12 +32,14 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	const electron = await measureAndLog(() => playwright._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
-		env: configuration.env as { [key: string]: string }
+		env: configuration.env as { [key: string]: string },
+		timeout: 0
 	}), 'playwright-electron#launch', logger);
 
-	const windowLoadedPromise = electron.waitForEvent('window');
-
-	const window = await measureAndLog(() => electron.firstWindow(), 'playwright-electron#firstWindow', logger);
+	let window = electron.windows()[0];
+	if (!window) {
+		window = await measureAndLog(() => electron.waitForEvent('window', { timeout: 0 }), 'playwright-electron#firstWindow', logger);
+	}
 
 	const context = window.context();
 
@@ -74,5 +76,5 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		}
 	});
 
-	return { electron, context, page: window, windowLoadedPromise };
+	return { electron, context, page: window };
 }

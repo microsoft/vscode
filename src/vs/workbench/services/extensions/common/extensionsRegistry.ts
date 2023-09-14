@@ -569,6 +569,12 @@ export const schema: IJSONSchema = {
 					'{Locked="vscode.l10n API"}'
 				]
 			}, 'The relative path to a folder containing localization (bundle.l10n.*.json) files. Must be specified if you are using the vscode.l10n API.')
+		},
+		pricing: {
+			type: 'string',
+			markdownDescription: nls.localize('vscode.extension.pricing', 'The pricing information for the extension. Can be Free (default) or Trial. For more details visit: https://code.visualstudio.com/api/working-with-extensions/publishing-extension#extension-pricing-label'),
+			enum: ['Free', 'Trial'],
+			default: 'Free'
 		}
 	}
 };
@@ -582,7 +588,7 @@ export interface IExtensionPointDescriptor<T> {
 	defaultExtensionKind?: ExtensionKind[];
 	/**
 	 * A function which runs before the extension point has been validated and which
-	 * can should collect automatic activation events from the contribution.
+	 * should collect automatic activation events from the contribution.
 	 */
 	activationEventsGenerator?: IActivationEventsGenerator<removeArray<T>>;
 }

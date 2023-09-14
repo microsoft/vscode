@@ -15,14 +15,14 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -83,9 +83,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Editor & group changes
 		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
-		this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group));
-		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
-		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
+		this._register(this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group)));
+		this._register(this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView)));
+		this._register(this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire()));
 
 		// Out of workspace file watchers
 		this._register(this.onDidVisibleEditorsChange(() => this.handleVisibleEditorsChange()));
@@ -136,7 +136,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
-		this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
+		this.lastActiveEditor = activeGroup.activeEditor ?? undefined;
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
@@ -459,7 +459,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	get activeEditor(): EditorInput | undefined {
 		const activeGroup = this.editorGroupService.activeGroup;
 
-		return activeGroup ? withNullAsUndefined(activeGroup.activeEditor) : undefined;
+		return activeGroup ? activeGroup.activeEditor ?? undefined : undefined;
 	}
 
 	get visibleEditorPanes(): IVisibleEditorPane[] {
@@ -894,7 +894,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region save/revert
 
-	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> {
+	async save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
 
 		// Convert to array
 		if (!Array.isArray(editors)) {
@@ -973,11 +973,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return saveResults.every(result => !!result);
+		return {
+			success: saveResults.every(result => !!result),
+			editors: coalesce(saveResults)
+		};
 	}
 
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> {
-		return this.save(this.getAllDirtyEditors(options), options);
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult> {
+		return this.save(this.getAllModifiedEditors(options), options);
 	}
 
 	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
@@ -1003,15 +1006,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	async revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
-		return this.revert(this.getAllDirtyEditors(options), options);
+		return this.revert(this.getAllModifiedEditors(options), options);
 	}
 
-	private getAllDirtyEditors(options?: IBaseSaveRevertAllEditorOptions): IEditorIdentifier[] {
+	private getAllModifiedEditors(options?: IBaseSaveRevertAllEditorOptions): IEditorIdentifier[] {
 		const editors: IEditorIdentifier[] = [];
 
 		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (!editor.isDirty()) {
+				if (!editor.isModified()) {
+					continue;
+				}
+
+				if ((typeof options?.includeUntitled === 'boolean' || !options?.includeUntitled?.includeScratchpad)
+					&& editor.hasCapability(EditorInputCapabilities.Scratchpad)) {
 					continue;
 				}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, ITelemetryInfo, ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,6 @@ import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetr
 import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from 'vs/platform/telemetry/common/gdprTypings';
-import { IFileService } from 'vs/platform/files/common/files';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
@@ -26,13 +25,17 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	private impl: ITelemetryService;
 	public readonly sendErrorTelemetry: boolean;
 
+	get sessionId(): string { return this.impl.sessionId; }
+	get machineId(): string { return this.impl.machineId; }
+	get firstSessionDate(): string { return this.impl.firstSessionDate; }
+	get msftInternal(): boolean | undefined { return this.impl.msftInternal; }
+
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService fileService: IFileService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -41,7 +44,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appenders: [new TelemetryAppenderClient(channel)],
-				commonProperties: resolveWorkbenchCommonProperties(storageService, fileService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, isInternal, environmentService.installSourcePath, process, process.sandboxed, environmentService.remoteAuthority),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, isInternal, process, environmentService.remoteAuthority),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true
 			};
@@ -62,25 +65,20 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.telemetryLevel;
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
-		return this.impl.publicLog(eventName, data);
+	publicLog(eventName: string, data?: ITelemetryData) {
+		this.impl.publicLog(eventName, data);
 	}
 
 	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
+		this.publicLog(eventName, data as ITelemetryData);
 	}
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void> {
-		return this.impl.publicLogError(errorEventName, data);
+	publicLogError(errorEventName: string, data?: ITelemetryData) {
+		this.impl.publicLogError(errorEventName, data);
 	}
 
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as ITelemetryData);
-	}
-
-
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return this.impl.getTelemetryInfo();
+		this.publicLogError(eventName, data as ITelemetryData);
 	}
 }
 

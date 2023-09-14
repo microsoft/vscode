@@ -59,6 +59,11 @@ const CORE_TYPES = [
 	'URL',
 	'URLSearchParams',
 	'ReadonlyArray',
+	'Event',
+	'EventTarget',
+	'BroadcastChannel',
+	'performance',
+	'Blob'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -196,12 +201,6 @@ const RULES: IRule[] = [
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
-	},
-
-	// Electron (renderer): skip
-	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
 	},
 
 	// Electron (main)

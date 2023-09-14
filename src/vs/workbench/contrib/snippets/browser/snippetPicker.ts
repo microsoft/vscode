@@ -36,7 +36,7 @@ export async function pickSnippet(accessor: ServicesAccessor, languageIdOrSnippe
 		for (const snippet of snippets) {
 			const pick: ISnippetPick = {
 				label: snippet.prefix || snippet.name,
-				detail: snippet.description,
+				detail: snippet.description || snippet.body,
 				snippet
 			};
 			if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource || prevSnippet.source !== snippet.source) {

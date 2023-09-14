@@ -37,7 +37,7 @@ import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener'
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
@@ -215,7 +215,7 @@ export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 	private template: IExtensionEditorTemplate | undefined;
 
 	private extensionReadme: Cache<string> | null;
@@ -276,7 +276,7 @@ export class ExtensionEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
+		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false, alt: '' }));
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
@@ -398,10 +398,12 @@ export class ExtensionEditor extends EditorPane {
 			this._register(disposable);
 		}
 
-		this._register(Event.chain(extensionActionBar.onDidRun)
-			.map(({ error }) => error)
-			.filter(error => !!error)
-			.on(this.onError, this));
+		const onError = Event.chain(extensionActionBar.onDidRun, $ =>
+			$.map(({ error }) => error)
+				.filter(error => !!error)
+		);
+
+		this._register(onError(this.onError, this));
 
 		const body = append(root, $('.body'));
 		const navbar = new NavBar(body);
@@ -683,6 +685,7 @@ export class ExtensionEditor extends EditorPane {
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
+					disableServiceWorker: true,
 				},
 				contentOptions: {},
 				extension: undefined,
@@ -766,13 +769,18 @@ export class ExtensionEditor extends EditorPane {
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 
+					/* prevent scroll-to-top button from blocking the body text */
+					body {
+						padding-bottom: 75px;
+					}
+
 					#scroll-to-top {
 						position: fixed;
-						width: 40px;
-						height: 40px;
+						width: 32px;
+						height: 32px;
 						right: 25px;
 						bottom: 25px;
-						background-color: var(--vscode-button-background);
+						background-color: var(--vscode-button-secondaryBackground);
 						border-color: var(--vscode-button-border);
 						border-radius: 50%;
 						cursor: pointer;
@@ -784,7 +792,7 @@ export class ExtensionEditor extends EditorPane {
 					}
 
 					#scroll-to-top:hover {
-						background-color: var(--vscode-button-hoverBackground);
+						background-color: var(--vscode-button-secondaryHoverBackground);
 						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
 					}
 
@@ -797,7 +805,7 @@ export class ExtensionEditor extends EditorPane {
 					#scroll-to-top span.icon::before {
 						content: "";
 						display: block;
-						background: var(--vscode-button-foreground);
+						background: var(--vscode-button-secondaryForeground);
 						/* Chevron up icon */
 						webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
 						-webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
@@ -938,15 +946,16 @@ export class ExtensionEditor extends EditorPane {
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
+		const toDateString = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('published', "Published")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last released', "Last released")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 				)
 			);
 		}
@@ -954,7 +963,7 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(extension.local.installedTimestamp)))
 				)
 			);
 		}

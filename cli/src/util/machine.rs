@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::path::Path;
+use std::{path::Path, time::Duration};
 use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
 
 pub fn process_at_path_exists(pid: u32, name: &Path) -> bool {
@@ -29,6 +29,14 @@ pub fn process_exists(pid: u32) -> bool {
 	sys.refresh_process(Pid::from_u32(pid))
 }
 
+pub async fn wait_until_process_exits(pid: Pid, poll_ms: u64) {
+	let mut s = System::new();
+	let duration = Duration::from_millis(poll_ms);
+	while s.refresh_process(pid) {
+		tokio::time::sleep(duration).await;
+	}
+}
+
 pub fn find_running_process(name: &Path) -> Option<u32> {
 	let mut sys = System::new();
 	sys.refresh_processes();
@@ -43,4 +51,11 @@ pub fn find_running_process(name: &Path) -> Option<u32> {
 		}
 	}
 	None
+}
+
+pub async fn wait_until_exe_deleted(current_exe: &Path, poll_ms: u64) {
+	let duration = Duration::from_millis(poll_ms);
+	while current_exe.exists() {
+		tokio::time::sleep(duration).await;
+	}
 }

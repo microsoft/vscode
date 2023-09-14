@@ -151,6 +151,18 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'terminal/context',
+		id: MenuId.TerminalInstanceContext,
+		description: localize('menus.terminalContext', "The terminal context menu"),
+		proposed: 'terminalContextMenu'
+	},
+	{
+		key: 'terminal/title/context',
+		id: MenuId.TerminalTabContext,
+		description: localize('menus.terminalTabContext', "The terminal tabs context menu"),
+		proposed: 'terminalContextMenu'
+	},
+	{
 		key: 'view/title',
 		id: MenuId.ViewTitle,
 		description: localize('view.viewTitle', "The contributed view title menu")
@@ -249,6 +261,16 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
 	},
 	{
+		key: 'testing/message/context',
+		id: MenuId.TestMessageContext,
+		description: localize('testing.message.context.title', "A prominent button overlaying editor content where the message is displayed"),
+	},
+	{
+		key: 'testing/message/content',
+		id: MenuId.TestMessageContent,
+		description: localize('testing.message.content.title', "Context menu for the message in the results tree"),
+	},
+	{
 		key: 'extension/context',
 		id: MenuId.ExtensionContext,
 		description: localize('menus.extensionContext', "The extension context menu")
@@ -307,6 +329,11 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
 		proposed: 'contribEditorContentMenu'
+	},
+	{
+		key: 'editor/lineNumber/context',
+		id: MenuId.EditorLineNumberContext,
+		description: localize('editorLineNumberContext', "The contributed editor line number context menu")
 	},
 	{
 		key: 'mergeEditor/result/title',
@@ -681,8 +708,13 @@ commandsExtensionPoint.setHandler(extensions => {
 			}
 		}
 
-		if (MenuRegistry.getCommand(command)) {
-			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
+		const existingCmd = MenuRegistry.getCommand(command);
+		if (existingCmd) {
+			if (existingCmd.source) {
+				extension.collector.info(localize('dup1', "Command `{0}` already registered by {1} ({2})", userFriendlyCommand.command, existingCmd.source.title, existingCmd.source.id));
+			} else {
+				extension.collector.info(localize('dup0', "Command `{0}` already registered", userFriendlyCommand.command));
+			}
 		}
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,

@@ -390,38 +390,58 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 
 export class ConsoleLogger extends AbstractLogger implements ILogger {
 
-	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
+	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL, private readonly useColors: boolean = true) {
 		super();
 		this.setLevel(logLevel);
 	}
 
 	trace(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Trace)) {
-			console.log('%cTRACE', 'color: #888', message, ...args);
+			if (this.useColors) {
+				console.log('%cTRACE', 'color: #888', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Debug)) {
-			console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+			if (this.useColors) {
+				console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Info)) {
-			console.log('%c INFO', 'color: #33f', message, ...args);
+			if (this.useColors) {
+				console.log('%c INFO', 'color: #33f', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Warning)) {
-			console.log('%c WARN', 'color: #993', message, ...args);
+			if (this.useColors) {
+				console.log('%c WARN', 'color: #993', message, ...args);
+			} else {
+				console.log(message, ...args);
+			}
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
 		if (this.checkLogLevel(LogLevel.Error)) {
-			console.log('%c  ERR', 'color: #f33', message, ...args);
+			if (this.useColors) {
+				console.log('%c  ERR', 'color: #f33', message, ...args);
+			} else {
+				console.error(message, ...args);
+			}
 		}
 	}
 

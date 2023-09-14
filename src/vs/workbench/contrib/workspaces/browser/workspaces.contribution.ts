@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState, WORKSPACE_SUFFIX } from 'vs/platform/workspace/common/workspace';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INeverShowAgainOptions, INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INeverShowAgainOptions, INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -69,7 +69,7 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
 			}], {
 				neverShowAgain,
-				silent: !this.storageService.isNew(StorageScope.WORKSPACE) // https://github.com/microsoft/vscode/issues/125315
+				priority: !this.storageService.isNew(StorageScope.WORKSPACE) ? NotificationPriority.SILENT : undefined // https://github.com/microsoft/vscode/issues/125315
 			});
 		}
 
@@ -88,7 +88,7 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 				}
 			}], {
 				neverShowAgain,
-				silent: !this.storageService.isNew(StorageScope.WORKSPACE) // https://github.com/microsoft/vscode/issues/125315
+				priority: !this.storageService.isNew(StorageScope.WORKSPACE) ? NotificationPriority.SILENT : undefined // https://github.com/microsoft/vscode/issues/125315
 			});
 		}
 	}

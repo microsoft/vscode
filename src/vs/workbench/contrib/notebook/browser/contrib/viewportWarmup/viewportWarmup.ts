@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { CodeCellViewModel, outputDisplayLimit } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -31,18 +31,16 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			this._warmupViewport.schedule();
 		}));
 
-		if (accessibilityService.isScreenReaderOptimized()) {
-			this._warmupDocument = new RunOnceScheduler(() => this._warmupDocumentNow(), 200);
-			this._register(this._warmupDocument);
-			this._register(this._notebookEditor.onDidChangeModel(() => {
-				if (this._notebookEditor.hasModel()) {
-					this._warmupDocument?.schedule();
-				}
-			}));
-
+		this._warmupDocument = new RunOnceScheduler(() => this._warmupDocumentNow(), 200);
+		this._register(this._warmupDocument);
+		this._register(this._notebookEditor.onDidAttachViewModel(() => {
 			if (this._notebookEditor.hasModel()) {
 				this._warmupDocument?.schedule();
 			}
+		}));
+
+		if (this._notebookEditor.hasModel()) {
+			this._warmupDocument?.schedule();
 		}
 	}
 
@@ -55,7 +53,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 					// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
 					// this._notebookEditor.createMarkupPreview(cell);
 				} else if (cell?.cellKind === CellKind.Code) {
-					this._renderCell((cell as CodeCellViewModel));
+					this._warmupCodeCell((cell as CodeCellViewModel));
 				}
 			}
 		}
@@ -77,18 +75,18 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.isInputCollapsed) {
 				(this._notebookEditor as INotebookEditorDelegate).createMarkupPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
-				this._renderCell((cell as CodeCellViewModel));
+				this._warmupCodeCell((cell as CodeCellViewModel));
 			}
 		});
 	}
 
-	private _renderCell(viewCell: CodeCellViewModel) {
+	private _warmupCodeCell(viewCell: CodeCellViewModel) {
 		if (viewCell.isOutputCollapsed) {
 			return;
 		}
 
 		const outputs = viewCell.outputsViewModels;
-		for (const output of outputs) {
+		for (const output of outputs.slice(0, outputDisplayLimit)) {
 			const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
 			if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 				continue;
@@ -111,7 +109,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			}
 
 			const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
-			this._notebookEditor.createOutput(viewCell, result, 0);
+			this._notebookEditor.createOutput(viewCell, result, 0, true);
 		}
 
 	}

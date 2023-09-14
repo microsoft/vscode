@@ -35,8 +35,8 @@ export type Token =
 	| { type: TokenType.LParen; offset: number }
 	| { type: TokenType.RParen; offset: number }
 	| { type: TokenType.Neg; offset: number }
-	| { type: TokenType.Eq; offset: number }
-	| { type: TokenType.NotEq; offset: number }
+	| { type: TokenType.Eq; offset: number; isTripleEq: boolean }
+	| { type: TokenType.NotEq; offset: number; isTripleEq: boolean }
 	| { type: TokenType.Lt; offset: number }
 	| { type: TokenType.LtEq; offset: number }
 	| { type: TokenType.Gt; offset: number }
@@ -59,8 +59,6 @@ type TokenTypeWithoutLexeme =
 	TokenType.LParen |
 	TokenType.RParen |
 	TokenType.Neg |
-	TokenType.Eq |
-	TokenType.NotEq |
 	TokenType.Lt |
 	TokenType.LtEq |
 	TokenType.Gt |
@@ -98,7 +96,6 @@ function hintDidYouMean(...meant: string[]) {
 	}
 }
 
-const hintDontSupportTripleEq = localize('contextkey.scanner.hint.dontSupportTripleEq', "The '===' operator is not supported. Use '==' instead.");
 const hintDidYouForgetToOpenOrCloseQuote = localize('contextkey.scanner.hint.didYouForgetToOpenOrCloseQuote', "Did you forget to open or close the quote?");
 const hintDidYouForgetToEscapeSlash = localize('contextkey.scanner.hint.didYouForgetToEscapeSlash', "Did you forget to escape the '/' (slash) character? Put two backslashes before it to escape, e.g., '\\\\/\'.");
 
@@ -128,9 +125,9 @@ export class Scanner {
 			case TokenType.Neg:
 				return '!';
 			case TokenType.Eq:
-				return '==';
+				return token.isTripleEq ? '===' : '==';
 			case TokenType.NotEq:
-				return '!=';
+				return token.isTripleEq ? '!==' : '!=';
 			case TokenType.Lt:
 				return '<';
 			case TokenType.LtEq:
@@ -209,7 +206,12 @@ export class Scanner {
 				case CharCode.CloseParen: this._addToken(TokenType.RParen); break;
 
 				case CharCode.ExclamationMark:
-					this._addToken(this._match(CharCode.Equals) ? TokenType.NotEq : TokenType.Neg);
+					if (this._match(CharCode.Equals)) {
+						const isTripleEq = this._match(CharCode.Equals); // eat last `=` if `!==`
+						this._tokens.push({ type: TokenType.NotEq, offset: this._start, isTripleEq });
+					} else {
+						this._addToken(TokenType.Neg);
+					}
 					break;
 
 				case CharCode.SingleQuote: this._quotedString(); break;
@@ -217,15 +219,12 @@ export class Scanner {
 
 				case CharCode.Equals:
 					if (this._match(CharCode.Equals)) { // support `==`
-						this._addToken(TokenType.Eq);
+						const isTripleEq = this._match(CharCode.Equals); // eat last `=` if `===`
+						this._tokens.push({ type: TokenType.Eq, offset: this._start, isTripleEq });
 					} else if (this._match(CharCode.Tilde)) {
 						this._addToken(TokenType.RegexOp);
 					} else {
-						if (this._tokens.length === 0 || this._tokens[this._tokens.length - 1].type !== TokenType.Eq) {
-							this._error(hintDidYouMean('==', '=~'));
-						} else {
-							this._error(hintDontSupportTripleEq);
-						}
+						this._error(hintDidYouMean('==', '=~'));
 					}
 					break;
 
@@ -294,7 +293,7 @@ export class Scanner {
 	private _error(additional?: string) {
 		const offset = this._start;
 		const lexeme = this._input.substring(this._start, this._current);
-		const errToken = { type: TokenType.Error, offset: this._start, lexeme };
+		const errToken: Token = { type: TokenType.Error, offset: this._start, lexeme };
 		this._errors.push({ offset, lexeme, additionalInfo: additional });
 		this._tokens.push(errToken);
 	}

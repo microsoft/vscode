@@ -5,13 +5,14 @@
 
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { IReader } from 'vs/base/common/observable';
-import { LineRange as DiffLineRange, RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { LineRange as DiffLineRange } from 'vs/editor/common/core/lineRange';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;
@@ -22,7 +23,9 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm', 'experimental', this.configurationService);
+	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
+		'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
+		.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -38,6 +41,7 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 			{
 				ignoreTrimWhitespace: false,
 				maxComputationTimeMs: 0,
+				computeMoves: false,
 			},
 			diffAlgorithm,
 		);
@@ -52,15 +56,46 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 
 		const changes = result.changes.map(c =>
 			new DetailedLineRangeMapping(
-				toLineRange(c.originalRange),
+				toLineRange(c.original),
 				textModel1,
-				toLineRange(c.modifiedRange),
+				toLineRange(c.modified),
 				textModel2,
 				c.innerChanges?.map(ic => toRangeMapping(ic))
 			)
 		);
 
 		assertFn(() => {
+			for (const c of changes) {
+				const inputRange = c.inputRange;
+				const outputRange = c.outputRange;
+				const inputTextModel = c.inputTextModel;
+				const outputTextModel = c.outputTextModel;
+
+				for (const map of c.rangeMappings) {
+					let inputRangesValid = inputRange.startLineNumber - 1 <= map.inputRange.startLineNumber
+						&& map.inputRange.endLineNumber <= inputRange.endLineNumberExclusive;
+					if (inputRangesValid && map.inputRange.startLineNumber === inputRange.startLineNumber - 1) {
+						inputRangesValid = map.inputRange.endColumn >= inputTextModel.getLineMaxColumn(map.inputRange.startLineNumber);
+					}
+					if (inputRangesValid && map.inputRange.endLineNumber === inputRange.endLineNumberExclusive) {
+						inputRangesValid = map.inputRange.endColumn === 1;
+					}
+
+					let outputRangesValid = outputRange.startLineNumber - 1 <= map.outputRange.startLineNumber
+						&& map.outputRange.endLineNumber <= outputRange.endLineNumberExclusive;
+					if (outputRangesValid && map.outputRange.startLineNumber === outputRange.startLineNumber - 1) {
+						outputRangesValid = map.outputRange.endColumn >= outputTextModel.getLineMaxColumn(map.outputRange.endLineNumber);
+					}
+					if (outputRangesValid && map.outputRange.endLineNumber === outputRange.endLineNumberExclusive) {
+						outputRangesValid = map.outputRange.endColumn === 1;
+					}
+
+					if (!inputRangesValid || !outputRangesValid) {
+						return false;
+					}
+				}
+			}
+
 			return changes.length === 0 || (changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
 				checkAdjacentItems(changes,
 					(m1, m2) => m2.inputRange.startLineNumber - m1.inputRange.endLineNumberExclusive === m2.outputRange.startLineNumber - m1.outputRange.endLineNumberExclusive &&

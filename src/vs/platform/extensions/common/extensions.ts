@@ -11,9 +11,8 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
-export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
-export const USER_MANIFEST_CACHE_FILE = 'user';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
+export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
@@ -322,7 +321,6 @@ export interface IExtension {
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
 	readonly validations: readonly [Severity, string][];
-	readonly browserNlsBundleUris?: { [language: string]: URI };
 }
 
 /**
@@ -343,7 +341,12 @@ export interface IExtension {
  */
 export class ExtensionIdentifier {
 	public readonly value: string;
-	private readonly _lower: string;
+
+	/**
+	 * Do not use directly. This is public to avoid mangling and thus
+	 * allow compatibility between running from source and a built version.
+	 */
+	readonly _lower: string;
 
 	constructor(value: string) {
 		this.value = value;
@@ -455,7 +458,6 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
-	browserNlsBundleUris?: { [language: string]: URI };
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;

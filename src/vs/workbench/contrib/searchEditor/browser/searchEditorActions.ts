@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -85,9 +84,9 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 			filesToInclude: searchView.searchIncludePattern.getValue(),
 			onlyOpenEditors: searchView.searchIncludePattern.onlySearchInOpenEditors(),
 			filesToExclude: searchView.searchExcludePattern.getValue(),
-			isRegexp: searchView.searchAndReplaceWidget.searchInput.getRegex(),
-			isCaseSensitive: searchView.searchAndReplaceWidget.searchInput.getCaseSensitive(),
-			matchWholeWord: searchView.searchAndReplaceWidget.searchInput.getWholeWords(),
+			isRegexp: searchView.searchAndReplaceWidget.searchInput?.getRegex(),
+			isCaseSensitive: searchView.searchAndReplaceWidget.searchInput?.getCaseSensitive(),
+			matchWholeWord: searchView.searchAndReplaceWidget.searchInput?.getWholeWords(),
 			useExcludeSettingsAndIgnoreFiles: searchView.searchExcludePattern.useExcludesAndIgnoreFiles(),
 			showIncludesExcludes: !!(searchView.searchIncludePattern.getValue() || searchView.searchExcludePattern.getValue() || !searchView.searchExcludePattern.useExcludesAndIgnoreFiles())
 		});
@@ -108,7 +107,7 @@ export const openNewSearchEditor =
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 
 
 		const activeEditorControl = editorService.activeTextEditorControl;

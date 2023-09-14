@@ -155,7 +155,7 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 	const clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['html', 'css', 'javascript'], // the settings to synchronize
+			configurationSection: ['html', 'css', 'javascript', 'js/ts'], // the settings to synchronize
 		},
 		initializationOptions: {
 			embeddedLanguages,

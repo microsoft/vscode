@@ -14,13 +14,13 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from 'vs/platform/telemetry/common/telemetry';
 import { cleanData, getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
 	sendErrorTelemetry?: boolean;
-	commonProperties?: Promise<{ [name: string]: any }>;
+	commonProperties?: ICommonProperties;
 	piiPaths?: string[];
 }
 
@@ -31,13 +31,17 @@ export class TelemetryService implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
+	readonly sessionId: string;
+	readonly machineId: string;
+	readonly firstSessionDate: string;
+	readonly msftInternal: boolean | undefined;
+
 	private _appenders: ITelemetryAppender[];
-	private _commonProperties: Promise<{ [name: string]: any }>;
+	private _commonProperties: ICommonProperties;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
-
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
@@ -48,7 +52,13 @@ export class TelemetryService implements ITelemetryService {
 		@IProductService private _productService: IProductService
 	) {
 		this._appenders = config.appenders;
-		this._commonProperties = config.commonProperties || Promise.resolve({});
+		this._commonProperties = config.commonProperties ?? Object.create(null);
+
+		this.sessionId = this._commonProperties['sessionID'] as string;
+		this.machineId = this._commonProperties['common.machineId'] as string;
+		this.firstSessionDate = this._commonProperties['common.firstSessionDate'] as string;
+		this.msftInternal = this._commonProperties['common.msftInternal'] as boolean | undefined;
+
 		this._piiPaths = config.piiPaths || [];
 		this._telemetryLevel = TelemetryLevel.USAGE;
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
@@ -103,67 +113,48 @@ export class TelemetryService implements ITelemetryService {
 		return this._telemetryLevel;
 	}
 
-	async getTelemetryInfo(): Promise<ITelemetryInfo> {
-		const values = await this._commonProperties;
-
-		// well known properties
-		const sessionId = values['sessionID'];
-		const machineId = values['common.machineId'];
-		const firstSessionDate = values['common.firstSessionDate'];
-		const msftInternal = values['common.msftInternal'];
-
-		return { sessionId, machineId, firstSessionDate, msftInternal };
-	}
-
 	dispose(): void {
 		this._disposables.dispose();
 	}
 
-	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData): Promise<any> {
+	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData) {
 		// don't send events when the user is optout
 		if (this._telemetryLevel < eventLevel) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
-		return this._commonProperties.then(values => {
+		// add experiment properties
+		data = mixin(data, this._experimentProperties);
 
-			// add experiment properties
-			data = mixin(data, this._experimentProperties);
+		// remove all PII from data
+		data = cleanData(data as Record<string, any>, this._cleanupPatterns);
 
-			// remove all PII from data
-			data = cleanData(data as Record<string, any>, this._cleanupPatterns);
+		// add common properties
+		data = mixin(data, this._commonProperties);
 
-			// add common properties
-			data = mixin(data, values);
-
-			// Log to the appenders of sufficient level
-			this._appenders.forEach(a => a.log(eventName, data));
-
-		}, err => {
-			// unsure what to do now...
-			console.error(err);
-		});
+		// Log to the appenders of sufficient level
+		this._appenders.forEach(a => a.log(eventName, data));
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData): Promise<any> {
-		return this._log(eventName, TelemetryLevel.USAGE, data);
+	publicLog(eventName: string, data?: ITelemetryData) {
+		this._log(eventName, TelemetryLevel.USAGE, data);
 	}
 
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
-		return this.publicLog(eventName, data as ITelemetryData);
+	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		this.publicLog(eventName, data as ITelemetryData);
 	}
 
-	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
+	publicLogError(errorEventName: string, data?: ITelemetryData) {
 		if (!this._sendErrorTelemetry) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Send error event and anonymize paths
-		return this._log(errorEventName, TelemetryLevel.ERROR, data);
+		this._log(errorEventName, TelemetryLevel.ERROR, data);
 	}
 
-	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {
-		return this.publicLogError(eventName, data as ITelemetryData);
+	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		this.publicLogError(eventName, data as ITelemetryData);
 	}
 }
 

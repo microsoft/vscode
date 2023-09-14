@@ -17,9 +17,9 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative, locale } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, prepend, reset } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -77,7 +77,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
 	protected layoutControls: HTMLElement | undefined;
-	private layoutToolbar: MenuWorkbenchToolBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 
 	private hoverDelegate: IHoverDelegate;
@@ -170,6 +169,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
 			this.updateTitle();
 			this._onDidChangeCommandCenterVisibility.fire();
+			this._onDidChange.fire(undefined);
 		}
 	}
 
@@ -272,25 +272,24 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.updateTitle();
 
-
 		if (this.titleBarStyle !== 'native') {
 			this.layoutControls = append(this.rightContent, $('div.layout-controls-container'));
 			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 
-			this.layoutToolbar = this.instantiationService.createInstance(MenuWorkbenchToolBar, this.layoutControls, MenuId.LayoutControlMenu, {
+			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.layoutControls, MenuId.LayoutControlMenu, {
 				contextMenu: MenuId.TitleBarContext,
 				toolbarOptions: { primaryGroup: () => true },
 				actionViewItemProvider: action => {
 					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
 				}
-			});
+			}));
 		}
 
 		let primaryControlLocation = isMacintosh ? 'left' : 'right';
-		if (isMacintosh && isNative && locale) {
+		if (isMacintosh && isNative) {
 			// Check if the locale is RTL, macOS will move traffic lights in RTL locales
 			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
-			const localeInfo = new Intl.Locale(locale) as any;
+			const localeInfo = new Intl.Locale(platformLocale) as any;
 			if (localeInfo?.textInfo?.direction === 'rtl') {
 				primaryControlLocation = 'right';
 			}
@@ -309,29 +308,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			}));
 		});
 
-		// Since the title area is used to drag the window, we do not want to steal focus from the
-		// currently active element. So we restore focus after a timeout back to where it was.
-		this._register(addDisposableListener(this.element, EventType.MOUSE_DOWN, e => {
-			if (e.target && this.menubar && isAncestor(e.target as HTMLElement, this.menubar)) {
-				return;
-			}
-
-			if (e.target && this.layoutToolbar && isAncestor(e.target as HTMLElement, this.layoutToolbar.getElement())) {
-				return;
-			}
-
-			if (e.target && isAncestor(e.target as HTMLElement, this.title)) {
-				return;
-			}
-
-			const active = document.activeElement;
-			setTimeout(() => {
-				if (active instanceof HTMLElement) {
-					active.focus();
-				}
-			}, 0 /* need a timeout because we are in capture phase */);
-		}, true /* use capture to know the currently active element properly */));
-
 		this.updateStyles();
 
 		const that = this;
@@ -346,7 +322,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				});
 			}
 
-			run(accessor: ServicesAccessor, ...args: any[]): void {
+			run(): void {
 				if (that.customMenubar) {
 					that.customMenubar.toggleFocus();
 				} else {
@@ -399,11 +375,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
 		// Find target anchor
 		const event = new StandardMouseEvent(e);
-		const anchor = { x: event.posx, y: event.posy };
 
 		// Show it
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => event,
 			menuId,
 			contextKeyService: this.contextKeyService,
 			domForShadowRoot: isMacintosh && isNative ? event.target : undefined

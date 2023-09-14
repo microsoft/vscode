@@ -62,7 +62,7 @@ export class TerminalEditor extends EditorPane {
 	) {
 		super(terminalEditorId, telemetryService, themeService, storageService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -79,7 +79,6 @@ export class TerminalEditor extends EditorPane {
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
 			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
-			this._register(this._editorInput.terminalInstance.onDidFocusFindWidget(() => this._setActiveInstance()));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
@@ -104,7 +103,7 @@ export class TerminalEditor extends EditorPane {
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected createEditor(parent: HTMLElement): void {
 		this._editorInstanceElement = parent;
-		this._overflowGuardElement = dom.$('.terminal-overflow-guard');
+		this._overflowGuardElement = dom.$('.terminal-overflow-guard.terminal-editor');
 		this._editorInstanceElement.appendChild(this._overflowGuardElement);
 		this._registerListeners();
 	}

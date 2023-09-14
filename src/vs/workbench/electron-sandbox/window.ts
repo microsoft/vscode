@@ -32,13 +32,13 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
@@ -78,8 +78,6 @@ export class NativeWindow extends Disposable {
 	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
-
-	private previousConfiguredZoomLevel: number | undefined;
 
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
@@ -140,14 +138,14 @@ export class NativeWindow extends Disposable {
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
-		// prevent opening a real URL inside the window
+		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
 			window.document.body.addEventListener(event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			});
 		}
 
-		// Support runAction event
+		// Support `runAction` event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
@@ -228,6 +226,22 @@ export class NativeWindow extends Disposable {
 			);
 		});
 
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
+				[{
+					label: localize('downloadArmBuild', "Download"),
+					run: () => {
+						const quality = this.productService.quality;
+						const stableURL = 'https://code.visualstudio.com/docs/?dv=osx';
+						const insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
+						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
+					}
+				}]
+			);
+		});
+
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true); });
 		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false); });
@@ -279,8 +293,31 @@ export class NativeWindow extends Disposable {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
+		// Allow to update settings around allowed UNC Host
+		ipcRenderer.on('vscode:configureAllowedUNCHost', (event: unknown, host: string) => {
+			if (!isWindows) {
+				return; // only supported on Windows
+			}
+
+			const allowedUncHosts = new Set<string>();
+
+			const configuredAllowedUncHosts = this.configurationService.getValue<string[] | undefined>('security.allowedUNCHosts',) ?? [];
+			if (Array.isArray(configuredAllowedUncHosts)) {
+				for (const configuredAllowedUncHost of configuredAllowedUncHosts) {
+					if (typeof configuredAllowedUncHost === 'string') {
+						allowedUncHosts.add(configuredAllowedUncHost);
+					}
+				}
+			}
+
+			if (!allowedUncHosts.has(host)) {
+				allowedUncHosts.add(host);
+
+				this.configurationService.updateValue('security.allowedUNCHosts', [...allowedUncHosts.values()], ConfigurationTarget.USER);
+			}
+		});
+
 		// Zoom level changes
-		this.updateWindowZoomLevel();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
 				this.updateWindowZoomLevel();
@@ -565,21 +602,10 @@ export class NativeWindow extends Disposable {
 
 	private updateWindowZoomLevel(): void {
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
+		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 
-		let configuredZoomLevel = 0;
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			configuredZoomLevel = windowConfig.window.zoomLevel;
-
-			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
-				return;
-			}
-
-			this.previousConfiguredZoomLevel = configuredZoomLevel;
-		}
-
-		if (getZoomLevel() !== configuredZoomLevel) {
-			applyZoom(configuredZoomLevel);
+		if (getZoomLevel() !== windowZoomLevel) {
+			applyZoom(windowZoomLevel);
 		}
 	}
 
@@ -697,36 +723,45 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Windows 7 warning
-		if (isWindows) {
-			const version = this.environmentService.os.release.split('.');
+		// Windows 32-bit warning
+		if (isWindows && this.environmentService.os.arch === 'ia32') {
+			const message = localize('windows32eolmessage', "You are running {0} 32-bit, which will soon stop receiving updates on Windows. Consider upgrading to the 64-bit build.", this.productService.nameLong);
+			const actions = [{
+				label: localize('windowseolBannerLearnMore', "Learn More"),
+				href: 'https://aka.ms/vscode-faq-old-windows'
+			}];
 
-			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
-			if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
-				const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
+			this.bannerService.show({
+				id: 'windows32eol.banner',
+				message,
+				ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+				actions,
+				icon: Codicon.warning
+			});
 
-				this.notificationService.prompt(
-					Severity.Warning,
-					message,
-					[{
-						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
-					}],
-					{
-						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
-					}
-				);
-			}
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
+				}],
+				{
+					neverShowAgain: { id: 'windows32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+					priority: NotificationPriority.URGENT,
+					sticky: true
+				}
+			);
 		}
 
-		// MacOS 10.11 and 10.12 warning
+		// macOS 10.13 and 10.14 warning
 		if (isMacintosh) {
 			const majorVersion = this.environmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['15', 'OS X El Capitan'],
-				['16', 'macOS Sierra'],
+				['17', 'macOS High Sierra'],
+				['18', 'macOS Mojave'],
 			]);
-			// Refs https://en.wikipedia.org/wiki/Darwin_%28operating_system%29#Release_history
+
 			if (eolReleases.has(majorVersion)) {
 				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
 				const actions = [{
@@ -750,7 +785,9 @@ export class NativeWindow extends Disposable {
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
 					}],
 					{
-						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
 					}
 				);
 			}
@@ -770,7 +807,7 @@ export class NativeWindow extends Disposable {
 		const that = this;
 		let pendingQuit = false;
 
-		registerWindowDriver({
+		registerWindowDriver(this.instantiationService, {
 			async exitApplication(): Promise<void> {
 				if (pendingQuit) {
 					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
@@ -821,15 +858,16 @@ export class NativeWindow extends Disposable {
 							}
 						} : undefined;
 						let tunnel = await this.tunnelService.getExistingTunnel(portMappingRequest.address, portMappingRequest.port);
-						if (!tunnel) {
+						if (!tunnel || (typeof tunnel === 'string')) {
 							tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						}
-						if (tunnel) {
-							const addressAsUri = URI.parse(tunnel.localAddress);
-							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
+						if (tunnel && (typeof tunnel !== 'string')) {
+							const constTunnel = tunnel;
+							const addressAsUri = URI.parse(constTunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: constTunnel.localAddress });
 							return {
 								resolved,
-								dispose: () => tunnel?.dispose(),
+								dispose: () => constTunnel.dispose(),
 							};
 						}
 					}

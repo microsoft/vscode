@@ -29,6 +29,7 @@ import { IProblemsWidget } from 'vs/workbench/contrib/markers/browser/markersVie
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
+import Severity from 'vs/base/common/severity';
 
 const $ = DOM.$;
 
@@ -89,7 +90,7 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 		};
 
 		templateData.icon.title = MarkerSeverity.toString(element.marker.severity);
-		templateData.icon.className = `marker-icon codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
+		templateData.icon.className = `marker-icon ${Severity.toString(MarkerSeverity.toSeverity(element.marker.severity))} codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(element.marker.severity))}`;
 
 		templateData.actionBar.clear();
 		const viewModel = this.markersViewModel.getViewModel(element);
@@ -325,11 +326,11 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
 
 		// mouseover/mouseleave event handlers
-		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event)
-			.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
-			.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
-			.map(e => parseInt(e.getAttribute('data-index')!))
-			.event;
+		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
+			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
+				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
+				.map(e => parseInt(e.getAttribute('data-index')!))
+		);
 
 		const onListLeave = Event.map(this._register(new DomEmitter(list, 'mouseleave')).event, () => -1);
 

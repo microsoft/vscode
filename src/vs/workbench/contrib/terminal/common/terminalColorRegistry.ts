@@ -182,7 +182,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 			light: '#0598bc',
 			dark: '#11a8cd',
 			hcDark: '#00cdcd',
-			hcLight: '#0598b'
+			hcLight: '#0598bc'
 		}
 	},
 	'terminal.ansiWhite': {

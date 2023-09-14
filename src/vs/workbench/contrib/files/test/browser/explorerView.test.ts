@@ -15,16 +15,19 @@ import * as dom from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-const $ = dom.$;
-
-const fileService = new TestFileService();
-const configService = new TestConfigurationService();
-
-function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), fileService, configService, undefined, isFolder, isSymLink, false, name, mtime, isUnknown);
-}
+import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Files - ExplorerView', () => {
+
+	const $ = dom.$;
+
+	const fileService = new TestFileService();
+	const configService = new TestConfigurationService();
+
+
+	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
+		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
+	}
 
 	test('getContext', async function () {
 		const d = new Date().getTime();
@@ -44,7 +47,7 @@ suite('Files - ExplorerView', () => {
 	test('decoration provider', async function () {
 		const d = new Date().getTime();
 		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d);
-		s1.isError = true;
+		s1.error = new Error('A test error');
 		const s2 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, true);
 		const s3 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
 		assert.strictEqual(provideDecorations(s3), undefined);
@@ -53,7 +56,7 @@ suite('Files - ExplorerView', () => {
 			letter: '\u2937'
 		});
 		assert.deepStrictEqual(provideDecorations(s1), {
-			tooltip: 'Unable to resolve workspace folder',
+			tooltip: 'Unable to resolve workspace folder (A test error)',
 			letter: '!',
 			color: listInvalidItemForeground
 		});

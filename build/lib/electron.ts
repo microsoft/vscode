@@ -90,11 +90,14 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 	});
 }
 
+const { electronVersion, msBuildId } = util.getElectronVersion();
+
 export const config = {
-	version: product.electronRepository ? '22.10.0' : util.getElectronVersion(),
+	version: electronVersion,
+	tag: product.electronRepository ? `v${electronVersion}-${msBuildId}` : undefined,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2022 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2023 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -187,19 +190,21 @@ export const config = {
 	darwinCredits: darwinCreditsTemplate ? Buffer.from(darwinCreditsTemplate({ commit: commit, date: new Date().toISOString() })) : undefined,
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
-	token: process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined,
-	repo: product.electronRepository || undefined
+	token: process.env['GITHUB_TOKEN'],
+	repo: product.electronRepository || undefined,
+	validateChecksum: true,
+	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
 };
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
-		const electron = require('gulp-atom-electron');
+		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 		const electronOpts = _.extend({}, config, {
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
-			ffmpegChromium: true,
+			ffmpegChromium: false,
 			keepDefaultApp: true
 		});
 
@@ -211,8 +216,8 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	};
 }
 
-async function main(arch = process.arch): Promise<void> {
-	const version = product.electronRepository ? '22.10.0' : util.getElectronVersion();
+async function main(arch: string = process.arch): Promise<void> {
+	const version = electronVersion;
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
 	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;

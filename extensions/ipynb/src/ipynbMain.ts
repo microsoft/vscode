@@ -24,7 +24,7 @@ type NotebookMetadata = {
 		pygments_lexer?: string;
 		[propName: string]: unknown;
 	};
-	orig_nbformat: number;
+	orig_nbformat?: number;
 	[propName: string]: unknown;
 };
 
@@ -32,6 +32,18 @@ export function activate(context: vscode.ExtensionContext) {
 	const serializer = new NotebookSerializer(context);
 	ensureAllNewCellsHaveCellIds(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
+		transientOutputs: false,
+		transientCellMetadata: {
+			breakpointMargin: true,
+			custom: false,
+			attachments: false
+		},
+		cellContentMetadata: {
+			attachments: true
+		}
+	} as vscode.NotebookDocumentContentOptions));
+
+	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('interactive', serializer, {
 		transientOutputs: false,
 		transientCellMetadata: {
 			breakpointMargin: true,
@@ -64,9 +76,7 @@ export function activate(context: vscode.ExtensionContext) {
 		data.metadata = {
 			custom: {
 				cells: [],
-				metadata: {
-					orig_nbformat: 4
-				},
+				metadata: {},
 				nbformat: 4,
 				nbformat_minor: 2
 			}

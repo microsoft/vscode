@@ -16,8 +16,9 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IConnectionOptions, IRemoteExtensionHostStartParams, ISocketFactory, connectRemoteAgentExtensionHost } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IConnectionOptions, IRemoteExtensionHostStartParams, connectRemoteAgentExtensionHost } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -61,7 +62,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	constructor(
 		public readonly runningLocation: RemoteRunningLocation,
 		private readonly _initDataProvider: IRemoteExtensionHostDataProvider,
-		private readonly _socketFactory: ISocketFactory,
+		@IRemoteSocketFactoryService private readonly remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -87,13 +88,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		const options: IConnectionOptions = {
 			commit: this._productService.commit,
 			quality: this._productService.quality,
-			socketFactory: this._socketFactory,
 			addressProvider: {
 				getAddress: async () => {
 					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
+					return { connectTo: authority.connectTo, connectionToken: authority.connectionToken };
 				}
 			},
+			remoteSocketFactoryService: this.remoteSocketFactoryService,
 			signService: this._signService,
 			logService: this._logService,
 			ipcLogger: null
@@ -145,7 +146,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
 					const handle = setTimeout(() => {
-						reject('The remote extenion host took longer than 60s to send its ready message.');
+						reject('The remote extension host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 
 					const disposable = protocol.onMessage(msg => {
@@ -201,12 +202,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	}
 
 	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
-		const [telemetryInfo, remoteInitData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
+		const remoteInitData = await this._initDataProvider.getInitData();
 		const workspace = this._contextService.getWorkspace();
 		const deltaExtensions = this.extensions.set(remoteInitData.allExtensions, remoteInitData.myExtensions);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
+			quality: this._productService.quality,
 			parentPid: remoteInitData.pid,
 			environment: {
 				isExtensionDevelopmentDebug,
@@ -241,7 +243,12 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			allExtensions: deltaExtensions.toAdd,
 			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
-			telemetryInfo,
+			telemetryInfo: {
+				sessionId: this._telemetryService.sessionId,
+				machineId: this._telemetryService.machineId,
+				firstSessionDate: this._telemetryService.firstSessionDate,
+				msftInternal: this._telemetryService.msftInternal
+			},
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: remoteInitData.extensionHostLogsPath,

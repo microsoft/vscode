@@ -6,9 +6,9 @@
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, VIEW_ID, IFilesConfiguration, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/contrib/files/browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
@@ -43,12 +43,8 @@ const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book,
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
-	private openEditorsVisibleContextKey!: IContextKey<boolean>;
-
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProgressService progressService: IProgressService
 	) {
 		super();
@@ -56,12 +52,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
 			this.registerViews();
 
-			this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
-			this.updateOpenEditorsVisibility();
-
 			this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
 			this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
-			this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		});
 	}
 
@@ -116,7 +108,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			ctorDescriptor: new SyncDescriptor(OpenEditorsView),
 			containerIcon: openEditorsViewIcon,
 			order: 0,
-			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			canMoveView: true,
 			collapsed: false,
@@ -156,16 +147,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			}
 		};
 	}
-
-	private onConfigurationUpdated(e: IConfigurationChangeEvent): void {
-		if (e.affectsConfiguration('explorer.openEditors.visible')) {
-			this.updateOpenEditorsVisibility();
-		}
-	}
-
-	private updateOpenEditorsVisibility(): void {
-		this.openEditorsVisibleContextKey.set(this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.configurationService.getValue('explorer.openEditors.visible') !== 0);
-	}
 }
 
 export class ExplorerViewPaneContainer extends ViewPaneContainer {
@@ -189,7 +170,6 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
-
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
@@ -272,7 +252,7 @@ const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.Vi
  */
 export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
-	title: localize('explore', "Explorer"),
+	title: { value: localize('explore', "Explorer"), original: 'Explorer' },
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,

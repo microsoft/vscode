@@ -28,13 +28,16 @@ import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
-	private _body!: CommentThreadBody<T>;
+	private _body: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
 	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
@@ -45,6 +48,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
+	private _commentThreadState: languages.CommentThreadState | undefined;
+
 	get commentThread() {
 		return this._commentThread;
 	}
@@ -54,7 +59,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
-		private _scopedInstatiationService: IInstantiationService,
+		private _scopedInstantiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
 		private _pendingComment: string | undefined,
 		private _pendingEdits: { [key: number]: string } | undefined,
@@ -65,7 +70,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			collapse: () => void;
 		},
 		@ICommentService private commentService: ICommentService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -82,7 +88,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentMenus,
 			this._commentThread,
 			this._contextKeyService,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			contextMenuService
 		);
 
@@ -91,7 +97,22 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
 
-		this._body = this._scopedInstatiationService.createInstance(
+		const tracker = this._register(dom.trackFocus(bodyElement));
+		this._register(registerNavigableContainer({
+			focusNotifiers: [tracker],
+			focusNextWidget: () => {
+				if (!this._commentReply?.isCommentEditorFocused()) {
+					this._commentReply?.expandReplyAreaAndFocusCommentEditor();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (this._commentReply?.isCommentEditorFocused() && this._commentThread.comments?.length) {
+					this._body.focus();
+				}
+			}
+		}));
+
+		this._body = this._scopedInstantiationService.createInstance(
 			CommentThreadBody,
 			this._owner,
 			this._parentResourceUri,
@@ -99,7 +120,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._markdownOptions,
 			this._commentThread,
 			this._pendingEdits,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
@@ -154,6 +175,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
+		const shouldCollapse = (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) && (this._commentThreadState === languages.CommentThreadState.Unresolved)
+			&& (commentThread.state === languages.CommentThreadState.Resolved);
+		this._commentThreadState = commentThread.state;
 		this._commentThread = commentThread;
 		dispose(this._commentThreadDisposables);
 		this._commentThreadDisposables = [];
@@ -168,6 +192,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentThreadContextValue.set(this._commentThread.contextValue);
 		} else {
 			this._commentThreadContextValue.reset();
+		}
+
+		if (shouldCollapse && this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).collapseOnResolve) {
+			this.collapse();
 		}
 	}
 
@@ -227,12 +255,12 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	private _createCommentForm() {
-		this._commentReply = this._scopedInstatiationService.createInstance(
+		this._commentReply = this._scopedInstantiationService.createInstance(
 			CommentReply,
 			this._owner,
 			this._body.container,
 			this._commentThread,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			this._contextKeyService,
 			this._commentMenus,
 			this._commentOptions,
@@ -245,7 +273,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	private _createAdditionalActions() {
-		this._additionalActions = this._scopedInstatiationService.createInstance(
+		this._additionalActions = this._scopedInstantiationService.createInstance(
 			CommentThreadAdditionalActions,
 			this._body.container,
 			this._commentThread,
@@ -274,7 +302,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	getDimensions() {
-		return this._body?.getDimensions();
+		return this._body.getDimensions();
 	}
 
 	layout(widthInPixel?: number) {
@@ -296,9 +324,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
-			activeComment.submitComment();
+			return activeComment.submitComment();
 		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
-			this._commentReply?.submitComment();
+			return this._commentReply?.submitComment();
 		}
 	}
 

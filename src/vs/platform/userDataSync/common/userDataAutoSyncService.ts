@@ -135,7 +135,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		const { enabled, message } = this.isAutoSyncEnabled();
 		if (enabled) {
 			if (this.autoSync.value === undefined) {
-				this.autoSync.value = new AutoSync(this.lastSyncUrl, 1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreManagementService, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.storageService);
+				this.autoSync.value = new AutoSync(this.lastSyncUrl, 1000 * 60 * 5 /* 5 miutes */, this.userDataSyncStoreManagementService, this.userDataSyncStoreService, this.userDataSyncService, this.userDataSyncMachinesService, this.logService, this.telemetryService, this.storageService);
 				this.autoSync.value.register(this.autoSync.value.onDidStartSync(() => this.lastSyncTriggerTime = new Date().getTime()));
 				this.autoSync.value.register(this.autoSync.value.onDidFinishSync(e => this.onDidFinishSync(e)));
 				if (this.startAutoSync()) {
@@ -403,6 +403,7 @@ class AutoSync extends Disposable {
 		private readonly userDataSyncService: IUserDataSyncService,
 		private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		private readonly logService: IUserDataSyncLogService,
+		private readonly telemetryService: ITelemetryService,
 		private readonly storageService: IStorageService,
 	) {
 		super();
@@ -536,7 +537,15 @@ class AutoSync extends Disposable {
 			throw new UserDataAutoSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 		}
 
+		const startTime = new Date().getTime();
 		await this.syncTask.run();
+		this.telemetryService.publicLog2<{
+			duration: number;
+		}, {
+			owner: 'sandy081';
+			comment: 'Report when running a sync operation';
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time taken to run sync operation' };
+		}>('settingsSync:sync', { duration: new Date().getTime() - startTime });
 
 		// After syncing, get the manifest if it was not available before
 		if (this.manifest === null) {

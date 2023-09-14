@@ -13,6 +13,7 @@ import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, IT
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+
 export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
@@ -27,12 +28,11 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 		@IProductService private readonly productService: IProductService
 	) { }
 
-	private async getCustomTelemetryService(endpoint: ITelemetryEndpoint): Promise<ITelemetryService> {
+	private getCustomTelemetryService(endpoint: ITelemetryEndpoint): ITelemetryService {
 		if (!this.customTelemetryServices.has(endpoint.id)) {
-			const { machineId, sessionId } = await this.telemetryService.getTelemetryInfo();
 			const telemetryInfo: { [key: string]: string } = Object.create(null);
-			telemetryInfo['common.vscodemachineid'] = machineId;
-			telemetryInfo['common.vscodesessionid'] = sessionId;
+			telemetryInfo['common.vscodemachineid'] = this.telemetryService.machineId;
+			telemetryInfo['common.vscodesessionid'] = this.telemetryService.sessionId;
 			const args = [endpoint.id, JSON.stringify(telemetryInfo), endpoint.aiKey];
 			const client = new TelemetryClient(
 				FileAccess.asFileUri('bootstrap-fork').fsPath,
@@ -63,13 +63,13 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 		return this.customTelemetryServices.get(endpoint.id)!;
 	}
 
-	async publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void> {
-		const customTelemetryService = await this.getCustomTelemetryService(telemetryEndpoint);
-		await customTelemetryService.publicLog(eventName, data);
+	publicLog(telemetryEndpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData) {
+		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
+		customTelemetryService.publicLog(eventName, data);
 	}
 
-	async publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void> {
-		const customTelemetryService = await this.getCustomTelemetryService(telemetryEndpoint);
-		await customTelemetryService.publicLogError(errorEventName, data);
+	publicLogError(telemetryEndpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData) {
+		const customTelemetryService = this.getCustomTelemetryService(telemetryEndpoint);
+		customTelemetryService.publicLogError(errorEventName, data);
 	}
 }

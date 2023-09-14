@@ -101,8 +101,8 @@ export class Workbench extends Layout {
 		}
 		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 
-		if (typeof (<any>window).require.config === 'function') {
-			(<any>window).require.config({
+		if (typeof window.require?.config === 'function') {
+			window.require.config({
 				onError: (err: AnnotatedError) => {
 					if (err.phase === 'loading') {
 						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
@@ -147,6 +147,7 @@ export class Workbench extends Layout {
 				const configurationService = accessor.get(IConfigurationService);
 				const hostService = accessor.get(IHostService);
 				const dialogService = accessor.get(IDialogService);
+				const notificationService = accessor.get(INotificationService) as NotificationService;
 
 				// Layout
 				this.initLayout(accessor);
@@ -162,7 +163,7 @@ export class Workbench extends Layout {
 				this.registerListeners(lifecycleService, storageService, configurationService, hostService, dialogService);
 
 				// Render Workbench
-				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
+				this.renderWorkbench(instantiationService, notificationService, storageService, configurationService);
 
 				// Workbench Layout
 				this.createWorkbenchLayout();
@@ -341,7 +342,7 @@ export class Workbench extends Layout {
 
 		// Create Parts
 		for (const { id, role, classes, options } of [
-			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
+			{ id: Parts.TITLEBAR_PART, role: 'none', classes: ['titlebar'] },
 			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.getSideBarPosition() === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', this.getSideBarPosition() === Position.LEFT ? 'left' : 'right'] },

@@ -127,7 +127,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * in a group.
 	 *
 	 * To monitor the lifecycle of editor inputs, you should not rely on this
-	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.
+	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupsService`.
 	 */
 	clearInput(): void {
 		this._input = undefined;

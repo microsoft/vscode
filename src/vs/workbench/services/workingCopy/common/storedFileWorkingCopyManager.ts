@@ -208,9 +208,9 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		// Lifecycle
 		if (isWeb) {
-			this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdownWeb(), 'veto.fileWorkingCopyManager'));
+			this._register(this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdownWeb(), 'veto.fileWorkingCopyManager')));
 		} else {
-			this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdownDesktop(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") }));
+			this._register(this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdownDesktop(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") })));
 		}
 	}
 
@@ -371,15 +371,16 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 			if (workingCopiesToRestore) {
 				this.mapCorrelationIdToWorkingCopiesToRestore.delete(e.correlationId);
 
-				workingCopiesToRestore.forEach(workingCopy => {
+				for (const workingCopy of workingCopiesToRestore) {
 
-					// Snapshot presence means this working copy used to be dirty and so we restore that
+					// Snapshot presence means this working copy used to be modified and so we restore that
 					// flag. we do NOT have to restore the content because the working copy was only soft
-					// reverted and did not loose its original dirty contents.
+					// reverted and did not loose its original modified contents.
+
 					if (workingCopy.snapshot) {
-						this.get(workingCopy.source)?.markDirty();
+						this.get(workingCopy.source)?.markModified();
 					}
-				});
+				}
 			}
 		}
 	}

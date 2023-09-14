@@ -5,18 +5,15 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { Event } from 'vs/base/common/event';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TITLE, IProfileTemplateInfo } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
@@ -24,18 +21,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
-const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
-const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
-	value: localize('create empty profile', "Create an Empty Profile..."),
-	original: 'Create an Empty Profile...'
-};
-
-const CREATE_FROM_CURRENT_PROFILE_ACTION_ID = 'workbench.profiles.actions.createFromCurrentProfile';
-const CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE = {
-	value: localize('save profile as', "Create from Current Profile..."),
-	original: 'Create from Current Profile...'
-};
+type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -47,12 +36,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
+		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -89,12 +77,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.registerProfilesActions()));
 
 		this.registerCurrentProfilesActions();
-		this._register(Event.any(this.userDataProfileService.onDidChangeCurrentProfile, this.userDataProfileService.onDidUpdateCurrentProfile)(() => this.registerCurrentProfilesActions()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.registerCurrentProfilesActions()));
 
-		this.registerCreateEmptyProfileAction();
 		this.registerCreateFromCurrentProfileAction();
 		this.registerCreateProfileAction();
 		this.registerDeleteProfileAction();
+
+		this.registerHelpAction();
 	}
 
 	private registerProfileSubMenu(): void {
@@ -187,34 +176,37 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private readonly currentprofileActionsDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private registerCurrentProfilesActions(): void {
 		this.currentprofileActionsDisposable.value = new DisposableStore();
-		this.currentprofileActionsDisposable.value.add(this.registerRenameCurrentProfileAction());
+		this.currentprofileActionsDisposable.value.add(this.registerEditCurrentProfileAction());
 		this.currentprofileActionsDisposable.value.add(this.registerShowCurrentProfileContentsAction());
 		this.currentprofileActionsDisposable.value.add(this.registerExportCurrentProfileAction());
 		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
 	}
 
-	private registerRenameCurrentProfileAction(): IDisposable {
+	private registerEditCurrentProfileAction(): IDisposable {
 		const that = this;
 		return registerAction2(class RenameCurrentProfileAction extends Action2 {
 			constructor() {
+				const when = ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated());
 				super({
-					id: `workbench.profiles.actions.renameCurrentProfile`,
+					id: `workbench.profiles.actions.editCurrentProfile`,
 					title: {
-						value: localize('rename profile', "Rename..."),
-						original: `Rename...`
+						value: localize('edit profile', "Edit Profile..."),
+						original: `Edit Profile...`
 					},
+					precondition: when,
+					f1: true,
 					menu: [
 						{
 							id: ProfilesMenu,
 							group: '2_manage_current',
-							when: ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated()),
+							when,
 							order: 2
 						}
 					]
 				});
 			}
-			async run(accessor: ServicesAccessor) {
-				accessor.get(ICommandService).executeCommand(RenameProfileAction.ID, that.userDataProfileService.currentProfile);
+			run() {
+				return that.userDataProfileImportExportService.editProfile(that.userDataProfileService.currentProfile);
 			}
 		});
 	}
@@ -226,8 +218,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				super({
 					id,
 					title: {
-						value: localize('show profile contents', "Show Contents..."),
-						original: `ShowContents...`
+						value: localize('show profile contents', "Show Profile Contents"),
+						original: `Show Profile Contents`
 					},
 					category: PROFILES_CATEGORY,
 					menu: [
@@ -296,6 +288,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private registerImportProfileAction(): IDisposable {
 		const disposables = new DisposableStore();
 		const id = 'workbench.profiles.actions.importProfile';
+		const that = this;
 		disposables.add(registerAction2(class ImportProfileAction extends Action2 {
 			constructor() {
 				super({
@@ -328,26 +321,46 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 				const disposables = new DisposableStore();
 				const quickPick = disposables.add(quickInputService.createQuickPick());
+				const profileTemplateQuickPickItems = await that.getProfileTemplatesQuickPickItems();
+
 				const updateQuickPickItems = (value?: string) => {
-					const selectFromFileItem: IQuickPickItem = { label: localize('import from file', "Import from profile file") };
-					quickPick.items = value ? [{ label: localize('import from url', "Import from URL"), description: quickPick.value }, selectFromFileItem] : [selectFromFileItem];
+					const quickPickItems: (IQuickPickItem | IQuickPickSeparator)[] = [];
+					if (value) {
+						quickPickItems.push({ label: quickPick.value, description: localize('import from url', "Import from URL") });
+					}
+					quickPickItems.push({ label: localize('import from file', "Select File...") });
+					if (profileTemplateQuickPickItems.length) {
+						quickPickItems.push({
+							type: 'separator',
+							label: localize('templates', "Profile Templates")
+						}, ...profileTemplateQuickPickItems);
+					}
+					quickPick.items = quickPickItems;
 				};
-				quickPick.title = localize('import profile quick pick title', "Import Profile");
-				quickPick.placeholder = localize('import profile placeholder', "Provide profile URL or select profile file to import");
+
+				quickPick.title = localize('import profile quick pick title', "Import from Profile Template...");
+				quickPick.placeholder = localize('import profile placeholder', "Provide Profile Template URL");
 				quickPick.ignoreFocusOut = true;
 				disposables.add(quickPick.onDidChangeValue(updateQuickPickItems));
 				updateQuickPickItems();
 				quickPick.matchOnLabel = false;
 				quickPick.matchOnDescription = false;
 				disposables.add(quickPick.onDidAccept(async () => {
+					quickPick.hide();
+					const selectedItem = quickPick.selectedItems[0];
+					if (!selectedItem) {
+						return;
+					}
 					try {
-						quickPick.hide();
-						const profile = quickPick.selectedItems[0].description ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem(fileDialogService);
+						if ((<IProfileTemplateQuickPickItem>selectedItem).url) {
+							return await that.userDataProfileImportExportService.createProfile(URI.parse((<IProfileTemplateQuickPickItem>selectedItem).url));
+						}
+						const profile = selectedItem.label === quickPick.value ? URI.parse(quickPick.value) : await this.getProfileUriFromFileSystem(fileDialogService);
 						if (profile) {
 							await userDataProfileImportExportService.importProfile(profile);
 						}
 					} catch (error) {
-						notificationService.error(localize('profile import error', "Error while importing profile: {0}", getErrorMessage(error)));
+						notificationService.error(localize('profile import error', "Error while creating profile: {0}", getErrorMessage(error)));
 					}
 				}));
 				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
@@ -360,7 +373,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					canSelectFiles: true,
 					canSelectMany: false,
 					filters: PROFILE_FILTER,
-					title: localize('import profile dialog', "Import Profile"),
+					title: localize('import profile dialog', "Select Profile Template File"),
 				});
 				if (!profileLocation) {
 					return null;
@@ -386,8 +399,11 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(registerAction2(class CreateFromCurrentProfileAction extends Action2 {
 			constructor() {
 				super({
-					id: CREATE_FROM_CURRENT_PROFILE_ACTION_ID,
-					title: CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE,
+					id: 'workbench.profiles.actions.createFromCurrentProfile',
+					title: {
+						value: localize('save profile as', "Save Current Profile As..."),
+						original: 'Save Current Profile As...'
+					},
 					category: PROFILES_CATEGORY,
 					f1: true,
 					precondition: PROFILES_ENABLEMENT_CONTEXT
@@ -395,52 +411,13 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 
 			run(accessor: ServicesAccessor) {
-				return that.createProfile(true);
+				return that.userDataProfileImportExportService.createProfile(that.userDataProfileService.currentProfile);
 			}
 		}));
-	}
-
-	private registerCreateEmptyProfileAction(): void {
-		const that = this;
-		this._register(registerAction2(class CreateEmptyProfileAction extends Action2 {
-			constructor() {
-				super({
-					id: CREATE_EMPTY_PROFILE_ACTION_ID,
-					title: CREATE_EMPTY_PROFILE_ACTION_TITLE,
-					category: PROFILES_CATEGORY,
-					f1: true,
-					precondition: PROFILES_ENABLEMENT_CONTEXT
-				});
-			}
-
-			run(accessor: ServicesAccessor) {
-				return that.createProfile(false);
-			}
-		}));
-	}
-
-	private async createProfile(fromExisting: boolean): Promise<void> {
-		const name = await this.quickInputService.input({
-			placeHolder: localize('name', "Profile name"),
-			title: fromExisting ? localize('create from current profle', "Create from Current Profile...") : localize('create empty profile', "Create an Empty Profile..."),
-			validateInput: async (value: string) => {
-				if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
-					return localize('profileExists', "Profile with name {0} already exists.", value);
-				}
-				return undefined;
-			}
-		});
-		if (!name) {
-			return;
-		}
-		try {
-			await this.userDataProfileManagementService.createAndEnterProfile(name, undefined, fromExisting);
-		} catch (error) {
-			this.notificationService.error(error);
-		}
 	}
 
 	private registerCreateProfileAction(): void {
+		const that = this;
 		this._register(registerAction2(class CreateProfileAction extends Action2 {
 			constructor() {
 				super({
@@ -451,6 +428,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					},
 					category: PROFILES_CATEGORY,
 					precondition: PROFILES_ENABLEMENT_CONTEXT,
+					f1: true,
 					menu: [
 						{
 							id: ProfilesMenu,
@@ -463,19 +441,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 
 			async run(accessor: ServicesAccessor) {
-				const quickInputService = accessor.get(IQuickInputService);
-				const commandService = accessor.get(ICommandService);
-				const pick = await quickInputService.pick(
-					[{
-						id: CREATE_EMPTY_PROFILE_ACTION_ID,
-						label: CREATE_EMPTY_PROFILE_ACTION_TITLE.value,
-					}, {
-						id: CREATE_FROM_CURRENT_PROFILE_ACTION_ID,
-						label: CREATE_FROM_CURRENT_PROFILE_ACTION_TITLE.value,
-					}], { hideInput: true, canPickMany: false, title: localize('create profile title', "{0}: Create...", PROFILES_CATEGORY.value) });
-				if (pick?.id) {
-					return commandService.executeCommand(pick.id);
-				}
+				return that.userDataProfileImportExportService.createProfile();
 			}
 		}));
 	}
@@ -533,6 +499,36 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				}
 			}
 		});
+	}
+
+	private registerHelpAction(): void {
+		this._register(registerAction2(class HelpAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.profiles.actions.help',
+					title: PROFILES_TITLE,
+					category: Categories.Help,
+					menu: [{
+						id: MenuId.CommandPalette,
+					}],
+				});
+			}
+			run(accessor: ServicesAccessor): any {
+				return accessor.get(IOpenerService).open(URI.parse('https://aka.ms/vscode-profiles-help'));
+			}
+		}));
+	}
+
+	private async getProfileTemplatesQuickPickItems(): Promise<IProfileTemplateQuickPickItem[]> {
+		const quickPickItems: IProfileTemplateQuickPickItem[] = [];
+		const profileTemplates = await this.userDataProfileManagementService.getBuiltinProfileTemplates();
+		for (const template of profileTemplates) {
+			quickPickItems.push({
+				label: template.name,
+				...template
+			});
+		}
+		return quickPickItems;
 	}
 
 	private async reportWorkspaceProfileInfo(): Promise<void> {

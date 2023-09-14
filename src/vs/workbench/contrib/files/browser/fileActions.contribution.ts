@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { ToggleAutoSaveAction, FocusFilesExplorer, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, ShowOpenedFileInNewWindow, UPLOAD_COMMAND_ID, UPLOAD_LABEL, CompareNewUntitledTextFilesAction } from 'vs/workbench/contrib/files/browser/fileActions';
+import { ToggleAutoSaveAction, FocusFilesExplorer, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, ShowOpenedFileInNewWindow, UPLOAD_COMMAND_ID, UPLOAD_LABEL, CompareNewUntitledTextFilesAction, SetActiveEditorReadonlyInSession, SetActiveEditorWriteableInSession, ToggleActiveEditorReadonlyInSession, ResetActiveEditorReadonlyInSession } from 'vs/workbench/contrib/files/browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ILocalizedString } from 'vs/platform/action/common/action';
@@ -14,7 +14,7 @@ import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMA
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
+import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerResourceAvailableEditorIdsContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, REOPEN_WITH_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -37,6 +37,10 @@ registerAction2(CompareWithClipboardAction);
 registerAction2(CompareNewUntitledTextFilesAction);
 registerAction2(ToggleAutoSaveAction);
 registerAction2(ShowOpenedFileInNewWindow);
+registerAction2(SetActiveEditorReadonlyInSession);
+registerAction2(SetActiveEditorWriteableInSession);
+registerAction2(ToggleActiveEditorReadonlyInSession);
+registerAction2(ResetActiveEditorReadonlyInSession);
 
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
@@ -606,7 +610,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 1
 });
@@ -616,7 +620,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: SAVE_FILE_AS_COMMAND_ID,
 		title: nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 2
 });
@@ -650,7 +654,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 			// Active editor can revert
 			ContextKeyExpr.and(ActiveEditorCanRevertContext),
 			// Explorer focused but not on untitled
-			ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled), ExplorerViewletVisibleContext, SidebarFocusContext)
+			ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled), FoldersViewVisibleContext, SidebarFocusContext)
 		),
 	},
 	order: 1
@@ -661,7 +665,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
 	order: 2
 });

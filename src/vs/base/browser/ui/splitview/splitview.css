@@ -54,7 +54,7 @@
 	position: absolute;
 	top: 0;
 	left: 0;
-	z-index: 20;
+	z-index: 5;
 	pointer-events: none;
 	background-color: var(--separator-border);
 }

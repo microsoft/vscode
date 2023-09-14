@@ -20,7 +20,7 @@ import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from 'vs/workbenc
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -84,7 +84,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
 					label: localize('Reload', "Reload and Enable Extensions"),
 					run: () => hostService.reload({ disableExtensions: false })
-				}]);
+				}], {
+					sticky: true,
+					priority: NotificationPriority.URGENT
+				});
 			});
 		}
 	}
@@ -261,7 +264,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 				const index = extensionsToEnable.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
 
-				// Extension is not aded to the disablement list so add it
+				// Extension is not added to the disablement list so add it
 				if (index === -1) {
 					extensionsToEnable.push(extension);
 				}

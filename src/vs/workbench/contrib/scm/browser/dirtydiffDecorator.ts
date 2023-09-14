@@ -50,7 +50,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -63,7 +63,7 @@ import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewIte
 
 class DiffActionRunner extends ActionRunner {
 
-	override runAction(action: IAction, context: any): Promise<any> {
+	protected override runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -180,7 +180,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 	private diffEditor!: EmbeddedDiffEditorWidget;
 	private title: string;
-	private menu: IMenu;
+	private menu: IMenu | undefined;
 	private _index: number = 0;
 	private _provider: string = '';
 	private change: IChange | undefined;
@@ -193,8 +193,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		private model: DirtyDiffModel,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
@@ -204,9 +204,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 		if (this.model.original.length > 0) {
 			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original[0].uri.scheme], ['originalResourceSchemes', this.model.original.map(original => original.uri.scheme)]]);
 		}
-
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
-		this._disposables.add(this.menu);
 
 		this.create();
 		if (editor.hasModel()) {
@@ -234,6 +231,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const labeledChange = this.model.changes[index];
 		const change = labeledChange.change;
 		this._index = index;
+		this.contextKeyService.createKey('originalResourceScheme', this.model.changes[index].uri.scheme);
+		this.updateActions();
+
 		this._provider = labeledChange.label;
 		this.change = change;
 
@@ -270,12 +270,16 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
 		const providerSpecificChanges: IChange[] = [];
+		let contextIndex = index;
 		for (const change of this.model.changes) {
 			if (change.label === this.model.changes[this._index].label) {
 				providerSpecificChanges.push(change.change);
+				if (labeledChange === change) {
+					contextIndex = providerSpecificChanges.length - 1;
+				}
 			}
 		}
-		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, index];
+		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, contextIndex];
 		if (usePosition) {
 			this.show(position, height);
 		}
@@ -340,14 +344,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		return providersWithChangesCount >= 2;
 	}
 
-	protected override _fillHead(container: HTMLElement): void {
-		super._fillHead(container, true);
-
-		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
-		this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
-			this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
-		this.dropdown.render(this.dropdownContainer);
-
+	private updateActions(): void {
+		if (!this._actionbarWidget) {
+			return;
+		}
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(this.editor), ThemeIcon.asClassName(gotoPreviousLocation));
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(this.editor), ThemeIcon.asClassName(gotoNextLocation));
 
@@ -355,10 +355,25 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(next);
 
 		const actions: IAction[] = [];
+		if (this.menu) {
+			this.menu.dispose();
+		}
+		this.menu = this.menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
 		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
-		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
-		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
-		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose()), { label: false, icon: true });
+		this._actionbarWidget.clear();
+		this._actionbarWidget.push(actions.reverse(), { label: false, icon: true });
+		this._actionbarWidget.push([next, previous], { label: false, icon: true });
+		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose()), { label: false, icon: true });
+	}
+
+	protected override _fillHead(container: HTMLElement): void {
+		super._fillHead(container, true);
+
+		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
+		this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
+			this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
+		this.dropdown.render(this.dropdownContainer);
+		this.updateActions();
 	}
 
 	protected override _getActionBarOptions(): IActionBarOptions {
@@ -393,10 +408,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 			renderSideBySide: false,
 			readOnly: false,
 			renderIndicators: false,
-			diffAlgorithm: 'smart',
+			diffAlgorithm: 'advanced',
+			stickyScroll: { enabled: false }
 		};
 
-		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
+		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, {}, this.editor);
 		this._disposables.add(this.diffEditor);
 	}
 
@@ -451,8 +467,13 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.editor.revealLineInCenterIfOutsideViewport(range.endLineNumber, ScrollType.Smooth);
 	}
 
-	hasFocus(): boolean {
+	override hasFocus(): boolean {
 		return this.diffEditor.hasTextFocus();
+	}
+
+	override dispose() {
+		super.dispose();
+		this.menu?.dispose();
 	}
 }
 
@@ -580,8 +601,7 @@ export class GotoPreviousChangeAction extends EditorAction {
 		const index = model.findPreviousClosestChange(lineNumber, false);
 		const change = model.changes[index];
 		await playAudioCueForChange(change.change, audioCueService);
-		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
-		await setTimeout(() => setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService), 500);
+		setPositionAndSelection(change.change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 registerEditorAction(GotoPreviousChangeAction);
@@ -624,8 +644,7 @@ export class GotoNextChangeAction extends EditorAction {
 		const index = model.findNextClosestChange(lineNumber, false);
 		const change = model.changes[index].change;
 		await playAudioCueForChange(change, audioCueService);
-		// The audio cue can take up to a second to load. Give it a chance to play before we read the line content
-		await setTimeout(() => setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService), 500);
+		setPositionAndSelection(change, outerEditor, accessibilityService, codeEditorService);
 	}
 }
 
@@ -643,11 +662,14 @@ async function playAudioCueForChange(change: IChange, audioCueService: IAudioCue
 	const changeType = getChangeType(change);
 	switch (changeType) {
 		case ChangeType.Add:
-			audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+			audioCueService.playAudioCue(AudioCue.diffLineInserted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			break;
 		case ChangeType.Delete:
-			audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
+			audioCueService.playAudioCue(AudioCue.diffLineDeleted, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			break;
 		case ChangeType.Modify:
-			audioCueService.playAudioCue(AudioCue.diffLineModified, true);
+			audioCueService.playAudioCue(AudioCue.diffLineModified, { allowManyInParallel: true, source: 'dirtyDiffDecoration' });
+			break;
 	}
 }
 
@@ -748,7 +770,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	}
 
 	canNavigate(): boolean {
-		return this.widget?.index === -1 || (!!this.model && this.model.changes.length > 1);
+		return !this.widget || (this.widget?.index === -1) || (!!this.model && this.model.changes.length > 1);
 	}
 
 	refresh(): void {
@@ -764,7 +786,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		}
 
 		let index: number;
-		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
+		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
 			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
@@ -840,10 +862,12 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 
 		const disposables = new DisposableStore();
 		disposables.add(Event.once(this.widget.onDidClose)(this.close, this));
-		Event.chain(model.onDidChange)
-			.filter(e => e.diff.length > 0)
-			.map(e => e.diff)
-			.event(this.onDidModelChange, this, disposables);
+		const onDidModelChange = Event.chain(model.onDidChange, $ =>
+			$.filter(e => e.diff.length > 0)
+				.map(e => e.diff)
+		);
+
+		onDidModelChange(this.onDidModelChange, this, disposables);
 
 		disposables.add(this.widget);
 		disposables.add(toDisposable(() => {
@@ -896,11 +920,11 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		}
 
 		const data = e.target.detail;
-		const offsetLeftInGutter = (e.target.element as HTMLElement).offsetLeft;
+		const offsetLeftInGutter = e.target.element.offsetLeft;
 		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
-		if (gutterOffsetX < -3 || gutterOffsetX > 6) { // dirty diff decoration on hover is 9px wide
+		if (gutterOffsetX < -3 || gutterOffsetX > 3) { // dirty diff decoration on hover is 6px wide
 			return;
 		}
 
@@ -1444,7 +1468,7 @@ export class DirtyDiffModel extends Disposable {
 			const possibleChangesLength = possibleChanges.length;
 
 			if (inclusive) {
-				if ((getModifiedEndLineNumber(change.change) >= lineNumber) && (change.change.modifiedStartLineNumber <= lineNumber)) {
+				if (getModifiedEndLineNumber(change.change) >= lineNumber) {
 					if (preferredProvider && change.label !== preferredProvider) {
 						possibleChanges.push(i);
 					} else {

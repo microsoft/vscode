@@ -55,12 +55,11 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 	private counter = 0;
 
 	constructor(
-		remote: boolean,
 		loggerService: ILoggerService
 	) {
 		super();
-		this.logger = loggerService.createLogger('request', {
-			name: remote ? localize('remote request', "Remote Network Requests") : localize('request', "Network Requests"),
+		this.logger = loggerService.createLogger('network', {
+			name: localize('request', "Network Requests"),
 			when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
 		});
 	}
@@ -139,7 +138,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 		properties: {
 			'http.proxy': {
 				type: 'string',
-				pattern: '^(https?|socks5?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
+				pattern: '^(https?|socks|socks4a?|socks5h?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables."),
 				restricted: true
 			},
@@ -147,6 +146,11 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'boolean',
 				default: true,
 				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs."),
+				restricted: true
+			},
+			'http.proxyKerberosServicePrincipal': {
+				type: 'string',
+				markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set."),
 				restricted: true
 			},
 			'http.proxyAuthorization': {
@@ -179,4 +183,4 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 	configurationRegistry.updateConfigurations({ add: [proxyConfiguration], remove: oldProxyConfiguration ? [oldProxyConfiguration] : [] });
 }
 
-registerProxyConfigurations(ConfigurationScope.MACHINE);
+registerProxyConfigurations(ConfigurationScope.APPLICATION);

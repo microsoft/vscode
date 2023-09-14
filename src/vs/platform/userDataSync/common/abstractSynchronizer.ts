@@ -26,7 +26,7 @@ import { getServiceMachineId } from 'vs/platform/externalServices/common/service
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, IUserDataSyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataSyncResourceInitializer, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME, IUserDataResourceManifest, getPathSegments, IUserDataSyncResourceConflicts, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type IncompatibleSyncSourceClassification = {
@@ -102,7 +102,7 @@ interface IEditableResourcePreview extends IBaseResourcePreview, IResourcePrevie
 	acceptResult?: IAcceptResult;
 }
 
-interface ISyncResourcePreview extends IBaseSyncResourcePreview {
+export interface ISyncResourcePreview extends IBaseSyncResourcePreview {
 	readonly remoteUserData: IRemoteUserData;
 	readonly lastSyncUserData: IRemoteUserData | null;
 	readonly resourcePreviews: IEditableResourcePreview[];
@@ -133,7 +133,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	private _onDidChangeConflicts = this._register(new Emitter<IUserDataSyncResourceConflicts>());
 	readonly onDidChangeConflicts = this._onDidChangeConflicts.event;
 
-	private readonly localChangeTriggerThrottler = new ThrottledDelayer<void>(50);
+	private readonly localChangeTriggerThrottler = this._register(new ThrottledDelayer<void>(50));
 	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
@@ -915,7 +915,7 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 
 }
 
-export abstract class AbstractInitializer implements IUserDataInitializer {
+export abstract class AbstractInitializer implements IUserDataSyncResourceInitializer {
 
 	protected readonly extUri: IExtUri;
 	private readonly lastSyncResource: URI;

@@ -423,9 +423,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 		const updatedRemoteProfiles = remoteProfiles.filter(profile => allCollections.includes(profile.collection));
 		if (updatedRemoteProfiles.length !== remoteProfiles.length) {
-			this.logService.info(`Updating remote profiles with invalid collections on server`);
 			const profileManifestSynchronizer = this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, this.userDataProfilesService.defaultProfile, undefined);
 			try {
+				this.logService.info('Resetting the last synced state of profiles');
+				await profileManifestSynchronizer.resetLocal();
+				this.logService.info('Did reset the last synced state of profiles');
+				this.logService.info(`Updating remote profiles with invalid collections on server`);
 				await profileManifestSynchronizer.updateRemoteProfiles(updatedRemoteProfiles, null);
 				this.logService.info(`Updated remote profiles on server`);
 			} finally {
@@ -470,7 +473,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async performActionWithProfileSynchronizer<T>(profileSynchronizer: ProfileSynchronizer, action: (synchroniser: IUserDataSynchroniser) => Promise<T | undefined>, disposables: DisposableStore): Promise<T | undefined> {
-		const allSynchronizers = [...profileSynchronizer.enabled, ...profileSynchronizer.disabled.map(syncResource => disposables.add(profileSynchronizer.createSynchronizer(syncResource)))];
+		const allSynchronizers = [...profileSynchronizer.enabled, ...profileSynchronizer.disabled.reduce<(IUserDataSynchroniser & IDisposable)[]>((synchronizers, syncResource) => {
+			if (syncResource !== SyncResource.WorkspaceState) {
+				synchronizers.push(disposables.add(profileSynchronizer.createSynchronizer(syncResource)));
+			}
+			return synchronizers;
+		}, [])];
 		for (const synchronizer of allSynchronizers) {
 			const result = await action(synchronizer);
 			if (!isUndefined(result)) {
@@ -614,6 +622,13 @@ class ProfileSynchronizer extends Disposable {
 				return;
 			}
 		}
+		if (syncResource === SyncResource.WorkspaceState) {
+			return;
+		}
+		if (syncResource !== SyncResource.Profiles && this.profile.useDefaultFlags?.[syncResource]) {
+			this.logService.debug(`Skipping syncing ${syncResource} in ${this.profile.name} because it is already synced by default profile`);
+			return;
+		}
 		const disposables = new DisposableStore();
 		const synchronizer = disposables.add(this.createSynchronizer(syncResource));
 		disposables.add(synchronizer.onDidChangeStatus(() => this.updateStatus()));
@@ -634,7 +649,7 @@ class ProfileSynchronizer extends Disposable {
 		}
 	}
 
-	createSynchronizer(syncResource: SyncResource): IUserDataSynchroniser & IDisposable {
+	createSynchronizer(syncResource: Exclude<SyncResource, SyncResource.WorkspaceState>): IUserDataSynchroniser & IDisposable {
 		switch (syncResource) {
 			case SyncResource.Settings: return this.instantiationService.createInstance(SettingsSynchroniser, this.profile, this.collection);
 			case SyncResource.Keybindings: return this.instantiationService.createInstance(KeybindingsSynchroniser, this.profile, this.collection);
@@ -802,6 +817,7 @@ class ProfileSynchronizer extends Disposable {
 			case SyncResource.GlobalState: return 4;
 			case SyncResource.Extensions: return 5;
 			case SyncResource.Profiles: return 6;
+			case SyncResource.WorkspaceState: return 7;
 		}
 	}
 

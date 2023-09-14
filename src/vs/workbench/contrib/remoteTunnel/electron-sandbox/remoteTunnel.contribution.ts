@@ -3,40 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_ID } from 'vs/platform/remoteTunnel/common/remoteTunnel';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { localize } from 'vs/nls';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Action } from 'vs/base/common/actions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
 import { ITunnelApplicationConfig } from 'vs/base/common/product';
+import { joinPath } from 'vs/base/common/resources';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, IRemoteTunnelSession, LOGGER_NAME, LOG_ID, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IOutputService } from 'vs/workbench/services/output/common/output';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export const REMOTE_TUNNEL_CATEGORY: ILocalizedString = {
 	original: 'Remote-Tunnels',
@@ -48,13 +47,12 @@ type CONTEXT_KEY_STATES = 'connected' | 'connecting' | 'disconnected';
 export const REMOTE_TUNNEL_CONNECTION_STATE_KEY = 'remoteTunnelConnection';
 export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STATES>(REMOTE_TUNNEL_CONNECTION_STATE_KEY, 'disconnected');
 
-
-const SESSION_ID_STORAGE_KEY = 'remoteTunnelAccountPreference';
-
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
 const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
 const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
 const REMOTE_TUNNEL_EXTENSION_TIMEOUT = 4 * 60 * 1000; // show the recommendation that a machine started using tunnels if it joined less than 4 minutes ago
+
+const INVALID_TOKEN_RETRIES = 2;
 
 interface UsedOnHostMessage { hostName: string; timeStamp: number }
 
@@ -78,9 +76,9 @@ namespace RemoteTunnelCommandLabels {
 	export const turnOn = localize('remoteTunnel.actions.turnOn', 'Turn on Remote Tunnel Access...');
 	export const turnOff = localize('remoteTunnel.actions.turnOff', 'Turn off Remote Tunnel Access...');
 	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Remote Tunnel Service Log');
-	export const configure = localize('remoteTunnel.actions.configure', 'Configure Machine Name...');
+	export const configure = localize('remoteTunnel.actions.configure', 'Configure Tunnel Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
-	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with VS Code Tunnels');
+	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with Tunnels');
 }
 
 
@@ -90,10 +88,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private readonly serverConfiguration: ITunnelApplicationConfig;
 
-	#authenticationSessionId: string | undefined;
 	private connectionInfo: ConnectionInfo | undefined;
 
 	private readonly logger: ILogger;
+
+	private expiredSessions: Set<string> = new Set();
 
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -103,10 +102,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		@IProductService productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILoggerService loggerService: ILoggerService,
-		@ILogService logService: ILogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INativeEnvironmentService private environmentService: INativeEnvironmentService,
-		@IFileService fileService: IFileService,
 		@IRemoteTunnelService private remoteTunnelService: IRemoteTunnelService,
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
@@ -115,7 +112,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
-		this.logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
+		this.logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 
@@ -127,28 +124,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		}
 		this.serverConfiguration = serverConfiguration;
 
-		this._register(this.remoteTunnelService.onDidTokenFailed(() => {
-			this.logger.info('Clearing authentication preference because of successive token failures.');
-			this.clearAuthenticationPreference();
-		}));
-		this._register(this.remoteTunnelService.onDidChangeTunnelStatus(status => {
-			if (status.type === 'disconnected') {
-				this.logger.info('Clearing authentication preference because of tunnel disconnected.');
-				this.clearAuthenticationPreference();
-				this.connectionInfo = undefined;
-			} else if (status.type === 'connecting') {
-				this.connectionStateContext.set('connecting');
-			} else if (status.type === 'connected') {
-				this.connectionInfo = status.info;
-				this.connectionStateContext.set('connected');
-			}
-		}));
-
-		// If the user signs out of the current session, reset our cached auth state in memory and on disk
-		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
-
-		// If another window changes the preferred session storage, reset our cached auth state in memory
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+		this._register(this.remoteTunnelService.onDidChangeTunnelStatus(s => this.handleTunnelStatusUpdate(s)));
 
 		this.registerCommands();
 
@@ -157,20 +133,24 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		this.recommendRemoteExtensionIfNeeded();
 	}
 
-	private get existingSessionId() {
-		return this.storageService.get(SESSION_ID_STORAGE_KEY, StorageScope.APPLICATION);
-	}
-
-	private set existingSessionId(sessionId: string | undefined) {
-		this.logger.trace(`Saving authentication preference for ID ${sessionId}.`);
-		if (sessionId === undefined) {
-			this.storageService.remove(SESSION_ID_STORAGE_KEY, StorageScope.APPLICATION);
-		} else {
-			this.storageService.store(SESSION_ID_STORAGE_KEY, sessionId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	private handleTunnelStatusUpdate(status: TunnelStatus) {
+		this.connectionInfo = undefined;
+		if (status.type === 'disconnected') {
+			if (status.onTokenFailed) {
+				this.expiredSessions.add(status.onTokenFailed.sessionId);
+			}
+			this.connectionStateContext.set('disconnected');
+		} else if (status.type === 'connecting') {
+			this.connectionStateContext.set('connecting');
+		} else if (status.type === 'connected') {
+			this.connectionInfo = status.info;
+			this.connectionStateContext.set('connected');
 		}
 	}
 
 	private async recommendRemoteExtensionIfNeeded() {
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
 		const remoteExtension = this.serverConfiguration.extension;
 		const shouldRecommend = async () => {
 			if (this.storageService.getBoolean(REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY, StorageScope.APPLICATION)) {
@@ -183,7 +163,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			if (!usedOnHostMessage) {
 				return false;
 			}
-			let usedOnHost: string | undefined;
+			let usedTunnelName: string | undefined;
 			try {
 				const message = JSON.parse(usedOnHostMessage);
 				if (!isObject(message)) {
@@ -193,16 +173,16 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				if (!isString(hostName)! || !isNumber(timeStamp) || new Date().getTime() > timeStamp + REMOTE_TUNNEL_EXTENSION_TIMEOUT) {
 					return false;
 				}
-				usedOnHost = hostName;
+				usedTunnelName = hostName;
 			} catch (_) {
 				// problems parsing the message, likly the old message format
 				return false;
 			}
-			const currentHostName = await this.remoteTunnelService.getHostName();
-			if (!currentHostName || currentHostName === usedOnHost) {
+			const currentTunnelName = await this.remoteTunnelService.getTunnelName();
+			if (!currentTunnelName || currentTunnelName === usedTunnelName) {
 				return false;
 			}
-			return usedOnHost;
+			return usedTunnelName;
 		};
 		const recommed = async () => {
 			const usedOnHost = await shouldRecommend();
@@ -215,9 +195,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					localize(
 						{
 							key: 'recommend.remoteExtension',
-							comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extension name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+							comment: ['{0} will be a tunnel name, {1} will the link address to the web UI, {6} an extension name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
 						},
-						"'{0}' has turned on remote access. The {1} extension can be used to connect to it.",
+						"Tunnel '{0}' is avaiable for remote access. The {1} extension can be used to connect to it.",
 						usedOnHost, remoteExtension.friendlyName
 					),
 				actions: {
@@ -234,110 +214,143 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			return true;
 		};
 		if (await shouldRecommend()) {
-			const storageListener = this.storageService.onDidChangeValue(async e => {
-				if (e.key === REMOTE_TUNNEL_USED_STORAGE_KEY) {
-					const success = await recommed();
-					if (success) {
-						storageListener.dispose();
-					}
-
+			const disposables = this._register(new DisposableStore());
+			disposables.add(this.storageService.onDidChangeValue(StorageScope.APPLICATION, REMOTE_TUNNEL_USED_STORAGE_KEY, disposables)(async () => {
+				const success = await recommed();
+				if (success) {
+					disposables.dispose();
 				}
-			});
+			}));
 		}
 	}
-
 
 	private async initialize(): Promise<void> {
-		const status = await this.remoteTunnelService.getTunnelStatus();
-		if (status.type === 'connected') {
-			this.connectionInfo = status.info;
-			this.connectionStateContext.set('connected');
-			return;
-		}
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		const [mode, status] = await Promise.all([
+			this.remoteTunnelService.getMode(),
+			this.remoteTunnelService.getTunnelStatus(),
+		]);
 
-		await this.startTunnel(true);
-	}
+		this.handleTunnelStatusUpdate(status);
 
-	private async startTunnel(silent: boolean): Promise<ConnectionInfo | undefined> {
-		if (this.#authenticationSessionId !== undefined && this.connectionInfo) {
-			return this.connectionInfo;
-		}
-
-		const authenticationSession = await this.getAuthenticationSession(silent);
-		if (authenticationSession === undefined) {
-			return undefined;
+		if (mode.active && mode.session.token) {
+			return; // already initialized, token available
 		}
 
 		return await this.progressService.withProgress(
 			{
-				location: silent ? ProgressLocation.Window : ProgressLocation.Notification,
-				title: localize({ key: 'progress.title', comment: ['Only translate \'Starting remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+				location: ProgressLocation.Window,
+				title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
 			},
-			(progress: IProgress<IProgressStep>) => {
-				return new Promise<ConnectionInfo | undefined>((s, e) => {
-					let completed = false;
-					const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
-						switch (status.type) {
-							case 'connecting':
-								if (status.progress) {
-									progress.report({ message: status.progress });
-								}
-								break;
-							case 'connected':
-								listener.dispose();
-								completed = true;
-								s(status.info);
-								break;
-							case 'disconnected':
-								listener.dispose();
-								completed = true;
-								s(undefined);
-								break;
-						}
-					});
-					const token = authenticationSession.session.idToken ?? authenticationSession.session.accessToken;
-					const account: IRemoteTunnelAccount = { token, providerId: authenticationSession.providerId, accountLabel: authenticationSession.session.account.label };
-					this.remoteTunnelService.updateAccount(account).then(status => {
-						if (!completed && (status.type === 'connected') || status.type === 'disconnected') {
-							listener.dispose();
-							s(status.type === 'connected' ? status.info : undefined);
-						}
-					});
+			async (progress: IProgress<IProgressStep>) => {
+				const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+					switch (status.type) {
+						case 'connecting':
+							if (status.progress) {
+								progress.report({ message: status.progress });
+							}
+							break;
+					}
 				});
+				let newSession: IRemoteTunnelSession | undefined;
+				if (mode.active) {
+					const token = await this.getSessionToken(mode.session);
+					if (token) {
+						newSession = { ...mode.session, token };
+					}
+				}
+				const status = await this.remoteTunnelService.initialize(mode.active && newSession ? { ...mode, session: newSession } : INACTIVE_TUNNEL_MODE);
+				listener.dispose();
+
+				if (status.type === 'connected') {
+					this.connectionInfo = status.info;
+					this.connectionStateContext.set('connected');
+					return;
+				}
 			}
 		);
 	}
 
-	private async getAuthenticationSession(silent: boolean): Promise<ExistingSessionItem | undefined> {
-		// If the user signed in previously and the session is still available, reuse that without prompting the user again
-		if (this.existingSessionId) {
-			this.logger.info(`Searching for existing authentication session with ID ${this.existingSessionId}`);
-			const existingSession = await this.getExistingSession();
-			if (existingSession) {
-				this.logger.info(`Found existing authentication session with ID ${existingSession.session.id}`);
-				return existingSession;
-			} else {
-				//this._didSignOut.fire();
+
+	private async startTunnel(asService: boolean): Promise<ConnectionInfo | undefined> {
+		if (this.connectionInfo) {
+			return this.connectionInfo;
+		}
+
+		let tokenProblems = false;
+		for (let i = 0; i < INVALID_TOKEN_RETRIES; i++) {
+			tokenProblems = false;
+
+			const authenticationSession = await this.getAuthenticationSession();
+			if (authenticationSession === undefined) {
+				this.logger.info('No authentication session available, not starting tunnel');
+				return undefined;
 			}
-		}
 
-		// If we aren't supposed to prompt the user because
-		// we're in a silent flow, just return here
-		if (silent) {
-			return;
-		}
-
-		// Ask the user to pick a preferred account
-		const authenticationSession = await this.getAccountPreference();
-		if (authenticationSession !== undefined) {
-			this.existingSessionId = authenticationSession.session.id;
-			return authenticationSession;
+			const result = await this.progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize({ key: 'startTunnel.progress.title', comment: ['Only translate \'Starting remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+				},
+				(progress: IProgress<IProgressStep>) => {
+					return new Promise<ConnectionInfo | undefined>((s, e) => {
+						let completed = false;
+						const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+							switch (status.type) {
+								case 'connecting':
+									if (status.progress) {
+										progress.report({ message: status.progress });
+									}
+									break;
+								case 'connected':
+									listener.dispose();
+									completed = true;
+									s(status.info);
+									if (status.serviceInstallFailed) {
+										this.notificationService.notify({
+											severity: Severity.Warning,
+											message: localize(
+												{
+													key: 'remoteTunnel.serviceInstallFailed',
+													comment: ['{Locked="](command:{0})"}']
+												},
+												"Installation as a service failed, and we fell back to running the tunnel for this session. See the [error log](command:{0}) for details.",
+												RemoteTunnelCommandIds.showLog,
+											),
+										});
+									}
+									break;
+								case 'disconnected':
+									listener.dispose();
+									completed = true;
+									tokenProblems = !!status.onTokenFailed;
+									s(undefined);
+									break;
+							}
+						});
+						const token = authenticationSession.session.idToken ?? authenticationSession.session.accessToken;
+						const account: IRemoteTunnelSession = { sessionId: authenticationSession.session.id, token, providerId: authenticationSession.providerId, accountLabel: authenticationSession.session.account.label };
+						this.remoteTunnelService.startTunnel({ active: true, asService, session: account }).then(status => {
+							if (!completed && (status.type === 'connected' || status.type === 'disconnected')) {
+								listener.dispose();
+								if (status.type === 'connected') {
+									s(status.info);
+								} else {
+									tokenProblems = !!status.onTokenFailed;
+									s(undefined);
+								}
+							}
+						});
+					});
+				}
+			);
+			if (result || !tokenProblems) {
+				return result;
+			}
 		}
 		return undefined;
 	}
 
-	private async getAccountPreference(): Promise<ExistingSessionItem | undefined> {
+	private async getAuthenticationSession(): Promise<ExistingSessionItem | undefined> {
 		const sessions = await this.getAllSessions();
 		if (sessions.length === 1) {
 			return sessions[0];
@@ -384,11 +397,11 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	private async createQuickpickItems(sessions: ExistingSessionItem[]): Promise<(ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[]> {
 		const options: (ExistingSessionItem | AuthenticationProviderOption | IQuickPickSeparator | IQuickPickItem & { canceledAuthentication: boolean })[] = [];
 
-		options.push({ type: 'separator', label: localize('signed in', "Signed In") });
-
-		options.push(...sessions);
-
-		options.push({ type: 'separator', label: localize('others', "Others") });
+		if (sessions.length) {
+			options.push({ type: 'separator', label: localize('signed in', "Signed In") });
+			options.push(...sessions);
+			options.push({ type: 'separator', label: localize('others', "Others") });
+		}
 
 		for (const authenticationProvider of (await this.getAuthenticationProviders())) {
 			const signedInForProvider = sessions.some(account => account.providerId === authenticationProvider.id);
@@ -401,52 +414,25 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		return options;
 	}
 
-
-	private async getExistingSession(): Promise<ExistingSessionItem | undefined> {
-		const accounts = await this.getAllSessions();
-		return accounts.find((account) => account.session.id === this.existingSessionId);
-	}
-
-	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
-		if (e.key === SESSION_ID_STORAGE_KEY && e.scope === StorageScope.APPLICATION) {
-			const newSessionId = this.existingSessionId;
-			const previousSessionId = this.#authenticationSessionId;
-
-			if (previousSessionId !== newSessionId) {
-				this.logger.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
-				this.#authenticationSessionId = undefined;
-			}
-		}
-	}
-
-	private clearAuthenticationPreference(): void {
-		this.#authenticationSessionId = undefined;
-		this.existingSessionId = undefined;
-		this.connectionStateContext.set('disconnected');
-	}
-
-	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.#authenticationSessionId && e.removed.find(session => session.id === this.#authenticationSessionId)) {
-			this.clearAuthenticationPreference();
-		}
-	}
-
 	/**
 	 * Returns all authentication sessions available from {@link getAuthenticationProviders}.
 	 */
 	private async getAllSessions(): Promise<ExistingSessionItem[]> {
 		const authenticationProviders = await this.getAuthenticationProviders();
 		const accounts = new Map<string, ExistingSessionItem>();
+		const currentAccount = await this.remoteTunnelService.getMode();
 		let currentSession: ExistingSessionItem | undefined;
 
 		for (const provider of authenticationProviders) {
 			const sessions = await this.authenticationService.getSessions(provider.id, provider.scopes);
 
 			for (const session of sessions) {
-				const item = this.createExistingSessionItem(session, provider.id);
-				accounts.set(item.session.account.id, item);
-				if (this.existingSessionId === session.id) {
-					currentSession = item;
+				if (!this.expiredSessions.has(session.id)) {
+					const item = this.createExistingSessionItem(session, provider.id);
+					accounts.set(item.session.account.id, item);
+					if (currentAccount.active && currentAccount.session.sessionId === session.id) {
+						currentSession = item;
+					}
 				}
 			}
 		}
@@ -456,6 +442,16 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		}
 
 		return [...accounts.values()];
+	}
+
+	private async getSessionToken(session: IRemoteTunnelSession | undefined): Promise<string | undefined> {
+		if (session) {
+			const sessionItem = (await this.getAllSessions()).find(s => s.session.id === session.sessionId);
+			if (sessionItem) {
+				return sessionItem.session.idToken ?? sessionItem.session.accessToken;
+			}
+		}
+		return undefined;
 	}
 
 	/**
@@ -504,6 +500,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const commandService = accessor.get(ICommandService);
 				const storageService = accessor.get(IStorageService);
 				const dialogService = accessor.get(IDialogService);
+				const quickInputService = accessor.get(IQuickInputService);
+				const productService = accessor.get(IProductService);
 
 				const didNotifyPreview = storageService.getBoolean(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, StorageScope.APPLICATION, false);
 				if (!didNotifyPreview) {
@@ -518,35 +516,56 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					storageService.store(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 
-				const connectionInfo = await that.startTunnel(false);
+				const disposables = new DisposableStore();
+				const quickPick = quickInputService.createQuickPick<IQuickPickItem & { service: boolean }>();
+				quickPick.placeholder = localize('tunnel.enable.placeholder', 'Select how you want to enable access');
+				quickPick.items = [
+					{ service: false, label: localize('tunnel.enable.session', 'Turn on for this session'), description: localize('tunnel.enable.session.description', 'Run whenever {0} is open', productService.nameShort) },
+					{ service: true, label: localize('tunnel.enable.service', 'Install as a service'), description: localize('tunnel.enable.service.description', 'Run whenever you\'re logged in') }
+				];
+
+				const asService = await new Promise<boolean | undefined>(resolve => {
+					disposables.add(quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]?.service)));
+					disposables.add(quickPick.onDidHide(() => resolve(undefined)));
+					quickPick.show();
+				});
+
+				quickPick.dispose();
+
+				if (asService === undefined) {
+					return; // no-op
+				}
+
+				const connectionInfo = await that.startTunnel(/* installAsService= */ asService);
+
 				if (connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(connectionInfo);
 					const remoteExtension = that.serverConfiguration.extension;
-					const linkToOpenForMarkdown = linkToOpen.toString().replace(/\)/g, '%29');
-					await notificationService.notify({
+					const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
+					notificationService.notify({
 						severity: Severity.Info,
 						message:
 							localize(
 								{
 									key: 'progress.turnOn.final',
-									comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extesnion name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+									comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
 								},
-								"Remote tunnel access is enabled for [{0}](command:{4}). To access from a different machine, open [{1}]({2}) or use the {6} extension. Use the Account menu to [configure](command:{3}) or [turn off](command:{5}).",
-								connectionInfo.hostName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName
+								"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
+								connectionInfo.tunnelName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
 							),
 						actions: {
 							primary: [
-								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen.toString())),
+								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen.toString(true))),
 								new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
 									return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
 								})
 							]
 						}
 					});
-					const usedOnHostMessage: UsedOnHostMessage = { hostName: connectionInfo.hostName, timeStamp: new Date().getTime() };
+					const usedOnHostMessage: UsedOnHostMessage = { hostName: connectionInfo.tunnelName, timeStamp: new Date().getTime() };
 					storageService.store(REMOTE_TUNNEL_USED_STORAGE_KEY, JSON.stringify(usedOnHostMessage), StorageScope.APPLICATION, StorageTarget.USER);
 				} else {
-					await notificationService.notify({
+					notificationService.notify({
 						severity: Severity.Info,
 						message: localize('progress.turnOn.failed',
 							"Unable to turn on the remote tunnel access. Check the Remote Tunnel Service log for details."),
@@ -611,12 +630,14 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			}
 
 			async run() {
-				const { confirmed } = await that.dialogService.confirm({
-					message: localize('remoteTunnel.turnOff.confirm', 'Do you want to turn off Remote Tunnel Access?')
-				});
+				const message =
+					that.connectionInfo?.isAttached ?
+						localize('remoteTunnel.turnOffAttached.confirm', 'Do you want to turn off Remote Tunnel Access? This will also stop the service that was started externally.') :
+						localize('remoteTunnel.turnOff.confirm', 'Do you want to turn off Remote Tunnel Access?');
+
+				const { confirmed } = await that.dialogService.confirm({ message });
 				if (confirmed) {
-					that.clearAuthenticationPreference();
-					that.remoteTunnelService.updateAccount(undefined);
+					that.remoteTunnelService.stopTunnel();
 				}
 			}
 		}));
@@ -677,7 +698,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const clipboardService = accessor.get(IClipboardService);
 				if (that.connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(that.connectionInfo);
-					clipboardService.writeText(linkToOpen.toString());
+					clipboardService.writeText(linkToOpen.toString(true));
 				}
 
 			}
@@ -706,7 +727,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		let resource;
 		if (folders.length === 1) {
 			resource = folders[0].uri;
-		} else if (workspace.configuration) {
+		} else if (workspace.configuration && !isUntitledWorkspace(workspace.configuration, this.environmentService)) {
 			resource = workspace.configuration;
 		}
 		const link = URI.parse(connectionInfo.link);
@@ -718,7 +739,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 
 	private async showManageOptions() {
-		const account = await this.getExistingSession();
+		const account = await this.remoteTunnelService.getMode();
 
 		return new Promise<void>((c, e) => {
 			const disposables = new DisposableStore();
@@ -727,19 +748,20 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			disposables.add(quickPick);
 			const items: Array<QuickPickItem> = [];
 			items.push({ id: RemoteTunnelCommandIds.learnMore, label: RemoteTunnelCommandLabels.learnMore });
-			if (this.connectionInfo && account) {
-				quickPick.title = localize(
-					{ key: 'manage.title.on', comment: ['{0} will be a user account name, {1} the provider name (e.g. Github), {2} is the host name'] },
-					'Remote Machine Access enabled for {0}({1}) as {2}', account.label, account.description, this.connectionInfo.hostName);
+			if (this.connectionInfo) {
+				quickPick.title =
+					this.connectionInfo.isAttached ?
+						localize({ key: 'manage.title.attached', comment: ['{0} is the tunnel name'] }, 'Remote Tunnel Access enabled for {0} (launched externally)', this.connectionInfo.tunnelName) :
+						localize({ key: 'manage.title.orunning', comment: ['{0} is the tunnel name'] }, 'Remote Tunnel Access enabled for {0}', this.connectionInfo.tunnelName);
+
 				items.push({ id: RemoteTunnelCommandIds.copyToClipboard, label: RemoteTunnelCommandLabels.copyToClipboard, description: this.connectionInfo.domain });
 			} else {
-				quickPick.title = localize('manage.title.off', 'Remote Machine Access not enabled');
+				quickPick.title = localize('manage.title.off', 'Remote Tunnel Access not enabled');
 			}
 			items.push({ id: RemoteTunnelCommandIds.showLog, label: localize('manage.showLog', 'Show Log') });
 			items.push({ type: 'separator' });
-			items.push({ id: RemoteTunnelCommandIds.configure, label: localize('manage.machineName', 'Change Host Name'), description: this.connectionInfo?.hostName });
-			items.push({ id: RemoteTunnelCommandIds.turnOff, label: RemoteTunnelCommandLabels.turnOff, description: account ? `${account.label} (${account.description})` : undefined });
-
+			items.push({ id: RemoteTunnelCommandIds.configure, label: localize('manage.tunnelName', 'Change Tunnel Name'), description: this.connectionInfo?.tunnelName });
+			items.push({ id: RemoteTunnelCommandIds.turnOff, label: RemoteTunnelCommandLabels.turnOff, description: account.active ? `${account.session.accountLabel} (${account.session.providerId})` : undefined });
 
 			quickPick.items = items;
 			disposables.add(quickPick.onDidAccept(() => {
@@ -767,7 +789,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_HOST_NAME]: {
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION,
 			pattern: '^(\\w[\\w-]*)?$',
 			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash."),
 			maxLength: 20,
@@ -776,7 +798,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_PREVENT_SLEEP]: {
 			description: localize('remoteTunnelAccess.preventSleep', "Prevent the computer from sleeping when remote tunnel access is turned on."),
 			type: 'boolean',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION,
 			default: false,
 		}
 	}

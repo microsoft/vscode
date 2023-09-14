@@ -13,6 +13,10 @@ import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
 import { promisify } from 'util';
+import { promises } from 'fs';
+
+const root = path.join(__dirname, '..', '..', '..', '..');
+const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
 const optimist = optimistLib
 	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
@@ -63,7 +67,18 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console[type](...args);
 	});
 
-	await page.exposeFunction('codeAutomationExit', async (code: number) => {
+	await page.exposeFunction('codeAutomationExit', async (code: number, logs: Array<{ readonly relativePath: string; readonly contents: string }>) => {
+		try {
+			for (const log of logs) {
+				const absoluteLogsPath = path.join(logsPath, log.relativePath);
+
+				await promises.mkdir(path.dirname(absoluteLogsPath), { recursive: true });
+				await promises.writeFile(absoluteLogsPath, log.contents);
+			}
+		} catch (error) {
+			console.error(`Error saving web client logs (${error})`);
+		}
+
 		try {
 			await browser.close();
 		} catch (error) {
@@ -123,9 +138,6 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		...process.env
 	};
 
-	const root = path.join(__dirname, '..', '..', '..', '..');
-	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
-
 	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
@@ -145,8 +157,9 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		}
 	}
 
-	console.log(`Storing log files into '${logsPath}'`);
-	serverArgs.push('--logsPath', logsPath);
+	const serverLogsPath = path.join(logsPath, 'server');
+	console.log(`Storing log files into '${serverLogsPath}'`);
+	serverArgs.push('--logsPath', serverLogsPath);
 
 	const stdio: cp.StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
 

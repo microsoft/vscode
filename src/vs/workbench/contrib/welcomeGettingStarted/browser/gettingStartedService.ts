@@ -16,7 +16,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_DEP_PACK_CONTEXT, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
@@ -96,8 +96,6 @@ export interface IWalkthroughsService {
 	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
 	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
 
-	readonly installedExtensionsRegistered: Promise<void>;
-
 	getWalkthroughs(): IResolvedWalkthrough[];
 	getWalkthrough(id: string): IResolvedWalkthrough;
 
@@ -135,15 +133,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private gettingStartedContributions = new Map<string, IWalkthrough>();
 	private steps = new Map<string, IWalkthroughStep>();
 
-	private tasExperimentService?: IWorkbenchAssignmentService;
 	private sessionInstalledExtensions: Set<string> = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
 	private stepCompletionContextKeys = new Set<string>();
-
-	private triggerInstalledExtensionsRegistered!: () => void;
-	installedExtensionsRegistered: Promise<void>;
 
 	private metadata: WalkthroughMetaDataType;
 
@@ -159,11 +153,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
+		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService
 	) {
 		super();
-
-		this.tasExperimentService = tasExperimentService;
 
 		this.metadata = new Map(
 			JSON.parse(
@@ -172,20 +164,17 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.PROFILE, StorageTarget.USER);
 
-		walkthroughsExtensionPoint.setHandler(async (_, { added, removed }) => {
-			await Promise.all(
-				[...added.map(e => this.registerExtensionWalkthroughContributions(e.description)),
-				...removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description))]);
-			this.triggerInstalledExtensionsRegistered();
-		});
-
 		this.initCompletionEventListeners();
 
 		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
+		this.registerWalkthroughs();
 
-		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
+	}
+
+	private registerWalkthroughs() {
 
 		walkthroughs.forEach(async (category, index) => {
+
 			this._registerWalkthrough({
 				...category,
 				icon: { type: 'icon', icon: category.icon },
@@ -223,6 +212,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 					})
 			});
 		});
+
+		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
+			added.map(e => this.registerExtensionWalkthroughContributions(e.description));
+			removed.map(e => this.unregisterExtensionWalkthroughContributions(e.description));
+		});
 	}
 
 	private initCompletionEventListeners() {
@@ -235,9 +229,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			const hadLastFoucs = await this.hostService.hadLastFocus();
 			for (const e of result) {
+				const skipWalkthrough = e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT] || e?.context?.[EXTENSION_INSTALL_DEP_PACK_CONTEXT];
 				// If the window had last focus and the install didn't specify to skip the walkthrough
 				// Then add it to the sessionInstallExtensions to be opened
-				if (hadLastFoucs && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]) {
+				if (hadLastFoucs && !skipWalkthrough) {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 				}
 				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
@@ -320,8 +315,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				new Promise<string | undefined>(resolve => setTimeout(() => resolve(walkthrough.when), 5000))
 			]);
 
-			if (
-				this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
+			if (this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
 				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value.toLowerCase());
@@ -449,12 +443,14 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	}
 
 	getWalkthrough(id: string): IResolvedWalkthrough {
+
 		const walkthrough = this.gettingStartedContributions.get(id);
 		if (!walkthrough) { throw Error('Trying to get unknown walkthrough: ' + id); }
 		return this.resolveWalkthrough(walkthrough);
 	}
 
 	getWalkthroughs(): IResolvedWalkthrough[] {
+
 		const registeredCategories = [...this.gettingStartedContributions.values()];
 		const categoriesWithCompletion = registeredCategories
 			.map(category => {
@@ -632,9 +628,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			}
 
 			this.registerCompletionListener(event, step);
-			if (this.sessionEvents.has(event)) {
-				this.progressStep(step.id);
-			}
 		}
 	}
 
@@ -653,7 +646,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 }
 
 const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
-
 
 export const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)

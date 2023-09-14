@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -19,11 +20,20 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 class TestSnippetController extends SnippetController2 {
 
+	private _testLanguageConfigurationService: TestLanguageConfigurationService;
+
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super(editor, new NullLogService(), new LanguageFeaturesService(), _contextKeyService, new TestLanguageConfigurationService());
+		const testLanguageConfigurationService = new TestLanguageConfigurationService();
+		super(editor, new NullLogService(), new LanguageFeaturesService(), _contextKeyService, testLanguageConfigurationService);
+		this._testLanguageConfigurationService = testLanguageConfigurationService;
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._testLanguageConfigurationService.dispose();
 	}
 
 	isInSnippetMode(): boolean {
@@ -32,6 +42,8 @@ class TestSnippetController extends SnippetController2 {
 }
 
 suite('SnippetController', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function snippetTest(cb: (editor: ITestCodeEditor, template: string, snippetController: TestSnippetController) => void, lines?: string[]): void {
 

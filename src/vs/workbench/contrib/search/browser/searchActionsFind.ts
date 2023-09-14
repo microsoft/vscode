@@ -29,6 +29,9 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { category, getElementsToOperateOn, getSearchView, openSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { Schemas } from 'vs/base/common/network';
 
 
 //#region Interfaces
@@ -347,21 +350,43 @@ function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
 }
 
-export function findInFilesCommand(accessor: ServicesAccessor, args: IFindInFilesArgs = {}) {
+export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFindInFilesArgs = {}) {
+
 	const searchConfig = accessor.get(IConfigurationService).getValue<ISearchConfiguration>().search;
+	const viewsService = accessor.get(IViewsService);
+	const commandService = accessor.get(ICommandService);
+	const args: IFindInFilesArgs = {};
+	if (Object.keys(_args).length !== 0) {
+		// resolve variables in the same way as in
+		// https://github.com/microsoft/vscode/blob/8b76efe9d317d50cb5b57a7658e09ce6ebffaf36/src/vs/workbench/contrib/searchEditor/browser/searchEditorActions.ts#L152-L158
+		const configurationResolverService = accessor.get(IConfigurationResolverService);
+		const historyService = accessor.get(IHistoryService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
+		const filteredActiveWorkspaceRootUri = activeWorkspaceRootUri?.scheme === Schemas.file || activeWorkspaceRootUri?.scheme === Schemas.vscodeRemote ? activeWorkspaceRootUri : undefined;
+		const lastActiveWorkspaceRoot = filteredActiveWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(filteredActiveWorkspaceRootUri) ?? undefined : undefined;
+
+		for (const entry of Object.entries(_args)) {
+			const name = entry[0];
+			const value = entry[1];
+			if (value !== undefined) {
+				(args as any)[name as any] = (typeof value === 'string') ? await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, value) : value;
+			}
+		}
+	}
+
 	const mode = searchConfig.mode;
 	if (mode === 'view') {
-		const viewsService = accessor.get(IViewsService);
 		openSearchView(viewsService, false).then(openedView => {
 			if (openedView) {
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
 				let updatedText = false;
-				if (typeof args.query === 'string') {
-					openedView.setSearchParameters(args);
-				} else {
+				if (typeof args.query !== 'string') {
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
+				openedView.setSearchParameters(args);
+
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}
 		});
@@ -378,7 +403,7 @@ export function findInFilesCommand(accessor: ServicesAccessor, args: IFindInFile
 			onlyOpenEditors: args.onlyOpenEditors,
 			showIncludesExcludes: !!(args.filesToExclude || args.filesToExclude || !args.useExcludeSettingsAndIgnoreFiles),
 		});
-		accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
+		commandService.executeCommand(SearchEditorConstants.OpenEditorCommandId, convertArgs(args));
 	}
 }
 //#endregion

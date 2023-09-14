@@ -27,6 +27,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types';
 
 export const codeActionCommandId = 'editor.action.codeAction';
+export const quickFixCommandId = 'editor.action.quickFix';
+export const autoFixCommandId = 'editor.action.autoFix';
 export const refactorCommandId = 'editor.action.refactor';
 export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
@@ -231,7 +233,7 @@ export async function applyCodeAction(
 	accessor: ServicesAccessor,
 	item: CodeActionItem,
 	codeActionReason: ApplyCodeActionReason,
-	options?: { preview?: boolean; editor?: ICodeEditor },
+	options?: { readonly preview?: boolean; readonly editor?: ICodeEditor },
 	token: CancellationToken = CancellationToken.None,
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);

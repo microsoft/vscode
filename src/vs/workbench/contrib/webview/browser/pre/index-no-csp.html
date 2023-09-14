@@ -7,11 +7,9 @@
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-
-	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 </head>
 
-<body style="margin: 0; overflow: hidden; width: 100%; height: 100%" role="document">
+<body style="margin: 0; overflow: hidden; width: 100%; height: 100%; overscroll-behavior-x: none;" role="document">
 	<!-- TODO: Remove additional script tag once Firefox is fixed https://bugzilla.mozilla.org/show_bug.cgi?id=1737882 -->
 	<script></script>
 	<script async type="module">
@@ -34,6 +32,7 @@
 		const ID = searchParams.get('id');
 		const webviewOrigin = searchParams.get('origin');
 		const onElectron = searchParams.get('platform') === 'electron';
+		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
@@ -90,6 +89,7 @@
 			}
 
 			body {
+				overscroll-behavior-x: none;
 				background-color: transparent;
 				color: var(--vscode-editor-foreground);
 				font-family: var(--vscode-font-family);
@@ -213,13 +213,16 @@
 
 		/** @type {Promise<void>} */
 		const workerReady = new Promise((resolve, reject) => {
+			if (disableServiceWorker) {
+				return resolve();
+			}
+
 			if (!areServiceWorkersEnabled()) {
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
 
-			const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`;
+			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
 			navigator.serviceWorker.register(swPath)
-				.then(() => navigator.serviceWorker.ready)
 				.then(async registration => {
 					/**
 					 * @param {MessageEvent} event
@@ -241,7 +244,6 @@
 							// `unregister` and `register` here.
 							return registration.unregister()
 								.then(() => navigator.serviceWorker.register(swPath))
-								.then(() => navigator.serviceWorker.ready)
 								.finally(() => { resolve(); });
 						}
 					};
@@ -260,16 +262,29 @@
 						// service worker already loaded & ready to receive messages
 						postVersionMessage(currentController);
 					} else {
-						// either there's no controlling service worker, or it's an old one:
-						// wait for it to change before posting the message
+						if (currentController) {
+							console.log(`Found unexpected service worker controller. Found: ${currentController.scriptURL}. Expected: ${swPath}. Waiting for controllerchange.`);
+						} else {
+							console.log(`No service worker controller found. Waiting for controllerchange.`);
+						}
+
+						// Either there's no controlling service worker, or it's an old one.
+						// Wait for it to change before posting the message
 						const onControllerChange = () => {
 							navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-							postVersionMessage(navigator.serviceWorker.controller);
+							if (navigator.serviceWorker.controller) {
+								postVersionMessage(navigator.serviceWorker.controller);
+							} else {
+								return reject(new Error('No controller found.'));
+							}
 						};
 						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 					}
 				}).catch(error => {
-					reject(new Error(`Could not register service workers: ${error}.`));
+					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
+						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+					}
+					return reject(new Error(`Could not register service worker: ${error}.`));
 				});
 		});
 
@@ -433,26 +448,25 @@
 			reduceMotion: false,
 		};
 
-		hostMessaging.onMessage('did-load-resource', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+		if (!disableServiceWorker) {
+			hostMessaging.onMessage('did-load-resource', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 			});
-		});
 
-		hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+			hostMessaging.onMessage('did-load-localhost', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-localhost', data });
 			});
-		});
 
-		navigator.serviceWorker.addEventListener('message', event => {
-			switch (event.data.channel) {
-				case 'load-resource':
-				case 'load-localhost':
-					hostMessaging.postMessage(event.data.channel, event.data);
-					return;
-			}
-		});
+			navigator.serviceWorker.addEventListener('message', event => {
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						hostMessaging.postMessage(event.data.channel, event.data);
+						return;
+				}
+			});
+		}
+
 		/**
 		 * @param {HTMLDocument?} document
 		 * @param {HTMLElement?} body
@@ -598,7 +612,7 @@
 		/**
 		 * @param {KeyboardEvent} e
 		 */
-		const handleInnerUp = (e) => {
+		const handleInnerKeyup = (e) => {
 			hostMessaging.postMessage('did-keyup', {
 				key: e.key,
 				keyCode: e.keyCode,
@@ -617,8 +631,10 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
-			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
+			// 45: keyCode of "Insert"
+			const shiftInsert = e.shiftKey && e.keyCode === 45;
+			// 67, 86, 88: keyCode of "C", "V", "X"
+			return (hasMeta && [67, 86, 88].includes(e.keyCode)) || shiftInsert;
 		}
 
 		/**
@@ -627,7 +643,8 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
+			// 90, 89: keyCode of "Z", "Y"
+			return hasMeta && [90, 89].includes(e.keyCode);
 		}
 
 		/**
@@ -636,7 +653,8 @@
 		 */
 		function isPrint(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'p';
+			// 80: keyCode of "P"
+			return hasMeta && e.keyCode === 80;
 		}
 
 		/**
@@ -645,7 +663,8 @@
 		 */
 		function isFindEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'f';
+			// 70: keyCode of "F"
+			return hasMeta && e.keyCode === 70;
 		}
 
 		/**
@@ -654,7 +673,8 @@
 		 */
 		function isSaveEvent(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 's';
+			// 83: keyCode of "S"
+			return hasMeta && e.keyCode === 83;
 		}
 
 		/**
@@ -663,7 +683,8 @@
 		 */
 		function isCloseTab(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'w';
+			// 87: keyCode of "W"
+			return hasMeta && e.keyCode === 87;
 		}
 
 		/**
@@ -672,7 +693,8 @@
 		 */
 		function isNewWindow(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && e.key.toLowerCase() === 'n';
+			// 78: keyCode of "N"
+			return hasMeta && e.keyCode === 78;
 		}
 
 		let isHandlingScroll = false;
@@ -827,6 +849,12 @@
 			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
 		}
 
+		// Also forward events before the contents of the webview have loaded
+		window.addEventListener('keydown', handleInnerKeydown);
+		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('dragenter', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragStartEvent);
+
 		onDomReady(() => {
 			if (!document.body) {
 				return;
@@ -957,6 +985,9 @@
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
 
+				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
+
 				/**
 				 * @param {Document} contentDocument
 				 */
@@ -1064,7 +1095,7 @@
 					contentWindow.addEventListener('click', handleInnerClick);
 					contentWindow.addEventListener('auxclick', handleAuxClick);
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
-					contentWindow.addEventListener('keyup', handleInnerUp);
+					contentWindow.addEventListener('keyup', handleInnerKeyup);
 					contentWindow.addEventListener('contextmenu', e => {
 						if (e.defaultPrevented) {
 							// Extension code has already handled this event
@@ -1109,6 +1140,14 @@
 					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
+				}
+			});
+
+			// propagate vscode-context-menu-visible class
+			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {
+				const target = getActiveFrame();
+				if (target && target.contentDocument) {
+					target.contentDocument.body.classList.toggle('vscode-context-menu-visible', data.visible);
 				}
 			});
 
@@ -1204,11 +1243,6 @@
 						break;
 				}
 			};
-
-			// Also forward events before the contents of the webview have loaded
-			window.addEventListener('keydown', handleInnerKeydown);
-			window.addEventListener('dragenter', handleInnerDragStartEvent);
-			window.addEventListener('dragover', handleInnerDragStartEvent);
 
 			hostMessaging.signalReady();
 		});

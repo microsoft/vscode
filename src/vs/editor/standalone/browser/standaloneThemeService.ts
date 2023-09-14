@@ -244,7 +244,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 		this._knownThemes.set(HC_LIGHT_THEME_NAME, newBuiltInTheme(HC_LIGHT_THEME_NAME));
 
-		const iconsStyleSheet = getIconsStyleSheet(this);
+		const iconsStyleSheet = this._register(getIconsStyleSheet(this));
 
 		this._codiconCSS = iconsStyleSheet.getCSS();
 		this._themeCSS = '';
@@ -255,10 +255,10 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this.setTheme(VS_LIGHT_THEME_NAME);
 		this._onOSSchemeChanged();
 
-		iconsStyleSheet.onDidChange(() => {
+		this._register(iconsStyleSheet.onDidChange(() => {
 			this._codiconCSS = iconsStyleSheet.getCSS();
 			this._updateCSS();
-		});
+		}));
 
 		addMatchMediaChangeListener('(forced-colors: active)', () => {
 			this._onOSSchemeChanged();
@@ -274,18 +274,20 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _registerRegularEditorContainer(): IDisposable {
 		if (!this._globalStyleElement) {
-			this._globalStyleElement = dom.createStyleSheet();
-			this._globalStyleElement.className = 'monaco-colors';
-			this._globalStyleElement.textContent = this._allCSS;
+			this._globalStyleElement = dom.createStyleSheet(undefined, style => {
+				style.className = 'monaco-colors';
+				style.textContent = this._allCSS;
+			});
 			this._styleElements.push(this._globalStyleElement);
 		}
 		return Disposable.None;
 	}
 
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-		const styleElement = dom.createStyleSheet(domNode);
-		styleElement.className = 'monaco-colors';
-		styleElement.textContent = this._allCSS;
+		const styleElement = dom.createStyleSheet(domNode, style => {
+			style.className = 'monaco-colors';
+			style.textContent = this._allCSS;
+		});
 		this._styleElements.push(styleElement);
 		return {
 			dispose: () => {
@@ -390,7 +392,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
 			}
 		}
-		ruleCollector.addRule(`.monaco-editor { ${colorVariables.join('\n')} }`);
+		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor { ${colorVariables.join('\n')} }`);
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));

@@ -5,21 +5,18 @@
 
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationError, SerializedError } from 'vs/base/common/errors';
+import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
@@ -28,7 +25,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -67,10 +64,6 @@ export class ExtensionHostProcess {
 
 	public get onMessage(): Event<any> {
 		return this._extensionHostStarter.onDynamicMessage(this._id);
-	}
-
-	public get onError(): Event<{ error: SerializedError }> {
-		return this._extensionHostStarter.onDynamicError(this._id);
 	}
 
 	public get onExit(): Event<{ code: number; signal: string }> {
@@ -115,7 +108,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	private readonly _isExtensionDevTestFromCli: boolean;
 
 	// State
-	private _lastExtensionHostError: string | null;
 	private _terminating: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
@@ -150,7 +142,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		this._isExtensionDevDebugBrk = devOpts.isExtensionDevDebugBrk;
 		this._isExtensionDevTestFromCli = devOpts.isExtensionDevTestFromCli;
 
-		this._lastExtensionHostError = null;
 		this._terminating = false;
 
 		this._inspectPort = null;
@@ -201,7 +192,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	protected async _startWithCommunication<T>(communication: IExtHostCommunication<T>): Promise<IMessagePassingProtocol> {
 
 		const [extensionHostCreationResult, communicationPreparedData, portNumber, processEnv] = await Promise.all([
-			this._extensionHostStarter.createExtensionHost(communication.useUtilityProcess),
+			this._extensionHostStarter.createExtensionHost(),
 			communication.prepare(),
 			this._tryFindDebugPort(),
 			this._shellEnvironmentService.getShellEnv(),
@@ -257,9 +248,8 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			opts.execArgv.unshift('--prof');
 		}
 
-		if (this._environmentService.args['max-memory']) {
-			opts.execArgv.unshift(`--max-old-space-size=${this._environmentService.args['max-memory']}`);
-		}
+		// Refs https://github.com/microsoft/vscode/issues/189805
+		opts.execArgv.unshift('--dns-result-order=ipv4first');
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
@@ -299,7 +289,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Lifecycle
 
-		this._extensionHostProcess.onError((e) => this._onExtHostProcessError(e.error));
 		this._extensionHostProcess.onExit(({ code, signal }) => this._onExtHostProcessExit(code, signal));
 
 		// Notify debugger that we are ready to attach to the process if we run a development extension
@@ -326,7 +315,10 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 						label: nls.localize('reloadWindow', "Reload Window"),
 						run: () => this._hostService.reload()
 					}],
-					{ sticky: true }
+					{
+						sticky: true,
+						priority: NotificationPriority.URGENT
+					}
 				);
 			}, 10000);
 		}
@@ -376,7 +368,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			let timeoutHandle: any;
 			const installTimeoutCheck = () => {
 				timeoutHandle = setTimeout(() => {
-					reject('The local extenion host took longer than 60s to send its ready message.');
+					reject('The local extension host took longer than 60s to send its ready message.');
 				}, 60 * 1000);
 			};
 			const uninstallTimeoutCheck = () => {
@@ -423,13 +415,14 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
-		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
+		const initData = await this._initDataProvider.getInitData();
 		const workspace = this._contextService.getWorkspace();
 		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
-			parentPid: process.sandboxed ? 0 : process.pid,
+			quality: this._productService.quality,
+			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
@@ -446,7 +439,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				extensionLogLevel: this._environmentService.extensionLogLevel
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
-				configuration: withNullAsUndefined(workspace.configuration),
+				configuration: workspace.configuration ?? undefined,
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
@@ -464,32 +457,18 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			allExtensions: deltaExtensions.toAdd,
 			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
-			telemetryInfo,
+			telemetryInfo: {
+				sessionId: this._telemetryService.sessionId,
+				machineId: this._telemetryService.machineId,
+				firstSessionDate: this._telemetryService.firstSessionDate,
+				msftInternal: this._telemetryService.msftInternal
+			},
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,
 			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			uiKind: UIKind.Desktop
 		};
-	}
-
-	private _onExtHostProcessError(_err: SerializedError): void {
-		let err: any = _err;
-		if (_err && _err.$isError) {
-			err = new Error();
-			err.name = _err.name;
-			err.message = _err.message;
-			err.stack = _err.stack;
-		}
-
-		const errorMessage = toErrorMessage(err);
-		if (errorMessage === this._lastExtensionHostError) {
-			return; // prevent error spam
-		}
-
-		this._lastExtensionHostError = errorMessage;
-
-		this._notificationService.error(nls.localize('extensionHost.error', "Error from the extension host: {0}", errorMessage));
 	}
 
 	private _onExtHostProcessExit(code: number, signal: string): void {
@@ -553,7 +532,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	public getInspectPort(): number | undefined {
-		return withNullAsUndefined(this._inspectPort);
+		return this._inspectPort ?? undefined;
 	}
 
 	private _onWillShutdown(event: WillShutdownEvent): void {
@@ -567,14 +546,11 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 }
 
 export interface IExtHostCommunication<T> {
-	readonly useUtilityProcess: boolean;
 	prepare(): Promise<T>;
 	establishProtocol(prepared: T, extensionHostProcess: ExtensionHostProcess, opts: IExtensionHostProcessOptions): Promise<IMessagePassingProtocol>;
 }
 
 export class ExtHostMessagePortCommunication extends Disposable implements IExtHostCommunication<void> {
-
-	readonly useUtilityProcess = true;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService

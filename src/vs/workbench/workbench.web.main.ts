@@ -43,7 +43,6 @@ import 'vs/workbench/services/extensionManagement/browser/webExtensionsScannerSe
 import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/browser/extensionUrlTrustService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';
-import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
@@ -56,6 +55,7 @@ import 'vs/workbench/services/localization/browser/localeService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 import 'vs/workbench/services/encryption/browser/encryptionService';
+import 'vs/workbench/services/secrets/browser/secretStorageService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import 'vs/workbench/services/tunnel/browser/tunnelService';
 import 'vs/workbench/services/files/browser/elevatedFileService';
@@ -116,9 +116,6 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 // Logs
 import 'vs/workbench/contrib/logs/browser/logs.contribution';
 
-// Explorer
-import 'vs/workbench/contrib/files/browser/files.web.contribution';
-
 // Localization
 import 'vs/workbench/contrib/localization/browser/localization.contribution';
 
@@ -133,6 +130,9 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Welcome Banner
 import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
+
+// Welcome Dialog
+import 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialog.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
@@ -157,8 +157,8 @@ import 'vs/workbench/contrib/issue/browser/issue.contribution';
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
 
-// Offline
-import 'vs/workbench/contrib/offline/browser/offline.contribution';
+// Remote Start Entry for the Web
+import 'vs/workbench/contrib/remote/browser/remoteStartEntry.contribution';
 
 //#endregion
 

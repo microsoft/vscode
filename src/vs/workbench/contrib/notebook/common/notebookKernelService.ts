@@ -30,7 +30,6 @@ export interface INotebookKernelChangeEvent {
 	label?: true;
 	description?: true;
 	detail?: true;
-	kind?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
 	hasInterruptHandler?: true;
@@ -49,7 +48,6 @@ export interface INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
-	kind?: string;
 	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;

@@ -29,6 +29,7 @@ import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/brows
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 
 export class MarkupCell extends Disposable {
 
@@ -334,6 +335,16 @@ export class MarkupCell extends Disposable {
 				contributions: this.notebookEditor.creationOptions.cellEditorContributions
 			}));
 			this.templateData.currentEditor = this.editor;
+			this.editorDisposables.add(this.editor.onDidBlurEditorWidget(() => {
+				if (this.editor) {
+					WordHighlighterContribution.get(this.editor)?.stopHighlighting();
+				}
+			}));
+			this.editorDisposables.add(this.editor.onDidFocusEditorWidget(() => {
+				if (this.editor) {
+					WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
+				}
+			}));
 
 			const cts = new CancellationTokenSource();
 			this.editorDisposables.add({ dispose() { cts.dispose(true); } });

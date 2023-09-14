@@ -120,7 +120,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.adapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.disposables.add(this.configurationManager);
-		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
+		this.debugStorage = this.disposables.add(this.instantiationService.createInstance(DebugStorage));
 
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 
@@ -655,7 +655,7 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private registerSessionListeners(session: IDebugSession): void {
+	private registerSessionListeners(session: DebugSession): void {
 		const sessionRunningScheduler = new RunOnceScheduler(() => {
 			// Do not immediatly defocus the stack frame if the session is running
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
@@ -724,6 +724,7 @@ export class DebugService implements IDebugService {
 			}
 
 			this.model.removeExceptionBreakpointsForSession(session.getId());
+			// session.dispose(); TODO@roblourens
 		}));
 	}
 
@@ -959,7 +960,7 @@ export class DebugService implements IDebugService {
 			this.model.setEnablement(breakpoint, enable);
 			this.debugStorage.storeBreakpoints(this.model);
 			if (breakpoint instanceof Breakpoint) {
-				await this.sendBreakpoints(breakpoint.uri);
+				await this.sendBreakpoints(breakpoint.originalUri);
 			} else if (breakpoint instanceof FunctionBreakpoint) {
 				await this.sendFunctionBreakpoints();
 			} else if (breakpoint instanceof DataBreakpoint) {
@@ -1004,8 +1005,9 @@ export class DebugService implements IDebugService {
 
 	async removeBreakpoints(id?: string): Promise<void> {
 		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
+		// note: using the debugger-resolved uri for aria to reflect UI state
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
-		const urisToClear = distinct(toRemove, bp => bp.uri.toString()).map(bp => bp.uri);
+		const urisToClear = distinct(toRemove, bp => bp.originalUri.toString()).map(bp => bp.originalUri);
 
 		this.model.removeBreakpoints(toRemove);
 
@@ -1047,15 +1049,15 @@ export class DebugService implements IDebugService {
 		await this.sendDataBreakpoints();
 	}
 
-	async addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void> {
-		this.model.addInstructionBreakpoint(address, offset, condition, hitCondition);
+	async addInstructionBreakpoint(instructionReference: string, offset: number, address: bigint, condition?: string, hitCondition?: string): Promise<void> {
+		this.model.addInstructionBreakpoint(instructionReference, offset, address, condition, hitCondition);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async removeInstructionBreakpoints(address?: string): Promise<void> {
-		this.model.removeInstructionBreakpoints(address);
+	async removeInstructionBreakpoints(instructionReference?: string, offset?: number): Promise<void> {
+		this.model.removeInstructionBreakpoints(instructionReference, offset);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 	}
@@ -1077,8 +1079,8 @@ export class DebugService implements IDebugService {
 	}
 
 	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
-		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.uri.toString())
-			.map(bp => this.sendBreakpoints(bp.uri, false, session));
+		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.originalUri.toString())
+			.map(bp => this.sendBreakpoints(bp.originalUri, false, session));
 
 		// If sending breakpoints to one session which we know supports the configurationDone request, can make all requests in parallel
 		if (session?.capabilities.supportsConfigurationDoneRequest) {
@@ -1101,7 +1103,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
+		const breakpointsToSend = this.model.getBreakpoints({ originalUri: modelUri, enabledOnly: true });
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (!s.configuration.noDebug) {
 				await s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified);
@@ -1154,7 +1156,7 @@ export class DebugService implements IDebugService {
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
 		const toRemove = this.model.getBreakpoints().filter(bp =>
-			fileChangesEvent.contains(bp.uri, FileChangeType.DELETED));
+			fileChangesEvent.contains(bp.originalUri, FileChangeType.DELETED));
 		if (toRemove.length) {
 			this.model.removeBreakpoints(toRemove);
 		}

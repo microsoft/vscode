@@ -8,17 +8,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
 import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
-import { localize } from 'vs/nls';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
@@ -62,21 +60,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				continue;
 			}
 			try {
-				const content = await this.fileService.readFile(joinPath(folder, configPath));
-				const recommendationByRemote: Map<string, IConfigBasedExtensionTip> = new Map<string, IConfigBasedExtensionTip>();
-				Object.entries(tip.recommendations).forEach(([key, value]) => {
-					if (isNonEmptyArray(value.remotes)) {
-						for (const remote of value.remotes) {
-							recommendationByRemote.set(remote, {
-								extensionId: key,
-								extensionName: value.name,
-								configName: tip.configName,
-								important: !!value.important,
-								isExtensionPack: !!value.isExtensionPack,
-								whenNotInstalled: value.whenNotInstalled
-							});
-						}
-					} else {
+				const content = (await this.fileService.readFile(joinPath(folder, configPath))).value.toString();
+				for (const [key, value] of Object.entries(tip.recommendations)) {
+					if (!value.contentPattern || new RegExp(value.contentPattern, 'mig').test(content)) {
 						result.push({
 							extensionId: key,
 							extensionName: value.name,
@@ -85,13 +71,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							isExtensionPack: !!value.isExtensionPack,
 							whenNotInstalled: value.whenNotInstalled
 						});
-					}
-				});
-				const domains = getDomainsOfRemotes(content.value.toString(), [...recommendationByRemote.keys()]);
-				for (const domain of domains) {
-					const remote = recommendationByRemote.get(domain);
-					if (remote) {
-						result.push(remote);
 					}
 				}
 			} catch (error) { /* Ignore */ }
@@ -175,11 +154,11 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 			3s has come out to be the good number to fetch and prompt important exe based recommendations
 			Also fetch important exe based recommendations for reporting telemetry
 		*/
-		timeout(3000).then(async () => {
+		this._register(disposableTimeout(async () => {
 			await this.collectTips();
 			this.promptHighImportanceExeBasedTip();
 			this.promptMediumImportanceExeBasedTip();
-		});
+		}, 3000));
 	}
 
 	override async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
@@ -325,11 +304,10 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 
 	private async promptExeRecommendations(tips: IExecutableBasedExtensionTip[]): Promise<RecommendationsNotificationResult> {
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const extensionIds = tips
+		const extensions = tips
 			.filter(tip => !tip.whenNotInstalled || tip.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id }))))
 			.map(({ extensionId }) => extensionId.toLowerCase());
-		const message = localize({ key: 'exeRecommended', comment: ['Placeholder string is the name of the software that is installed.'] }, "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
-		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE);
+		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification({ extensions, source: RecommendationSource.EXE, name: tips[0].exeFriendlyName, searchValue: `@exe:"${tips[0].exeName}"` });
 	}
 
 	private getLastPromptedMediumExeTime(): number {

@@ -75,7 +75,7 @@ export interface IViewContainerDescriptor {
 	/**
 	 * The title of the view container
 	 */
-	readonly title: ILocalizedString | string;
+	readonly title: ILocalizedString;
 
 	/**
 	 * Icon representation of the View container
@@ -300,17 +300,11 @@ export interface IViewDescriptor {
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 }
 
-export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
+export interface ICustomViewDescriptor extends IViewDescriptor {
 	readonly extensionId: ExtensionIdentifier;
 	readonly originalContainerId: string;
+	readonly treeView?: ITreeView;
 }
-
-export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
-	readonly extensionId: ExtensionIdentifier;
-	readonly originalContainerId: string;
-}
-
-export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 export interface IViewDescriptorRef {
 	viewDescriptor: IViewDescriptor;
@@ -584,9 +578,11 @@ export interface IViewsService {
 	closeViewContainer(id: string): void;
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
 	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
+	getFocusedViewName(): string;
 
 	// View APIs
 	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }>;
+	readonly onDidChangeFocusedView: Event<void>;
 	isViewVisible(id: string): boolean;
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
 	closeView(id: string): void;
@@ -651,7 +647,9 @@ export interface ITreeView extends IDisposable {
 
 	canSelectMany: boolean;
 
-	message?: string;
+	manuallyManageCheckboxes: boolean;
+
+	message?: string | IMarkdownString;
 
 	title: string;
 
@@ -665,9 +663,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
 
-	readonly onDidChangeSelection: Event<ITreeItem[]>;
-
-	readonly onDidChangeFocus: Event<ITreeItem>;
+	readonly onDidChangeSelectionAndFocus: Event<{ selection: readonly ITreeItem[]; focus: ITreeItem }>;
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
@@ -679,11 +675,11 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
-	readonly onDidChangeCheckboxState: Event<ITreeItem[]>;
+	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
 	readonly container: any | undefined;
 
-	refresh(treeItems?: ITreeItem[]): Promise<void>;
+	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
@@ -703,7 +699,7 @@ export interface ITreeView extends IDisposable {
 
 	getSelection(): ITreeItem[];
 
-	setFocus(item: ITreeItem): void;
+	setFocus(item?: ITreeItem): void;
 
 	show(container: any): void;
 }
@@ -754,6 +750,7 @@ export type TreeCommand = Command & { originalId?: string };
 export interface ITreeItemCheckboxState {
 	isChecked: boolean;
 	tooltip?: string;
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 export interface ITreeItem {
@@ -783,6 +780,8 @@ export interface ITreeItem {
 	command?: TreeCommand;
 
 	children?: ITreeItem[];
+
+	parent?: ITreeItem;
 
 	accessibilityInformation?: IAccessibilityInformation;
 
@@ -851,8 +850,12 @@ export class ResolvableTreeItem implements ITreeItem {
 }
 
 export class NoTreeViewError extends Error {
+	override readonly name = 'NoTreeViewError';
 	constructor(treeViewId: string) {
 		super(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+	}
+	static is(err: Error): err is NoTreeViewError {
+		return err.name === 'NoTreeViewError';
 	}
 }
 

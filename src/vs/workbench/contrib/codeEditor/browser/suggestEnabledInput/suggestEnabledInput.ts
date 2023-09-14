@@ -38,6 +38,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface SuggestResultsProvider {
 	/**
@@ -145,6 +146,7 @@ export class SuggestEnabledInput extends Widget {
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -153,7 +155,7 @@ export class SuggestEnabledInput extends Widget {
 		this.placeholderText = append(this.stylingContainer, $('.suggest-input-placeholder', undefined, options.placeholderText || ''));
 
 		const editorOptions: IEditorConstructionOptions = mixin(
-			getSimpleEditorOptions(),
+			getSimpleEditorOptions(configurationService),
 			getSuggestEnabledInputOptions(ariaLabel));
 		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 
@@ -176,6 +178,18 @@ export class SuggestEnabledInput extends Widget {
 				isSimpleWidget: true,
 			}));
 
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.accessibilitySupport') ||
+				e.affectsConfiguration('editor.cursorBlinking')) {
+				const accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+				const cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+				this.inputWidget.updateOptions({
+					accessibilitySupport,
+					cursorBlinking
+				});
+			}
+		}));
+
 		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
 		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
 
@@ -195,9 +209,8 @@ export class SuggestEnabledInput extends Widget {
 			this.stylingContainer.classList.remove('synthetic-focus');
 		})));
 
-		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
-		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); /** Do nothing. Enter causes new line which is not expected. */ }, this));
-		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
+		this._register(Event.chain(this.inputWidget.onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.Enter))(e => { e.preventDefault(); /** Do nothing. Enter causes new line which is not expected. */ }, this));
+		this._register(Event.chain(this.inputWidget.onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)))(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();
 		const inputWidgetModel = this.inputWidget.getModel();
@@ -222,6 +235,7 @@ export class SuggestEnabledInput extends Widget {
 		this.setValue(options.value || '');
 
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+			_debugDisplayName: `suggestEnabledInput/${id}`,
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
 				const query = model.getValue();
@@ -345,8 +359,9 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 		this.history = new HistoryNavigator<string>(history, 100);
 	}
 
@@ -371,9 +386,7 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 			next = next === this.getValue() ? this.getNextValue() : next;
 		}
 
-		if (next) {
-			this.setValue(next);
-		}
+		this.setValue(next ?? '');
 	}
 
 	public showPreviousValue(): void {
@@ -410,7 +423,7 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 	}
 
 	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+		return this.history.next();
 	}
 }
 
@@ -423,8 +436,9 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
 		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {

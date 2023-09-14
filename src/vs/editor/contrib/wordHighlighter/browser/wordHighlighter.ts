@@ -9,7 +9,7 @@ import { CancelablePromise, createCancelablePromise, first, timeout } from 'vs/b
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -29,6 +29,7 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
+import { Iterable } from 'vs/base/common/iterator';
 
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
@@ -192,9 +193,12 @@ class WordHighlighter {
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
-	constructor(editor: IActiveCodeEditor, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, contextKeyService: IContextKeyService) {
+	private readonly linkedHighlighters: () => Iterable<WordHighlighter | null>;
+
+	constructor(editor: IActiveCodeEditor, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, linkedHighlighters: () => Iterable<WordHighlighter | null>, contextKeyService: IContextKeyService) {
 		this.editor = editor;
 		this.providers = providers;
+		this.linkedHighlighters = linkedHighlighters;
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
@@ -243,6 +247,14 @@ class WordHighlighter {
 			return;
 		}
 		this._run();
+	}
+
+	public stop(): void {
+		if (!this.occurrencesHighlight) {
+			return;
+		}
+
+		this._stopAll();
 	}
 
 	private _getSortedHighlights(): Range[] {
@@ -445,6 +457,15 @@ class WordHighlighter {
 
 		this.decorations.set(decorations);
 		this._hasWordHighlights.set(this.hasDecorations());
+
+		// update decorators of friends
+		for (const other of this.linkedHighlighters()) {
+			if (other?.editor.getModel() === this.editor.getModel()) {
+				other._stopAll();
+				other.decorations.set(decorations);
+				other._hasWordHighlights.set(other.hasDecorations());
+			}
+		}
 	}
 
 	public dispose(): void {
@@ -453,7 +474,7 @@ class WordHighlighter {
 	}
 }
 
-class WordHighlighterContribution extends Disposable implements IEditorContribution {
+export class WordHighlighterContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.wordHighlighter';
 
@@ -462,13 +483,15 @@ class WordHighlighterContribution extends Disposable implements IEditorContribut
 	}
 
 	private wordHighlighter: WordHighlighter | null;
+	private linkedContributions: Set<WordHighlighterContribution>;
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService) {
 		super();
 		this.wordHighlighter = null;
+		this.linkedContributions = new Set();
 		const createWordHighlighterIfPossible = () => {
-			if (editor.hasModel()) {
-				this.wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, contextKeyService);
+			if (editor.hasModel() && !editor.getModel().isTooLargeForTokenization()) {
+				this.wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, () => Iterable.map(this.linkedContributions, c => c.wordHighlighter), contextKeyService);
 			}
 		};
 		this._register(editor.onDidChangeModel((e) => {
@@ -500,6 +523,23 @@ class WordHighlighterContribution extends Disposable implements IEditorContribut
 		if (this.wordHighlighter && state) {
 			this.wordHighlighter.restore();
 		}
+	}
+
+	public stopHighlighting() {
+		this.wordHighlighter?.stop();
+	}
+
+	public linkWordHighlighters(editor: ICodeEditor): IDisposable {
+		const other = WordHighlighterContribution.get(editor);
+		if (!other) {
+			return Disposable.None;
+		}
+		this.linkedContributions.add(other);
+		other.linkedContributions.add(this);
+		return toDisposable(() => {
+			this.linkedContributions.delete(other);
+			other.linkedContributions.delete(this);
+		});
 	}
 
 	public override dispose(): void {

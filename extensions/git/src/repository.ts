@@ -22,6 +22,7 @@ import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { ActionButtonCommand } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
+import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -57,6 +58,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return l10n.t('Untracked');
 			case Status.IGNORED: return l10n.t('Ignored');
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
+			case Status.INTENT_TO_RENAME: return l10n.t('Intent to Rename');
+			case Status.TYPE_CHANGED: return l10n.t('Type Changed');
 			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
 			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
 			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Deleted By Them');
@@ -70,7 +73,7 @@ export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED || this._type === Status.INTENT_TO_RENAME)) {
 			return this.renameResourceUri;
 		}
 
@@ -110,6 +113,7 @@ export class Resource implements SourceControlResourceState {
 			Untracked: getIconUri('status-untracked', 'light'),
 			Ignored: getIconUri('status-ignored', 'light'),
 			Conflict: getIconUri('status-conflict', 'light'),
+			TypeChanged: getIconUri('status-type-changed', 'light')
 		},
 		dark: {
 			Modified: getIconUri('status-modified', 'dark'),
@@ -119,7 +123,8 @@ export class Resource implements SourceControlResourceState {
 			Copied: getIconUri('status-copied', 'dark'),
 			Untracked: getIconUri('status-untracked', 'dark'),
 			Ignored: getIconUri('status-ignored', 'dark'),
-			Conflict: getIconUri('status-conflict', 'dark')
+			Conflict: getIconUri('status-conflict', 'dark'),
+			TypeChanged: getIconUri('status-type-changed', 'dark')
 		}
 	};
 
@@ -135,6 +140,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
 			case Status.IGNORED: return Resource.Icons[theme].Ignored;
 			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
+			case Status.INTENT_TO_RENAME: return Resource.Icons[theme].Renamed;
+			case Status.TYPE_CHANGED: return Resource.Icons[theme].TypeChanged;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
 			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
@@ -192,7 +199,10 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED:
 				return 'D';
 			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
 				return 'R';
+			case Status.TYPE_CHANGED:
+				return 'T';
 			case Status.UNTRACKED:
 				return 'U';
 			case Status.IGNORED:
@@ -219,6 +229,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_MODIFIED:
 				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
 			case Status.MODIFIED:
+			case Status.TYPE_CHANGED:
 				return new ThemeColor('gitDecoration.modifiedResourceForeground');
 			case Status.INDEX_DELETED:
 				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
@@ -229,6 +240,7 @@ export class Resource implements SourceControlResourceState {
 				return new ThemeColor('gitDecoration.addedResourceForeground');
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
 				return new ThemeColor('gitDecoration.renamedResourceForeground');
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
@@ -252,6 +264,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
 			case Status.INDEX_COPIED:
+			case Status.TYPE_CHANGED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
@@ -519,6 +532,8 @@ class ResourceCommandResolver {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED:
 				return toGitUri(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
@@ -553,7 +568,9 @@ class ResourceCommandResolver {
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-			case Status.INTENT_TO_ADD: {
+			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -598,10 +615,30 @@ class ResourceCommandResolver {
 			case Status.UNTRACKED:
 				return l10n.t('{0} (Untracked)', basename);
 
+			case Status.INTENT_TO_ADD:
+			case Status.INTENT_TO_RENAME:
+				return l10n.t('{0} (Intent to add)', basename);
+
+			case Status.TYPE_CHANGED:
+				return l10n.t('{0} (Type changed)', basename);
+
 			default:
 				return '';
 		}
 	}
+}
+
+interface BranchProtectionMatcher {
+	include?: picomatch.Matcher;
+	exclude?: picomatch.Matcher;
+}
+
+export interface IRepositoryResolver {
+	getRepository(sourceControl: SourceControl): Repository | undefined;
+	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
+	getRepository(path: string): Repository | undefined;
+	getRepository(resource: Uri): Repository | undefined;
+	getRepository(hint: any): Repository | undefined;
 }
 
 export class Repository implements Disposable {
@@ -623,6 +660,9 @@ export class Repository implements Disposable {
 
 	private _onDidRunOperation = new EventEmitter<OperationResult>();
 	readonly onDidRunOperation: Event<OperationResult> = this._onDidRunOperation.event;
+
+	private _onDidChangeBranchProtection = new EventEmitter<void>();
+	readonly onDidChangeBranchProtection: Event<void> = this._onDidChangeBranchProtection.event;
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
@@ -733,6 +773,10 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
+	get rootRealPath(): string | undefined {
+		return this.repository.rootRealPath;
+	}
+
 	get dotGit(): { path: string; commonPath?: string } {
 		return this.repository.dotGit;
 	}
@@ -740,7 +784,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
-	private isBranchProtectedMatcher: picomatch.Matcher | undefined;
+	private branchProtection = new Map<string, BranchProtectionMatcher[]>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
@@ -748,9 +792,11 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		private readonly repositoryResolver: IRepositoryResolver,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
+		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -759,7 +805,7 @@ export class Repository implements Disposable {
 		this.disposables.push(repositoryWatcher);
 
 		const onRepositoryFileChange = anyEvent(repositoryWatcher.onDidChange, repositoryWatcher.onDidCreate, repositoryWatcher.onDidDelete);
-		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\/)/.test(relativePath(repository.root, uri.fsPath)));
+		const onRepositoryWorkingTreeFileChange = filterEvent(onRepositoryFileChange, uri => !/\.git($|\\|\/)/.test(relativePath(repository.root, uri.fsPath)));
 
 		let onRepositoryDotGitFileChange: Event<Uri>;
 
@@ -770,7 +816,7 @@ export class Repository implements Disposable {
 		} catch (err) {
 			logger.error(`Failed to watch path:'${this.dotGit.path}' or commonPath:'${this.dotGit.commonPath}', reverting to legacy API file watched. Some events might be lost.\n${err.stack || err}`);
 
-			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\/)/.test(uri.path));
+			onRepositoryDotGitFileChange = filterEvent(onRepositoryFileChange, uri => /\.git($|\\|\/)/.test(uri.path));
 		}
 
 		// FS changes should trigger `git status`:
@@ -816,12 +862,12 @@ export class Repository implements Disposable {
 		}, undefined, this.disposables);
 
 		filterEvent(workspace.onDidChangeConfiguration, e =>
-			e.affectsConfiguration('git.branchProtection', root)
-			|| e.affectsConfiguration('git.branchSortOrder', root)
+			e.affectsConfiguration('git.branchSortOrder', root)
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
 			|| e.affectsConfiguration('git.showActionButton', root)
+			|| e.affectsConfiguration('git.similarityThreshold', root)
 		)(() => this.updateModelState(), this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -862,9 +908,10 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
-		const onDidChangeBranchProtection = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchProtection', root));
-		onDidChangeBranchProtection(this.updateBranchProtectionMatcher, this, this.disposables);
-		this.updateBranchProtectionMatcher();
+		// Default branch protection provider
+		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
+		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
+		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
@@ -972,9 +1019,13 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		const path = uri.path;
+		// Ignore path that is not inside the current repository
+		if (this.repositoryResolver.getRepository(uri) !== this) {
+			return undefined;
+		}
 
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
+		// Ignore path that is inside a merge group
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
 			return undefined;
 		}
 
@@ -1171,6 +1222,10 @@ export class Repository implements Disposable {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
+			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+
 		if (this.rebaseCommit) {
 			await this.run(
 				Operation.RebaseContinue,
@@ -1181,7 +1236,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.rebaseContinue();
-					await this.commitOperationCleanup(message, opts);
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
 				() => this.commitOperationGetOptimisticResourceGroups(opts));
 		} else {
@@ -1204,7 +1259,7 @@ export class Repository implements Disposable {
 					}
 
 					await this.repository.commit(message, opts);
-					await this.commitOperationCleanup(message, opts);
+					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
 				() => this.commitOperationGetOptimisticResourceGroups(opts));
 
@@ -1215,15 +1270,10 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async commitOperationCleanup(message: string | undefined, opts: CommitOptions) {
+	private async commitOperationCleanup(message: string | undefined, indexResources: string[], workingGroupResources: string[]) {
 		if (message) {
 			this.inputBox.value = await this.getInputTemplate();
 		}
-
-		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
-		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
-			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
-
 		this.closeDiffEditors(indexResources, workingGroupResources);
 	}
 
@@ -2042,9 +2092,10 @@ export class Repository implements Disposable {
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
 		const limit = scopedConfig.get<number>('statusLimit', 10000);
+		const similarityThreshold = scopedConfig.get<number>('similarityThreshold', 50);
 
 		const start = new Date().getTime();
-		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, untrackedChanges, cancellationToken });
+		const { status, statusLength, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules, similarityThreshold, untrackedChanges, cancellationToken });
 		const totalTime = new Date().getTime() - start;
 
 		this.isRepositoryHuge = didHitLimit ? { limit } : false;
@@ -2162,6 +2213,8 @@ export class Repository implements Disposable {
 				case 'M': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
 				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
+				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri)); break;
+				case 'T': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.TYPE_CHANGED, useIcons, renameUri)); break;
 			}
 
 			return undefined;
@@ -2243,14 +2296,17 @@ export class Repository implements Disposable {
 		const autorefresh = config.get<boolean>('autorefresh');
 
 		if (!autorefresh) {
+			this.logger.trace('Skip running git status because autorefresh setting is disabled.');
 			return;
 		}
 
 		if (this.isRepositoryHuge) {
+			this.logger.trace('Skip running git status because repository is huge.');
 			return;
 		}
 
 		if (!this.operations.isIdle()) {
+			this.logger.trace('Skip running git status because an operation is running.');
 			return;
 		}
 
@@ -2354,15 +2410,29 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private updateBranchProtectionMatcher(): void {
-		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+	private updateBranchProtectionMatchers(root: Uri): void {
+		this.branchProtection.clear();
 
-		if (branchProtectionGlobs.length === 0) {
-			this.isBranchProtectedMatcher = undefined;
-		} else {
-			this.isBranchProtectedMatcher = picomatch(branchProtectionGlobs);
+		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(root)) {
+			for (const { remote, rules } of provider.provideBranchProtection()) {
+				const matchers: BranchProtectionMatcher[] = [];
+
+				for (const rule of rules) {
+					const include = rule.include && rule.include.length !== 0 ? picomatch(rule.include) : undefined;
+					const exclude = rule.exclude && rule.exclude.length !== 0 ? picomatch(rule.exclude) : undefined;
+
+					if (include || exclude) {
+						matchers.push({ include, exclude });
+					}
+				}
+
+				if (matchers.length !== 0) {
+					this.branchProtection.set(remote, matchers);
+				}
+			}
 		}
+
+		this._onDidChangeBranchProtection.fire();
 	}
 
 	private optimisticUpdateEnabled(): boolean {
@@ -2402,8 +2472,31 @@ export class Repository implements Disposable {
 		return true;
 	}
 
-	public isBranchProtected(name = this.HEAD?.name ?? ''): boolean {
-		return this.isBranchProtectedMatcher ? this.isBranchProtectedMatcher(name) : false;
+	public isBranchProtected(branch = this.HEAD): boolean {
+		if (branch?.name) {
+			// Default branch protection (settings)
+			const defaultBranchProtectionMatcher = this.branchProtection.get('');
+			if (defaultBranchProtectionMatcher?.length === 1 &&
+				defaultBranchProtectionMatcher[0].include &&
+				defaultBranchProtectionMatcher[0].include(branch.name)) {
+				return true;
+			}
+
+			if (branch.upstream?.remote) {
+				// Branch protection (contributed)
+				const remoteBranchProtectionMatcher = this.branchProtection.get(branch.upstream.remote);
+				if (remoteBranchProtectionMatcher && remoteBranchProtectionMatcher?.length !== 0) {
+					return remoteBranchProtectionMatcher.some(matcher => {
+						const include = matcher.include ? matcher.include(branch.name!) : true;
+						const exclude = matcher.exclude ? matcher.exclude(branch.name!) : false;
+
+						return include && !exclude;
+					});
+				}
+			}
+		}
+
+		return false;
 	}
 
 	dispose(): void {

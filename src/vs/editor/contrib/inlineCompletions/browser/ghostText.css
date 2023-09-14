@@ -24,11 +24,7 @@
 	font-size: 0;
 }
 
-.monaco-editor .ghost-text-decoration {
-	font-style: italic;
-}
-
-.monaco-editor .suggest-preview-text {
+.monaco-editor .ghost-text-decoration, .monaco-editor .suggest-preview-text .ghost-text {
 	font-style: italic;
 }
 
