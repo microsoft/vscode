@@ -8,6 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
@@ -81,6 +82,8 @@ export interface IChatAgentMetadata {
 	subCommands: IChatAgentCommand[];
 	requireCommand?: boolean; // Do some agents not have a default action?
 	isImplicit?: boolean; // Only @workspace. slash commands get promoted to the top-level and this agent is invoked when those are used
+	fullName?: string;
+	icon?: URI;
 }
 
 export type IChatAgentCallback = { (prompt: string, progress: IProgress<IChatAgentFragment>, history: IChatMessage[], token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> };

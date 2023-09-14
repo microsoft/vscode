@@ -24,6 +24,8 @@ declare module 'vscode' {
 
 	export interface ChatAgentMetadata {
 		description: string;
+		fullName?: string;
+		icon?: Uri;
 		subCommands: ChatAgentCommand[];
 		requireCommand?: boolean; // Do some agents not have a default action?
 		isImplicit?: boolean; // Only @workspace. slash commands get promoted to the top-level and this agent is invoked when those are used
@@ -34,6 +36,6 @@ declare module 'vscode' {
 	}
 
 	export namespace chat {
-		export function registerAgent(name: string, agent: ChatAgent, metadata: ChatAgentMetadata): Disposable;
+		export function registerAgent(id: string, agent: ChatAgent, metadata: ChatAgentMetadata): Disposable;
 	}
 }

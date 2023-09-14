@@ -21,7 +21,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
@@ -435,11 +435,11 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async _sendRequestAsync(model: ChatModel, provider: IChatProvider, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<void> {
-		const request = model.addRequest(message);
+		const resolvedAgent = typeof message === 'string' ? this.resolveAgent(message) : undefined;
+		const request = model.addRequest(message, resolvedAgent);
 
 		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
 
-		const resolvedAgent = typeof message === 'string' ? this.resolveAgent(message) : undefined;
 
 		let gotProgress = false;
 		const requestType = typeof message === 'string' ?
@@ -502,7 +502,7 @@ export class ChatService extends Disposable implements IChatService {
 							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
 						}
 					}
-					const agentResult = await this.chatAgentService.invokeAgent(resolvedAgent, message.substring(resolvedAgent.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
+					const agentResult = await this.chatAgentService.invokeAgent(resolvedAgent.id, message.substring(resolvedAgent.id.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
 						const { content } = p;
 						const data = isCompleteInteractiveProgressTreeData(content) ? content : { content };
 						progressCallback(data);
@@ -620,14 +620,14 @@ export class ChatService extends Disposable implements IChatService {
 		return command;
 	}
 
-	private resolveAgent(prompt: string): string | undefined {
+	private resolveAgent(prompt: string): IChatAgentData | undefined {
 		prompt = prompt.trim();
 		const agents = this.chatAgentService.getAgents();
 		if (!prompt.startsWith('@')) {
 			return;
 		}
 
-		return agents.find(a => prompt.match(new RegExp(`@${a.id}($|\\s)`)))?.id;
+		return agents.find(a => prompt.match(new RegExp(`@${a.id}($|\\s)`)));
 	}
 
 	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
@@ -713,7 +713,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		await model.waitForInitialization();
-		const request = model.addRequest(message);
+		const request = model.addRequest(message, undefined);
 		if (typeof response.message === 'string') {
 			model.acceptResponseProgress(request, { content: response.message });
 		} else {

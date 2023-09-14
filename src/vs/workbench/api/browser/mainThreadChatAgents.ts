@@ -39,7 +39,7 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 			// dynamic!
 			this._chatAgentService.registerAgentData({
 				id: name,
-				metadata
+				metadata: revive(metadata)
 			});
 		}
 
