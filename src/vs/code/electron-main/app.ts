@@ -382,7 +382,7 @@ export class CodeApplication extends Disposable {
 		app.on('web-contents-created', (event, contents) => {
 			count++;
 			if (count === 2) {
-				// contents.openDevTools({ mode: 'bottom' });
+				contents.openDevTools({ mode: 'bottom' });
 			}
 
 			// contents.on('will-navigate', event => {
