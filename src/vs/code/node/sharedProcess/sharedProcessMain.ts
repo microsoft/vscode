@@ -223,6 +223,14 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// URI Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
+
+		// User Data Profiles
+		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
+		services.set(IUserDataProfilesService, userDataProfilesService);
+
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(
 			Schemas.file,
 			// Specifically for user data, use the disk file system provider
@@ -231,13 +239,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
 			Schemas.vscodeUserData,
+			userDataProfilesService,
+			uriIdentityService,
 			logService
 		));
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
-
-		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
-		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
@@ -253,10 +259,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			configurationService.initialize(),
 			storageService.initialize()
 		]);
-
-		// URI Identity
-		const uriIdentityService = new UriIdentityService(fileService);
-		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
 		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
