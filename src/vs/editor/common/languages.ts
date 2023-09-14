@@ -1644,6 +1644,7 @@ export interface CommentThreadTemplate {
 export interface CommentInfo {
 	extensionId?: string;
 	threads: CommentThread[];
+	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
 }
 
@@ -1785,10 +1786,22 @@ export interface Comment {
 	readonly timestamp?: string;
 }
 
+export interface PendingCommentThread {
+	body: string;
+	range: IRange;
+	uri: URI;
+	owner: string;
+}
+
 /**
  * @internal
  */
 export interface CommentThreadChangedEvent<T> {
+	/**
+	 * Pending comment threads.
+	 */
+	readonly pending: PendingCommentThread[];
+
 	/**
 	 * Added comment threads.
 	 */
