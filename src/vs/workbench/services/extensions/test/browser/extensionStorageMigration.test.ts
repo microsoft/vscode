@@ -40,7 +40,7 @@ suite('ExtensionStorageMigration', () => {
 		instantiationService.stub(IFileService, fileService);
 		const environmentService = instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{ userRoamingDataHome: ROOT, workspaceStorageHome, cacheHome: ROOT });
 		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, disposables.add(new UriIdentityService(fileService)), new NullLogService())));
-		instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService)));
+		instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
 
 		instantiationService.stub(IExtensionStorageService, disposables.add(instantiationService.createInstance(ExtensionStorageService)));
 	});

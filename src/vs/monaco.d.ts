@@ -7622,6 +7622,13 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface PendingCommentThread {
+		body: string;
+		range: IRange;
+		uri: Uri;
+		owner: string;
+	}
+
 	export interface CodeLens {
 		range: IRange;
 		id?: string;
