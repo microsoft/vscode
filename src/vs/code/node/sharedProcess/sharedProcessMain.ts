@@ -7,7 +7,7 @@ import { hostname, release } from 'os';
 import { MessagePortMain, MessageEvent } from 'vs/base/parts/sandbox/node/electronTypes';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { firstOrDefault } from 'vs/base/common/arrays';
@@ -60,9 +60,9 @@ import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryServi
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
+import { UserDataSyncLocalStoreService } from 'vs/platform/userDataSync/common/userDataSyncLocalStoreService';
 import { UserDataAutoSyncChannel, UserDataSyncAccountServiceChannel, UserDataSyncMachinesServiceChannel, UserDataSyncStoreManagementServiceChannel, UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
@@ -340,7 +340,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService, undefined, true));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService, undefined, true));
 		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService, undefined, true));
-		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService, undefined, false /* Eagerly cleans up old backups */));
+		services.set(IUserDataSyncLocalStoreService, new SyncDescriptor(UserDataSyncLocalStoreService, undefined, false /* Eagerly cleans up old backups */));
 		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService, undefined, true));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService, undefined, false /* Initializes the Sync State */));
 		services.set(IUserDataProfileStorageService, new SyncDescriptor(NativeUserDataProfileStorageService, undefined, true));
@@ -367,16 +367,18 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 	private initChannels(accessor: ServicesAccessor): void {
 
+		const disposables = this._register(new DisposableStore());
+
 		// Extensions Management
 		const channel = new ExtensionManagementChannel(accessor.get(IExtensionManagementService), () => null);
 		this.server.registerChannel('extensions', channel);
 
 		// Language Packs
-		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService));
+		const languagePacksChannel = ProxyChannel.fromService(accessor.get(ILanguagePackService), disposables);
 		this.server.registerChannel('languagePacks', languagePacksChannel);
 
 		// Diagnostics
-		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService));
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsService), disposables);
 		this.server.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Extension Tips
@@ -384,11 +386,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
 		// Checksum
-		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
+		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService), disposables);
 		this.server.registerChannel('checksum', checksumChannel);
 
 		// Profiling
-		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService));
+		const profilingChannel = ProxyChannel.fromService(accessor.get(IV8InspectProfilingService), disposables);
 		this.server.registerChannel('v8InspectProfiling', profilingChannel);
 
 		// Settings Sync
@@ -396,7 +398,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService));
+		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService), disposables);
 		this.server.registerChannel('customEndpointTelemetry', customEndpointTelemetryChannel);
 
 		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
@@ -412,12 +414,14 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
 
+		this.server.registerChannel('IUserDataSyncResourceProviderService', ProxyChannel.fromService(accessor.get(IUserDataSyncResourceProviderService), disposables));
+
 		// Tunnel
-		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));
+		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService), disposables);
 		this.server.registerChannel(ipcSharedProcessTunnelChannelName, sharedProcessTunnelChannel);
 
 		// Remote Tunnel
-		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService));
+		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService), disposables);
 		this.server.registerChannel('remoteTunnel', remoteTunnelChannel);
 	}
 

@@ -3574,10 +3574,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@25.8.0:
-  version "25.8.0"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-25.8.0.tgz#60c84f1f256924ac5a0aff13276b901b0c43767a"
-  integrity sha512-T3kC1a/3ntSaYMCVVfUUc9v7myPzi6J2GP0Ad/CyfWKDPp054dGyKxb2EEjKnxQQ7wfjsT1JTEdBG04x6ekVBw==
+electron@25.8.1:
+  version "25.8.1"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-25.8.1.tgz#092fab5a833db4d9240d4d6f36218cf7ca954f86"
+  integrity sha512-GtcP1nMrROZfFg0+mhyj1hamrHvukfF6of2B/pcWxmWkd5FVY1NJib0tlhiorFZRzQN5Z+APLPr7aMolt7i2AQ==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^18.11.18"
@@ -10008,10 +10008,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.3.0-dev.20230905:
-  version "5.3.0-dev.20230905"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.0-dev.20230905.tgz#b88de602ef4afcc3a80a9c38023df82b7529e42a"
-  integrity sha512-Nl9MoKWN0YYlCvQnw850L4ZgqdmqwVGCi9cAoQDw4PsqRGaWAi9HKizS9xu0q4qgKKsEKetWCZHT8dBtJTGaMg==
+typescript@^5.3.0-dev.20230911:
+  version "5.3.0-dev.20230911"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.0-dev.20230911.tgz#7f60e82ee86e381655ddc63141408eb90b6ca31d"
+  integrity sha512-2iI2l7OuGvU668gBje+JQKE8bsf7SH8w8ScwUkENHCcrbaDpXa/Oqfuwq5gdFM7SfVfp5p6c8kHZRMvL+kabJg==
 
 typical@^4.0.0:
   version "4.0.0"
@@ -10685,45 +10685,45 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-canvas@0.5.0-beta.34:
-  version "0.5.0-beta.34"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.5.0-beta.34.tgz#d471d31e5267810345d2eab32b3c5ce30b35ca0d"
-  integrity sha512-U/ed03hMIXE/cFV6IJxb+GOlp+MOpWI31CSb8ApGlH4Y6vtcTX/mWmmv63TOpD+wCcyUqYRxpESfnv3dEnn6ag==
+xterm-addon-canvas@0.6.0-beta.19:
+  version "0.6.0-beta.19"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.6.0-beta.19.tgz#c9e01330a548fbb243d731728e70ae77e6dc8c4f"
+  integrity sha512-S2tZXqnAqkLA5r40gbOlciR7CLtfztn0lk/ko8Bol08pgSqEzWKF0yadYpsezHRmemvTSmyePCtOTqDrEgFQBA==
 
 xterm-addon-image@0.6.0-beta.21:
   version "0.6.0-beta.21"
   resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.6.0-beta.21.tgz#e3708bc504c56a23ff31f12a2eeb335331a92aac"
   integrity sha512-8/PTaXVPa4kQ0xzVeuZZk10OpbZBj2cgfwhM2B0ChSPvwrk0lX+ksnXdtDKH3tg+JYvo7fIhNXtkr4NwWt7VJQ==
 
-xterm-addon-search@0.13.0-beta.27:
-  version "0.13.0-beta.27"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.13.0-beta.27.tgz#480b338df478a6fb7119654a2946e5d350e199c0"
-  integrity sha512-NZPPM6/QUfkTTfaIUmteOw6RBPrpD+Arwi/BAUNAhR0L07JC3yADxKPUt/zZvFm0j3TX0KunLsXLnx+YNFfL/Q==
+xterm-addon-search@0.14.0-beta.18:
+  version "0.14.0-beta.18"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.14.0-beta.18.tgz#6298b34d9c590f3e3acdd101eb297eaf8cb1f298"
+  integrity sha512-1CF2bPz9/vQR+q7OFgjvbBRQ0rUSkiKlwZJMnizgbKl6qx0GNg15T52J+l8zLgg8HavlF8aVps1co1A+N5PPZA==
 
-xterm-addon-serialize@0.11.0-beta.27:
-  version "0.11.0-beta.27"
-  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.11.0-beta.27.tgz#544303a7d4a48c5d091908638ceffdfb16e83318"
-  integrity sha512-J0pqCfhI5ty+9KJW0kxd+LdjUFSrLUlSUGQrEpd956O3xn43uC0V5Af0mjAMBvaHTYl+a4E0HtqkMUD65gBfFw==
+xterm-addon-serialize@0.12.0-beta.18:
+  version "0.12.0-beta.18"
+  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.12.0-beta.18.tgz#0d9369acb49fa01f124dfff064a17f4874211f1a"
+  integrity sha512-RyV6iU/KRC3QN29i3iaWzm33ACbi0gMQW+LjKSFJN/XrNO1QTqfnh2VZp58G32IFG8l2sg/FUs2gXtEB5IMlhA==
 
-xterm-addon-unicode11@0.6.0-beta.19:
-  version "0.6.0-beta.19"
-  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.6.0-beta.19.tgz#4c609db6aa9579d964d351b59169b55e64c84dda"
-  integrity sha512-sz763wFZZbDlKs65rVOLcIPs9K/uAtpeI1lAEE2ZtAEHZId9AZkx0djfYM6JrOR14JeyWgyBz/k5UUnqrL57kw==
+xterm-addon-unicode11@0.7.0-beta.18:
+  version "0.7.0-beta.18"
+  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.7.0-beta.18.tgz#8e47b5be3ce5f07a136ca66919f548680da96648"
+  integrity sha512-5Zy2Kn7kSYQP2ItPV9HNsX2u6/XajB6uyRZ/tx5U79XjZIOMMtPLki56fiGxBOlyhIHFr96bwRlvYKZcEY1ndQ==
 
-xterm-addon-webgl@0.16.0-beta.37:
-  version "0.16.0-beta.37"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.16.0-beta.37.tgz#b81d18ca0ba54d64695ffb5a51ce80a1118ddf97"
-  integrity sha512-lNiQx/nMc/6NoK0GBzfdaOFQoWz9WvqPNBEvFR44amd9D1+ysIK6iXv7+uIPj0oNS/Qu6vOfqlVAbdV1yLfciw==
+xterm-addon-webgl@0.17.0-beta.18:
+  version "0.17.0-beta.18"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.17.0-beta.18.tgz#0ce7b2ed4f1aaefff0eb59dac5c0e2fbba08d9ec"
+  integrity sha512-F94/+Koo98fAwVr8zFw4vYnmZPKyN6K4ZQTDM2ICozBHtiVWgR2PjhBP8covD6vXwbsnrwq5aipJLbhBMeZ60w==
 
-xterm-headless@5.3.0-beta.73:
-  version "5.3.0-beta.73"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.3.0-beta.73.tgz#1a8080c4334ec116378a3538fb2bb874a63c4dff"
-  integrity sha512-GmL5U7Fd2vF6IyIcrSOXdHhnhiaV3V3+Ce9FE2z9VZvftjnvUa7mD32OG+geimF7dIXHYjZMx380JSOW73wurQ==
+xterm-headless@5.4.0-beta.19:
+  version "5.4.0-beta.19"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-5.4.0-beta.19.tgz#cdbad09917bdbeeae9197c87663d603fc2794212"
+  integrity sha512-lLHbZ0DUBoolt4kWCchBAZDlDDdWROwIFxzG8sK389/Z7AlVWsA7kasz2TIPN+l9SC7MrhDdWIFwi1Z0eVODcg==
 
-xterm@5.3.0-beta.73:
-  version "5.3.0-beta.73"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.3.0-beta.73.tgz#5adb74403e513a8a897b627fdc961d750452a0ba"
-  integrity sha512-f0hw9VYwVoHGXHp7zBu5SsQk45bpsU99NBqFnxPvdB4CNs9zIB2DwgnRI3NsjQ6xoWUrup47ghIK5xlnnGewlQ==
+xterm@5.4.0-beta.19:
+  version "5.4.0-beta.19"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.4.0-beta.19.tgz#5177e37c8e885aa5cbbb0b1972e9df7634a8aa33"
+  integrity sha512-eM5UmMf3ml8NIBixEwH5CKj5rgwiZhE51W8xhs7js1GIGVusG/1SL7gS6d/n9UlspnAvQtUOIqzc70x887m6jQ==
 
 y18n@^3.2.1:
   version "3.2.2"

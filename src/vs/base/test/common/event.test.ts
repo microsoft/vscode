@@ -8,11 +8,11 @@ import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable, DisposableTracker } from 'vs/base/common/lifecycle';
 import { observableValue, transaction } from 'vs/base/common/observable';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { DisposableTracker, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 namespace Samples {
 

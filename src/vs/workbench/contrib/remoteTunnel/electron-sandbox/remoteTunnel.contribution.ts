@@ -112,7 +112,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
-		this.logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
+		this.logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 

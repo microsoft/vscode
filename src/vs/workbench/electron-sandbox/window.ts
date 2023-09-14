@@ -725,7 +725,7 @@ export class NativeWindow extends Disposable {
 
 		// Windows 32-bit warning
 		if (isWindows && this.environmentService.os.arch === 'ia32') {
-			const message = localize('windows32eolmessage', "{0} on Windows 32-bit will soon stop receiving updates. Consider upgrading to the 64-bit build.", this.productService.nameLong);
+			const message = localize('windows32eolmessage', "You are running {0} 32-bit, which will soon stop receiving updates on Windows. Consider upgrading to the 64-bit build.", this.productService.nameLong);
 			const actions = [{
 				label: localize('windowseolBannerLearnMore', "Learn More"),
 				href: 'https://aka.ms/vscode-faq-old-windows'
@@ -752,6 +752,45 @@ export class NativeWindow extends Disposable {
 					sticky: true
 				}
 			);
+		}
+
+		// macOS 10.13 and 10.14 warning
+		if (isMacintosh) {
+			const majorVersion = this.environmentService.os.release.split('.')[0];
+			const eolReleases = new Map<string, string>([
+				['17', 'macOS High Sierra'],
+				['18', 'macOS Mojave'],
+			]);
+
+			if (eolReleases.has(majorVersion)) {
+				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
+				const actions = [{
+					label: localize('macoseolBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-faq-old-macOS'
+				}];
+
+				this.bannerService.show({
+					id: 'macoseol.banner',
+					message,
+					ariaLabel: localize('macoseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+					actions,
+					icon: Codicon.warning
+				});
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
+					}],
+					{
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
+			}
 		}
 
 		// Slow shell environment progress indicator
