@@ -32,6 +32,8 @@ import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import product from 'vs/platform/product/common/product';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 const homeDir = URI.file('home').with({ scheme: Schemas.inMemory });
 const tmpDir = URI.file('tmp').with({ scheme: Schemas.inMemory });
@@ -96,7 +98,9 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 		const fsp = new InMemoryFileSystemProvider();
 		fileService.registerProvider(Schemas.inMemory, fsp);
-		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, fsp, Schemas.vscodeUserData, logService));
+		const uriIdentityService = new UriIdentityService(fileService);
+		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, fsp, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
 
 		this._fileService = fileService;
 

@@ -43,6 +43,9 @@ export interface IUserDataSyncWorkbenchService {
 
 	showConflicts(conflictToOpen?: IResourcePreview): Promise<void>;
 	accept(resource: IUserDataSyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
+
+	getAllLogResources(): Promise<URI[]>;
+	downloadSyncActivity(location: URI): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {
