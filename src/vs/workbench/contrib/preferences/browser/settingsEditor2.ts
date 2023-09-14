@@ -1103,18 +1103,19 @@ export class SettingsEditor2 extends EditorPane {
 				const reportModifiedProps = {
 					key,
 					query,
-					searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
-					rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
+					searchResults: this.searchResultModel?.getUniqueResults() ?? null,
+					rawResults: this.searchResultModel?.getRawResults() ?? null,
 					showConfiguredOnly: !!this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
 					isReset: typeof value === 'undefined',
 					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
 				};
 
+				this.pendingSettingUpdate = null;
 				return this.reportModifiedSetting(reportModifiedProps);
 			});
 	}
 
-	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult[] | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
+	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
 		type SettingsEditorModifiedSettingEvent = {
 			key: string;
 			groupId: string | undefined;
@@ -1133,29 +1134,21 @@ export class SettingsEditor2 extends EditorPane {
 			isReset: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies whether a setting was reset to its default value.' };
 			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scope of the setting, such as user or workspace.' };
 			owner: 'rzhao271';
-			comment: 'Event which fires when the user modifies a setting in the settings editor';
+			comment: 'Event emitted when the user modifies a setting in the Settings editor';
 		};
-
-		this.pendingSettingUpdate = null;
 
 		let groupId: string | undefined = undefined;
 		let nlpIndex: number | undefined = undefined;
 		let displayIndex: number | undefined = undefined;
 		if (props.searchResults) {
-			const remoteResult = props.searchResults[SearchResultIdx.Remote];
-			const localResult = props.searchResults[SearchResultIdx.Local];
-
-			const localIndex = localResult!.filterMatches.findIndex(m => m.setting.key === props.key);
-			groupId = localIndex >= 0 ?
-				'local' :
-				'remote';
-
-			displayIndex = localIndex >= 0 ?
-				localIndex :
-				remoteResult && (remoteResult.filterMatches.findIndex(m => m.setting.key === props.key) + localResult.filterMatches.length);
+			displayIndex = props.searchResults.filterMatches.findIndex(m => m.setting.key === props.key);
 
 			if (this.searchResultModel) {
 				const rawResults = this.searchResultModel.getRawResults();
+				if (rawResults[SearchResultIdx.Local] && displayIndex >= 0) {
+					const settingInLocalResults = rawResults[SearchResultIdx.Local].filterMatches.some(m => m.setting.key === props.key);
+					groupId = settingInLocalResults ? 'local' : 'remote';
+				}
 				if (rawResults[SearchResultIdx.Remote]) {
 					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
@@ -1487,7 +1480,7 @@ export class SettingsEditor2 extends EditorPane {
 		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 
 		if (query && this.searchResultModel) {
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchResultModel!.getUniqueResults()));
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchResultModel));
 		}
 	}
 
@@ -1578,34 +1571,41 @@ export class SettingsEditor2 extends EditorPane {
 		return filterModel;
 	}
 
-	private reportFilteringUsed(results: ISearchResult[]): void {
+	private reportFilteringUsed(searchResultModel: SearchResultModel | null): void {
+		if (!searchResultModel) {
+			return;
+		}
+
 		type SettingsEditorFilterEvent = {
 			'counts.nlpResult': number | undefined;
 			'counts.filterResult': number | undefined;
+			'counts.uniqueResultsCount': number | undefined;
 		};
 		type SettingsEditorFilterClassification = {
 			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
 			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the local search provider, if applicable.' };
+			'counts.uniqueResultsCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of unique matches over both search providers, if applicable.' };
 			owner: 'rzhao271';
-			comment: 'Tracks the number of requests and performance of the built-in search providers';
+			comment: 'Tracks the performance of the built-in search providers';
 		};
 		// Count unique results
 		const counts: { nlpResult?: number; filterResult?: number } = {};
-		const filterResult = results[SearchResultIdx.Local];
+		const rawResults = searchResultModel.getRawResults();
+		const filterResult = rawResults[SearchResultIdx.Local];
 		if (filterResult) {
 			counts['filterResult'] = filterResult.filterMatches.length;
 		}
-
-		const nlpResult = results[SearchResultIdx.Remote];
+		const nlpResult = rawResults[SearchResultIdx.Remote];
 		if (nlpResult) {
 			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}
 
+		const uniqueResults = searchResultModel.getUniqueResults();
 		const data = {
 			'counts.nlpResult': counts['nlpResult'],
-			'counts.filterResult': counts['filterResult']
+			'counts.filterResult': counts['filterResult'],
+			'counts.uniqueResultsCount': uniqueResults?.filterMatches.length
 		};
-
 		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
 
