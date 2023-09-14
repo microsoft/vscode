@@ -2473,6 +2473,10 @@ declare module 'vscode' {
 		 * Pre-existing kinds can not just have the new `notebook.` prefix added to them, as the functionality
 		 * is unique to the full-notebook scope.
 		 *
+		 * Notebook CodeActionKinds can be initialized as either of the following (both resulting in `notebook.source.xyz`):
+		 * - `const newKind =  CodeActionKind.Notebook.append(CodeActionKind.Source.append('xyz').value)`
+		 * - `const newKind =  CodeActionKind.Notebook.append('source.xyz')`
+		 *
 		 * Example Kinds/Actions:
 		 * - `notebook.source.organizeImports` (might move all imports to a new top cell)
 		 * - `notebook.normalizeVariableNames` (might rename all variables to a standardized casing format)
