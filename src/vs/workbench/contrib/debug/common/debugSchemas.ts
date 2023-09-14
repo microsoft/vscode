@@ -72,6 +72,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'string',
 					default: ''
 				},
+				whenDeemphasize: {
+					description: nls.localize('vscode.extension.contributes.debuggers.whenDeemphasized', "Condition which must be true to hide this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension-defined context key as appropriate for this."),
+					type: 'string',
+					default: ''
+				},
 				deprecated: {
 					description: nls.localize('vscode.extension.contributes.debuggers.deprecated', "Optional message to mark this debug type as being deprecated."),
 					type: 'string',
