@@ -15,7 +15,7 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 @extHostNamedCustomer(MainContext.MainThreadChatAgents)
 export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 
-	private readonly _commands = new DisposableMap<number>;
+	private readonly _agents = new DisposableMap<number>;
 	private readonly _pendingProgress = new Map<number, IProgress<IChatSlashFragment>>();
 	private readonly _proxy: ExtHostChatAgentsShape;
 
@@ -27,11 +27,11 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 	}
 
 	$unregisterAgent(handle: number): void {
-		throw new Error('Method not implemented.');
+		this._agents.deleteAndDispose(handle);
 	}
 
 	dispose(): void {
-		this._commands.clearAndDisposeAll();
+		this._agents.clearAndDisposeAll();
 	}
 
 	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void {
@@ -52,7 +52,7 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 				this._pendingProgress.delete(requestId);
 			}
 		});
-		this._commands.set(handle, d);
+		this._agents.set(handle, d);
 	}
 
 	async $handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void> {
@@ -60,6 +60,6 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 	}
 
 	$unregisterCommand(handle: number): void {
-		this._commands.deleteAndDispose(handle);
+		this._agents.deleteAndDispose(handle);
 	}
 }
