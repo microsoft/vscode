@@ -170,7 +170,7 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
 
-	private readonly cts = new CancellationTokenSource();
+	private readonly cts = this._register(new CancellationTokenSource());
 
 	constructor(
 		user: string,
@@ -307,12 +307,12 @@ export class ActionList<T> extends Disposable {
 		}
 	}
 
-	private async onListHover(e: IListMouseEvent<IActionListItem<T>>): Promise<void> {
-
+	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
+		console.log('onlisthover call');
 		const element = e.element;
 		if (element) {
 			if (element.item && this.focusCondition(element)) {
-				if (this._delegate.onFocus) {
+				if (this._delegate.onFocus && !element.disabled && element.kind === ActionListItemKind.Action) {
 					const result = await this._delegate.onFocus(element.item, this.cts.token);
 					if (result) {
 						element.canPreview = result.canPreview;
