@@ -131,7 +131,7 @@ export class Selection extends Range {
 	/**
 	 * Create a position using startLineNumber and startColumn as the start position.
 	 */
-	public setPosition(startLineNumber: number, startColumn: number): Position {
+	public setPositionFromStart(startLineNumber: number, startColumn: number): Position {
 		return new Position(startLineNumber, startColumn);
 	}
 	/**

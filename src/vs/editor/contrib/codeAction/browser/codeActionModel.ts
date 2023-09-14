@@ -200,6 +200,8 @@ export class CodeActionModel extends Disposable {
 				let startPosition = trigger.selection.getStartPosition();
 				let actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
 				const codeActionSet = await actions;
+				// const codeActionSet = createCancellablePromise(token => actions);
+				// if ((await.codeActionSet).validActions.length === 0 && trigger.trigger.type === CodeActionTriggerType.Invoke) {
 
 				if (codeActionSet.validActions.length === 0 && trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					// retrigger
@@ -219,9 +221,7 @@ export class CodeActionModel extends Disposable {
 							if (calculatedRowDistance <= rowDistance || (calculatedRowDistance < rowDistance && calculatedColDistance < colDistance)) {
 								rowDistance = calculatedRowDistance;
 								colDistance = calculatedColDistance;
-								if (row < currPosition.lineNumber || row === currPosition.lineNumber) {
-									trackedPosition = new Position(row, col);
-								}
+								trackedPosition = new Position(row, col);
 							}
 						}
 					});
@@ -230,7 +230,7 @@ export class CodeActionModel extends Disposable {
 					const checkActions = await actions;
 					if (checkActions.validActions.length !== 0) {
 						this._editor.setPosition({ lineNumber: trackedPosition.lineNumber, column: trackedPosition.column });
-						startPosition = trigger.selection.setPosition(trackedPosition.lineNumber, trackedPosition.column);
+						startPosition = trigger.selection.setPositionFromStart(trackedPosition.lineNumber, trackedPosition.column);
 					}
 				}
 

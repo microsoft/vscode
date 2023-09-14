@@ -880,7 +880,7 @@ declare namespace monaco {
 		/**
 		 * Create a position using startLineNumber and startColumn as the start position.
 		 */
-		setPosition(startLineNumber: number, startColumn: number): Position;
+		setPositionFromStart(startLineNumber: number, startColumn: number): Position;
 		/**
 		 * Get the position at the start of the selection.
 		*/
