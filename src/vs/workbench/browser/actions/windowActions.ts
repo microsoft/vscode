@@ -35,8 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { FileAccess } from 'vs/base/common/network';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -443,7 +441,6 @@ class PopEditorPartOutAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const themeService = accessor.get(IThemeService);
 
 		const refs = window.open('about:blank', undefined, `width=800,height=600`);
 		const childWindow = assertIsDefined(refs?.window);
@@ -453,7 +450,62 @@ class PopEditorPartOutAction extends Action2 {
 
 		const csp = childWindow.document.head.appendChild(document.createElement('meta'));
 		csp.setAttribute('http-equiv', 'Content-Security-Policy');
-		csp.setAttribute('content', `default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';`);
+		csp.setAttribute('content', `
+			default-src
+				'none'
+				;
+				img-src
+					'self'
+					data:
+					blob:
+					vscode-remote-resource:
+					vscode-managed-remote-resource:
+					https:
+				;
+				media-src
+					'self'
+				;
+				frame-src
+					'self'
+					vscode-webview:
+				;
+				script-src
+					'self'
+					'unsafe-eval'
+					blob:
+				;
+				style-src
+					'self'
+					'unsafe-inline'
+				;
+				connect-src
+					'self'
+					https:
+					ws:
+				;
+				font-src
+					'self'
+					vscode-remote-resource:
+					vscode-managed-remote-resource:
+				;
+				require-trusted-types-for
+					'script'
+				;
+				trusted-types
+					amdLoader
+					cellRendererEditorText
+					defaultWorkerFactory
+					diffEditorWidget
+					diffReview
+					domLineBreaksComputer
+					dompurify
+					editorGhostText
+					editorViewLayer
+					notebookRenderer
+					stickyScrollViewLayer
+					tokenizeToString
+				;`
+		);
 
 		[...document.styleSheets].forEach((styleSheet) => {
 			try {
@@ -480,26 +532,8 @@ class PopEditorPartOutAction extends Action2 {
 				font-display: block;
 				src: url("${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 			}
-
-			.codicon[class*='codicon-'] {
-				font: normal normal normal 16px/1 codicon;
-				display: inline-block;
-				text-decoration: none;
-				text-rendering: auto;
-				text-align: center;
-				text-transform: none;
-				-webkit-font-smoothing: antialiased;
-				-moz-osx-font-smoothing: grayscale;
-				user-select: none;
-				-webkit-user-select: none;
-			}
 			`;
 		childWindow.document.head.appendChild(codiconFontStyle);
-
-		const iconsStyleSheet = getIconsStyleSheet(themeService);
-		const iconsStyle = document.createElement('style');
-		iconsStyle.textContent = iconsStyleSheet.getCSS();
-		childWindow.document.head.appendChild(iconsStyle);
 
 		for (const className of window.document.body.className.split(' ')) {
 			childWindow.document.body.classList.add(className);
