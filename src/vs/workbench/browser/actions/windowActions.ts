@@ -8,7 +8,7 @@ import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsMacNativeContext, IsDevelopmentContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -37,6 +37,8 @@ import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/co
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { FileAccess } from 'vs/base/common/network';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -279,6 +281,42 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	}
 }
 
+class ToggleFullScreenAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.toggleFullScreen',
+			title: {
+				value: localize('toggleFullScreen', "Toggle Full Screen"),
+				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
+				original: 'Toggle Full Screen'
+			},
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.F11,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyF
+				}
+			},
+			precondition: IsIOSContext.toNegated(),
+			toggled: IsFullscreenContext,
+			menu: [{
+				id: MenuId.MenubarAppearanceMenu,
+				group: '1_toggle_view',
+				order: 1
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const hostService = accessor.get(IHostService);
+
+		return hostService.toggleFullScreen();
+	}
+}
+
 let oldContainer: HTMLElement | undefined;
 let editorPartContainer: HTMLElement | undefined;
 let childWindow: Window | undefined;
@@ -353,7 +391,7 @@ class PopEditorPartOutAction extends Action2 {
 			@font-face {
 				font-family: "codicon";
 				font-display: block;
-				src: url("vscode-file:/Users/bpasero/Development/Microsoft/vscode/src/vs/base/browser/ui/codicons/codicon/codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+				src: url("${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 			}
 
 			.codicon[class*='codicon-'] {
@@ -502,6 +540,7 @@ class BlurAction extends Action2 {
 // --- Actions Registration
 
 registerAction2(NewWindowAction);
+registerAction2(ToggleFullScreenAction);
 registerAction2(PopEditorPartOutAction);
 registerAction2(QuickPickRecentAction);
 registerAction2(OpenRecentAction);
