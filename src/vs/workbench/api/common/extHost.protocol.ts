@@ -1354,7 +1354,6 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	historyItemGroup?: SCMHistoryItemGroupDto;
-	historyProviderActionButton?: SCMActionButtonDto | null;
 	acceptInputCommand?: languages.Command;
 	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
@@ -1393,12 +1392,19 @@ export type SCMRawResourceSplices = [
 	SCMRawResourceSplice[]
 ];
 
+export interface SCMHistoryProviderChangeEventDto {
+	readonly added: Iterable<SCMHistoryItemGroupDto>;
+	readonly removed: Iterable<SCMHistoryItemGroupDto>;
+	readonly modified: Iterable<SCMHistoryItemGroupDto>;
+}
+
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
 	readonly label: string;
-	readonly ahead?: number;
-	readonly behind?: number;
-	readonly remote?: string;
+	readonly description?: string;
+	readonly range: { start: string; end: string };
+	readonly count?: number;
+	readonly priority?: number;
 }
 
 export interface SCMHistoryItemDto {
@@ -1435,6 +1441,10 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
+
+	$registerHistoryProvider(sourceControlHandle: number): void;
+	$onDidChangeHistoryProvider(sourceControlHandle: number, data: SCMHistoryProviderChangeEventDto): void;
+	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {

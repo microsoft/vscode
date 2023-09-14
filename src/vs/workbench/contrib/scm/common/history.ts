@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
+import { ISCMActionButtonDescriptor, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export const ISCMHistoryService = createDecorator<ISCMHistoryService>('scmHistory');
 
 export interface ISCMHistoryProvider {
-	readonly id: string;
-
+	actionButton: () => ISCMActionButtonDescriptor | undefined;
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<ISCMHistoryItem | undefined>;
@@ -24,12 +23,19 @@ export interface ISCMHistoryOptions {
 	readonly limit?: number | { id?: string };
 }
 
+export interface ISCMHistoryProviderChangeEvent {
+	readonly added: Iterable<ISCMHistoryItemGroup>;
+	readonly removed: Iterable<ISCMHistoryItemGroup>;
+	readonly modified: Iterable<ISCMHistoryItemGroup>;
+}
+
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
 	readonly label: string;
-	readonly ahead?: number;
-	readonly behind?: number;
-	readonly remote?: string;
+	readonly description?: string;
+	readonly range: { start: string; end: string };
+	readonly count?: number;
+	readonly priority?: number;
 }
 
 export interface ISCMHistoryItem {
@@ -51,7 +57,6 @@ export interface ISCMHistoryItemChange {
 export interface ISCMHistoryService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidChangeHistoryProviders: Event<void>;
-	addHistoryProvider(historyProvider: ISCMHistoryProvider): IDisposable;
-	getHistoryProvider(id: string): ISCMHistoryProvider | undefined;
+	readonly onDidChangeHistoryItemGroups: Event<ISCMRepository>;
+	getHistoryItemGroups(repository: ISCMRepository): Iterable<ISCMHistoryItemGroup>;
 }

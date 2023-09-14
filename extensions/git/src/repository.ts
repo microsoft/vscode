@@ -842,8 +842,8 @@ export class Repository implements Disposable {
 
 		const syncActionButton = new SyncActionButton(this);
 		this.disposables.push(syncActionButton);
-		syncActionButton.onDidChange(() => this._sourceControl.historyProviderActionButton = syncActionButton.button);
-		this._sourceControl.historyProviderActionButton = syncActionButton.button;
+		syncActionButton.onDidChange(() => this._sourceControl.historyProvider!.actionButton = syncActionButton.button);
+		this._sourceControl.historyProvider.actionButton = syncActionButton.button;
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
@@ -1436,6 +1436,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Move, () => this.repository.move(from, to));
 	}
 
+	async getDefaultBranch(): Promise<Branch> {
+		return await this.run(Operation.GetBranch, () => this.repository.getDefaultBranch());
+	}
+
 	async getBranch(name: string): Promise<Branch> {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
@@ -1523,6 +1527,10 @@ export class Repository implements Disposable {
 
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
+	}
+
+	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
+		return await this.repository.getCommitCount(range);
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
@@ -2072,14 +2080,6 @@ export class Repository implements Disposable {
 			this._submodules = submodules!;
 			this.rebaseCommit = rebaseCommit;
 			this.mergeInProgress = mergeInProgress;
-
-			this._sourceControl.historyItemGroup = HEAD ? {
-				id: HEAD.commit!,
-				label: HEAD.name!,
-				ahead: HEAD.ahead,
-				behind: HEAD.behind,
-				remote: HEAD.upstream ? `${HEAD.upstream.remote}/${HEAD.upstream.name}` : undefined
-			} : undefined;
 
 			this._sourceControl.commitTemplate = commitTemplate;
 

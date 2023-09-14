@@ -6,8 +6,16 @@
 declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/185269
 
+	export interface SourceControl {
+		historyProvider?: SourceControlHistoryProvider;
+	}
+
 	export interface SourceControlHistoryProvider {
+		actionButton?: SourceControlActionButton;
+
 		onDidChange: Event<SourceControlHistoryChangeEvent>;
+		onDidChangeActionButton: Event<void>;
+
 		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemChanges(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
@@ -21,17 +29,18 @@ declare module 'vscode' {
 	}
 
 	export interface SourceControlHistoryChangeEvent {
-		added: Iterable<SourceControlHistoryItemGroup>;
-		deleted: Iterable<SourceControlHistoryItemGroup>;
-		modified: Iterable<SourceControlHistoryItemGroup>;
+		readonly added: Iterable<SourceControlHistoryItemGroup>;
+		readonly removed: Iterable<SourceControlHistoryItemGroup>;
+		readonly modified: Iterable<SourceControlHistoryItemGroup>;
 	}
 
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
 		readonly label: string;
-		readonly ahead?: number;
-		readonly behind?: number;
-		readonly remote?: string;
+		readonly description?: string;
+		readonly range: { start: string; end: string };
+		readonly count?: number;
+		readonly priority?: number;
 	}
 
 	export interface SourceControlHistoryItem {
@@ -50,9 +59,4 @@ declare module 'vscode' {
 		readonly renameUri: Uri | undefined;
 	}
 
-	export interface SourceControl {
-		historyProvider?: SourceControlHistoryProvider;
-		historyProviderActionButton?: SourceControlActionButton;
-		historyItemGroup?: SourceControlHistoryItemGroup;
-	}
 }

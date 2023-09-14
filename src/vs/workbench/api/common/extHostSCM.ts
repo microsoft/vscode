@@ -210,10 +210,6 @@ function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Comm
 	return equals(a, b, commandEquals);
 }
 
-function historyItemGroupEquals(a: vscode.SourceControlHistoryItemGroup | undefined, b: vscode.SourceControlHistoryItemGroup | undefined): boolean {
-	return a?.id === b?.id && a?.label === b?.label && a?.remote === b?.remote && a?.ahead === b?.ahead && a?.behind === b?.behind;
-}
-
 export interface IValidateInput {
 	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
 }
@@ -524,6 +520,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel });
 	}
 
+	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined = undefined;
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
@@ -535,52 +532,25 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
 
 		this._historyProvider = historyProvider;
-		this.#proxy.$updateSourceControl(this.handle, { hasHistoryProvider: !!historyProvider });
-	}
+		this.#proxy.$registerHistoryProvider(this.handle);
 
-	private _historyProviderActionButtonDisposables = new MutableDisposable<DisposableStore>();
-	private _historyProviderActionButton: vscode.SourceControlActionButton | undefined;
+		historyProvider?.onDidChange(e => {
+			this.#proxy.$onDidChangeHistoryProvider(this.handle, e);
+		});
 
-	get historyProviderActionButton(): vscode.SourceControlActionButton | undefined {
-		checkProposedApiEnabled(this._extension, 'scmActionButton');
-		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
-		return this._historyProviderActionButton;
-	}
+		historyProvider?.onDidChangeActionButton(() => {
+			checkProposedApiEnabled(this._extension, 'scmActionButton');
 
-	set historyProviderActionButton(actionButton: vscode.SourceControlActionButton | undefined) {
-		checkProposedApiEnabled(this._extension, 'scmActionButton');
-		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
+			this._historyProviderDisposable.value = new DisposableStore();
+			const internal = historyProvider.actionButton !== undefined ?
+				{
+					command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderDisposable.value),
+					description: historyProvider.actionButton.description,
+					enabled: historyProvider.actionButton.enabled
+				} : undefined;
 
-		this._historyProviderActionButtonDisposables.value = new DisposableStore();
-		this._historyProviderActionButton = actionButton;
-
-		const internal = actionButton !== undefined ?
-			{
-				command: this._commands.converter.toInternal(actionButton.command, this._historyProviderActionButtonDisposables.value),
-				description: actionButton.description,
-				enabled: actionButton.enabled
-			} : undefined;
-
-		this.#proxy.$updateSourceControl(this.handle, { historyProviderActionButton: internal ?? null });
-	}
-
-	private _historyItemGroup: vscode.SourceControlHistoryItemGroup | undefined = undefined;
-
-	get historyItemGroup(): vscode.SourceControlHistoryItemGroup | undefined {
-		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
-
-		return this._historyItemGroup;
-	}
-
-	set historyItemGroup(historyItemGroup: vscode.SourceControlHistoryItemGroup | undefined) {
-		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
-
-		if (historyItemGroupEquals(historyItemGroup, this._historyItemGroup)) {
-			return;
-		}
-
-		this._historyItemGroup = historyItemGroup;
-		this.#proxy.$updateSourceControl(this.handle, { historyItemGroup });
+			this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
+		});
 	}
 
 	private _commitTemplate: string | undefined = undefined;

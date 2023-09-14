@@ -13,7 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProvider, ISCMHistoryProviderChangeEvent } from 'vs/workbench/contrib/scm/common/history';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -65,10 +65,10 @@ export interface ISCMProvider extends IDisposable {
 	readonly inputBoxDocumentUri: URI;
 	readonly count?: number;
 	readonly commitTemplate: string;
-	readonly historyItemGroup?: ISCMHistoryItemGroup;
-	readonly historyProviderActionButton?: ISCMActionButtonDescriptor;
+	readonly historyProvider?: ISCMHistoryProvider;
 	readonly onDidChangeCommitTemplate: Event<string>;
-	readonly onDidChangeHistoryItemGroup: Event<void>;
+	readonly onDidChangeHistoryProvider: Event<ISCMHistoryProviderChangeEvent>;
+	readonly onDidChangeHistoryProviderActionButton: Event<void>;
 	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
