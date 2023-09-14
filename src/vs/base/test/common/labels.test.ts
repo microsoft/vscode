@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as labels from 'vs/base/common/labels';
 import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Labels', () => {
 	(!isWindows ? test.skip : test)('shorten - windows', () => {
@@ -231,4 +232,6 @@ suite('Labels', () => {
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

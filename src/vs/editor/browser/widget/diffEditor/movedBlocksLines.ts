@@ -316,24 +316,24 @@ class MovedBlockOverlayWidget extends ViewZoneOverlayWidget {
 				'codeMovedToWithChanges',
 				'Code moved with changes to line {0}-{1}',
 				this._move.lineRangeMapping.modified.startLineNumber,
-				this._move.lineRangeMapping.modified.endLineNumberExclusive
+				this._move.lineRangeMapping.modified.endLineNumberExclusive - 1,
 			) : localize(
 				'codeMovedFromWithChanges',
 				'Code moved with changes from line {0}-{1}',
 				this._move.lineRangeMapping.original.startLineNumber,
-				this._move.lineRangeMapping.original.endLineNumberExclusive
+				this._move.lineRangeMapping.original.endLineNumberExclusive - 1,
 			);
 		} else {
 			text = this._kind === 'original' ? localize(
 				'codeMovedTo',
 				'Code moved to line {0}-{1}',
 				this._move.lineRangeMapping.modified.startLineNumber,
-				this._move.lineRangeMapping.modified.endLineNumberExclusive
+				this._move.lineRangeMapping.modified.endLineNumberExclusive - 1,
 			) : localize(
 				'codeMovedFrom',
 				'Code moved from line {0}-{1}',
 				this._move.lineRangeMapping.original.startLineNumber,
-				this._move.lineRangeMapping.original.endLineNumberExclusive
+				this._move.lineRangeMapping.original.endLineNumberExclusive - 1,
 			);
 		}
 

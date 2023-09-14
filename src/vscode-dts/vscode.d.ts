@@ -10001,6 +10001,11 @@ declare module 'vscode' {
 		export const onDidChangeTelemetryEnabled: Event<boolean>;
 
 		/**
+		 * An {@link Event} which fires when the default shell changes.
+		 */
+		export const onDidChangeShell: Event<string>;
+
+		/**
 		 * Creates a new {@link TelemetryLogger telemetry logger}.
 		 *
 		 * @param sender The telemetry sender that is used by the telemetry logger.
@@ -17990,19 +17995,4 @@ declare module 'vscode' {
  * enables reusing existing code without migrating to a specific promise implementation. Still,
  * we recommend the use of native promises which are available in this editor.
  */
-interface Thenable<T> {
-	/**
-	* Attaches callbacks for the resolution and/or rejection of the Promise.
-	* @param onfulfilled The callback to execute when the Promise is resolved.
-	* @param onrejected The callback to execute when the Promise is rejected.
-	* @returns A Promise for the completion of which ever callback is executed.
-	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-	/**
-	* Attaches callbacks for the resolution and/or rejection of the Promise.
-	* @param onfulfilled The callback to execute when the Promise is resolved.
-	* @param onrejected The callback to execute when the Promise is rejected.
-	* @returns A Promise for the completion of which ever callback is executed.
-	*/
-	then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
-}
+interface Thenable<T> extends PromiseLike<T> { }

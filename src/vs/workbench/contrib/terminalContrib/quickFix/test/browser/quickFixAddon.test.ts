@@ -19,7 +19,7 @@ import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutp
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import type { Terminal } from 'xterm';
-import { Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
@@ -30,8 +30,11 @@ import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/q
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { importAMDNodeModule } from 'vs/amdX';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('QuickFixAddon', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let quickFixAddon: TerminalQuickFixAddon;
 	let commandDetection: CommandDetectionCapability;
 	let commandService: TestCommandService;
@@ -39,37 +42,36 @@ suite('QuickFixAddon', () => {
 	let labelService: LabelService;
 	let terminal: Terminal;
 	let instantiationService: TestInstantiationService;
+
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-		terminal = new TerminalCtor({
+		terminal = store.add(new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
 			rows: 30
-		});
-		instantiationService.stub(IStorageService, new TestStorageService());
+		}));
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(ITerminalQuickFixService, {
-			onDidRegisterProvider: new Emitter().event,
-			onDidUnregisterProvider: new Emitter().event,
-			onDidRegisterCommandSelector: new Emitter().event,
+			onDidRegisterProvider: Event.None,
+			onDidUnregisterProvider: Event.None,
+			onDidRegisterCommandSelector: Event.None,
 			extensionQuickFixes: Promise.resolve([])
 		} as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
-		const capabilities = new TerminalCapabilityStore();
+		const capabilities = store.add(new TerminalCapabilityStore());
 		instantiationService.stub(ILogService, new NullLogService());
-		commandDetection = instantiationService.createInstance(CommandDetectionCapability, terminal);
+		commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, terminal));
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
-		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
+		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
 		commandService = new TestCommandService(instantiationService);
 
 		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, [], capabilities);
 		terminal.loadAddon(quickFixAddon);
 	});
-	teardown(() => {
-		instantiationService.dispose();
-	});
+
 	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', () => {
 			const expectedMap = new Map();

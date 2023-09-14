@@ -4,21 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType } from 'vs/platform/extensions/common/extensions';
-import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { TestProductService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
-	let testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService());
+	let disposables: DisposableStore;
+	let testObject: ExtensionManifestPropertiesService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		testObject = disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('declarative with extension dependencies', () => {
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), isWeb ? ['workspace', 'web'] : ['workspace']);
@@ -69,12 +82,12 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	});
 
 	test('opt out from web through settings even if it can run in web', () => {
-		testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService({ remote: { extensionKind: { 'pub.a': ['-web'] } } }), new TestWorkspaceTrustEnablementService(), new NullLogService());
+		testObject = disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService({ remote: { extensionKind: { 'pub.a': ['-web'] } } }), new TestWorkspaceTrustEnablementService(), new NullLogService()));
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js', publisher: 'pub', name: 'a' }), ['ui', 'workspace']);
 	});
 
 	test('opt out from web and include only workspace through settings even if it can run in web', () => {
-		testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService({ remote: { extensionKind: { 'pub.a': ['-web', 'workspace'] } } }), new TestWorkspaceTrustEnablementService(), new NullLogService());
+		testObject = disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService({ remote: { extensionKind: { 'pub.a': ['-web', 'workspace'] } } }), new TestWorkspaceTrustEnablementService(), new NullLogService()));
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js', publisher: 'pub', name: 'a' }), ['workspace']);
 	});
 

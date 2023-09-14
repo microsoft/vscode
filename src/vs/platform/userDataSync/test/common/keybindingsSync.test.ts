@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -15,11 +15,16 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 
 suite('KeybindingsSync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let client: UserDataSyncClient;
 
 	let testObject: KeybindingsSynchroniser;
+
+	teardown(async () => {
+		await client.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
@@ -27,10 +32,6 @@ suite('KeybindingsSync', () => {
 		testObject = client.getSynchronizer(SyncResource.Keybindings) as KeybindingsSynchroniser;
 	});
 
-	teardown(async () => {
-		await client.instantiationService.get(IUserDataSyncStoreService).clear();
-		disposableStore.clear();
-	});
 
 	test('when keybindings file does not exist', async () => {
 		const fileService = client.instantiationService.get(IFileService);
