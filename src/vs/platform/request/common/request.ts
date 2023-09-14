@@ -85,7 +85,7 @@ export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
-function hasNoContent(context: IRequestContext): boolean {
+export function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }
 
