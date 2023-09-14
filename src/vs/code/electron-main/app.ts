@@ -378,24 +378,30 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		let count = 0;
 		app.on('web-contents-created', (event, contents) => {
-			count++;
-			if (count === 2) {
-				contents.openDevTools({ mode: 'bottom' });
+			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://vscode-app/`);
+
+			contents.on('will-navigate', event => {
+				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
+
+				event.preventDefault();
+			});
+
+			if (!isChildWindow) {
+				contents.setWindowOpenHandler(handler => {
+					if (handler.url === 'about:blank') {
+						return { action: 'allow' };
+					}
+
+					this.nativeHostMainService?.openExternal(undefined, handler.url);
+
+					return { action: 'deny' };
+				});
 			}
 
-			// contents.on('will-navigate', event => {
-			// 	this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
-
-			// 	event.preventDefault();
-			// });
-
-			// contents.setWindowOpenHandler(({ url }) => {
-			// 	this.nativeHostMainService?.openExternal(undefined, url);
-
-			// 	return { action: 'deny' };
-			// });
+			if (isChildWindow) {
+				contents.openDevTools({ mode: 'bottom' });
+			}
 		});
 
 		//#endregion
