@@ -23,7 +23,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
@@ -33,13 +32,13 @@ import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const decorationDescription = 'chat';
-const slashCommandPlaceholderDecorationType = 'chat-session-detail';
+const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
 const variableTextDecorationType = 'chat-variable-text';
 
 class InputEditorDecorations extends Disposable {
 
-	private _slashCommandContentWidget: SlashCommandContentWidget | undefined;
+	// private _slashCommandContentWidget: SlashCommandContentWidget | undefined;
 	private _previouslyUsedSlashCommands = new Set<string>();
 
 	constructor(
@@ -52,7 +51,7 @@ class InputEditorDecorations extends Disposable {
 	) {
 		super();
 
-		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandPlaceholderDecorationType, {});
+		this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {});
 
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateRegisteredDecorationTypes()));
 		this.updateRegisteredDecorationTypes();
@@ -73,14 +72,12 @@ class InputEditorDecorations extends Disposable {
 	private updateRegisteredDecorationTypes() {
 		this.codeEditorService.removeDecorationType(variableTextDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
-		this._slashCommandContentWidget?.hide();
-		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
-			opacity: '0',
-			after: {
-				contentText: ' ',
-			}
-		});
+
 		const theme = this.themeService.getColorTheme();
+		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString()
+		});
 		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
 			color: theme.getColor(chatSlashCommandForeground)?.toString(),
 			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
@@ -122,16 +119,34 @@ class InputEditorDecorations extends Disposable {
 					}
 				}
 			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, decoration);
-			this._slashCommandContentWidget?.hide();
+			this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, decoration);
 			return;
 		}
 
-		let slashCommandPlaceholderDecoration: IDecorationOptions[] | undefined;
+		// TODO@roblourens need some kind of parser for queries
+
+		let placeholderDecoration: IDecorationOptions[] | undefined;
 		const usedAgent = inputValue && agents.find(a => inputValue.startsWith(`@${a.id} `));
+
+		let usedSubcommand: string | undefined;
+		let subCommandPosition: number | undefined;
+		if (usedAgent) {
+			const subCommandReg = /\/(\w+)(\s|$)/g;
+			let subCommandMatch: RegExpExecArray | null;
+			while (subCommandMatch = subCommandReg.exec(inputValue)) {
+				const maybeCommand = subCommandMatch[1];
+				usedSubcommand = usedAgent.metadata.subCommands.find(agentCommand => maybeCommand === agentCommand.name)?.name;
+				if (usedSubcommand) {
+					subCommandPosition = subCommandMatch.index;
+					break;
+				}
+			}
+		}
+
 		if (usedAgent && inputValue === `@${usedAgent.id} `) {
+			// Agent reference with no other text - show the placeholder
 			if (usedAgent.metadata.description) {
-				slashCommandPlaceholderDecoration = [{
+				placeholderDecoration = [{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
@@ -145,27 +160,16 @@ class InputEditorDecorations extends Disposable {
 						}
 					}
 				}];
-				this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, slashCommandPlaceholderDecoration);
 			}
 		}
 
-		if (usedAgent && inputValue.startsWith(`@${usedAgent.id} `)) {
-			if (!this._slashCommandContentWidget) {
-				this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor);
-				this._store.add(this._slashCommandContentWidget);
-			}
-			this._slashCommandContentWidget.setCommandText(usedAgent.id);
-			this._slashCommandContentWidget.show();
-		} else {
-			this._slashCommandContentWidget?.hide();
-		}
-
-		const command = inputValue && slashCommands?.find(c => inputValue.startsWith(`/${c.command} `));
+		const command = !usedAgent && inputValue && slashCommands?.find(c => inputValue.startsWith(`/${c.command} `));
 		if (command && inputValue === `/${command.command} `) {
+			// Command reference with no other text - show the placeholder
 			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(command.command);
 			const shouldRenderFollowupPlaceholder = command.followupPlaceholder && isFollowupSlashCommand;
 			if (shouldRenderFollowupPlaceholder || command.detail) {
-				slashCommandPlaceholderDecoration = [{
+				placeholderDecoration = [{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
@@ -179,42 +183,15 @@ class InputEditorDecorations extends Disposable {
 						}
 					}
 				}];
-				this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, slashCommandPlaceholderDecoration);
 			}
 		}
-		if (!slashCommandPlaceholderDecoration) {
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandPlaceholderDecorationType, []);
-		}
 
-		// if (command && inputValue.startsWith(`/${command.command} `)) {
-		// 	if (!this._slashCommandContentWidget) {
-		// 		this._slashCommandContentWidget = new SlashCommandContentWidget(this.widget.inputEditor);
-		// 		this._store.add(this._slashCommandContentWidget);
-		// 	}
-		// 	this._slashCommandContentWidget.setCommandText(command.command);
-		// 	this._slashCommandContentWidget.show();
-		// } else {
-		// 	this._slashCommandContentWidget?.hide();
-		// }
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 
-		if (command && command.detail) {
-			const textDecoration: IDecorationOptions[] = [
-				{
-					range: {
-						startLineNumber: 1,
-						endLineNumber: 1,
-						startColumn: 1,
-						endColumn: command.command.length + 2
-					}
-				}
-			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecoration);
-		} else {
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
-		}
-
-		if (usedAgent && usedAgent.metadata.description) {
-			const textDecoration: IDecorationOptions[] = [
+		// TODO@roblourens The way these numbers are computed aren't totally correct...
+		const textDecorations: IDecorationOptions[] | undefined = [];
+		if (usedAgent) {
+			textDecorations.push(
 				{
 					range: {
 						startLineNumber: 1,
@@ -223,11 +200,35 @@ class InputEditorDecorations extends Disposable {
 						endColumn: usedAgent.id.length + 2
 					}
 				}
-			];
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecoration);
-		} else {
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, []);
+			);
+			if (usedSubcommand) {
+				textDecorations.push(
+					{
+						range: {
+							startLineNumber: 1,
+							endLineNumber: 1,
+							startColumn: subCommandPosition! + 1,
+							endColumn: subCommandPosition! + usedSubcommand.length + 2
+						}
+					}
+				);
+			}
 		}
+
+		if (command) {
+			textDecorations.push(
+				{
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: 1,
+						endColumn: command.command.length + 2
+					}
+				}
+			);
+		}
+
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
 		const variables = this.chatVariablesService.getVariables();
 		const variableReg = /(^|\s)@(\w+)(:\d+)?(?=(\s|$))/ig;
