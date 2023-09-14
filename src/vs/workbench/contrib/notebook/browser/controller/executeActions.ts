@@ -457,9 +457,9 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 		const languageService = accessor.get(ILanguageService);
 
 		const config = accessor.get(IConfigurationService);
-		const scrollBehavior = config.getValue('notebook.scrollOnExecute');
+		const scrollBehavior = config.getValue(NotebookSetting.cellExecutionScroll);
 		const focusOptions: IFocusNotebookCellOptions = {
-			minimalScrolling: scrollBehavior === 'fullNextCell' ? 'fullReveal' : 'partialReveal'
+			minimalScrolling: scrollBehavior === 'full' ? 'fullReveal' : 'partialReveal'
 		};
 
 		if (context.cell.cellKind === CellKind.Markup) {
