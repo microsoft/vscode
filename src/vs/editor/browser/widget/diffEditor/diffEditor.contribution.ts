@@ -27,6 +27,7 @@ export class ToggleCollapseUnchangedRegions extends Action2 {
 			toggled: ContextKeyExpr.has('config.diffEditor.hideUnchangedRegions.enabled'),
 			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			menu: {
+				when: ContextKeyExpr.has('isInDiffEditor'),
 				id: MenuId.EditorTitle,
 				order: 22,
 				group: 'navigation',
@@ -84,6 +85,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: new ToggleUseInlineViewWhenSpaceIsLimited().desc.id,
 		title: localize('useInlineViewWhenSpaceIsLimited', "Use Inline View When Space Is Limited"),
 		toggled: ContextKeyExpr.has('config.diffEditor.useInlineViewWhenSpaceIsLimited'),
+		precondition: ContextKeyExpr.has('isInDiffEditor'),
 	},
 	order: 11,
 	group: '1_diff',
@@ -99,6 +101,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		title: localize('showMoves', "Show Moved Code Blocks"),
 		icon: Codicon.move,
 		toggled: ContextKeyEqualsExpr.create('config.diffEditor.experimental.showMoves', true),
+		precondition: ContextKeyExpr.has('isInDiffEditor'),
 	},
 	order: 10,
 	group: '1_diff',
@@ -239,6 +242,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: AccessibleDiffViewerNext.id,
 		title: localize('Open Accessible Diff Viewer', "Open Accessible Diff Viewer"),
+		precondition: ContextKeyExpr.has('isInDiffEditor'),
 	},
 	order: 10,
 	group: '2_diff',
