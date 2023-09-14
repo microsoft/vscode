@@ -245,7 +245,15 @@ class SCMInputHistory {
 
 		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.history', this.disposables)(e => {
 			if (e.external && e.key === 'scm.history') {
-				this.restoreFromStorage();
+				const raw = this.storageService.getObject<[string, URI, string[]][]>('scm.history', StorageScope.WORKSPACE, []);
+
+				for (const [providerLabel, uri, rawHistory] of raw) {
+					const history = this.getHistory(providerLabel, uri);
+
+					for (const value of Iterable.reverse(rawHistory)) {
+						history.prepend(value);
+					}
+				}
 			}
 		}));
 
@@ -271,18 +279,6 @@ class SCMInputHistory {
 		}
 
 		this.storageService.store('scm.history', raw, StorageScope.WORKSPACE, StorageTarget.USER);
-	}
-
-	private restoreFromStorage(): void {
-		const raw = this.storageService.getObject<[string, URI, string[]][]>('scm.history', StorageScope.WORKSPACE, []);
-
-		for (const [providerLabel, uri, rawHistory] of raw) {
-			const history = this.getHistory(providerLabel, uri);
-
-			for (const value of Iterable.reverse(rawHistory)) {
-				history.prepend(value);
-			}
-		}
 	}
 
 	getHistory(providerLabel: string, rootUri: URI): HistoryNavigator2<string> {
