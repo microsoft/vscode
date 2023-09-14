@@ -8,8 +8,7 @@ import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
-import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsMacNativeContext, IsDevelopmentContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -30,11 +29,14 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isHTMLElement } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -277,40 +279,40 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-class ToggleFullScreenAction extends Action2 {
+class PopEditorPartOutAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.toggleFullScreen',
+			id: 'workbench.action.popoutEditors',
 			title: {
-				value: localize('toggleFullScreen', "Pop Editor Out"),
-				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
-				original: 'Toggle Full Screen'
+				value: localize('popEditorsOut', "Pop Editors Out"),
+				mnemonicTitle: localize({ key: 'miPopEditorsOut', comment: ['&& denotes a mnemonic'] }, "&&Pop-out Editors"),
+				original: 'Pop-out Editors'
 			},
 			category: Categories.View,
 			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.F11,
-				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyF
-				}
-			},
-			precondition: IsIOSContext.toNegated(),
-			toggled: IsFullscreenContext,
+			icon: Codicon.multipleWindows,
 			menu: [{
-				id: MenuId.MenubarAppearanceMenu,
-				group: '1_toggle_view',
+				id: MenuId.EditorTitle,
+				group: 'navigation',
 				order: 1
 			}]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const refs = window.open('about:blank');
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const themeService = accessor.get(IThemeService);
 
+		const refs = window.open('about:blank', undefined, `width=800,height=600`);
 		const childWindow = refs?.window as Window;
-		childWindow.document.body.append(document.getElementsByClassName(`editor-container`)[0]);
+
+		const metaCharset = childWindow.document.head.appendChild(document.createElement('meta'));
+		metaCharset.setAttribute('charset', 'utf-8');
+
+		const csp = childWindow.document.head.appendChild(document.createElement('meta'));
+		csp.setAttribute('http-equiv', 'Content-Security-Policy');
+		csp.setAttribute('content', `default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; connect-src * 'unsafe-inline'; img-src * data: blob: 'unsafe-inline'; frame-src *; style-src * 'unsafe-inline';`);
 
 		// Copy style sheets over from the initial document
 		// so that the player looks the same.
@@ -330,6 +332,50 @@ class ToggleFullScreenAction extends Action2 {
 				(link as any).href = styleSheet.href;
 				childWindow.document.head.appendChild(link);
 			}
+		});
+
+		const iconsStyleSheet = getIconsStyleSheet(themeService);
+		let style = document.createElement('style');
+		style.textContent = iconsStyleSheet.getCSS();
+		childWindow.document.head.appendChild(style);
+
+		style = document.createElement('style');
+		style.textContent = `
+		@font-face {
+			font-family: "codicon";
+			font-display: block;
+			src: url("/Users/bpasero/Development/Microsoft/vscode/src/vs/base/browser/ui/codicons/codicon/codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+		}
+
+		.codicon[class*='codicon-'] {
+			font: normal normal normal 16px/1 codicon;
+			display: inline-block;
+			text-decoration: none;
+			text-rendering: auto;
+			text-align: center;
+			text-transform: none;
+			-webkit-font-smoothing: antialiased;
+			-moz-osx-font-smoothing: grayscale;
+			user-select: none;
+			-webkit-user-select: none;
+		}
+		`;
+		childWindow.document.head.appendChild(style);
+
+		const workbenchContainer = document.createElement('div');
+		workbenchContainer.className = 'file-icons-enabled enable-motion monaco-workbench mac chromium nopanel noauxiliarybar macos-bigsur-or-newer maximized vs vscode-theme-defaults-themes-light_plus-json';
+
+		const editorPart = layoutService.getPart(Parts.EDITOR_PART)!;
+		workbenchContainer.appendChild(editorPart.element);
+
+		childWindow.document.body.className = 'mac';
+		childWindow.document.body.append(workbenchContainer);
+
+		editorPart.layout(800, 600, 0, 0);
+
+		addDisposableListener(childWindow, EventType.RESIZE, e => {
+			const dim = getClientArea(childWindow.document.body);
+			editorPart.layout(dim.width, dim.height, 0, 0);
 		});
 	}
 }
@@ -439,7 +485,7 @@ class BlurAction extends Action2 {
 // --- Actions Registration
 
 registerAction2(NewWindowAction);
-registerAction2(ToggleFullScreenAction);
+registerAction2(PopEditorPartOutAction);
 registerAction2(QuickPickRecentAction);
 registerAction2(OpenRecentAction);
 registerAction2(ReloadWindowAction);

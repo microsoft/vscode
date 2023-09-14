@@ -6,7 +6,7 @@
 import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { COI, FileAccess, Schemas } from 'vs/base/common/network';
-import { basename, extname, normalize } from 'vs/base/common/path';
+import { basename, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
@@ -24,7 +24,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
-	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']); // https://github.com/microsoft/vscode/issues/119384
+	// private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -80,11 +80,9 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	//#region file://
 
 	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
-		const uri = URI.parse(request.url);
+		const path = this.requestToNormalizedFilePath(request);
 
-		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
-
-		return callback({ error: -3 /* ABORTED */ });
+		return callback({ path });
 	}
 
 	//#endregion
@@ -104,19 +102,19 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		}
 
 		// first check by validRoots
-		if (this.validRoots.findSubstr(path)) {
-			return callback({ path, headers });
-		}
+		// if (this.validRoots.findSubstr(path)) {
+		return callback({ path, headers });
+		// }
 
-		// then check by validExtensions
-		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return callback({ path });
-		}
+		// // then check by validExtensions
+		// if (this.validExtensions.has(extname(path).toLowerCase())) {
+		// 	return callback({ path });
+		// }
 
-		// finally block to load the resource
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
+		// // finally block to load the resource
+		// this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
 
-		return callback({ error: -3 /* ABORTED */ });
+		// return callback({ error: -3 /* ABORTED */ });
 	}
 
 	private requestToNormalizedFilePath(request: Electron.ProtocolRequest): string {
