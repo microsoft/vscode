@@ -371,6 +371,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					this._onDidRequestRunCommand.fire({ command });
 				}
 			});
+			// The second section is the clipboard section
+			actions.push(new Separator());
 			const labelCopy = localize("terminal.copyCommand", 'Copy Command');
 			actions.push({
 				class: undefined, tooltip: labelCopy, id: 'terminal.copyCommand', label: labelCopy, enabled: true,
@@ -378,16 +380,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			});
 		}
 		if (command.hasOutput()) {
-			if (actions.length > 0) {
-				actions.push(new Separator());
-			}
 			const labelCopyCommandAndOutput = localize("terminal.copyCommandAndOutput", 'Copy Command and Output');
 			actions.push({
 				class: undefined, tooltip: labelCopyCommandAndOutput, id: 'terminal.copyCommandAndOutput', label: labelCopyCommandAndOutput, enabled: true,
 				run: () => {
-					const text = command.getOutput();
-					if (typeof text === 'string') {
-						this._clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${text}`);
+					const output = command.getOutput();
+					if (typeof output === 'string') {
+						this._clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
 					}
 				}
 			});
