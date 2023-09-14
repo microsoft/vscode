@@ -14,6 +14,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Iterable } from 'vs/base/common/iterator';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class SCMInput implements ISCMInput {
 
@@ -104,7 +105,7 @@ class SCMInput implements ISCMInput {
 		private readonly history: SCMInputHistory
 	) {
 		if (this.repository.provider.rootUri) {
-			this.historyNavigator = history.getHistory(this.repository.provider.rootUri);
+			this.historyNavigator = history.getHistory(this.repository.provider.label, this.repository.provider.rootUri);
 			this.history.onWillSaveHistory(event => {
 				if (this.historyNavigator.isAtEnd()) {
 					this.saveValue();
@@ -213,17 +214,35 @@ class WillSaveHistoryEvent {
 class SCMInputHistory {
 
 	private disposables = new DisposableStore();
-	private histories = new ResourceMap<HistoryNavigator2<string>>();
-
-	private readonly _onDidChangeHistory = this.disposables.add(new Emitter<void>());
-	readonly onDidChangeHistory = this._onDidChangeHistory.event;
+	private readonly histories = new Map<string, ResourceMap<HistoryNavigator2<string>>>();
 
 	private readonly _onWillSaveHistory = this.disposables.add(new Emitter<WillSaveHistoryEvent>());
 	readonly onWillSaveHistory = this._onWillSaveHistory.event;
 
 	constructor(
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
+		this.histories = new Map();
+
+		const entries = this.storageService.getObject<[string, URI, string[]][]>('scm.history', StorageScope.WORKSPACE, []);
+
+		for (const [providerLabel, rootUri, history] of entries) {
+			let providerHistories = this.histories.get(providerLabel);
+
+			if (!providerHistories) {
+				providerHistories = new ResourceMap();
+				this.histories.set(providerLabel, providerHistories);
+			}
+
+			providerHistories.set(rootUri, new HistoryNavigator2(history, 100));
+		}
+
+		// TODO@joaomoreno: Remove from January 2024 onwards.
+		if (this.migrateStorage()) {
+			this.saveToStorage();
+		}
+
 		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.history', this.disposables)(e => {
 			if (e.external && e.key === 'scm.history') {
 				this.restoreFromStorage();
@@ -238,70 +257,90 @@ class SCMInputHistory {
 				this.saveToStorage();
 			}
 		}));
-
-		this.restoreFromStorage();
 	}
 
 	private saveToStorage(): void {
-		const nonEmptyHistories = Iterable.filter(this.histories, ([_, history]) => !(history.size === 1 && history.current() === ''));
-		const raw = [...Iterable.map(nonEmptyHistories, ([uri, history]) => [uri, [...history]])];
+		const raw: [string, URI, string[]][] = [];
+
+		for (const [providerLabel, providerHistories] of this.histories) {
+			for (const [rootUri, history] of providerHistories) {
+				if (!(history.size === 1 && history.current() === '')) {
+					raw.push([providerLabel, rootUri, [...history]]);
+				}
+			}
+		}
+
 		this.storageService.store('scm.history', raw, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private restoreFromStorage(): void {
-		const entries = this.storageService.getObject<[URI, string[]][]>('scm.history', StorageScope.WORKSPACE, [])
-			.map<[URI, HistoryNavigator2<string>]>(([uri, history]) => [uri, new HistoryNavigator2(history, 100)]);
+		const raw = this.storageService.getObject<[string, URI, string[]][]>('scm.history', StorageScope.WORKSPACE, []);
 
-		this.histories = new ResourceMap(entries);
-		this._onDidChangeHistory.fire();
+		for (const [providerLabel, uri, rawHistory] of raw) {
+			const history = this.getHistory(providerLabel, uri);
+
+			for (const value of Iterable.reverse(rawHistory)) {
+				history.prepend(value);
+			}
+		}
 	}
 
-	getHistory(rootUri: URI): HistoryNavigator2<string> {
-		let result = this.histories.get(rootUri);
+	getHistory(providerLabel: string, rootUri: URI): HistoryNavigator2<string> {
+		let providerHistories = this.histories.get(providerLabel);
 
-		if (!result) {
-			result = new HistoryNavigator2([''], 100);
-			this.histories.set(rootUri, result);
+		if (!providerHistories) {
+			providerHistories = new ResourceMap();
+			this.histories.set(providerLabel, providerHistories);
 		}
 
-		return result;
+		let history = providerHistories.get(rootUri);
+
+		if (!history) {
+			history = new HistoryNavigator2([''], 100);
+			providerHistories.set(rootUri, history);
+		}
+
+		return history;
+	}
+
+	// Migrates from Application scope storage to Workspace scope.
+	private migrateStorage(): boolean {
+		let didSomethingChange = false;
+		const machineKeys = Iterable.filter(this.storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
+
+		for (const key of machineKeys) {
+			try {
+				const legacyHistory = JSON.parse(this.storageService.get(key, StorageScope.APPLICATION, ''));
+				const match = /^scm\/input:([^:]+):(.+)$/.exec(key);
+
+				if (match && !(Array.isArray(legacyHistory?.history) && Number.isInteger(legacyHistory?.timestamp) && new Date().getTime() - legacyHistory?.timestamp > 2592000000)) {
+					const [, providerLabel, rootPath] = match;
+					const rootUri = URI.file(rootPath);
+
+					if (this.workspaceContextService.getWorkspaceFolder(rootUri)) {
+						const history = this.getHistory(providerLabel, rootUri);
+
+						for (const entry of Iterable.reverse(legacyHistory.history as string[])) {
+							history.prepend(entry);
+						}
+
+						didSomethingChange = true;
+						this.storageService.remove(key, StorageScope.APPLICATION);
+					}
+				}
+			} catch {
+				this.storageService.remove(key, StorageScope.APPLICATION);
+			}
+		}
+
+		return didSomethingChange;
 	}
 
 	dispose() {
-		this._onDidChangeHistory.dispose();
+		this.disposables.dispose();
 	}
 }
 
-let didMigrate = false;
-
-// Migrates from Application scope storage to Workspace scope.
-// TODO@joaomoreno: Remove from January 2024 onwards.
-function migrateStorage(storageService: IStorageService) {
-	if (didMigrate) {
-		return;
-	}
-
-	// Garbage collect
-	const machineKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
-
-	for (const key of machineKeys) {
-		try {
-			const history = JSON.parse(storageService.get(key, StorageScope.APPLICATION, ''));
-
-			if (!(Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000)) {
-				console.log('ok');
-			}
-		} finally {
-			// storageService.remove(key, StorageScope.APPLICATION);
-		}
-	}
-
-	// const history =
-
-	// storageService.store('scm.history', '', StorageScope.WORKSPACE, StorageTarget.USER);
-
-	didMigrate = true;
-}
 
 export class SCMService implements ISCMService {
 
@@ -322,11 +361,11 @@ export class SCMService implements ISCMService {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService
 	) {
-		migrateStorage(storageService);
-		this.inputHistory = new SCMInputHistory(storageService);
+		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
 	}
 
