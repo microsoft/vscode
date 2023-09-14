@@ -97,7 +97,8 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			extensionEnablementService,
 			configurationService,
 			remoteAgentService,
-			remoteAuthorityResolverService
+			remoteAuthorityResolverService,
+			logService
 		);
 		super(
 			extensionsProposedApi,
@@ -435,6 +436,9 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		if (parseExtensionDevOptions(this._environmentService).isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
+			if (isCI) {
+				this._logService.info(`Asking native host service to exit with code ${code}.`);
+			}
 			this._nativeHostService.exit(code);
 		} else {
 			// Expected development extension termination: When the extension host goes down we also shutdown the window
@@ -463,7 +467,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		const allExtensions = await this._scanAllLocalExtensions();
 		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
 		if (extension) {
-			if (!extensionIsEnabled(this._extensionEnablementService, extension, false)) {
+			if (!extensionIsEnabled(this._logService, this._extensionEnablementService, extension, false)) {
 				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOK to enable?", recommendation.friendlyName);
 				this._notificationService.prompt(Severity.Info, message,
 					[{
@@ -524,6 +528,7 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._webWorkerExtHostEnablement = determineLocalWebWorkerExtHostEnablement(environmentService, configurationService);
 	}
@@ -564,9 +569,22 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 			getInitData: async (): Promise<ILocalProcessExtensionHostInitData> => {
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
-					const localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, await this._extensionScanner.scannedExtensions, /* ignore workspace trust */true);
+					const scannedExtensions = await this._extensionScanner.scannedExtensions;
+					if (isCI) {
+						this._logService.info(`NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.scannedExtensions: ${scannedExtensions.map(ext => ext.identifier.value).join(',')}`);
+					}
+
+					const localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, scannedExtensions, /* ignore workspace trust */true);
+					if (isCI) {
+						this._logService.info(`NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.localExtensions: ${localExtensions.map(ext => ext.identifier.value).join(',')}`);
+					}
+
 					const runningLocation = runningLocations.computeRunningLocation(localExtensions, [], false);
 					const myExtensions = filterExtensionDescriptions(localExtensions, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
+					if (isCI) {
+						this._logService.info(`NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.myExtensions: ${myExtensions.map(ext => ext.identifier.value).join(',')}`);
+					}
+
 					return {
 						allExtensions: localExtensions,
 						myExtensions: myExtensions.map(extension => extension.identifier)

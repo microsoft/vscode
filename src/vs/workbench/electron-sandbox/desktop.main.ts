@@ -190,7 +190,7 @@ export class DesktopMain extends Disposable {
 			...this.configuration.loggers.global.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })),
 			...this.configuration.loggers.window.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: true })),
 		];
-		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.logsHome, loggers, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.windowLogsPath, loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
@@ -248,7 +248,7 @@ export class DesktopMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'));
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme), userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme));
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Remote Agent

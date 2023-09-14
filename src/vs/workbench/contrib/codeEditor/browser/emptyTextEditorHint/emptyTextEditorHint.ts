@@ -53,22 +53,22 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 		])
 	}]);
 
-const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
+export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 export class EmptyTextEditorHintContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.emptyTextEditorHint';
 
-	private toDispose: IDisposable[];
+	protected toDispose: IDisposable[];
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
 	constructor(
-		private readonly editor: ICodeEditor,
+		protected readonly editor: ICodeEditor,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
-		@IInlineChatService private readonly inlineChatService: IInlineChatService,
+		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
 	) {
@@ -92,7 +92,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}));
 	}
 
-	private _shouldRenderHint() {
+	protected _shouldRenderHint() {
 		const configValue = this.configurationService.getValue(emptyTextEditorHintSetting);
 		if (configValue === 'hidden') {
 			return false;
@@ -113,17 +113,12 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 			return false;
 		}
 
-		const isNotebookCell = model?.uri.scheme === Schemas.vscodeNotebookCell;
-		if (isNotebookCell) {
-			return false;
-		}
-
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
 		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
 		return inlineChatProviders.length > 0 || shouldRenderDefaultHint;
 	}
 
-	private update(): void {
+	protected update(): void {
 		this.textHintContentWidget?.dispose();
 
 		if (this._shouldRenderHint()) {

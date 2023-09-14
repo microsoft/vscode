@@ -25,6 +25,7 @@ import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/act
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class CloseWindowAction extends Action2 {
 
@@ -276,26 +277,59 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	}
 }
 
+function canRunNativeTabsHandler(accessor: ServicesAccessor): boolean {
+	if (!isMacintosh) {
+		return false;
+	}
+
+	const configurationService = accessor.get(IConfigurationService);
+	return configurationService.getValue<unknown>('window.nativeTabs') === true;
+}
+
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };

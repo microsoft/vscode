@@ -55,7 +55,7 @@ suite('ResourceWorkingCopy', function () {
 	});
 
 	test('orphaned tracking', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			assert.strictEqual(workingCopy.isOrphaned(), false);
 
 			let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
