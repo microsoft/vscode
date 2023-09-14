@@ -16,6 +16,7 @@ import { IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/browser/parts/editor/stickyEditorGroup';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IEditorTitleControlDimensions {
 
@@ -53,6 +54,12 @@ export class EditorTitleControl extends Themable {
 		this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
 	}
 
+	private isPinnedTabsSeparateRow(): boolean {
+		const showTabs = assertIsDefined(this.accessor.partOptions.showTabs);
+		const pinnedTabsSeparateRow = assertIsDefined(this.accessor.partOptions.pinnedTabsSeparateRow);
+		return showTabs && pinnedTabsSeparateRow;
+	}
+
 	private createEditorTabsControl(): EditorTabsControl[] {
 		let controls: EditorTabsControl[];
 		if (this.accessor.partOptions.showTabs) {
@@ -81,7 +88,7 @@ export class EditorTitleControl extends Themable {
 		breadcrumbsContainer.classList.add('breadcrumbs-below-tabs');
 		this.parent.appendChild(breadcrumbsContainer);
 
-		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.group, {
+		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.accessor, this.group, {
 			showFileIcons: true,
 			showSymbolIcons: true,
 			showDecorationColors: false,
@@ -113,7 +120,7 @@ export class EditorTitleControl extends Themable {
 
 	openEditor(editor: EditorInput): void {
 		let didChange: boolean;
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			didChange = this.editorTabsControl[0].openEditor(editor);
 		} else {
 			const controllerIndex = this.group.isSticky(editor) ? 0 : 1;
@@ -128,7 +135,7 @@ export class EditorTitleControl extends Themable {
 
 	openEditors(editors: EditorInput[]): void {
 		let didChange: boolean;
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			didChange = this.editorTabsControl[0].openEditors(editors);
 		} else {
 			const sticky = editors.filter(e => this.group.isSticky(e));
@@ -145,7 +152,7 @@ export class EditorTitleControl extends Themable {
 	private handleOpenedEditors(didChange: boolean): void {
 		if (didChange) {
 			this.breadcrumbsControl?.update();
-			if (this.accessor.partOptions.pinnedTabsSeparateRow) {
+			if (this.isPinnedTabsSeparateRow()) {
 				this.handlePinnedTabsSeparateRowToolbars();
 			}
 		} else {
@@ -154,7 +161,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].beforeCloseEditor(editor);
 		} else {
 			this.group.isSticky(editor) ? this.editorTabsControl[0].beforeCloseEditor(editor) : this.editorTabsControl[1].beforeCloseEditor(editor);
@@ -162,7 +169,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	closeEditor(editor: EditorInput): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].closeEditor(editor);
 		} else {
 			this.editorTabsControl[0].closeEditor(editor);
@@ -173,7 +180,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	closeEditors(editors: EditorInput[]): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].closeEditors(editors);
 		} else {
 			const sticky = editors.filter(e => this.group.isSticky(e));
@@ -187,7 +194,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleClosedEditors(): void {
-		if (this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (this.isPinnedTabsSeparateRow()) {
 			this.handlePinnedTabsSeparateRowToolbars();
 		}
 
@@ -197,7 +204,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].moveEditor(editor, fromIndex, targetIndex);
 			return;
 		}
@@ -223,7 +230,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	pinEditor(editor: EditorInput): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].pinEditor(editor);
 			return;
 		}
@@ -232,7 +239,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	stickEditor(editor: EditorInput): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].stickEditor(editor);
 			return;
 		}
@@ -244,7 +251,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	unstickEditor(editor: EditorInput): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].stickEditor(editor);
 			return;
 		}
@@ -260,7 +267,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	updateEditorLabel(editor: EditorInput): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].updateEditorLabel(editor);
 			return;
 		}
@@ -268,7 +275,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	updateEditorDirty(editor: EditorInput): void {
-		if (!this.accessor.partOptions.pinnedTabsSeparateRow) {
+		if (!this.isPinnedTabsSeparateRow()) {
 			this.editorTabsControl[0].updateEditorDirty(editor);
 			return;
 		}
@@ -276,13 +283,11 @@ export class EditorTitleControl extends Themable {
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
-
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||
-			oldOptions.pinnedTabsSeparateRow !== newOptions.pinnedTabsSeparateRow
+			(!newOptions.showTabs && oldOptions.pinnedTabsSeparateRow !== newOptions.pinnedTabsSeparateRow)
 		) {
-
 			// Clear old
 			this.editorTabsControlDisposable.clear();
 			this.breadcrumbsControlDisposables.clear();
@@ -291,10 +296,10 @@ export class EditorTitleControl extends Themable {
 			// Create new
 			this.editorTabsControl = this.createEditorTabsControl();
 			this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
+		} else {
+			// Forward into editor tabs control
+			this.editorTabsControl.forEach(c => c.updateOptions(oldOptions, newOptions));
 		}
-
-		// Forward into editor tabs control
-		this.editorTabsControl.forEach(c => c.updateOptions(oldOptions, newOptions));
 	}
 
 	layout(dimensions: IEditorTitleControlDimensions): Dimension {
