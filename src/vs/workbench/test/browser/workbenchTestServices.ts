@@ -611,6 +611,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getWindowBorderWidth(): number { return 0; }
 	getWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
+	getPart(part: Parts): Part { throw new Error('Method not implemented.'); }
 	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
 	getContainer(_part: Parts): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
