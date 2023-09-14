@@ -2466,6 +2466,20 @@ declare module 'vscode' {
 		static readonly SourceFixAll: CodeActionKind;
 
 		/**
+		 * Base kind for all code actions applying to the enitre notebook's scope. CodeActionKinds using
+		 * this should always begin with `notebook.`
+		 *
+		 * This requires that new CodeActions be created for it and contributed via extensions.
+		 * Pre-existing kinds can not just have the new `notebook.` prefix added to them, as the functionality
+		 * is unique to the full-notebook scope.
+		 *
+		 * Example Kinds/Actions:
+		 * - `notebook.source.organizeImports` (might move all imports to a new top cell)
+		 * - `notebook.normalizeVariableNames` (might rename all variables to a standardized casing format)
+		 */
+		static readonly Notebook: CodeActionKind;
+
+		/**
 		 * Private constructor, use statix `CodeActionKind.XYZ` to derive from an existing code action kind.
 		 *
 		 * @param value The value of the kind, such as `refactor.extract.function`.
