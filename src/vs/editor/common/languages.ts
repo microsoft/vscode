@@ -1280,10 +1280,6 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
-	/**
-	 * The list of multiple ranges to format at once, if the provider supports it.
-	 */
-	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1648,6 +1644,7 @@ export interface CommentThreadTemplate {
 export interface CommentInfo {
 	extensionId?: string;
 	threads: CommentThread[];
+	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
 }
 
@@ -1789,10 +1786,22 @@ export interface Comment {
 	readonly timestamp?: string;
 }
 
+export interface PendingCommentThread {
+	body: string;
+	range: IRange;
+	uri: URI;
+	owner: string;
+}
+
 /**
  * @internal
  */
 export interface CommentThreadChangedEvent<T> {
+	/**
+	 * Pending comment threads.
+	 */
+	readonly pending: PendingCommentThread[];
+
 	/**
 	 * Added comment threads.
 	 */

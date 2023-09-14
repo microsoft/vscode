@@ -3,14 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
+import { l10n } from 'vscode';
 
-	// See https://github.com/microsoft/vscode/issues/160694
-	export namespace env {
-
-		/**
-		 * An {@link Event} which fires when the default shell changes.
-		 */
-		export const onDidChangeShell: Event<string>;
-	}
-}
+export const implicitActivationEvent = l10n.t("This activation event cannot be explicitly listed by your extension.");
+export const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");

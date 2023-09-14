@@ -4,63 +4,77 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PixelRatio } from 'vs/base/browser/browser';
-import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
+import { $, Dimension, addStandardDisposableListener, append } from 'vs/base/browser/dom';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { binarySearch2 } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { isAbsolute } from 'vs/base/common/path';
+import { Constants } from 'vs/base/common/uint';
+import { URI } from 'vs/base/common/uri';
+import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { ITextModel } from 'vs/editor/common/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IDebugSession, IInstructionBreakpoint, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { topStackFrameColor, focusedStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { Color } from 'vs/base/common/color';
-import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { URI } from 'vs/base/common/uri';
-import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { isAbsolute } from 'vs/base/common/path';
-import { Constants } from 'vs/base/common/uint';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { binarySearch2 } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { focusedStackFrameColor, topStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugConfiguration, IDebugService, IDebugSession, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
+import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
+import { isUri, sourcesEqual } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
 	isBreakpointEnabled: boolean;
+	/** Instruction reference from the DA */
+	instructionReference: string;
+	/** Offset from the instructionReference that's the basis for the `instructionOffset` */
+	instructionReferenceOffset: number;
+	/** The number of instructions (+/-) away from the instructionReference and instructionReferenceOffset this instruction lies */
+	instructionOffset: number;
+	/** Whether this is the first instruction on the target line. */
+	showSourceLocation?: boolean;
+	/** Original instruction from the debugger */
 	instruction: DebugProtocol.DisassembledInstruction;
-	instructionAddress?: bigint;
+	/** Parsed instruction address */
+	address: bigint;
 }
+
 
 // Special entry as a placeholer when disassembly is not available
 const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 	allowBreakpoint: false,
 	isBreakpointSet: false,
 	isBreakpointEnabled: false,
+	instructionReference: '',
+	instructionOffset: 0,
+	instructionReferenceOffset: 0,
+	address: 0n,
 	instruction: {
 		address: '-1',
 		instruction: localize('instructionNotAvailable', "Disassembly not available.")
 	},
-	instructionAddress: BigInt(-1)
 };
 
 export class DisassemblyView extends EditorPane {
@@ -75,6 +89,7 @@ export class DisassemblyView extends EditorPane {
 	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
 	private _enableSourceCodeRender: boolean = true;
 	private _loadingLock: boolean = false;
+	private readonly _referenceToMemoryAddress = new Map<string, bigint>();
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -87,7 +102,7 @@ export class DisassemblyView extends EditorPane {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
 
 		this._disassembledInstructions = undefined;
-		this._onDidChangeStackFrame = new Emitter<void>();
+		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));
 		this._previousDebuggingState = _debugService.state;
 		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), PixelRatio.value);
 		this._register(_configurationService.onDidChangeConfiguration(e => {
@@ -100,7 +115,7 @@ export class DisassemblyView extends EditorPane {
 				const newValue = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 				if (this._enableSourceCodeRender !== newValue) {
 					this._enableSourceCodeRender = newValue;
-					this.reloadDisassembly(undefined);
+					// todo: trigger rerender
 				} else {
 					this._disassembledInstructions?.rerender();
 				}
@@ -115,16 +130,27 @@ export class DisassemblyView extends EditorPane {
 			map(session => session.getAllThreads()).
 			reduce((prev, curr) => prev.concat(curr), []).
 			map(thread => thread.getTopStackFrame()).
-			map(frame => frame?.instructionPointerReference);
+			map(frame => frame?.instructionPointerReference).
+			map(ref => ref ? this.getReferenceAddress(ref) : undefined);
 	}
 
-	// Instruction address of the top stack frame of the focused stack
-	get focusedCurrentInstructionAddress() {
+	// Instruction reference of the top stack frame of the focused stack
+	get focusedCurrentInstructionReference() {
 		return this._debugService.getViewModel().focusedStackFrame?.thread.getTopStackFrame()?.instructionPointerReference;
 	}
 
-	get focusedInstructionAddress() {
+	get focusedCurrentInstructionAddress() {
+		const ref = this.focusedCurrentInstructionReference;
+		return ref ? this.getReferenceAddress(ref) : undefined;
+	}
+
+	get focusedInstructionReference() {
 		return this._debugService.getViewModel().focusedStackFrame?.instructionPointerReference;
+	}
+
+	get focusedInstructionAddress() {
+		const ref = this.focusedInstructionReference;
+		return ref ? this.getReferenceAddress(ref) : undefined;
 	}
 
 	get isSourceCodeRender() { return this._enableSourceCodeRender; }
@@ -135,6 +161,17 @@ export class DisassemblyView extends EditorPane {
 
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
+	get focusedAddressAndOffset() {
+		const element = this._disassembledInstructions?.getFocusedElements()[0];
+		if (!element) {
+			return undefined;
+		}
+
+		const reference = element.instructionReference;
+		const offset = Number(element.address - this.getReferenceAddress(reference)!);
+		return { reference, offset, address: element.address };
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		this._enableSourceCodeRender = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 		const lineHeight = this.fontInfo.lineHeight;
@@ -142,7 +179,7 @@ export class DisassemblyView extends EditorPane {
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
-				if (thisOM.isSourceCodeRender && row.instruction.location?.path && row.instruction.line) {
+				if (thisOM.isSourceCodeRender && row.showSourceLocation && row.instruction.location?.path && row.instruction.line) {
 					// instruction line + source lines
 					if (row.instruction.endLine) {
 						return lineHeight * (row.instruction.endLine - row.instruction.line + 2);
@@ -197,7 +234,9 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this.reloadDisassembly();
+		if (this.focusedInstructionReference) {
+			this.reloadDisassembly(this.focusedInstructionReference, 0);
+		}
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
 			if (this._loadingLock) {
@@ -206,10 +245,10 @@ export class DisassemblyView extends EditorPane {
 
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
 				this._loadingLock = true;
-				const topElement = Math.floor(e.scrollTop / this.fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-				this.scrollUp_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then((success) => {
-					if (success) {
-						this._disassembledInstructions!.reveal(topElement, 0);
+				const prevTop = Math.floor(e.scrollTop / this.fontInfo.lineHeight);
+				this.scrollUp_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then((loaded) => {
+					if (loaded > 0) {
+						this._disassembledInstructions!.reveal(prevTop + loaded, 0);
 					}
 					this._loadingLock = false;
 				});
@@ -219,11 +258,11 @@ export class DisassemblyView extends EditorPane {
 			}
 		}));
 
-		this._register(this._debugService.getViewModel().onDidFocusStackFrame((stackFrame) => {
-			if (this._disassembledInstructions) {
-				this.goToAddress();
-				this._onDidChangeStackFrame.fire();
+		this._register(this._debugService.getViewModel().onDidFocusStackFrame(({ stackFrame }) => {
+			if (this._disassembledInstructions && stackFrame?.instructionPointerReference) {
+				this.goToInstructionAndOffset(stackFrame.instructionPointerReference, 0);
 			}
+			this._onDidChangeStackFrame.fire();
 		}));
 
 		// refresh breakpoints view
@@ -233,7 +272,7 @@ export class DisassemblyView extends EditorPane {
 				let changed = false;
 				bpEvent.added?.forEach((bp) => {
 					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromAddress(bp.instructionReference);
+						const index = this.getIndexFromReferenceAndOffset(bp.instructionReference, bp.offset);
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = true;
 							this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
@@ -244,7 +283,7 @@ export class DisassemblyView extends EditorPane {
 
 				bpEvent.removed?.forEach((bp) => {
 					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromAddress(bp.instructionReference);
+						const index = this.getIndexFromReferenceAndOffset(bp.instructionReference, bp.offset);
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = false;
 							changed = true;
@@ -254,7 +293,7 @@ export class DisassemblyView extends EditorPane {
 
 				bpEvent.changed?.forEach((bp) => {
 					if (bp instanceof InstructionBreakpoint) {
-						const index = this.getIndexFromAddress(bp.instructionReference);
+						const index = this.getIndexFromReferenceAndOffset(bp.instructionReference, bp.offset);
 						if (index >= 0) {
 							if (this._disassembledInstructions!.row(index).isBreakpointEnabled !== bp.enabled) {
 								this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
@@ -267,6 +306,13 @@ export class DisassemblyView extends EditorPane {
 				// get an updated list so that items beyond the current range would render when reached.
 				this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 
+				// breakpoints restored from a previous session can be based on memory
+				// references that may no longer exist in the current session. Request
+				// those instructions to be loaded so the BP can be displayed.
+				for (const bp of this._instructionBpList) {
+					this.primeMemoryReference(bp.instructionReference);
+				}
+
 				if (changed) {
 					this._onDidChangeStackFrame.fire();
 				}
@@ -277,10 +323,12 @@ export class DisassemblyView extends EditorPane {
 			if ((e === State.Running || e === State.Stopped) &&
 				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
-				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
+				this.clear();
 				this._enableSourceCodeRender = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 			}
+
 			this._previousDebuggingState = e;
+			this._onDidChangeStackFrame.fire();
 		}));
 	}
 
@@ -288,19 +336,33 @@ export class DisassemblyView extends EditorPane {
 		this._disassembledInstructions?.layout(dimension.height);
 	}
 
+	async goToInstructionAndOffset(instructionReference: string, offset: number, focus?: boolean) {
+		let addr = this._referenceToMemoryAddress.get(instructionReference);
+		if (addr === undefined) {
+			await this.loadDisassembledInstructions(instructionReference, 0, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+			addr = this._referenceToMemoryAddress.get(instructionReference);
+		}
+
+		if (addr) {
+			this.goToAddress(addr + BigInt(offset), focus);
+		}
+	}
+
+	/** Gets the address associated with the instruction reference. */
+	getReferenceAddress(instructionReference: string) {
+		return this._referenceToMemoryAddress.get(instructionReference);
+	}
+
 	/**
-	 * Go to the address provided. If no address is provided, reveal the address of the currently focused stack frame.
+	 * Go to the address provided. If no address is provided, reveal the address of the currently focused stack frame. Returns false if that address is not available.
 	 */
-	goToAddress(address?: string, focus?: boolean): void {
+	private goToAddress(address: bigint, focus?: boolean): boolean {
 		if (!this._disassembledInstructions) {
-			return;
+			return false;
 		}
 
 		if (!address) {
-			address = this.focusedInstructionAddress;
-		}
-		if (!address) {
-			return;
+			return false;
 		}
 
 		const index = this.getIndexFromAddress(address);
@@ -311,51 +373,82 @@ export class DisassemblyView extends EditorPane {
 				this._disassembledInstructions.domFocus();
 				this._disassembledInstructions.setFocus([index]);
 			}
-		} else if (this._debugService.state === State.Stopped) {
-			// Address is not provided or not in the table currently, clear the table
-			// and reload if we are in the state where we can load disassembly.
-			this.reloadDisassembly(address);
-		}
-	}
-
-	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
-			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount);
+			return true;
 		}
 
 		return false;
 	}
 
-	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
-		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1).instruction.address;
-			return this.loadDisassembledInstructions(address, 1, instructionCount);
+	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<number> {
+		const first = this._disassembledInstructions?.row(0);
+		if (first) {
+			return this.loadDisassembledInstructions(
+				first.instructionReference,
+				first.instructionReferenceOffset,
+				first.instructionOffset - instructionCount,
+				instructionCount,
+			);
+		}
+
+		return 0;
+	}
+
+	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<number> {
+		const last = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1);
+		if (last) {
+			return this.loadDisassembledInstructions(
+				last.instructionReference,
+				last.instructionReferenceOffset,
+				last.instructionOffset + 1,
+				instructionCount,
+			);
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Sets the memory reference address. We don't just loadDisassembledInstructions
+	 * for this, since we can't really deal with discontiguous ranges (we can't
+	 * detect _if_ a range is discontiguous since we don't know how much memory
+	 * comes between instructions.)
+	 */
+	private async primeMemoryReference(instructionReference: string) {
+		if (this._referenceToMemoryAddress.has(instructionReference)) {
+			return true;
+		}
+
+		const s = await this.debugSession?.disassemble(instructionReference, 0, 0, 1);
+		if (s && s.length > 0) {
+			try {
+				this._referenceToMemoryAddress.set(instructionReference, BigInt(s[0].address));
+				return true;
+			} catch {
+				return false;
+			}
 		}
 
 		return false;
 	}
 
-	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
-		// if address is null, then use current stack frame.
-		if (!address || address === '-1') {
-			address = this.focusedInstructionAddress;
-		}
-		if (!address) {
-			return false;
-		}
-
-		// console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
+	/** Loads disasembled instructions. Returns the number of instructions that were loaded. */
+	private async loadDisassembledInstructions(instructionReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<number> {
 		const session = this.debugSession;
-		const resultEntries = await session?.disassemble(address, 0, instructionOffset, instructionCount);
+		const resultEntries = await session?.disassemble(instructionReference, offset, instructionOffset, instructionCount);
+
+		// Ensure we always load the baseline instructions so we know what address the instructionReference refers to.
+		if (!this._referenceToMemoryAddress.has(instructionReference) && instructionOffset !== 0) {
+			await this.loadDisassembledInstructions(instructionReference, 0, 0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+		}
+
 		if (session && resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
 			let lastLocation: DebugProtocol.Source | undefined;
 			let lastLine: IRange | undefined;
 			for (let i = 0; i < resultEntries.length; i++) {
-				const found = this._instructionBpList.find(p => p.instructionReference === resultEntries[i].address);
 				const instruction = resultEntries[i];
+				const thisInstructionOffset = instructionOffset + i;
 
 				// Forward fill the missing location as detailed in the DAP spec.
 				if (instruction.location) {
@@ -378,76 +471,152 @@ export class DisassemblyView extends EditorPane {
 					}
 				}
 
-				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, isBreakpointEnabled: !!found?.enabled, instruction: instruction });
+				let address: bigint;
+				try {
+					address = BigInt(instruction.address);
+				} catch {
+					console.error(`Could not parse disassembly address ${instruction.address} (in ${JSON.stringify(instruction)})`);
+					continue;
+				}
+
+				const entry: IDisassembledInstructionEntry = {
+					allowBreakpoint: true,
+					isBreakpointSet: false,
+					isBreakpointEnabled: false,
+					instructionReference,
+					instructionReferenceOffset: offset,
+					instructionOffset: thisInstructionOffset,
+					instruction,
+					address,
+				};
+
+				newEntries.push(entry);
+
+				// if we just loaded the first instruction for this reference, mark its address.
+				if (offset === 0 && thisInstructionOffset === 0) {
+					this._referenceToMemoryAddress.set(instructionReference, address);
+				}
 			}
 
-			const specialEntriesToRemove = this._disassembledInstructions.length === 1 ? 1 : 0;
-
-			// request is either at the start or end
-			if (instructionOffset >= 0) {
-				this._disassembledInstructions.splice(this._disassembledInstructions.length, specialEntriesToRemove, newEntries);
-			} else {
-				this._disassembledInstructions.splice(0, specialEntriesToRemove, newEntries);
+			if (newEntries.length === 0) {
+				return 0;
 			}
 
-			return true;
+			const refBaseAddress = this._referenceToMemoryAddress.get(instructionReference);
+			const bps = this._instructionBpList.map(p => {
+				const base = this._referenceToMemoryAddress.get(p.instructionReference);
+				if (!base) {
+					return undefined;
+				}
+				return {
+					enabled: p.enabled,
+					address: base + BigInt(p.offset || 0),
+				};
+			});
+
+			if (refBaseAddress !== undefined) {
+				for (const entry of newEntries) {
+					const bp = bps.find(p => p?.address === entry.address);
+					if (bp) {
+						entry.isBreakpointSet = true;
+						entry.isBreakpointEnabled = bp.enabled;
+					}
+				}
+			}
+
+			const da = this._disassembledInstructions;
+			if (da.length === 1 && this._disassembledInstructions.row(0) === disassemblyNotAvailable) {
+				da.splice(0, 1);
+			}
+
+			const firstAddr = newEntries[0].address;
+			const lastAddr = newEntries[newEntries.length - 1].address;
+
+			const startN = binarySearch2(da.length, i => Number(da.row(i).address - firstAddr));
+			const start = startN < 0 ? ~startN : startN;
+			const endN = binarySearch2(da.length, i => Number(da.row(i).address - lastAddr));
+			const end = endN < 0 ? ~endN : endN;
+			const toDelete = end - start;
+
+			// Go through everything we're about to add, and only show the source
+			// location if it's different from the previous one, "grouping" instructions by line
+			let lastLocated: undefined | DebugProtocol.DisassembledInstruction;
+			for (let i = start - 1; i >= 0; i--) {
+				const { instruction } = da.row(i);
+				if (instruction.location && instruction.line !== undefined) {
+					lastLocated = instruction;
+					break;
+				}
+			}
+
+			const shouldShowLocation = (instruction: DebugProtocol.DisassembledInstruction) =>
+				instruction.line !== undefined && instruction.location !== undefined &&
+				(!lastLocated || !sourcesEqual(instruction.location, lastLocated.location) || instruction.line !== lastLocated.line);
+
+			for (const entry of newEntries) {
+				if (shouldShowLocation(entry.instruction)) {
+					entry.showSourceLocation = true;
+					lastLocated = entry.instruction;
+				}
+			}
+
+			da.splice(start, toDelete, newEntries);
+
+			return newEntries.length - toDelete;
 		}
 
-		return false;
+		return 0;
 	}
 
-	private getIndexFromAddress(instructionAddress: string): number {
+	private getIndexFromReferenceAndOffset(instructionReference: string, offset: number): number {
+		const addr = this._referenceToMemoryAddress.get(instructionReference);
+		if (addr === undefined) {
+			return -1;
+		}
+
+		return this.getIndexFromAddress(addr + BigInt(offset));
+	}
+
+	private getIndexFromAddress(address: bigint): number {
 		const disassembledInstructions = this._disassembledInstructions;
 		if (disassembledInstructions && disassembledInstructions.length > 0) {
-			const address = BigInt(instructionAddress);
-			if (address) {
-				return binarySearch2(disassembledInstructions.length, index => {
-					const row = disassembledInstructions.row(index);
-
-					this.ensureAddressParsed(row);
-					if (row.instructionAddress! > address) {
-						return 1;
-					} else if (row.instructionAddress! < address) {
-						return -1;
-					} else {
-						return 0;
-					}
-				});
-			}
+			return binarySearch2(disassembledInstructions.length, index => {
+				const row = disassembledInstructions.row(index);
+				return Number(row.address - address);
+			});
 		}
 
 		return -1;
 	}
 
-	private ensureAddressParsed(entry: IDisassembledInstructionEntry) {
-		if (entry.instructionAddress !== undefined) {
-			return;
-		} else {
-			entry.instructionAddress = BigInt(entry.instruction.address);
-		}
-	}
-
 	/**
 	 * Clears the table and reload instructions near the target address
 	 */
-	private reloadDisassembly(targetAddress?: string) {
-		if (this._disassembledInstructions) {
-			this._loadingLock = true; // stop scrolling during the load.
-			this._disassembledInstructions.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
-			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
-			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
-				// on load, set the target instruction in the middle of the page.
-				if (this._disassembledInstructions!.length > 0) {
-					const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
-					this._disassembledInstructions!.reveal(targetIndex, 0.5);
-
-					// Always focus the target address on reload, or arrow key navigation would look terrible
-					this._disassembledInstructions!.domFocus();
-					this._disassembledInstructions!.setFocus([targetIndex]);
-				}
-				this._loadingLock = false;
-			});
+	private reloadDisassembly(instructionReference: string, offset: number) {
+		if (!this._disassembledInstructions) {
+			return;
 		}
+
+		this._loadingLock = true; // stop scrolling during the load.
+		this.clear();
+		this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
+		this.loadDisassembledInstructions(instructionReference, offset, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
+			// on load, set the target instruction in the middle of the page.
+			if (this._disassembledInstructions!.length > 0) {
+				const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
+				this._disassembledInstructions!.reveal(targetIndex, 0.5);
+
+				// Always focus the target address on reload, or arrow key navigation would look terrible
+				this._disassembledInstructions!.domFocus();
+				this._disassembledInstructions!.setFocus([targetIndex]);
+			}
+			this._loadingLock = false;
+		});
+	}
+
+	private clear() {
+		this._referenceToMemoryAddress.clear();
+		this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
 	}
 }
 
@@ -504,11 +673,12 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 				if (currentElement.element?.allowBreakpoint) {
 					// click show hint while waiting for BP to resolve.
 					icon.classList.add(this._breakpointHintIcon);
+					const reference = currentElement.element.instructionReference;
+					const offset = Number(currentElement.element.address - this._disassemblyView.getReferenceAddress(reference)!);
 					if (currentElement.element.isBreakpointSet) {
-						this._debugService.removeInstructionBreakpoints(currentElement.element.instruction.address);
-
+						this._debugService.removeInstructionBreakpoints(reference, offset);
 					} else if (currentElement.element.allowBreakpoint && !currentElement.element.isBreakpointSet) {
-						this._debugService.addInstructionBreakpoint(currentElement.element.instruction.address, 0);
+						this._debugService.addInstructionBreakpoint(reference, offset, currentElement.element.address);
 					}
 				}
 			})
@@ -528,9 +698,9 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	private rerenderDebugStackframe(icon: HTMLElement, element?: IDisassembledInstructionEntry) {
-		if (element?.instruction.address === this._disassemblyView.focusedCurrentInstructionAddress) {
+		if (element?.address === this._disassemblyView.focusedCurrentInstructionAddress) {
 			icon.classList.add(this._debugStackframe);
-		} else if (element?.instruction.address === this._disassemblyView.focusedInstructionAddress) {
+		} else if (element?.address === this._disassemblyView.focusedInstructionAddress) {
 			icon.classList.add(this._debugStackframeFocused);
 		} else {
 			icon.classList.remove(this._debugStackframe);
@@ -622,7 +792,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.sourcecode.innerText = '';
 		const sb = new StringBuilder(1000);
 
-		if (this._disassemblyView.isSourceCodeRender && instruction.location?.path && instruction.line) {
+		if (this._disassemblyView.isSourceCodeRender && element.showSourceLocation && instruction.location?.path && instruction.line !== undefined) {
 			const sourceURI = this.getUriFromSource(instruction);
 
 			if (sourceURI) {
@@ -694,9 +864,9 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	}
 
 	private rerenderBackground(instruction: HTMLElement, sourceCode: HTMLElement, element?: IDisassembledInstructionEntry) {
-		if (element && this._disassemblyView.currentInstructionAddresses.includes(element.instruction.address)) {
+		if (element && this._disassemblyView.currentInstructionAddresses.includes(element.address)) {
 			instruction.style.background = this._topStackFrameColor?.toString() || 'transparent';
-		} else if (element?.instruction.address === this._disassemblyView.focusedInstructionAddress) {
+		} else if (element?.address === this._disassemblyView.focusedInstructionAddress) {
 			instruction.style.background = this._focusedStackFrameColor?.toString() || 'transparent';
 		} else {
 			instruction.style.background = 'transparent';
@@ -778,7 +948,7 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 
 	private readonly _onDidActiveEditorChangeListener: IDisposable;
 	private _onDidChangeModelLanguage: IDisposable | undefined;
-	private _languageSupportsDisassemleRequest: IContextKey<boolean> | undefined;
+	private _languageSupportsDisassembleRequest: IContextKey<boolean> | undefined;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -786,7 +956,7 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		contextKeyService.bufferChangeEvents(() => {
-			this._languageSupportsDisassemleRequest = CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST.bindTo(contextKeyService);
+			this._languageSupportsDisassembleRequest = CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST.bindTo(contextKeyService);
 		});
 
 		const onDidActiveEditorChangeListener = () => {
@@ -800,13 +970,13 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 				const language = activeTextEditorControl.getModel()?.getLanguageId();
 				// TODO: instead of using idDebuggerInterestedInLanguage, have a specific ext point for languages
 				// support disassembly
-				this._languageSupportsDisassemleRequest?.set(!!language && debugService.getAdapterManager().someDebuggerInterestedInLanguage(language));
+				this._languageSupportsDisassembleRequest?.set(!!language && debugService.getAdapterManager().someDebuggerInterestedInLanguage(language));
 
 				this._onDidChangeModelLanguage = activeTextEditorControl.onDidChangeModelLanguage(e => {
-					this._languageSupportsDisassemleRequest?.set(debugService.getAdapterManager().someDebuggerInterestedInLanguage(e.newLanguage));
+					this._languageSupportsDisassembleRequest?.set(debugService.getAdapterManager().someDebuggerInterestedInLanguage(e.newLanguage));
 				});
 			} else {
-				this._languageSupportsDisassemleRequest?.set(false);
+				this._languageSupportsDisassembleRequest?.set(false);
 			}
 		};
 

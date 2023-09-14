@@ -9,15 +9,18 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 import { SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileMatch } from 'vs/workbench/services/search/common/search';
-import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 export function createFileUriFromPathFromRoot(path?: string): URI {
 	const rootName = getRootName();
@@ -50,6 +53,8 @@ export function stubModelService(instantiationService: TestInstantiationService)
 
 export function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+	instantiationService.stub(IContextKeyService, new MockContextKeyService());
+	instantiationService.stub(IEditorService, new TestEditorService());
 	return instantiationService.createInstance(NotebookEditorWidgetService);
 }
 

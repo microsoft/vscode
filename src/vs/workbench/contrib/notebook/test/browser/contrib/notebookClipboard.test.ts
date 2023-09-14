@@ -42,7 +42,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
@@ -66,7 +66,7 @@ suite('Notebook Clipboard', () => {
 				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -97,7 +97,7 @@ suite('Notebook Clipboard', () => {
 				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -130,7 +130,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
@@ -148,7 +148,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
 					override setToCopy() { }
 					override getToCopy() {
@@ -182,7 +182,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				let _toCopy: NotebookCellTextModel[] = [];
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
 					override setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
@@ -212,7 +212,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
 					override setToCopy() { }
 					override getToCopy() {
@@ -253,7 +253,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
 					override setToCopy() { }
 					override getToCopy() {
@@ -277,7 +277,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 3', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
 					override setToCopy() { }
 					override getToCopy() {

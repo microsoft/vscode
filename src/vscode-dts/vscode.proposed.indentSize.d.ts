@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
+
+	// https://github.com/microsoft/vscode/issues/193077 @alexdima
+
 	/**
 	 * Represents a {@link TextEditor text editor}'s {@link TextEditor.options options}.
 	 */

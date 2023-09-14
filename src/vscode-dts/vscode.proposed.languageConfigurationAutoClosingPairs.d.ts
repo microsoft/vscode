@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/173738
+	// https://github.com/microsoft/vscode/issues/173738 @alexdima
 
 	export interface LanguageConfiguration {
 		autoClosingPairs?: {

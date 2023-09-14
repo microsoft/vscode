@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/browser/wordTestUtils';
-import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/browser/utils';
 import { CursorWordPartLeft, CursorWordPartLeftSelect, CursorWordPartRight, CursorWordPartRightSelect, DeleteWordPartLeft, DeleteWordPartRight } from 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
+import { StaticServiceAccessor } from 'vs/editor/contrib/wordPartOperations/test/browser/utils';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('WordPartOperations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const _deleteWordPartLeft = new DeleteWordPartLeft();
 	const _deleteWordPartRight = new DeleteWordPartRight();
 	const _cursorWordPartLeft = new CursorWordPartLeft();
