@@ -543,7 +543,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: string | IChatReplyFollowup, chatAgent: IChatAgentData | undefined): ChatRequestModel {
+	addRequest(message: string | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
