@@ -248,7 +248,7 @@ export class DesktopMain extends Disposable {
 		// User Data Profiles
 		const userDataProfilesService = new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'));
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
-		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme), userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(reviveProfile(this.configuration.profiles.profile, userDataProfilesService.profilesHome.scheme));
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Remote Agent

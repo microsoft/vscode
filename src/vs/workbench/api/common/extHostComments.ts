@@ -592,7 +592,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			private _id: string,
 			private _label: string
 		) {
-			proxy.$registerCommentController(this.handle, _id, _label);
+			proxy.$registerCommentController(this.handle, _id, _label, this._extension.identifier.value);
 
 			const that = this;
 			this.value = Object.freeze({

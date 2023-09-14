@@ -68,7 +68,7 @@ suite('KeybindingsEditing', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
 		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, disposables.add(new UriIdentityService(fileService)), logService));
-		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
+		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
 
 		instantiationService = workbenchInstantiationService({
 			fileService: () => fileService,
