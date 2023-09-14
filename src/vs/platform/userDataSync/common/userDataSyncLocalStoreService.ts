@@ -12,10 +12,10 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationResult, IFileService, IFileStat, toFileOperationResult } from 'vs/platform/files/common/files';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncBackupStoreService, IUserDataSyncLogService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncLocalStoreService, IUserDataSyncLogService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
-export class UserDataSyncBackupStoreService extends Disposable implements IUserDataSyncBackupStoreService {
+export class UserDataSyncLocalStoreService extends Disposable implements IUserDataSyncLocalStoreService {
 
 	_serviceBrand: any;
 
@@ -34,7 +34,7 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		for (const profile of this.userDataProfilesService.profiles) {
 			for (const resource of ALL_SYNC_RESOURCES) {
 				try {
-					await this.cleanUpBackup(this.getResourceBackupHome(profile, resource));
+					await this.cleanUpBackup(this.getResourceBackupHome(resource, profile.isDefault ? undefined : profile.id));
 				} catch (error) {
 					this.logService.error(error);
 				}
@@ -65,12 +65,12 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		}
 	}
 
-	async getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]> {
-		const folder = this.getResourceBackupHome(profile, resource);
+	async getAllResourceRefs(resource: SyncResource, collection?: string, root?: URI): Promise<IResourceRefHandle[]> {
+		const folder = this.getResourceBackupHome(resource, collection, root);
 		try {
 			const stat = await this.fileService.resolve(folder);
 			if (stat.children) {
-				const all = stat.children.filter(stat => stat.isFile && /^\d{8}T\d{6}(\.json)?$/.test(stat.name)).sort().reverse();
+				const all = stat.children.filter(stat => stat.isFile && !stat.name.startsWith('lastSync')).sort().reverse();
 				return all.map(stat => ({
 					ref: stat.name,
 					created: this.getCreationTime(stat)
@@ -84,8 +84,8 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		return [];
 	}
 
-	async resolveContent(profile: IUserDataProfile, resourceKey: SyncResource, ref: string): Promise<string | null> {
-		const folder = this.getResourceBackupHome(profile, resourceKey);
+	async resolveResourceContent(resourceKey: SyncResource, ref: string, collection?: string, root?: URI): Promise<string | null> {
+		const folder = this.getResourceBackupHome(resourceKey, collection, root);
 		const file = joinPath(folder, ref);
 		try {
 			const content = await this.fileService.readFile(file);
@@ -96,21 +96,18 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 		}
 	}
 
-	async backup(profile: IUserDataProfile, resourceKey: SyncResource, content: string): Promise<void> {
-		const folder = this.getResourceBackupHome(profile, resourceKey);
-		const resource = joinPath(folder, `${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}.json`);
+	async writeResource(resourceKey: SyncResource, content: string, cTime: Date, collection?: string, root?: URI): Promise<void> {
+		const folder = this.getResourceBackupHome(resourceKey, collection, root);
+		const resource = joinPath(folder, `${toLocalISOString(cTime).replace(/-|:|\.\d+Z$/g, '')}.json`);
 		try {
 			await this.fileService.writeFile(resource, VSBuffer.fromString(content));
 		} catch (e) {
 			this.logService.error(e);
 		}
-		try {
-			this.cleanUpBackup(folder);
-		} catch (e) { /* Ignore */ }
 	}
 
-	private getResourceBackupHome(profile: IUserDataProfile, resource: SyncResource): URI {
-		return joinPath(this.environmentService.userDataSyncHome, ...(profile.isDefault ? [resource] : [profile.id, resource]));
+	private getResourceBackupHome(resource: SyncResource, collection?: string, root: URI = this.environmentService.userDataSyncHome): URI {
+		return joinPath(root, ...(collection ? [collection, resource] : [resource]));
 	}
 
 	private async cleanUpBackup(folder: URI): Promise<void> {
@@ -142,7 +139,7 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 	}
 
 	private getCreationTime(stat: IFileStat) {
-		return stat.ctime || new Date(
+		return new Date(
 			parseInt(stat.name.substring(0, 4)),
 			parseInt(stat.name.substring(4, 6)) - 1,
 			parseInt(stat.name.substring(6, 8)),
