@@ -69,7 +69,7 @@
 }
 
 .action-widget .monaco-list-row.group-header {
-	color: var(--vscode-pickerGroup-foreground) !important;
+	color: var(--vscode-descriptionForeground) !important;
 	font-weight: 600;
 }
 

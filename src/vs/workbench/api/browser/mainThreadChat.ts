@@ -5,6 +5,7 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -19,13 +20,13 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (DeferredPromise<string> | void)>();
+	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (DeferredPromise<string | IMarkdownString> | void)>();
 	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostChatShape;
 
 	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | { treeData: IChatResponseProgressFileTreeData }>>();
+	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -134,7 +135,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 		if ('placeholder' in progress) {
 			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
-			const deferredContentPromise = new DeferredPromise<string | { treeData: IChatResponseProgressFileTreeData }>();
+			const deferredContentPromise = new DeferredPromise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }>();
 			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
 			this._activeRequestProgressCallbacks.get(id)?.({ ...progress, resolvedContent: deferredContentPromise.p });
 			return this._responsePartHandlePool;

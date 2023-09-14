@@ -474,8 +474,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string) {
-		const cellOutputContainer = document.getElementById(cellOrOutputId);
+	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
+		const cellOutputContainer = document.getElementById(cellOrOutputId) ??
+			alternateId ? document.getElementById(alternateId!) : undefined;
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
@@ -1362,17 +1363,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	const copyOutputImage = async (outputId: string, retries = 5) => {
+	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
 		if (!document.hasFocus() && retries > 0) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, retries - 1); }, 20);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
 			return;
 		}
 
 		try {
-			const image = document.getElementById(outputId)?.querySelector('img');
+			const image = document.getElementById(outputId)?.querySelector('img')
+				?? document.getElementById(altOutputId)?.querySelector('img');
 			if (image) {
 				await navigator.clipboard.write([new ClipboardItem({
 					'image/png': new Promise((resolve) => {
@@ -1500,9 +1502,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'copyImage': {
-
-				await copyOutputImage(event.data.outputId);
-
+				await copyOutputImage(event.data.outputId, event.data.altOutputId);
 				break;
 			}
 			case 'ack-dimension': {
@@ -1524,7 +1524,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);

@@ -13,6 +13,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -357,4 +358,6 @@ flakySuite('WorkspacesManagementMainService', () => {
 		untitled = service.getUntitledWorkspaces();
 		assert.strictEqual(0, untitled.length);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

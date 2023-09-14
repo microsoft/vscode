@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notebook';
+import 'vs/css!./media/notebookCellEditorHint';
 import 'vs/css!./media/notebookCellInsertToolbar';
 import 'vs/css!./media/notebookCellStatusBar';
 import 'vs/css!./media/notebookCellTitleToolbar';
@@ -112,7 +113,8 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',
 		'store.contrib.stickyScrollController',
-		'editor.contrib.findController'
+		'editor.contrib.findController',
+		'editor.contrib.emptyTextEditorHint'
 	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
@@ -2350,7 +2352,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			const focusElementId = options?.outputId ?? cell.id;
-			this._webview.focusOutput(focusElementId, this._webviewFocused);
+			this._webview.focusOutput(focusElementId, options?.altOutputId, this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;

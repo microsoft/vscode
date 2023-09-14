@@ -34,6 +34,10 @@ export class OffsetRange {
 		return new OffsetRange(start, endExclusive);
 	}
 
+	public static ofLength(length: number): OffsetRange {
+		return new OffsetRange(0, length);
+	}
+
 	constructor(public readonly start: number, public readonly endExclusive: number) {
 		if (start > endExclusive) {
 			throw new BugIndicatingError(`Invalid range: ${this.toString()}`);
@@ -101,6 +105,50 @@ export class OffsetRange {
 
 	public slice<T>(arr: T[]): T[] {
 		return arr.slice(this.start, this.endExclusive);
+	}
+
+	/**
+	 * Returns the given value if it is contained in this instance, otherwise the closest value that is contained.
+	 * The range must not be empty.
+	 */
+	public clip(value: number): number {
+		if (this.isEmpty) {
+			throw new BugIndicatingError(`Invalid clipping range: ${this.toString()}`);
+		}
+		return Math.max(this.start, Math.min(this.endExclusive - 1, value));
+	}
+
+	/**
+	 * Returns `r := value + k * length` such that `r` is contained in this range.
+	 * The range must not be empty.
+	 *
+	 * E.g. `[5, 10).clipCyclic(10) === 5`, `[5, 10).clipCyclic(11) === 6` and `[5, 10).clipCyclic(4) === 9`.
+	 */
+	public clipCyclic(value: number): number {
+		if (this.isEmpty) {
+			throw new BugIndicatingError(`Invalid clipping range: ${this.toString()}`);
+		}
+		if (value < this.start) {
+			return this.endExclusive - ((this.start - value) % this.length);
+		}
+		if (value >= this.endExclusive) {
+			return this.start + ((value - this.start) % this.length);
+		}
+		return value;
+	}
+
+	public map<T>(f: (offset: number) => T): T[] {
+		const result: T[] = [];
+		for (let i = this.start; i < this.endExclusive; i++) {
+			result.push(f(i));
+		}
+		return result;
+	}
+
+	public forEach(f: (offset: number) => void): void {
+		for (let i = this.start; i < this.endExclusive; i++) {
+			f(i);
+		}
 	}
 }
 

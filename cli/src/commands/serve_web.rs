@@ -10,17 +10,22 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use const_format::concatcp;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::pin;
 use tokio::process::Command;
 
-use crate::async_pipe::{get_socket_name, get_socket_rw_stream, AsyncPipe};
+use crate::async_pipe::{
+	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
+};
 use crate::constants::VSCODE_CLI_QUALITY;
 use crate::download_cache::DownloadCache;
 use crate::log;
 use crate::options::Quality;
+use crate::state::{LauncherPaths, PersistedState};
+use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
@@ -46,6 +51,22 @@ const SERVER_ACTIVE_TIMEOUT_SECS: u64 = SERVER_IDLE_TIMEOUT_SECS * 24 * 30 * 12;
 /// How long to cache the "latest" version we get from the update service.
 const RELEASE_CACHE_SECS: u64 = 60 * 60;
 
+/// Number of bytes for the secret keys. See workbench.ts for their usage.
+const SECRET_KEY_BYTES: usize = 32;
+/// Path to mint the key combining server and client parts.
+const SECRET_KEY_MINT_PATH: &str = "/_vscode-cli/mint-key";
+/// Cookie set to the `SECRET_KEY_MINT_PATH`
+const PATH_COOKIE_NAME: &str = "vscode-secret-key-path";
+/// Cookie set to the `SECRET_KEY_MINT_PATH`
+const PATH_COOKIE_VALUE: &str = concatcp!(
+	PATH_COOKIE_NAME,
+	"=",
+	SECRET_KEY_MINT_PATH,
+	"; SameSite=Strict; Path=/"
+);
+/// HTTP-only cookie where the client's secret half is stored.
+const SECRET_KEY_COOKIE_NAME: &str = "vscode-cli-secret-half";
+
 /// Implements the vscode "server of servers". Clients who go to the URI get
 /// served the latest version of the VS Code server whenever they load the
 /// page. The VS Code server prefixes all assets and connections it loads with
@@ -53,76 +74,149 @@ const RELEASE_CACHE_SECS: u64 = 60 * 60;
 /// while new clients get new VS Code Server versions.
 pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i32, AnyError> {
 	legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
-	let mut addr: SocketAddr = match &args.host {
-		Some(h) => h.parse().map_err(CodeError::InvalidHostAddress)?,
-		None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
-	};
-	addr.set_port(args.port);
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
 
 	if !args.without_connection_token {
 		// Ensure there's a defined connection token, since if multiple server versions
 		// are excuted, they will need to have a single shared token.
-		let connection_token = args
-			.connection_token
-			.clone()
-			.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-		ctx.log.result(format!(
-			"Web UI available at http://{}?tkn={}",
-			addr, connection_token,
-		));
-		args.connection_token = Some(connection_token);
-	} else {
-		ctx.log
-			.result(format!("Web UI available at http://{}", addr));
-		args.connection_token = None;
+		args.connection_token = Some(
+			args.connection_token
+				.clone()
+				.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+		);
 	}
 
-	let cm = ConnectionManager::new(&ctx, platform, args);
-	let make_svc = make_service_fn(move |_conn| {
-		let cm = cm.clone();
-		let log = ctx.log.clone();
-		let service = service_fn(move |req| handle(cm.clone(), log.clone(), req));
+	let cm = ConnectionManager::new(&ctx, platform, args.clone());
+	let key = get_server_key_half(&ctx.paths);
+	let make_svc = move || {
+		let ctx = HandleContext {
+			cm: cm.clone(),
+			log: cm.log.clone(),
+			server_secret_key: key.clone(),
+		};
+		let service = service_fn(move |req| handle(ctx.clone(), req));
 		async move { Ok::<_, Infallible>(service) }
-	});
+	};
 
-	let server = Server::bind(&addr).serve(make_svc);
+	let mut shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
+	let r = if let Some(s) = args.socket_path {
+		let s = PathBuf::from(&s);
+		let socket = listen_socket_rw_stream(&s).await?;
+		ctx.log
+			.result(format!("Web UI available on {}", s.display()));
+		let r = Server::builder(socket.into_pollable())
+			.serve(make_service_fn(|_| make_svc()))
+			.with_graceful_shutdown(async {
+				let _ = shutdown.wait().await;
+			})
+			.await;
+		let _ = std::fs::remove_file(&s); // cleanup
+		r
+	} else {
+		let addr: SocketAddr = match &args.host {
+			Some(h) => {
+				SocketAddr::new(h.parse().map_err(CodeError::InvalidHostAddress)?, args.port)
+			}
+			None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port),
+		};
+		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
-	server.await.map_err(CodeError::CouldNotListenOnInterface)?;
+		let mut listening = format!("Web UI available at http://{}", addr);
+		if let Some(ct) = args.connection_token {
+			listening.push_str(&format!("?tkn={}", ct));
+		}
+		ctx.log.result(listening);
+
+		builder
+			.serve(make_service_fn(|_| make_svc()))
+			.with_graceful_shutdown(async {
+				let _ = shutdown.wait().await;
+			})
+			.await
+	};
+
+	r.map_err(CodeError::CouldNotListenOnInterface)?;
 
 	Ok(0)
 }
 
-/// Handler function for an inbound request
-async fn handle(
+#[derive(Clone)]
+struct HandleContext {
 	cm: Arc<ConnectionManager>,
 	log: log::Logger,
-	req: Request<Body>,
-) -> Result<Response<Body>, Infallible> {
-	let release = if let Some((r, _)) = get_release_from_path(req.uri().path(), cm.platform) {
+	server_secret_key: SecretKeyPart,
+}
+
+/// Handler function for an inbound request
+async fn handle(ctx: HandleContext, req: Request<Body>) -> Result<Response<Body>, Infallible> {
+	let client_key_half = get_client_key_half(&req);
+	let mut res = match req.uri().path() {
+		SECRET_KEY_MINT_PATH => handle_secret_mint(ctx, req),
+		_ => handle_proxied(ctx, req).await,
+	};
+
+	append_secret_headers(&mut res, &client_key_half);
+
+	Ok(res)
+}
+
+async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+	let release = if let Some((r, _)) = get_release_from_path(req.uri().path(), ctx.cm.platform) {
 		r
 	} else {
-		match cm.get_latest_release().await {
+		match ctx.cm.get_latest_release().await {
 			Ok(r) => r,
 			Err(e) => {
-				error!(log, "error getting latest version: {}", e);
-				return Ok(response::code_err(e));
+				error!(ctx.log, "error getting latest version: {}", e);
+				return response::code_err(e);
 			}
 		}
 	};
 
-	Ok(match cm.get_connection(release).await {
+	match ctx.cm.get_connection(release).await {
 		Ok(rw) => {
 			if req.headers().contains_key(hyper::header::UPGRADE) {
-				forward_ws_req_to_server(cm.log.clone(), rw, req).await
+				forward_ws_req_to_server(ctx.log.clone(), rw, req).await
 			} else {
 				forward_http_req_to_server(rw, req).await
 			}
 		}
 		Err(CodeError::ServerNotYetDownloaded) => response::wait_for_download(),
 		Err(e) => response::code_err(e),
-	})
+	}
+}
+
+fn handle_secret_mint(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+	use sha2::{Digest, Sha256};
+
+	let mut hasher = Sha256::new();
+	hasher.update(ctx.server_secret_key.0.as_ref());
+	hasher.update(get_client_key_half(&req).0.as_ref());
+	let hash = hasher.finalize();
+	let hash = hash[..SECRET_KEY_BYTES].to_vec();
+	response::secret_key(hash)
+}
+
+/// Appends headers to response to maintain the secret storage of the workbench:
+/// sets the `PATH_COOKIE_VALUE` so workbench.ts knows about the 'mint' endpoint,
+/// and maintains the http-only cookie the client will use for cookies.
+fn append_secret_headers(res: &mut Response<Body>, client_key_half: &SecretKeyPart) {
+	let headers = res.headers_mut();
+	headers.append(
+		hyper::header::SET_COOKIE,
+		PATH_COOKIE_VALUE.parse().unwrap(),
+	);
+	headers.append(
+		hyper::header::SET_COOKIE,
+		format!(
+			"{}={}; SameSite=Strict; HttpOnly; Max-Age=2592000; Path=/",
+			SECRET_KEY_COOKIE_NAME,
+			client_key_half.encode()
+		)
+		.parse()
+		.unwrap(),
+	);
 }
 
 /// Gets the release info from the VS Code path prefix, which is in the
@@ -246,6 +340,77 @@ fn is_commit_hash(s: &str) -> bool {
 	s.len() == COMMIT_HASH_LEN && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// Gets a cookie from the request by name.
+fn extract_cookie(req: &Request<Body>, name: &str) -> Option<String> {
+	for h in req.headers().get_all(hyper::header::COOKIE) {
+		if let Ok(str) = h.to_str() {
+			for pair in str.split("; ") {
+				let i = match pair.find('=') {
+					Some(i) => i,
+					None => continue,
+				};
+
+				if &pair[..i] == name {
+					return Some(pair[i + 1..].to_string());
+				}
+			}
+		}
+	}
+
+	None
+}
+
+#[derive(Clone)]
+struct SecretKeyPart(Box<[u8; SECRET_KEY_BYTES]>);
+
+impl SecretKeyPart {
+	pub fn new() -> Self {
+		let key: [u8; SECRET_KEY_BYTES] = rand::random();
+		Self(Box::new(key))
+	}
+
+	pub fn decode(s: &str) -> Result<Self, base64::DecodeSliceError> {
+		use base64::{engine::general_purpose, Engine as _};
+		let mut key: [u8; SECRET_KEY_BYTES] = [0; SECRET_KEY_BYTES];
+		let v = general_purpose::URL_SAFE.decode(s)?;
+		if v.len() != SECRET_KEY_BYTES {
+			return Err(base64::DecodeSliceError::OutputSliceTooSmall);
+		}
+
+		key.copy_from_slice(&v);
+		Ok(Self(Box::new(key)))
+	}
+
+	pub fn encode(&self) -> String {
+		use base64::{engine::general_purpose, Engine as _};
+		general_purpose::URL_SAFE.encode(self.0.as_ref())
+	}
+}
+
+/// Gets the server's half of the secret key.
+fn get_server_key_half(paths: &LauncherPaths) -> SecretKeyPart {
+	let ps = PersistedState::new(paths.root().join("serve-web-key-half"));
+	let value: String = ps.load();
+	if let Ok(sk) = SecretKeyPart::decode(&value) {
+		return sk;
+	}
+
+	let key = SecretKeyPart::new();
+	let _ = ps.save(key.encode());
+	key
+}
+
+/// Gets the client's half of the secret key.
+fn get_client_key_half(req: &Request<Body>) -> SecretKeyPart {
+	if let Some(c) = extract_cookie(req, SECRET_KEY_COOKIE_NAME) {
+		if let Ok(sk) = SecretKeyPart::decode(&c) {
+			return sk;
+		}
+	}
+
+	SecretKeyPart::new()
+}
+
 /// Module holding original responses the CLI's server makes.
 mod response {
 	use const_format::concatcp;
@@ -273,6 +438,14 @@ mod response {
 			.status(202)
 			.header("Content-Type", "text/html") // todo: get latest
 			.body(Body::from(concatcp!("The latest version of the ", QUALITYLESS_SERVER_NAME, " is downloading, please wait a moment...<script>setTimeout(()=>location.reload(),1500)</script>", )))
+			.unwrap()
+	}
+
+	pub fn secret_key(hash: Vec<u8>) -> Response<Body> {
+		Response::builder()
+			.status(200)
+			.header("Content-Type", "application/octet-stream") // todo: get latest
+			.body(Body::from(hash))
 			.unwrap()
 	}
 }
@@ -503,6 +676,7 @@ impl ConnectionManager {
 		let executable = path
 			.join("bin")
 			.join(args.release.quality.server_entrypoint());
+
 		let socket_path = get_socket_name();
 
 		#[cfg(not(windows))]

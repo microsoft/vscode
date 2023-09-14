@@ -54,7 +54,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
 	getTunnels(): Promise<vscode.TunnelDescription[]>;
 	onDidChangeTunnels: vscode.Event<void>;
-	setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
+	setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined, managedRemoteAuthority: vscode.ManagedResolvedAuthority | undefined): Promise<IDisposable>;
 	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): IDisposable;
 	registerTunnelProvider(provider: vscode.TunnelProvider, information: vscode.TunnelInformation): Promise<IDisposable>;
 }
@@ -165,7 +165,15 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}));
 	}
 
-	async setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+	/**
+	 * Applies the tunnel metadata and factory found in the remote authority
+	 * resolver to the tunnel system.
+	 *
+	 * `managedRemoteAuthority` should be be passed if the resolver returned on.
+	 * If this is the case, the tunnel cannot be connected to via a websocket from
+	 * the share process, so a synethic tunnel factory is used as a default.
+	 */
+	async setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined, managedRemoteAuthority: vscode.ManagedResolvedAuthority | undefined): Promise<IDisposable> {
 		// Do not wait for any of the proxy promises here.
 		// It will delay startup and there is nothing that needs to be waited for.
 		if (provider) {
@@ -176,8 +184,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				this._showCandidatePort = provider.showCandidatePort;
 				this._proxy.$setCandidateFilter();
 			}
-			if (provider.tunnelFactory) {
-				this._forwardPortProvider = provider.tunnelFactory;
+			const tunnelFactory = provider.tunnelFactory ?? (managedRemoteAuthority ? this.makeManagedTunnelFactory(managedRemoteAuthority) : undefined);
+			if (tunnelFactory) {
+				this._forwardPortProvider = tunnelFactory;
 				let privacyOptions = provider.tunnelFeatures?.privacyOptions ?? [];
 				if (provider.tunnelFeatures?.public && (privacyOptions.length === 0)) {
 					privacyOptions = [
@@ -208,6 +217,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return toDisposable(() => {
 			this._forwardPortProvider = undefined;
 		});
+	}
+
+	protected makeManagedTunnelFactory(_authority: vscode.ManagedResolvedAuthority): vscode.RemoteAuthorityResolver['tunnelFactory'] {
+		return undefined; // may be overridden
 	}
 
 	async $closeTunnel(remote: { host: string; port: number }, silent?: boolean): Promise<void> {

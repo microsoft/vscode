@@ -31,7 +31,6 @@ import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEve
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -48,7 +47,7 @@ export interface IQuickInputOptions {
 		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 	): List<T>;
-	hoverDelegate: IHoverDelegate;
+	hoverDelegate?: IHoverDelegate;
 	styles: IQuickInputStyles;
 }
 
@@ -62,7 +61,6 @@ export interface IQuickInputStyles {
 	readonly keybindingLabel: IKeybindingLabelStyles;
 	readonly list: IListStyles;
 	readonly pickerGroup: { pickerGroupBorder: string | undefined; pickerGroupForeground: string | undefined };
-	readonly colorScheme: ColorScheme;
 }
 
 export interface IQuickInputWidgetStyles {

@@ -33,6 +33,7 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
+export const COMMENTS_VIEW_ORIGINAL_TITLE = 'Comments';
 export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
 
 interface IResourceTemplateData {

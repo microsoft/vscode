@@ -61,6 +61,9 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
 			// undoStop after participation
 			workingCopy.model?.pushStackElement();
+
+			// Cleanup
+			cts.dispose();
 		}, () => {
 			// user cancel
 			cts.dispose(true);
@@ -69,5 +72,7 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
 	override dispose(): void {
 		this.saveParticipants.splice(0, this.saveParticipants.length);
+
+		super.dispose();
 	}
 }

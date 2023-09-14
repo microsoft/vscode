@@ -36,7 +36,6 @@
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
-		"activityBarItem.profilesBackground": "#003271",
 		"progressBar.background": "#bbdaffcc",
 		"badge.background": "#bbdaffcc",
 		"badge.foreground": "#001733",
@@ -70,7 +69,8 @@
 				"meta.embedded",
 				"source.groovy.embedded",
 				"meta.jsx.children",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				//"background": "#002451",

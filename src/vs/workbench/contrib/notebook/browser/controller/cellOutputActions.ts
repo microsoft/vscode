@@ -17,13 +17,13 @@ import { ICellOutputViewModel, ICellViewModel, INotebookEditor, getNotebookEdito
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
-export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copyToClipboard';
+export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copy';
 
 registerAction2(class CopyCellOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: COPY_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.copyOutput', "Copy Output to Clipboard"),
+			title: localize('notebookActions.copyOutput', "Copy Output"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
 				when: NOTEBOOK_CELL_HAS_OUTPUTS
@@ -55,7 +55,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 		const mimeType = outputViewModel.pickedMimeType?.mimeType;
 
 		if (mimeType?.startsWith('image/')) {
-			const focusOptions = { skipReveal: true, outputId: outputViewModel.model.outputId };
+			const focusOptions = { skipReveal: true, outputId: outputViewModel.model.outputId, altOutputId: outputViewModel.model.alternativeOutputId };
 			await notebookEditor.focusNotebookCell(outputViewModel.cellViewModel as ICellViewModel, 'output', focusOptions);
 			notebookEditor.copyOutputImage(outputViewModel);
 		} else {

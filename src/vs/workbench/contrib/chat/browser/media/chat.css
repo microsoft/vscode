@@ -238,7 +238,7 @@
 
 .interactive-session .interactive-input-and-side-toolbar {
 	display: flex;
-	gap: 6px;
+	gap: 4px;
 	align-items: center;
 }
 
@@ -426,6 +426,13 @@
 
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
 	margin: 0;
+	border-radius: 2px;
+	padding: 0 4px 0 6px;
+}
+
+.quick-input-widget .interactive-list {
+	border-bottom-right-radius: 6px;
+	border-bottom-left-radius: 6px;
 }
 
 /* #endregion */
@@ -436,10 +443,29 @@
 
 .interactive-response-progress-tree {
 	margin: 16px 0px;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-input-border, transparent);
 }
 
 .interactive-response-progress-tree.focused {
 	border-color: var(--vscode-focusBorder, transparent);
+}
+
+.interactive-item-container .value .interactive-response-placeholder-codicon .codicon {
+	color: var(--vscode-editorGhostText-foreground);
+}
+
+.interactive-item-container .value .interactive-response-placeholder-content {
+	color: var(--vscode-editorGhostText-foreground);
+	font-size: 12px;
+}
+
+.interactive-response  .interactive-response-codicon-details {
+	display: flex;
+	align-items: start;
+	gap: 6px;
+}
+
+.interactive-response-progress-tree .monaco-list .monaco-scrollable-element .monaco-list-rows {
+	border: 1px solid var(--vscode-input-border,transparent);
+	border-radius: 4px;
+	width: auto;
 }
