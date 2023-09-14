@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -11,6 +11,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator2 } from 'vs/base/common/history';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 import { Iterable } from 'vs/base/common/iterator';
 
 class SCMInput implements ISCMInput {
@@ -94,108 +96,31 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 
-	private historyNavigator: HistoryNavigator2<string>;
-	private didChangeHistory: boolean;
-
-	private static didGarbageCollect = false;
-	private static migrateAndGarbageCollectStorage(storageService: IStorageService): void {
-		if (SCMInput.didGarbageCollect) {
-			return;
-		}
-
-		// Migrate from old format // TODO@joao: remove this migration code a few releases
-		const userKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.USER), key => key.startsWith('scm/input:'));
-
-		for (const key of userKeys) {
-			try {
-				const rawHistory = storageService.get(key, StorageScope.APPLICATION, '');
-				const history = JSON.parse(rawHistory);
-
-				if (Array.isArray(history)) {
-					if (history.length === 0 || (history.length === 1 && history[0] === '')) {
-						// remove empty histories
-						storageService.remove(key, StorageScope.APPLICATION);
-					} else {
-						// migrate existing histories to have a timestamp
-						storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
-					}
-				} else {
-					// move to MACHINE target
-					storageService.store(key, rawHistory, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				}
-			} catch {
-				// remove unparseable entries
-				storageService.remove(key, StorageScope.APPLICATION);
-			}
-		}
-
-		// Garbage collect
-		const machineKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
-
-		for (const key of machineKeys) {
-			try {
-				const history = JSON.parse(storageService.get(key, StorageScope.APPLICATION, ''));
-
-				if (Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000) {
-					// garbage collect after 30 days
-					storageService.remove(key, StorageScope.APPLICATION);
-				}
-			} catch {
-				// remove unparseable entries
-				storageService.remove(key, StorageScope.APPLICATION);
-			}
-		}
-
-		SCMInput.didGarbageCollect = true;
-	}
+	private readonly historyNavigator: HistoryNavigator2<string>;
+	private didChangeHistory: boolean = false;
 
 	constructor(
 		readonly repository: ISCMRepository,
-		@IStorageService private storageService: IStorageService
+		private readonly history: SCMInputHistory
 	) {
-		SCMInput.migrateAndGarbageCollectStorage(storageService);
-
-		const key = this.repository.provider.rootUri ? `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}` : undefined;
-		let history: string[] | undefined;
-
-		if (key) {
-			try {
-				history = JSON.parse(this.storageService.get(key, StorageScope.APPLICATION, '')).history;
-				history = history?.map(s => s ?? '');
-			} catch {
-				// noop
-			}
-		}
-
-		if (!Array.isArray(history) || history.length === 0) {
-			history = [this._value];
-		} else {
-			this._value = history[history.length - 1];
-		}
-
-		this.historyNavigator = new HistoryNavigator2(history, 50);
-		this.didChangeHistory = false;
-
-		if (key) {
-			this.storageService.onWillSaveState(_ => {
+		if (this.repository.provider.rootUri) {
+			this.historyNavigator = history.getHistory(this.repository.provider.rootUri);
+			this.history.onWillSaveHistory(event => {
 				if (this.historyNavigator.isAtEnd()) {
 					this.saveValue();
 				}
 
-				if (!this.didChangeHistory) {
-					return;
+				if (this.didChangeHistory) {
+					event.historyDidIndeedChange();
 				}
 
-				const history = [...this.historyNavigator].map(s => s ?? '');
-
-				if (history.length === 0 || (history.length === 1 && history[0] === '')) {
-					storageService.remove(key, StorageScope.APPLICATION);
-				} else {
-					storageService.store(key, JSON.stringify({ timestamp: new Date().getTime(), history }), StorageScope.APPLICATION, StorageTarget.MACHINE);
-				}
 				this.didChangeHistory = false;
 			});
+		} else { // in memory only
+			this.historyNavigator = new HistoryNavigator2([''], 100);
 		}
+
+		this._value = this.historyNavigator.current();
 	}
 
 	setValue(value: string, transient: boolean, reason?: SCMInputChangeReason) {
@@ -253,14 +178,16 @@ class SCMRepository implements ISCMRepository {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput(this, this.storageService);
+	readonly input: ISCMInput;
 
 	constructor(
 		public readonly id: string,
 		public readonly provider: ISCMProvider,
 		private disposable: IDisposable,
-		@IStorageService private storageService: IStorageService
-	) { }
+		inputHistory: SCMInputHistory
+	) {
+		this.input = new SCMInput(this, inputHistory);
+	}
 
 	setSelected(selected: boolean): void {
 		if (this._selected === selected) {
@@ -277,6 +204,113 @@ class SCMRepository implements ISCMRepository {
 	}
 }
 
+class WillSaveHistoryEvent {
+	private _didChangeHistory = false;
+	get didChangeHistory() { return this._didChangeHistory; }
+	historyDidIndeedChange() { this._didChangeHistory = true; }
+}
+
+class SCMInputHistory {
+
+	private disposables = new DisposableStore();
+	private histories = new ResourceMap<HistoryNavigator2<string>>();
+
+	private readonly _onDidChangeHistory = this.disposables.add(new Emitter<void>());
+	readonly onDidChangeHistory = this._onDidChangeHistory.event;
+
+	private readonly _onWillSaveHistory = this.disposables.add(new Emitter<WillSaveHistoryEvent>());
+	readonly onWillSaveHistory = this._onWillSaveHistory.event;
+
+	constructor(
+		@IStorageService private storageService: IStorageService
+	) {
+		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.history', this.disposables)(e => {
+			if (e.external && e.key === 'scm.history') {
+				this.restoreFromStorage();
+			}
+		}));
+
+		this.disposables.add(this.storageService.onWillSaveState(_ => {
+			const event = new WillSaveHistoryEvent();
+			this._onWillSaveHistory.fire(event);
+
+			if (event.didChangeHistory) {
+				this.saveToStorage();
+			}
+		}));
+
+		this.restoreFromStorage();
+	}
+
+	private saveToStorage(): void {
+		const nonEmptyHistories = Iterable.filter(this.histories, ([_, history]) => !(history.size === 1 && history.current() === ''));
+		const raw = [...Iterable.map(nonEmptyHistories, ([uri, history]) => [uri, [...history]])];
+		this.storageService.store('scm.history', raw, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private restoreFromStorage(): void {
+		const entries = this.storageService.getObject<[URI, string[]][]>('scm.history', StorageScope.WORKSPACE, [])
+			.map<[URI, HistoryNavigator2<string>]>(([uri, history]) => [uri, new HistoryNavigator2(history, 100)]);
+
+		this.histories = new ResourceMap(entries);
+		this._onDidChangeHistory.fire();
+	}
+
+	getHistory(rootUri: URI): HistoryNavigator2<string> {
+		let result = this.histories.get(rootUri);
+
+		if (!result) {
+			result = new HistoryNavigator2([''], 100);
+			this.histories.set(rootUri, result);
+		}
+
+		return result;
+	}
+
+	dispose() {
+		this._onDidChangeHistory.dispose();
+	}
+}
+
+const didMigrate = false;
+
+// Migrates from Application scope storage to Workspace scope.
+// TODO@joaomoreno: Remove from January 2024 onwards.
+function migrateStorage(storageService: IStorageService) {
+	if (didMigrate) {
+		return;
+	}
+
+	// /**
+	//  */
+	// private static migrateStorage(storageService: IStorageService): void {
+	// 	if (SCMService.DidMigrate) {
+	// 		return;
+	// 	}
+
+	// 	// Garbage collect
+	// 	const machineKeys = Iterable.filter(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
+
+	// 	for (const key of machineKeys) {
+	// 		try {
+	// 			const history = JSON.parse(storageService.get(key, StorageScope.APPLICATION, ''));
+
+	// 			if (!(Array.isArray(history?.history) && Number.isInteger(history?.timestamp) && new Date().getTime() - history?.timestamp > 2592000000)) {
+	// 				// migrate key
+	// 			}
+	// 		} finally {
+	// 			storageService.remove(key, StorageScope.APPLICATION);
+	// 		}
+	// 	}
+
+	// 	const history =
+
+	// 	storageService.store('scm.history', '', StorageScope.WORKSPACE, StorageTarget.USER);
+
+	// 	SCMService.DidMigrate = true;
+	// }
+}
+
 export class SCMService implements ISCMService {
 
 	declare readonly _serviceBrand: undefined;
@@ -285,6 +319,7 @@ export class SCMService implements ISCMService {
 	get repositories(): Iterable<ISCMRepository> { return this._repositories.values(); }
 	get repositoryCount(): number { return this._repositories.size; }
 
+	private inputHistory: SCMInputHistory;
 	private providerCount: IContextKey<number>;
 
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
@@ -296,8 +331,10 @@ export class SCMService implements ISCMService {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService storageService: IStorageService
 	) {
+		migrateStorage(storageService);
+		this.inputHistory = new SCMInputHistory(storageService);
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
 	}
 
@@ -314,7 +351,7 @@ export class SCMService implements ISCMService {
 			this.providerCount.set(this._repositories.size);
 		});
 
-		const repository = new SCMRepository(provider.id, provider, disposable, this.storageService);
+		const repository = new SCMRepository(provider.id, provider, disposable, this.inputHistory);
 		this._repositories.set(provider.id, repository);
 		this._onDidAddProvider.fire(repository);
 
