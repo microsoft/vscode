@@ -240,6 +240,21 @@ class CommentingRangeDecorator {
 		}
 	}
 
+	private areRangesIntersectingOrTouchingByLine(a: Range, b: Range) {
+		// Check if `a` is before `b`
+		if (a.endLineNumber < b.startLineNumber) {
+			return false;
+		}
+
+		// Check if `b` is before `a`
+		if (b.endLineNumber < a.startLineNumber) {
+			return false;
+		}
+
+		// These ranges must intersect
+		return true;
+	}
+
 	public getMatchedCommentAction(commentRange: Range | undefined): CommentRangeAction[] {
 		if (commentRange === undefined) {
 			const foundInfos = this._infos?.filter(info => info.commentingRanges.fileComments);
@@ -260,7 +275,7 @@ class CommentingRangeDecorator {
 		const foundHoverActions = new Map<string, { range: Range; action: CommentRangeAction }>();
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
-			if (range && ((range.startLineNumber <= commentRange.startLineNumber) || (commentRange.endLineNumber <= range.endLineNumber))) {
+			if (range && this.areRangesIntersectingOrTouchingByLine(range, commentRange)) {
 				// We can have several commenting ranges that match from the same owner because of how
 				// the line hover and selection decoration is done.
 				// The ranges must be merged so that we can see if the new commentRange fits within them.
@@ -863,6 +878,9 @@ export class CommentController implements IEditorContribution {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
+			if (!newCommentInfos.length) {
+				throw new Error('There are no commenting ranges at the current position.');
+			}
 			return Promise.resolve();
 		}
 
