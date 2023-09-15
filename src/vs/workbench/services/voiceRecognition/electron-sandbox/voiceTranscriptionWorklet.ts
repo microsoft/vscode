@@ -13,6 +13,7 @@ declare class AudioWorkletProcessor {
 interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
 	processorOptions: {
 		readonly bufferTimespan: number;
+		readonly vadThreshold: number;
 	};
 }
 
@@ -22,6 +23,7 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 	private stopped: boolean = false;
 
 	private buffer: Float32Array[] = [];
+	private text = '';
 
 	private sharedProcessConnection: MessagePort | undefined = undefined;
 
@@ -43,7 +45,7 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 						}
 
 						if (typeof event.data === 'string') {
-							this.port.postMessage(event.data);
+							this.processText(event.data);
 						}
 					};
 
@@ -63,6 +65,11 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 		};
 	}
 
+	private processText(text: string = this.text): void {
+		this.text = text;
+		this.port.postMessage(this.text);
+	}
+
 	override process(inputs: [Float32Array[]]): boolean {
 		if (this.startTime === undefined) {
 			this.startTime = Date.now();
@@ -76,15 +83,42 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 		this.buffer.push(inputChannelData.slice(0));
 
 		if (Date.now() - this.startTime > this.options.processorOptions.bufferTimespan && this.sharedProcessConnection) {
-			const buffer = this.buffer;
+			const buffer = this.joinFloat32Arrays(this.buffer);
 			this.buffer = [];
 
-			this.sharedProcessConnection.postMessage(buffer);
+			if (!this.appearsToBeSilence(buffer)) {
+				this.sharedProcessConnection.postMessage(buffer);
+			} else {
+				this.processText();
+			}
 
 			this.startTime = Date.now();
 		}
 
 		return !this.stopped;
+	}
+
+	private appearsToBeSilence(data: Float32Array): boolean {
+		let sum = 0;
+		for (let i = 0; i < data.length; i++) {
+			sum += data[i] * data[i];
+		}
+
+		const rms = Math.sqrt(sum / data.length);
+
+		return rms < this.options.processorOptions.vadThreshold;
+	}
+
+	private joinFloat32Arrays(float32Arrays: Float32Array[]): Float32Array {
+		const result = new Float32Array(float32Arrays.reduce((prev, curr) => prev + curr.length, 0));
+
+		let offset = 0;
+		for (const float32Array of float32Arrays) {
+			result.set(float32Array, offset);
+			offset += float32Array.length;
+		}
+
+		return result;
 	}
 }
 

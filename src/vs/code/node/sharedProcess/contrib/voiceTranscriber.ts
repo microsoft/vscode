@@ -69,18 +69,11 @@ class VoiceTranscriber extends Disposable {
 	}
 
 	private async handleRequest(e: MessageEvent, cancellation: CancellationToken): Promise<void> {
-		if (!(Array.isArray(e.data))) {
+		if (!(e.data instanceof Float32Array)) {
 			return;
 		}
 
-		const newData: Float32Array[] = [];
-		for (const channelData of e.data) {
-			if (channelData instanceof Float32Array) {
-				newData.push(channelData);
-			}
-		}
-
-		const dataCandidate = this.joinFloat32Arrays(this.data ? [this.data, ...newData] : newData);
+		const dataCandidate = this.data ? this.joinFloat32Arrays([this.data, e.data]) : e.data;
 
 		if (dataCandidate.length > VoiceTranscriber.MAX_DATA_LENGTH) {
 			this.logService.warn(`[voice] transcriber: refusing to accept more than 30s of audio data`);
