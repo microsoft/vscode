@@ -315,7 +315,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		const currentProfile = await this.getCurrentProfile(workspace, userDataProfilesService, environmentService);
-		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(currentProfile);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Remote Agent
