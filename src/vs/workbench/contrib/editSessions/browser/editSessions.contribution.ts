@@ -448,6 +448,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
 				const data = await that.quickInputService.input({ prompt: 'Enter serialized data' });
+				if (data) {
+					that.editSessionsStorageService.lastReadResources.set('editSessions', { content: data, ref: '' });
+				}
 				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, undefined, undefined, undefined, data));
 			}
 		}));

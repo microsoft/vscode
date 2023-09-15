@@ -59,7 +59,6 @@ suite('KeybindingsEditing', () => {
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
-		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService()))));
 
 		const userFolder = joinPath(ROOT, 'User');
 		await fileService.createFolder(userFolder);
@@ -67,8 +66,10 @@ suite('KeybindingsEditing', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
-		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, disposables.add(new UriIdentityService(fileService)), logService));
-		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
 
 		instantiationService = workbenchInstantiationService({
 			fileService: () => fileService,

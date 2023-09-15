@@ -55,9 +55,10 @@ suite('FileUserDataProvider', () => {
 		await testObject.createFolder(backupWorkspaceHomeOnDisk);
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
-		userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, testObject, disposables.add(new UriIdentityService(testObject)), logService));
+		const uriIdentityService = disposables.add(new UriIdentityService(testObject));
+		userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, testObject, uriIdentityService, logService));
 
-		fileUserDataProvider = disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService));
+		fileUserDataProvider = disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
 		disposables.add(fileUserDataProvider);
 		disposables.add(testObject.registerProvider(Schemas.vscodeUserData, fileUserDataProvider));
 	});
@@ -313,8 +314,14 @@ suite('FileUserDataProvider - Watching', () => {
 	let fileEventEmitter: Emitter<readonly IFileChange[]>;
 
 	setup(() => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const environmentService = new TestEnvironmentService(rootFileResource);
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+
 		fileEventEmitter = disposables.add(new Emitter<readonly IFileChange[]>());
-		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, new NullLogService()));
+		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());

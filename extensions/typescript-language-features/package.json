@@ -1275,6 +1275,12 @@
           "default": false,
           "description": "%configuration.preferGoToSourceDefinition%",
           "scope": "window"
+        },
+        "typescript.workspaceSymbols.excludeLibrarySymbols": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%typescript.workspaceSymbols.excludeLibrarySymbols%",
+          "scope": "window"
         }
       }
     },

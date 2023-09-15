@@ -3981,6 +3981,11 @@ declare namespace monaco.editor {
 		 */
 		sticky?: boolean;
 		/**
+		 * Controls how long the hover is visible after you hovered out of it.
+		 * Require sticky setting to be true.
+		 */
+		hidingDelay?: number;
+		/**
 		 * Should the hover be shown above the line if possible?
 		 * Defaults to false.
 		 */
@@ -7615,6 +7620,13 @@ declare namespace monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
+	}
+
+	export interface PendingCommentThread {
+		body: string;
+		range: IRange;
+		uri: Uri;
+		owner: string;
 	}
 
 	export interface CodeLens {
