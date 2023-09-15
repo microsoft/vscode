@@ -237,7 +237,10 @@ export class ExtHostTelemetryLogger {
 		if ('properties' in data) {
 			data.properties = updatedData;
 		} else {
-			data = updatedData;
+			data = {
+				...data,
+				properties: updatedData
+			};
 		}
 
 		return data;
