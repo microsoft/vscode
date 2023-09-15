@@ -98,7 +98,7 @@ export class MouseHandler extends ViewEventHandler {
 			// remove this listener
 
 			if (!this._mouseLeaveMonitor) {
-				this._mouseLeaveMonitor = dom.addDisposableListener(document, 'mousemove', (e) => {
+				this._mouseLeaveMonitor = dom.addDisposableListener(this.viewHelper.viewDomNode.ownerDocument, 'mousemove', (e) => {
 					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
 						// went outside the editor!
 						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));

@@ -60,9 +60,9 @@ import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryServi
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, IUserDataSyncUtilService, registerConfiguration as registerUserDataSyncConfiguration, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
+import { UserDataSyncLocalStoreService } from 'vs/platform/userDataSync/common/userDataSyncLocalStoreService';
 import { UserDataAutoSyncChannel, UserDataSyncAccountServiceChannel, UserDataSyncMachinesServiceChannel, UserDataSyncStoreManagementServiceChannel, UserDataSyncUtilServiceClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
@@ -223,6 +223,14 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// URI Identity
+		const uriIdentityService = new UriIdentityService(fileService);
+		services.set(IUriIdentityService, uriIdentityService);
+
+		// User Data Profiles
+		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
+		services.set(IUserDataProfilesService, userDataProfilesService);
+
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(
 			Schemas.file,
 			// Specifically for user data, use the disk file system provider
@@ -231,13 +239,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
 			Schemas.vscodeUserData,
+			userDataProfilesService,
+			uriIdentityService,
 			logService
 		));
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
-
-		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
-		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, policyService, logService));
@@ -253,10 +259,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			configurationService.initialize(),
 			storageService.initialize()
 		]);
-
-		// URI Identity
-		const uriIdentityService = new UriIdentityService(fileService);
-		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
 		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
@@ -340,7 +342,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IUserDataSyncStoreManagementService, new SyncDescriptor(UserDataSyncStoreManagementService, undefined, true));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService, undefined, true));
 		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService, undefined, true));
-		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService, undefined, false /* Eagerly cleans up old backups */));
+		services.set(IUserDataSyncLocalStoreService, new SyncDescriptor(UserDataSyncLocalStoreService, undefined, false /* Eagerly cleans up old backups */));
 		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService, undefined, true));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService, undefined, false /* Initializes the Sync State */));
 		services.set(IUserDataProfileStorageService, new SyncDescriptor(NativeUserDataProfileStorageService, undefined, true));
@@ -413,6 +415,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const userDataAutoSync = this._register(accessor.get(IInstantiationService).createInstance(UserDataAutoSyncService));
 		const userDataAutoSyncChannel = new UserDataAutoSyncChannel(userDataAutoSync);
 		this.server.registerChannel('userDataAutoSync', userDataAutoSyncChannel);
+
+		this.server.registerChannel('IUserDataSyncResourceProviderService', ProxyChannel.fromService(accessor.get(IUserDataSyncResourceProviderService), disposables));
 
 		// Tunnel
 		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService), disposables);

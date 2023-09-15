@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -23,10 +24,11 @@ suite('ChatModel', () => {
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 	});
 
 	test('Waits for initialization', async () => {
-		const model = testDisposables.add(new ChatModel('provider', undefined, new NullLogService()));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
 
 		let hasInitialized = false;
 		model.waitForInitialization().then(() => {
@@ -42,7 +44,7 @@ suite('ChatModel', () => {
 	});
 
 	test('Initialization fails when model is disposed', async () => {
-		const model = testDisposables.add(new ChatModel('provider', undefined, new NullLogService()));
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
 		model.dispose();
 
 		await assert.rejects(() => model.waitForInitialization());
