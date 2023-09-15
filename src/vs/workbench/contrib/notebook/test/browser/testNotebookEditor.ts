@@ -430,7 +430,7 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 	};
 
 	const notebookOptions = !!viewContext ? viewContext.notebookOptions
-		: new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false);
+		: disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false));
 	const cellList: NotebookCellList = disposables.add(instantiationService.createInstance(
 		NotebookCellList,
 		'NotebookCellList',
