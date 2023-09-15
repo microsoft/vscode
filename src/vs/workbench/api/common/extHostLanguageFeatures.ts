@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { equals, mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, CodeActionTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, CodeActionTriggerKind, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -33,9 +33,10 @@ import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
-import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { localize } from 'vs/nls';
+import { IAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 
 // --- adapter
 
@@ -2564,6 +2565,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
 	}
 
+	private static _serializeAutoClosingPair(autoClosingPair: vscode.AutoClosingPair): IAutoClosingPairConditional {
+		return {
+			open: autoClosingPair.open,
+			close: autoClosingPair.close,
+			notIn: autoClosingPair.notIn ? autoClosingPair.notIn.map(v => SyntaxTokenType.toString(v)) : undefined,
+		};
+	}
+
+	private static _serializeAutoClosingPairs(autoClosingPairs: vscode.AutoClosingPair[]): IAutoClosingPairConditional[] {
+		return autoClosingPairs.map(ExtHostLanguageFeatures._serializeAutoClosingPair);
+	}
+
 	setLanguageConfiguration(extension: IExtensionDescription, languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
 		const { wordPattern } = configuration;
 
@@ -2589,10 +2602,6 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				`Do not use.`);
 		}
 
-		if (configuration.autoClosingPairs) {
-			checkProposedApiEnabled(extension, 'languageConfigurationAutoClosingPairs');
-		}
-
 		const handle = this._nextHandle();
 		const serializedConfiguration: extHostProtocol.ILanguageConfigurationDto = {
 			comments: configuration.comments,
@@ -2602,7 +2611,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			onEnterRules: configuration.onEnterRules ? ExtHostLanguageFeatures._serializeOnEnterRules(configuration.onEnterRules) : undefined,
 			__electricCharacterSupport: configuration.__electricCharacterSupport,
 			__characterPairSupport: configuration.__characterPairSupport,
-			autoClosingPairs: configuration.autoClosingPairs
+			autoClosingPairs: configuration.autoClosingPairs ? ExtHostLanguageFeatures._serializeAutoClosingPairs(configuration.autoClosingPairs) : undefined,
 		};
 
 		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
