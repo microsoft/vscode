@@ -25,6 +25,8 @@ import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { TerminalQuickFix, ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -416,6 +418,31 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
 		this._proxy.$registerProcessSupport(supportsProcesses);
+		this._extHostCommands.registerArgumentProcessor({
+			processArgument: arg => {
+				const deserialize = (arg: any) => {
+					const cast = arg as ISerializedTerminalInstanceContext;
+					return this._getTerminalById(cast.instanceId)?.value;
+				};
+				switch (arg?.$mid) {
+					case MarshalledId.TerminalContext: return deserialize(arg);
+					default: {
+						// Do array transformation in place as this is a hot path
+						if (Array.isArray(arg)) {
+							for (let i = 0; i < arg.length; i++) {
+								if (arg[i].$mid === MarshalledId.TerminalContext) {
+									arg[i] = deserialize(arg[i]);
+								} else {
+									// Probably something else, so exit early
+									break;
+								}
+							}
+						}
+						return arg;
+					}
+				}
+			}
+		});
 		this._register({
 			dispose: () => {
 				for (const [_, terminalProcess] of this._terminalProcesses) {
