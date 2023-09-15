@@ -29,7 +29,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
 	private debuggerWhen: ContextKeyExpression | undefined;
-	private debuggerWhenDeemphasize: ContextKeyExpression | undefined;
+	private debuggerHiddenWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -46,7 +46,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		this.merge(dbgContribution, extensionDescription);
 
 		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
-		this.debuggerWhenDeemphasize = typeof this.debuggerContribution.whenDeemphasize === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.whenDeemphasize) : undefined;
+		this.debuggerHiddenWhen = typeof this.debuggerContribution.hiddenWhen === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.hiddenWhen) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -149,8 +149,8 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		return this.debuggerWhen;
 	}
 
-	get whenDemphasis(): ContextKeyExpression | undefined {
-		return this.debuggerWhenDeemphasize;
+	get hiddenWhen(): ContextKeyExpression | undefined {
+		return this.debuggerHiddenWhen;
 	}
 
 	get enabled() {
@@ -158,10 +158,10 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	}
 
 	get isHiddenFromDropdown() {
-		if (!this.debuggerWhenDeemphasize) {
+		if (!this.debuggerHiddenWhen) {
 			return false;
 		}
-		return this.contextKeyService.contextMatchesRules(this.debuggerWhenDeemphasize);
+		return this.contextKeyService.contextMatchesRules(this.debuggerHiddenWhen);
 	}
 
 	get strings() {
