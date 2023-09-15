@@ -385,7 +385,7 @@ export interface ITerminalStatusHoverAction {
  */
 export interface ISerializedTerminalInstanceContext {
 	$mid: MarshalledId.TerminalContext;
-	instanceIds: number[];
+	instanceId: number;
 }
 
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';

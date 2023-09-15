@@ -420,12 +420,23 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._extHostCommands.registerArgumentProcessor({
 			processArgument: arg => {
+				const deserialize = (arg: any) => {
+					const cast = arg as ISerializedTerminalInstanceContext;
+					return this._getTerminalById(cast.instanceId)?.value;
+				};
 				switch (arg?.$mid) {
-					case MarshalledId.TerminalContext: {
-						const cast = arg as ISerializedTerminalInstanceContext;
-						return cast.instanceIds.map(id => this._getTerminalById(id));
+					case MarshalledId.TerminalContext: return deserialize(arg);
+					default: {
+						if (Array.isArray(arg)) {
+							return arg.map(e => {
+								switch (e?.$mid) {
+									case MarshalledId.TerminalContext: return deserialize(e);
+									default: return e;
+								}
+							});
+						}
+						return arg;
 					}
-					default: return arg;
 				}
 			}
 		});
