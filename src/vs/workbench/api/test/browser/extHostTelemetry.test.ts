@@ -183,7 +183,7 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(functionSpy.dataArr.length, 1);
 		assert.strictEqual(functionSpy.dataArr[0].eventName, `${mockExtensionIdentifier.name}/test-event`);
 		assert.strictEqual(functionSpy.dataArr[0].data['test-data'], 'test-data');
-		assert.strictEqual(functionSpy.dataArr[0].data['common.foo'], 'bar');
+		assert.strictEqual(functionSpy.dataArr[0].data.properties['common.foo'], 'bar');
 
 		logger.logUsage('test-event', { 'test-data': 'test-data' });
 		assert.strictEqual(functionSpy.dataArr.length, 2);
@@ -218,6 +218,9 @@ suite('ExtHostTelemetry', function () {
 			'fake-token': 'token=123',
 			'fake-slack-token': 'xoxp-123',
 			'fake-path': '/Users/username/.vscode/extensions',
+			properties: {
+				'deep-fake-password': 'pwd=123'
+			}
 		});
 
 		assert.strictEqual(functionSpy.dataArr.length, 1);
@@ -227,6 +230,7 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(functionSpy.dataArr[0].data['fake-token'], '<REDACTED: Generic Secret>');
 		assert.strictEqual(functionSpy.dataArr[0].data['fake-slack-token'], '<REDACTED: Slack Token>');
 		assert.strictEqual(functionSpy.dataArr[0].data['fake-path'], '<REDACTED: user-file-path>');
+		assert.strictEqual(functionSpy.dataArr[0].data.properties['deep-fake-password'], '<REDACTED: Generic Secret>');
 	});
 
 	test('Ensure output channel is logged to', function () {
