@@ -558,12 +558,10 @@ class PopEditorPartOutAction extends Action2 {
 			editorPart.layout(dim.width, dim.height, 0, 0);
 		}
 
-		// TODO: immediately when creating the window, it does not have a size yet
-		// layout();
 		disposables.add(addDisposableListener(childWindow, EventType.RESIZE, () => layout()));
+		disposables.add(addDisposableListener(childWindow, 'close', () => disposables.dispose()));
 
 		disposables.add(registerWindow(childWindow));
-		disposables.add(addDisposableListener(childWindow, 'close', () => disposables.dispose()));
 	}
 }
 
