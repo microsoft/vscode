@@ -668,12 +668,21 @@ declare module 'vscode' {
 		/**
 		 * The size in spaces a tab takes. This is used for two purposes:
 		 *  - the rendering width of a tab character;
-		 *  - the number of spaces to insert when {@link TextEditorOptions.insertSpaces insertSpaces} is true.
+		 *  - the number of spaces to insert when {@link TextEditorOptions.insertSpaces insertSpaces} is true
+		 *    and `indentSize` is set to `"tabSize"`.
 		 *
 		 * When getting a text editor's options, this property will always be a number (resolved).
 		 * When setting a text editor's options, this property is optional and it can be a number or `"auto"`.
 		 */
 		tabSize?: number | string;
+
+		/**
+		 * The number of spaces to insert when {@link TextEditorOptions.insertSpaces insertSpaces} is true.
+		 *
+		 * When getting a text editor's options, this property will always be a number (resolved).
+		 * When setting a text editor's options, this property is optional and it can be a number or `"tabSize"`.
+		 */
+		indentSize?: number | string;
 
 		/**
 		 * When pressing Tab insert {@link TextEditorOptions.tabSize n} spaces.
@@ -2464,6 +2473,24 @@ declare module 'vscode' {
 		 * They should not suppress errors or perform unsafe fixes such as generating new types or classes.
 		 */
 		static readonly SourceFixAll: CodeActionKind;
+
+		/**
+		 * Base kind for all code actions applying to the enitre notebook's scope. CodeActionKinds using
+		 * this should always begin with `notebook.`
+		 *
+		 * This requires that new CodeActions be created for it and contributed via extensions.
+		 * Pre-existing kinds can not just have the new `notebook.` prefix added to them, as the functionality
+		 * is unique to the full-notebook scope.
+		 *
+		 * Notebook CodeActionKinds can be initialized as either of the following (both resulting in `notebook.source.xyz`):
+		 * - `const newKind =  CodeActionKind.Notebook.append(CodeActionKind.Source.append('xyz').value)`
+		 * - `const newKind =  CodeActionKind.Notebook.append('source.xyz')`
+		 *
+		 * Example Kinds/Actions:
+		 * - `notebook.source.organizeImports` (might move all imports to a new top cell)
+		 * - `notebook.source.normalizeVariableNames` (might rename all variables to a standardized casing format)
+		 */
+		static readonly Notebook: CodeActionKind;
 
 		/**
 		 * Private constructor, use statix `CodeActionKind.XYZ` to derive from an existing code action kind.
