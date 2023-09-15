@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -290,10 +291,11 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 		}
 	}
 
-	if (document.activeElement) {
+	const activeElement = getActiveElement();
+	if (activeElement) {
 		for (const d of diffEditors) {
 			const container = d.getContainerDomNode();
-			if (isElementOrParentOf(container, document.activeElement)) {
+			if (isElementOrParentOf(container, activeElement)) {
 				return d;
 			}
 		}

@@ -675,7 +675,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		);
 
 		if (overflowing || this._hover.containerDomNode.clientWidth < initialWidth) {
-			const bodyBoxWidth = dom.getClientArea(document.body).width;
+			const bodyBoxWidth = dom.getClientArea(this._hover.containerDomNode.ownerDocument.body).width;
 			const horizontalPadding = 14;
 			return bodyBoxWidth - horizontalPadding;
 		} else {
