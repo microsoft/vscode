@@ -444,7 +444,7 @@ class AgentCompletions extends Disposable {
 						return <CompletionItem>{
 							label: withSlash,
 							insertText: `@${a.id} ${withSlash} `,
-							detail: c.description,
+							detail: `(@${a.id}) ${c.description}`,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
