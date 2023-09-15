@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -63,10 +63,54 @@ export class PreviousCommentThreadAction extends EditorAction {
 	}
 }
 
-
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
+
+export class NextCommentingRangeAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.goToNextCommentingRange',
+			label: nls.localize('goToNextCommentingRange', "Go to Next Commenting Range"),
+			alias: 'Go to Next Commenting Range',
+			precondition: WorkspaceHasCommenting,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = CommentController.get(editor);
+		controller?.nextCommentingRange();
+	}
+}
+
+export class PreviousCommentingRangeAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.goToPreviousCommentingRange',
+			label: nls.localize('goToPreviousCommentingRange', "Go to Previous Commenting Range"),
+			alias: 'Go to Next Commenting Range',
+			precondition: WorkspaceHasCommenting,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = CommentController.get(editor);
+		controller?.previousCommentingRange();
+	}
+}
+
+registerEditorAction(NextCommentingRangeAction);
+registerEditorAction(PreviousCommentingRangeAction);
 
 const TOGGLE_COMMENTING_COMMAND = 'workbench.action.toggleCommenting';
 CommandsRegistry.registerCommand({
@@ -111,7 +155,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 	},
 	weight: KeybindingWeight.EditorContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC),
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
