@@ -29,7 +29,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { EventType, addDisposableListener, getClientArea, isHTMLElement } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, isHTMLElement, registerWindow } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -38,6 +38,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { FileAccess } from 'vs/base/common/network';
 import { assertIsDefined } from 'vs/base/common/types';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -442,6 +443,8 @@ class PopEditorPartOutAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
+		const disposables = new DisposableStore();
+
 		const refs = window.open('about:blank');
 		const childWindow = assertIsDefined(refs?.window);
 
@@ -546,6 +549,8 @@ class PopEditorPartOutAction extends Action2 {
 		}
 
 		const editorPart = layoutService.getPart(Parts.EDITOR_PART);
+		const initialParent = editorPart.element.parentElement;
+		disposables.add(toDisposable(() => initialParent?.appendChild(editorPart.element)));
 		workbenchContainer.appendChild(editorPart.element);
 
 		function layout() {
@@ -554,7 +559,10 @@ class PopEditorPartOutAction extends Action2 {
 		}
 
 		layout();
-		addDisposableListener(childWindow, EventType.RESIZE, () => layout());
+		disposables.add(addDisposableListener(childWindow, EventType.RESIZE, () => layout()));
+
+		disposables.add(registerWindow(childWindow));
+		disposables.add(addDisposableListener(childWindow, 'close', () => disposables.dispose()));
 	}
 }
 
