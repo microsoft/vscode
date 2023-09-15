@@ -161,7 +161,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
-		const context: IEditorCommandsContext = { groupId: this.tabsModel.id };
+		const context: IEditorCommandsContext = { groupId: this.groupViewer.id };
 
 		// Toolbar Widget
 
@@ -239,7 +239,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
 			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
-			this.groupLockedContext.set(this.tabsModel.isLocked);
+			this.groupLockedContext.set(this.groupViewer.isLocked);
 		});
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
@@ -283,7 +283,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			}
 
 			// Set editor group as transfer
-			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.tabsModel.id)], DraggedEditorGroupIdentifier.prototype);
+			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupViewer.id)], DraggedEditorGroupIdentifier.prototype);
 			if (e.dataTransfer) {
 				e.dataTransfer.effectAllowed = 'copyMove';
 			}
@@ -296,14 +296,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 			// Otherwise only drag the active editor
 			else {
-				if (this.tabsModel.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers([this.tabsModel.activeEditor], e);
+				if (this.groupViewer.activeEditor) {
+					hasDataTransfer = this.doFillResourceDataTransfers([this.groupViewer.activeEditor], e);
 				}
 			}
 
 			// Firefox: requires to set a text data transfer to get going
 			if (!hasDataTransfer && isFirefox) {
-				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.tabsModel.label));
+				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupViewer.label));
 			}
 
 			// Drag Image
@@ -325,7 +325,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.tabsModel.id })), e);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupViewer.id })), e);
 
 			return true;
 		}

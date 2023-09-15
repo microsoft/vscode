@@ -198,9 +198,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
 
-		if (this.accessor.partOptions.pinnedTabsSeparateRow) {
-			this.setVisibility(this.tabsModel.count > 0);
-		}
+		this.setVisibility(this.tabsModel.count > 0);
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -482,7 +480,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				menuId: MenuId.EditorTabsBarContext,
 				contextKeyService: this.contextKeyService,
 				menuActionOptions: { shouldForwardArgs: true },
-				getActionsContext: () => ({ groupId: this.tabsModel.id }),
+				getActionsContext: () => ({ groupId: this.groupViewer.id }),
 				getKeyBinding: action => this.getKeybinding(action),
 				onHide: () => this.groupViewer.focus()
 			});
@@ -517,7 +515,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private handleOpenedEditors(): boolean {
 
-		if (this.accessor.partOptions.pinnedTabsSeparateRow && this.tabsModel.count > 0) {
+		if (!this.visible && this.tabsModel.count > 0) {
 			this.setVisibility(true);
 		}
 
@@ -629,7 +627,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// No tabs to show
 		else {
-			if (this.accessor.partOptions.pinnedTabsSeparateRow) {
+			if (this.visible) {
 				this.setVisibility(false);
 			}
 
@@ -912,14 +910,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (e.button === 1 /* Middle Button*/) {
 				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
-				const editor = assertIsDefined(this.tabsModel.getEditorByIndex(tabIndex));
+				const editor = this.tabsModel.getEditorByIndex(tabIndex);
+				if (editor) {
+					if (preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.accessor.partOptions)) {
+						return;
+					}
 
-				if (preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.accessor.partOptions)) {
-					return;
+					this.blockRevealActiveTabOnce();
+					this.closeEditorAction.run({ groupId: this.tabsModel.id, editorIndex: this.groupViewer.getIndexOfEditor(editor) });
 				}
-
-				this.blockRevealActiveTabOnce();
-				this.closeEditorAction.run({ groupId: this.tabsModel.id, editorIndex: this.groupViewer.getIndexOfEditor(editor) });
 			}
 		}));
 
@@ -1081,7 +1080,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			onDragOver: (_, dragDuration) => {
 				if (dragDuration >= MultiEditorTabsControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
 					const draggedOverTab = this.tabsModel.getEditorByIndex(tabIndex);
-					if (draggedOverTab && this.groupViewer.activeEditor !== draggedOverTab) { // todo: CHECK IF TAB OR GROUP
+					if (draggedOverTab && this.tabsModel.activeEditor !== draggedOverTab) {
 						this.groupViewer.openEditor(draggedOverTab, { preserveFocus: true });
 					}
 				}
@@ -1526,7 +1525,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private redrawTabBorders(tabIndex: number, tabContainer: HTMLElement): void {
-		// TODO, what do we do here?
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
 		const isTabLastSticky = isTabSticky && this.tabsModel.stickyCount === tabIndex + 1;
 
@@ -1584,35 +1582,31 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	layout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
-		if (!this.visible) {
-			if (!this.dimensions.used) {
-				this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
-			}
-			return this.dimensions.used;
-		}
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
 
-		// The layout of tabs can be an expensive operation because we access DOM properties
-		// that can result in the browser doing a full page layout to validate them. To buffer
-		// this a little bit we try at least to schedule this work on the next animation frame.
-		if (!this.layoutScheduler.value) {
-			const scheduledLayout = scheduleAtNextAnimationFrame(() => {
-				this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
+		if (this.visible) {
+			// The layout of tabs can be an expensive operation because we access DOM properties
+			// that can result in the browser doing a full page layout to validate them. To buffer
+			// this a little bit we try at least to schedule this work on the next animation frame.
+			if (!this.layoutScheduler.value) {
+				const scheduledLayout = scheduleAtNextAnimationFrame(() => {
+					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
-				this.layoutScheduler.clear();
-			});
+					this.layoutScheduler.clear();
+				});
 
-			this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
-		}
+				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
+			}
 
-		// Make sure to keep options updated
-		if (options?.forceRevealActiveTab) {
-			this.layoutScheduler.value.options = {
-				...this.layoutScheduler.value.options,
-				forceRevealActiveTab: true
-			};
+			// Make sure to keep options updated
+			if (options?.forceRevealActiveTab) {
+				this.layoutScheduler.value.options = {
+					...this.layoutScheduler.value.options,
+					forceRevealActiveTab: true
+				};
+			}
 		}
 
 		// First time layout: compute the dimensions and store it

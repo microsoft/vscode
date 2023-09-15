@@ -545,6 +545,14 @@ export interface IReadonlyEditorGroup {
 	readonly scopedContextKeyService: IContextKeyService;
 
 	/**
+	 * Get all editors that are currently opened in the group.
+	 *
+	 * @param order the order of the editors to use
+	 * @param options options to select only specific editors as instructed
+	 */
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
+
+	/**
 	 * Finds all editors for the given resource that are currently
 	 * opened in the group. This method will return an entry for
 	 * each editor that reports a `resource` that matches the
@@ -600,13 +608,6 @@ export interface IReadonlyEditorGroup {
 }
 
 export interface IMutableEditorGroup {
-	/**
-	 * Get all editors that are currently opened in the group.
-	 *
-	 * @param order the order of the editors to use
-	 * @param options options to select only specific editors as instructed
-	 */
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
 
 	/**
 	 * Open an editor in this group.

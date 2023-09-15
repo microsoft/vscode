@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorCloseEvent, IUntypedEditorInput, IVisibleEditorPane, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { IEditorCloseEvent, IUntypedEditorInput, IVisibleEditorPane, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Event } from 'vs/base/common/event';
@@ -16,7 +16,6 @@ export abstract class FilteredEditorGroup implements IReadonlyEditorGroup {
 	constructor(
 		protected readonly group: IReadonlyEditorGroup
 	) { }
-
 	onDidCloseEditor: Event<IEditorCloseEvent> = this.group.onDidCloseEditor;
 	onDidModelChange: Event<IGroupModelChangeEvent> = this.group.onDidModelChange;
 	onWillDispose: Event<void> = this.group.onWillDispose;
@@ -45,6 +44,10 @@ export abstract class FilteredEditorGroup implements IReadonlyEditorGroup {
 	isPinned: (editorOrIndex: number | EditorInput) => boolean = (e) => this.group.isPinned(e);
 	isSticky: (editorOrIndex: number | EditorInput) => boolean = (e) => this.group.isSticky(e);
 	isActive: (editor: EditorInput | IUntypedEditorInput) => boolean = (e) => this.group.isActive(e);
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean | undefined } | undefined): readonly EditorInput[] {
+		const editors = this.group.getEditors(order, options);
+		return editors.filter(e => this.contains(e));
+	}
 
 	abstract isLast: (editor: EditorInput) => boolean;
 	abstract getEditorByIndex: (index: number) => EditorInput | undefined;
@@ -61,6 +64,13 @@ export class StickyEditorGroupModel extends FilteredEditorGroup {
 	get activeEditorPane(): IVisibleEditorPane | undefined { return this.group.activeEditorPane && this.group.isSticky(this.group.activeEditorPane.input) ? this.group.activeEditorPane : undefined; }
 
 	override isSticky: (editorOrIndex: number | EditorInput) => boolean = (editorOrIndex: number | EditorInput) => { return true; };
+	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean | undefined } | undefined): readonly EditorInput[] {
+		if (options?.excludeSticky) {
+			return [];
+		}
+		return super.getEditors(order, options);
+	}
+
 	getEditorByIndex: (index: number) => EditorInput | undefined = (i) => this.group.getEditorByIndex(i);
 	getIndexOfEditor: (editor: EditorInput) => number = (e) => this.group.getIndexOfEditor(e);
 	isLast: (editor: EditorInput) => boolean = (editor: EditorInput) => { return this.group.getIndexOfEditor(editor) === this.group.stickyCount - 1; };

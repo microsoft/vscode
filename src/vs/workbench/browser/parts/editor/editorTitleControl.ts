@@ -44,7 +44,7 @@ export class EditorTitleControl extends Themable {
 		private parent: HTMLElement,
 		private accessor: IEditorGroupsAccessor,
 		private group: IEditorGroupView,
-		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
