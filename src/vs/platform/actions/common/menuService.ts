@@ -221,10 +221,16 @@ class MenuInfo {
 				MenuInfo._fillInKbExprKeys(toggledExpression, this._toggledContextKeys);
 			}
 
-		} else if (this._collectContextKeysForSubmenus) {
-			// recursively collect context keys from submenus so that this
-			// menu fires events when context key changes affect submenus
-			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeys, this);
+		} else {
+			// keep toggled keys for event if applicable
+			if (item.toggled) {
+				MenuInfo._fillInKbExprKeys(item.toggled, this._toggledContextKeys);
+			}
+			if (this._collectContextKeysForSubmenus) {
+				// recursively collect context keys from submenus so that this
+				// menu fires events when context key changes affect submenus
+				MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeys, this);
+			}
 		}
 	}
 

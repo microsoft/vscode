@@ -33,6 +33,7 @@ export interface ISubmenuItem {
 	order?: number;
 	isSelection?: boolean;
 	rememberDefaultAction?: boolean;	// for dropdown menu: if true the last executed action is remembered as the default action
+	toggled?: ContextKeyExpression;
 }
 
 export function isIMenuItem(item: any): item is IMenuItem {

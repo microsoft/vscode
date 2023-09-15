@@ -63,6 +63,7 @@ export interface IViewPaneOptions extends IPaneOptions {
 	readonly showActions?: ViewPaneShowActions;
 	readonly titleMenuId?: MenuId;
 	readonly donotForwardArgs?: boolean;
+	readonly highlightTitleMenuToggledItems?: boolean;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -200,6 +201,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private toolbar?: WorkbenchToolBar;
 	private readonly showActions: ViewPaneShowActions;
+	private readonly highlightTitleMenuToggledItems: boolean;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	private titleDescriptionContainer?: HTMLElement;
@@ -231,6 +233,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
 		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
+		this.highlightTitleMenuToggledItems = options.highlightTitleMenuToggledItems ?? false;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this.scopedContextKeyService.createKey('view', this.id);
@@ -308,7 +311,8 @@ export abstract class ViewPane extends Pane implements IView {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: true,
 			actionRunner: this.getActionRunner(),
-			resetMenu: this.menuActions.menuId
+			resetMenu: this.menuActions.menuId,
+			highlightToggledItems: this.highlightTitleMenuToggledItems
 		});
 
 		this._register(this.toolbar);

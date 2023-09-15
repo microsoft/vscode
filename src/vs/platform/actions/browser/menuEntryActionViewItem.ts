@@ -17,7 +17,7 @@ import 'vs/css!./menuEntryActionViewItem';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandAction, isICommandActionToggleInfo } from 'vs/platform/action/common/action';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -299,7 +299,8 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		options: IDropdownMenuActionViewItemOptions | undefined,
 		@IKeybindingService protected _keybindingService: IKeybindingService,
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
-		@IThemeService protected _themeService: IThemeService
+		@IThemeService protected _themeService: IThemeService,
+		@IContextKeyService protected _contextKeyService: IContextKeyService
 	) {
 		const dropdownOptions: IDropdownMenuActionViewItemOptions = {
 			...options,
@@ -317,6 +318,10 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
 		container.classList.add('menu-entry');
 		const action = <SubmenuItemAction>this._action;
+		const toggled: ContextKeyExpression | undefined = action.item.toggled;
+		if (toggled && toggled.evaluate(this._contextKeyService.getContext(container))) {
+			this.element.classList.add('checked');
+		}
 		const { icon } = action.item;
 		if (icon && !ThemeIcon.isThemeIcon(icon)) {
 			this.element.classList.add('icon');

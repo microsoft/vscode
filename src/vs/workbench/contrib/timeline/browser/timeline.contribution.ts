@@ -95,6 +95,7 @@ MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
 	submenu: MenuId.TimelineFilterSubMenu,
 	title: localize('filterTimeline', "Filter Timeline"),
 	group: 'navigation',
+	toggled: ContextKeyExpr.notEquals('timelineExcludeSources', '[]'),
 	order: 100,
 	icon: timelineFilter
 });
