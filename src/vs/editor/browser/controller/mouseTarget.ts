@@ -336,7 +336,7 @@ export class HitTestContext {
 	}
 
 	private static _findAttribute(element: Element, attr: string, stopAt: Element): string | null {
-		while (element && element !== document.body) {
+		while (element && element !== element.ownerDocument.body) {
 			if (element.hasAttribute && element.hasAttribute(attr)) {
 				return element.getAttribute(attr);
 			}
@@ -917,7 +917,7 @@ export class MouseTargetFactory {
 				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
-			range = (<any>document).caretRangeFromPoint(coords.clientX, coords.clientY);
+			range = (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
 		if (!range || !range.startContainer) {
@@ -959,7 +959,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
-		const hitResult: { offsetNode: Node; offset: number } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
+		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
 			// offsetNode is expected to be the token text
@@ -1011,9 +1011,9 @@ export class MouseTargetFactory {
 	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
-		if (typeof (<any>document).caretRangeFromPoint === 'function') {
+		if (typeof (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
-		} else if ((<any>document).caretPositionFromPoint) {
+		} else if ((<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
 		}
 		if (result.type === HitTestResultType.Content) {

@@ -787,7 +787,7 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this.element.domNode.ownerDocument.body);
 		const info = this.getLayoutInfo();
 
 		if (!size) {
