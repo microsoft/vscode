@@ -55,7 +55,6 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 					audioBuffer: { channelCount: 1; samplingRate: 16000; bitDepth: 16; channelData: Float32Array },
 					options: {
 						language: string | 'auto';
-						suppressNonSpeechTokens: boolean;
 						signal: AbortSignal;
 					}
 				) => Promise<string>;
@@ -71,7 +70,6 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 				channelData
 			}, {
 				language: 'en',
-				suppressNonSpeechTokens: true,
 				signal: abortController.signal
 			});
 
