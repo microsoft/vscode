@@ -44,6 +44,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			description: nls.localize('comments.maxHeight', "Controls whether the comments widget scrolls or expands.")
+		},
+		'comments.collapseOnResolve': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('collapseOnResolve', "Controls whether the comment thread should collapse when the thread is resolved.")
 		}
 	}
 });

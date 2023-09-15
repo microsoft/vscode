@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Delayer } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -63,6 +64,9 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 }
 
 suite('FindController', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
@@ -476,6 +480,9 @@ suite('FindController', () => {
 });
 
 suite('FindController query options persistence', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const serviceCollection = new ServiceCollection();
 	const storageService = new InMemoryStorageService();
 	storageService.store('editor.isRegex', false, StorageScope.WORKSPACE, StorageTarget.USER);

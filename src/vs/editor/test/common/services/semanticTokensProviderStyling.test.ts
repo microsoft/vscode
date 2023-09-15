@@ -12,6 +12,7 @@ import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ModelService', () => {
 	let disposables: DisposableStore;
@@ -27,6 +28,8 @@ suite('ModelService', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #134973: invalid semantic tokens should be handled better', () => {
 		const languageId = 'java';

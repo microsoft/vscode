@@ -260,6 +260,7 @@ export class AzureActiveDirectoryService {
 				this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Found a matching token with a different scopes '${token.scope}'. Attempting to get a new session using the existing session.`);
 				try {
 					const itoken = await this.doRefreshToken(token.refreshToken, scopeData);
+					this._sessionChangeEmitter.fire({ added: [this.convertToSessionSync(itoken)], removed: [], changed: [] });
 					matchingTokens.push(itoken);
 				} catch (err) {
 					this._logger.error(`[${scopeData.scopeStr}] Attempted to get a new session using the existing session with scopes '${token.scope}' but it failed due to: ${err.message ?? err}`);

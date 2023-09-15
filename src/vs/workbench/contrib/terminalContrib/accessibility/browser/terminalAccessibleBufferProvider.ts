@@ -18,7 +18,7 @@ import type { Terminal } from 'xterm';
 import { Event } from 'vs/base/common/event';
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal' };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	constructor(
@@ -52,6 +52,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		}
 		this._xterm.raw.onWriteParsed(async () => {
 			if (this._xterm!.raw.buffer.active.baseY === 0) {
+				this._bufferTracker.update();
 				this._accessibleViewService.show(this);
 			}
 		});

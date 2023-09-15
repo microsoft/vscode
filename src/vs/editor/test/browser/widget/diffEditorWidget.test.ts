@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { UnchangedRegion } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 
 suite('DiffEditorWidget2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('UnchangedRegion', () => {
 		function serialize(regions: UnchangedRegion[]): unknown {
 			return regions.map(r => `${r.originalUnchangedRange} - ${r.modifiedUnchangedRange}`);

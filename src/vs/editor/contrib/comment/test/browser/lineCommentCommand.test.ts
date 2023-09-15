@@ -5,18 +5,19 @@
 
 import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CommentRule } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (accessor: ServicesAccessor, selection: Selection) => ICommand): (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => void {
 	return (lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection) => {
@@ -34,6 +35,8 @@ function createTestCommandHelper(commentsConfig: CommentRule, commandFactory: (a
 }
 
 suite('Editor Contrib - Line Comment Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
@@ -99,6 +102,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 	}
 
 	test('_analyzeLines', () => {
+		const disposable = new DisposableStore();
 		let r: IPreflightData;
 
 		r = LineCommentCommand._analyzeLines(Type.Toggle, true, createSimpleModel([
@@ -106,7 +110,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    ',
 			'    c',
 			'\t\td'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, new TestLanguageConfigurationService());
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()));
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -137,7 +141,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 			'    rem ',
 			'    !@# c',
 			'\t\t!@#d'
-		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, new TestLanguageConfigurationService());
+		]), createBasicLinePreflightData(['//', 'rem', '!@#', '!@#']), 1, true, false, disposable.add(new TestLanguageConfigurationService()));
 		if (!r.supported) {
 			throw new Error(`unexpected`);
 		}
@@ -167,6 +171,8 @@ suite('Editor Contrib - Line Comment Command', () => {
 		assert.strictEqual(r.lines[1].commentStrLength, 4);
 		assert.strictEqual(r.lines[2].commentStrLength, 4);
 		assert.strictEqual(r.lines[3].commentStrLength, 3);
+
+		disposable.dispose();
 	});
 
 	test('_normalizeInsertionPoint', () => {
@@ -678,100 +684,104 @@ suite('Editor Contrib - Line Comment Command', () => {
 			new Selection(1, 1, 1, 1)
 		);
 	});
+});
 
-	suite('ignoreEmptyLines false', () => {
+suite('ignoreEmptyLines false', () => {
 
-		const testLineCommentCommand = createTestCommandHelper(
-			{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
-			(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, false)
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const testLineCommentCommand = createTestCommandHelper(
+		{ lineComment: '!@#', blockComment: ['<!@#', '#@!>'] },
+		(accessor, sel) => new LineCommentCommand(accessor.get(ILanguageConfigurationService), sel, 4, Type.Toggle, true, false)
+	);
+
+	test('does not ignore whitespace lines', () => {
+		testLineCommentCommand(
+			[
+				'\tsome text',
+				'\t   ',
+				'',
+				'\tsome more text'
+			],
+			new Selection(4, 2, 1, 1),
+			[
+				'!@# \tsome text',
+				'!@# \t   ',
+				'!@# ',
+				'!@# \tsome more text'
+			],
+			new Selection(4, 6, 1, 5)
 		);
+	});
 
-		test('does not ignore whitespace lines', () => {
-			testLineCommentCommand(
-				[
-					'\tsome text',
-					'\t   ',
-					'',
-					'\tsome more text'
-				],
-				new Selection(4, 2, 1, 1),
-				[
-					'!@# \tsome text',
-					'!@# \t   ',
-					'!@# ',
-					'!@# \tsome more text'
-				],
-				new Selection(4, 6, 1, 5)
-			);
-		});
+	test('removes its own', function () {
+		testLineCommentCommand(
+			[
+				'\t!@# some text',
+				'\t   ',
+				'\t\t!@# some more text'
+			],
+			new Selection(3, 2, 1, 1),
+			[
+				'\tsome text',
+				'\t   ',
+				'\t\tsome more text'
+			],
+			new Selection(3, 2, 1, 1)
+		);
+	});
 
-		test('removes its own', function () {
-			testLineCommentCommand(
-				[
-					'\t!@# some text',
-					'\t   ',
-					'\t\t!@# some more text'
-				],
-				new Selection(3, 2, 1, 1),
-				[
-					'\tsome text',
-					'\t   ',
-					'\t\tsome more text'
-				],
-				new Selection(3, 2, 1, 1)
-			);
-		});
+	test('works in only whitespace', function () {
+		testLineCommentCommand(
+			[
+				'\t    ',
+				'\t',
+				'\t\tsome more text'
+			],
+			new Selection(3, 1, 1, 1),
+			[
+				'\t!@#     ',
+				'\t!@# ',
+				'\t\tsome more text'
+			],
+			new Selection(3, 1, 1, 1)
+		);
+	});
 
-		test('works in only whitespace', function () {
-			testLineCommentCommand(
-				[
-					'\t    ',
-					'\t',
-					'\t\tsome more text'
-				],
-				new Selection(3, 1, 1, 1),
-				[
-					'\t!@#     ',
-					'\t!@# ',
-					'\t\tsome more text'
-				],
-				new Selection(3, 1, 1, 1)
-			);
-		});
+	test('comments single line', function () {
+		testLineCommentCommand(
+			[
+				'some text',
+				'\tsome more text'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'!@# some text',
+				'\tsome more text'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
 
-		test('comments single line', function () {
-			testLineCommentCommand(
-				[
-					'some text',
-					'\tsome more text'
-				],
-				new Selection(1, 1, 1, 1),
-				[
-					'!@# some text',
-					'\tsome more text'
-				],
-				new Selection(1, 5, 1, 5)
-			);
-		});
-
-		test('detects indentation', function () {
-			testLineCommentCommand(
-				[
-					'\tsome text',
-					'\tsome more text'
-				],
-				new Selection(2, 2, 1, 1),
-				[
-					'\t!@# some text',
-					'\t!@# some more text'
-				],
-				new Selection(2, 2, 1, 1)
-			);
-		});
+	test('detects indentation', function () {
+		testLineCommentCommand(
+			[
+				'\tsome text',
+				'\tsome more text'
+			],
+			new Selection(2, 2, 1, 1),
+			[
+				'\t!@# some text',
+				'\t!@# some more text'
+			],
+			new Selection(2, 2, 1, 1)
+		);
 	});
 });
 
 suite('Editor Contrib - Line Comment As Block Comment', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: '', blockComment: ['(', ')'] },
@@ -883,6 +893,8 @@ suite('Editor Contrib - Line Comment As Block Comment', () => {
 });
 
 suite('Editor Contrib - Line Comment As Block Comment 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testLineCommentCommand = createTestCommandHelper(
 		{ lineComment: null, blockComment: ['<!@#', '#@!>'] },
@@ -1079,6 +1091,8 @@ suite('Editor Contrib - Line Comment As Block Comment 2', () => {
 });
 
 suite('Editor Contrib - Line Comment in mixed modes', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const OUTER_LANGUAGE_ID = 'outerMode';
 	const INNER_LANGUAGE_ID = 'innerMode';
