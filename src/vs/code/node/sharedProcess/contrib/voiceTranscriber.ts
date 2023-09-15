@@ -67,13 +67,20 @@ abstract class VoiceTranscriber extends Disposable {
 		this._register(toDisposable(() => this.port.off('message', requestHandler)));
 
 		this.port.start();
-		this._register(toDisposable(() => this.port.close()));
 
+		let closed = false;
 		this.port.on('close', () => {
 			this.logService.info(`[voice] transcriber: closed connection`);
 
-			cts.dispose(true);
+			closed = true;
+			this.dispose();
 		});
+
+		this._register(toDisposable(() => {
+			if (!closed) {
+				this.port.close();
+			}
+		}));
 	}
 
 	protected abstract handleRequest(data: Float32Array, cancellation: CancellationToken): Promise<void>;
@@ -93,7 +100,7 @@ abstract class VoiceTranscriber extends Disposable {
 
 class SlidingWindowVoiceTranscriber extends VoiceTranscriber {
 
-	private readonly transcriptionQueue = new Queue();
+	private readonly transcriptionQueue = this._register(new Queue());
 
 	private transcribedResults: string[] = [];
 	private data: Float32Array = new Float32Array(0);
@@ -103,7 +110,7 @@ class SlidingWindowVoiceTranscriber extends VoiceTranscriber {
 			this.logService.info(`[voice] transcriber: voice detected, storing in buffer`);
 
 			this.data = this.data ? this.joinFloat32Arrays([this.data, data]) : data;
-		} else if (this.data) {
+		} else {
 			this.logService.info(`[voice] transcriber: silence detected, transcribing window...`);
 
 			const data = this.data.slice(0);
@@ -135,6 +142,12 @@ class SlidingWindowVoiceTranscriber extends VoiceTranscriber {
 		}
 
 		this.port.postMessage(this.transcribedResults.join(' '));
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.data = new Float32Array(0);
 	}
 }
 
@@ -189,5 +202,11 @@ class FullWindowVoiceTranscriber extends VoiceTranscriber {
 		}
 
 		this.port.postMessage(result);
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.data = undefined;
 	}
 }
