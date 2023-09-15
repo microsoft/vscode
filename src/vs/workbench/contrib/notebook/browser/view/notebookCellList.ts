@@ -31,6 +31,7 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListViewOptions, IListView } from 'vs/base/browser/ui/list/listView';
 import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 const enum CellEditorRevealType {
 	Line,
@@ -147,6 +148,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
+		private readonly notebookOptions: NotebookOptions,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
@@ -914,7 +916,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			case CellRevealPosition.Bottom:
 				if (firstLine) {
 					const lineHeight = this.viewModel?.layoutInfo?.fontInfo.lineHeight ?? 15;
-					const firstLineLocation = elementTop + lineHeight + 20;
+					const padding = this.notebookOptions.getLayoutConfiguration().cellTopMargin + this.notebookOptions.getLayoutConfiguration().editorTopPadding;
+					const firstLineLocation = elementTop + lineHeight + padding;
 					if (firstLineLocation < wrapperBottom) {
 						// first line is already visible
 						return;

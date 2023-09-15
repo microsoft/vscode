@@ -889,6 +889,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			NotebookCellList,
 			'NotebookCellList',
 			this._body,
+			this._viewContext.notebookOptions,
 			this._listDelegate,
 			renderers,
 			this.scopedContextKeyService,
