@@ -38,6 +38,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 export const ID = 'editor.contrib.review';
 
@@ -330,6 +331,7 @@ export class CommentController implements IEditorContribution {
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } }; // owner -> threadId -> uniqueIdInThread -> pending comment
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
+	private _hasProvidedAriaStatus: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -377,8 +379,8 @@ export class CommentController implements IEditorContribution {
 			}
 			this.beginCompute();
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
-		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginCompute()));
+		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginComputeAndProvideStatus()));
+		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginComputeAndProvideStatus()));
 
 		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
@@ -686,6 +688,8 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 
+		this._hasProvidedAriaStatus = false;
+
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 		if (this._editorDisposables.length) {
@@ -775,7 +779,16 @@ export class CommentController implements IEditorContribution {
 			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
 
-		this.beginCompute();
+		this.beginComputeAndProvideStatus();
+	}
+
+	private beginComputeAndProvideStatus(): void {
+		this.beginCompute().then(() => {
+			if (!this._hasProvidedAriaStatus && this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
+				this._hasProvidedAriaStatus = true;
+				status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+			}
+		});
 	}
 
 	private async openCommentsView(thread: languages.CommentThread) {
