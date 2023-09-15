@@ -914,15 +914,19 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 	private _refreshStateHandler: () => void;
 
-	private static hasFocusWithin(element: HTMLElement): boolean {
-		const shadowRoot = getShadowRoot(element);
-		const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
-		return isAncestor(activeElement, element);
+	private static hasFocusWithin(element: HTMLElement | Window): boolean {
+		if (isHTMLElement(element)) {
+			const shadowRoot = getShadowRoot(element);
+			const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
+			return isAncestor(activeElement, element);
+		} else {
+			return isAncestor(window.document.activeElement, window.document);
+		}
 	}
 
 	constructor(element: HTMLElement | Window) {
 		super();
-		let hasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
+		let hasFocus = FocusTracker.hasFocusWithin(element);
 		let loosingFocus = false;
 
 		const onFocus = () => {

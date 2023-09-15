@@ -19,6 +19,7 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ActiveCursorHasCommentingRange, CommentController, ID } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class NextCommentThreadAction extends EditorAction {
 	constructor() {
@@ -87,9 +88,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 });
 
 const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
-CommandsRegistry.registerCommand({
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: ADD_COMMENT_COMMAND,
-	handler: (accessor, args?: { range: IRange; fileComment: boolean }) => {
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return Promise.resolve();
@@ -102,8 +103,15 @@ CommandsRegistry.registerCommand({
 
 		const position = args?.range ? new Range(args.range.startLineNumber, args.range.startLineNumber, args.range.endLineNumber, args.range.endColumn)
 			: (args?.fileComment ? undefined : activeEditor.getSelection());
-		return controller.addOrToggleCommentAtLine(position, undefined);
-	}
+		const notificationService = accessor.get(INotificationService);
+		try {
+			await controller.addOrToggleCommentAtLine(position, undefined);
+		} catch (e) {
+			notificationService.error(nls.localize('comments.addCommand.error', "The cursor must be within a commenting range to add a comment")); // TODO: Once we have commands to go to next commenting range they should be included as buttons in the error.
+		}
+	},
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC,
 });
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {

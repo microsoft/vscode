@@ -38,6 +38,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 export const ID = 'editor.contrib.review';
 
@@ -240,6 +241,21 @@ class CommentingRangeDecorator {
 		}
 	}
 
+	private areRangesIntersectingOrTouchingByLine(a: Range, b: Range) {
+		// Check if `a` is before `b`
+		if (a.endLineNumber < b.startLineNumber) {
+			return false;
+		}
+
+		// Check if `b` is before `a`
+		if (b.endLineNumber < a.startLineNumber) {
+			return false;
+		}
+
+		// These ranges must intersect
+		return true;
+	}
+
 	public getMatchedCommentAction(commentRange: Range | undefined): CommentRangeAction[] {
 		if (commentRange === undefined) {
 			const foundInfos = this._infos?.filter(info => info.commentingRanges.fileComments);
@@ -260,7 +276,7 @@ class CommentingRangeDecorator {
 		const foundHoverActions = new Map<string, { range: Range; action: CommentRangeAction }>();
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
-			if (range && ((range.startLineNumber <= commentRange.startLineNumber) || (commentRange.endLineNumber <= range.endLineNumber))) {
+			if (range && this.areRangesIntersectingOrTouchingByLine(range, commentRange)) {
 				// We can have several commenting ranges that match from the same owner because of how
 				// the line hover and selection decoration is done.
 				// The ranges must be merged so that we can see if the new commentRange fits within them.
@@ -315,6 +331,7 @@ export class CommentController implements IEditorContribution {
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } }; // owner -> threadId -> uniqueIdInThread -> pending comment
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
+	private _hasProvidedAriaStatus: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -362,8 +379,8 @@ export class CommentController implements IEditorContribution {
 			}
 			this.beginCompute();
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
-		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginCompute()));
+		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginComputeAndProvideStatus()));
+		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginComputeAndProvideStatus()));
 
 		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
@@ -395,7 +412,39 @@ export class CommentController implements IEditorContribution {
 
 		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
-		this.beginCompute();
+		this.commentService.registerContinueOnCommentProvider({
+			provideContinueOnComments: () => {
+				const pendingComments: languages.PendingCommentThread[] = [];
+				if (this._commentWidgets) {
+					for (const zone of this._commentWidgets) {
+						const zonePendingComments = zone.getPendingComments();
+						const pendingNewComment = zonePendingComments.newComment;
+						if (!pendingNewComment || !zone.commentThread.range) {
+							continue;
+						}
+						let lastCommentBody;
+						if (zone.commentThread.comments && zone.commentThread.comments.length) {
+							const lastComment = zone.commentThread.comments[zone.commentThread.comments.length - 1];
+							if (typeof lastComment.body === 'string') {
+								lastCommentBody = lastComment.body;
+							} else {
+								lastCommentBody = lastComment.body.value;
+							}
+						}
+
+						if (pendingNewComment !== lastCommentBody) {
+							pendingComments.push({
+								owner: zone.owner,
+								uri: zone.editor.getModel()!.uri,
+								range: zone.commentThread.range,
+								body: pendingNewComment
+							});
+						}
+					}
+				}
+				return pendingComments;
+			}
+		});
 	}
 
 	private registerEditorListeners() {
@@ -639,6 +688,8 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 
+		this._hasProvidedAriaStatus = false;
+
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 		if (this._editorDisposables.length) {
@@ -671,9 +722,10 @@ export class CommentController implements IEditorContribution {
 				return;
 			}
 
-			const added = e.added.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
-			const removed = e.removed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
-			const changed = e.changed.filter(thread => thread.resource && thread.resource.toString() === editorURI.toString());
+			const added = e.added.filter(thread => thread.resource && thread.resource === editorURI.toString());
+			const removed = e.removed.filter(thread => thread.resource && thread.resource === editorURI.toString());
+			const changed = e.changed.filter(thread => thread.resource && thread.resource === editorURI.toString());
+			const pending = e.pending.filter(pending => pending.uri.toString() === editorURI.toString());
 
 			removed.forEach(thread => {
 				const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId && zoneWidget.commentThread.threadId !== '');
@@ -713,16 +765,30 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const pendingCommentText = this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId!];
+				const continueOnCommentText = (thread.range ? this.commentService.removeContinueOnComment({ owner: e.owner, uri: editorURI, range: thread.range })?.body : undefined);
+				const pendingCommentText = (this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId!])
+					?? continueOnCommentText;
 				const pendingEdits = this._pendingEditsCache[e.owner] && this._pendingEditsCache[e.owner][thread.threadId!];
 				this.displayCommentThread(e.owner, thread, pendingCommentText, pendingEdits);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 				this.tryUpdateReservedSpace();
 			});
+			pending.forEach(thread => {
+				this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
+			});
 			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
 
-		this.beginCompute();
+		this.beginComputeAndProvideStatus();
+	}
+
+	private beginComputeAndProvideStatus(): void {
+		this.beginCompute().then(() => {
+			if (!this._hasProvidedAriaStatus && this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
+				this._hasProvidedAriaStatus = true;
+				status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+			}
+		});
 	}
 
 	private async openCommentsView(thread: languages.CommentThread) {
@@ -825,6 +891,9 @@ export class CommentController implements IEditorContribution {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
+			if (!newCommentInfos.length) {
+				throw new Error('There are no commenting ranges at the current position.');
+			}
 			return Promise.resolve();
 		}
 
@@ -1001,6 +1070,9 @@ export class CommentController implements IEditorContribution {
 				}
 
 				this.displayCommentThread(info.owner, thread, pendingComment, pendingEdits);
+			});
+			info.pendingCommentThreads?.forEach(thread => {
+				this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
 			});
 		});
 
