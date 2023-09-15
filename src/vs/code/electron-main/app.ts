@@ -15,7 +15,7 @@ import { once } from 'vs/base/common/functional';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
@@ -86,9 +86,9 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWindowOpenable, IWindowSettings, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { defaultWindowState, ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
@@ -121,6 +121,7 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -144,6 +145,7 @@ export class CodeApplication extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
 	) {
 		super();
 
@@ -174,7 +176,7 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
 				return callback(allowedPermissionsInMainFrame.has(permission));
 			}
 
@@ -186,7 +188,7 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInWebview.has(permission);
 			}
 
-			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
+			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
 				return allowedPermissionsInMainFrame.has(permission);
 			}
 
@@ -379,7 +381,7 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 		app.on('web-contents-created', (event, contents) => {
-			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://vscode-app/`);
+			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 
 			contents.on('will-navigate', event => {
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
@@ -390,16 +392,40 @@ export class CodeApplication extends Disposable {
 			if (!isChildWindow) {
 				contents.setWindowOpenHandler(handler => {
 					if (handler.url === 'about:blank') {
-						return { action: 'allow' };
+						this.logService.trace('webContents#setWindowOpenHandler: Allowing about:blank window to open');
+
+						const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+						const windowState = defaultWindowState();
+
+						return {
+							action: 'allow',
+							overrideBrowserWindowOptions: {
+								backgroundColor: this.themeMainService.getBackgroundColor(),
+								width: windowState.width,
+								height: windowState.height,
+								minWidth: WindowMinimumSize.WIDTH,
+								minHeight: WindowMinimumSize.HEIGHT,
+								title: this.productService.nameLong,
+								webPreferences: {
+									preload: undefined,
+									sandbox: true,
+									enableWebSQL: false,
+									spellcheck: false,
+									zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel)
+								}
+							}
+						};
+					} else {
+						this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${handler.url}}`);
+
+						this.nativeHostMainService?.openExternal(undefined, handler.url);
+
+						return { action: 'deny' };
 					}
-
-					this.nativeHostMainService?.openExternal(undefined, handler.url);
-
-					return { action: 'deny' };
 				});
 			}
 
-			if (isChildWindow) {
+			if (isChildWindow && !this.environmentMainService.isBuilt) {
 				contents.openDevTools({ mode: 'bottom' });
 			}
 		});

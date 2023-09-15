@@ -442,7 +442,7 @@ class PopEditorPartOutAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		const refs = window.open('about:blank', undefined, `width=800,height=600`);
+		const refs = window.open('about:blank');
 		const childWindow = assertIsDefined(refs?.window);
 
 		const metaCharset = childWindow.document.head.appendChild(document.createElement('meta'));
@@ -519,8 +519,8 @@ class PopEditorPartOutAction extends Action2 {
 
 				link.rel = 'stylesheet';
 				link.type = styleSheet.type;
-				(link as any).media = styleSheet.media;
-				(link as any).href = styleSheet.href;
+				link.media = styleSheet.media.mediaText;
+				link.href = styleSheet.href!;
 				childWindow!.document.head.appendChild(link);
 			}
 		});
@@ -548,12 +548,13 @@ class PopEditorPartOutAction extends Action2 {
 		const editorPart = layoutService.getPart(Parts.EDITOR_PART);
 		workbenchContainer.appendChild(editorPart.element);
 
-		editorPart.layout(800, 600, 0, 0);
-
-		addDisposableListener(childWindow, EventType.RESIZE, e => {
+		function layout() {
 			const dim = getClientArea(childWindow.document.body);
 			editorPart.layout(dim.width, dim.height, 0, 0);
-		});
+		}
+
+		layout();
+		addDisposableListener(childWindow, EventType.RESIZE, () => layout());
 	}
 }
 
