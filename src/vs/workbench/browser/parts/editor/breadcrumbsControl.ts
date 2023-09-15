@@ -29,7 +29,8 @@ import { BreadcrumbsModel, FileElement, OutlineElement2 } from 'vs/workbench/bro
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -188,7 +189,7 @@ export class BreadcrumbsControl {
 	constructor(
 		container: HTMLElement,
 		private readonly _options: IBreadcrumbsControlOptions,
-		private readonly _editorGroup: IEditorGroup,
+		private readonly _editorGroup: IEditorGroupView,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -513,7 +514,7 @@ export class BreadcrumbsControlFactory {
 
 	constructor(
 		container: HTMLElement,
-		editorGroup: IEditorGroup,
+		editorGroup: IEditorGroupView,
 		options: IBreadcrumbsControlOptions,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
