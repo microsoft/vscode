@@ -881,10 +881,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const elementBottom = this.view.elementHeight(viewIndex) + elementTop;
 
 		if (ignoreIfInsideViewport) {
-			if (partial && elementBottom > scrollTop && elementTop < wrapperBottom) {
-				//element is already partially visible
-				return;
-			} else if (elementTop >= scrollTop && elementBottom < wrapperBottom) {
+			if (elementTop >= scrollTop && elementBottom < wrapperBottom) {
 				// element is already fully visible
 				return;
 			}
@@ -917,8 +914,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			case CellRevealPosition.Bottom:
 				if (partial) {
 					const lineHeight = this.viewModel?.layoutInfo?.fontInfo.lineHeight ?? 15;
-					const cellPadding = 20;
-					this.view.setScrollTop(this.scrollTop + elementTop - wrapperBottom + lineHeight + cellPadding);
+					const firstLineLocation = elementTop + lineHeight + 20;
+					if (firstLineLocation < wrapperBottom) {
+						// first line is already partially visible
+						return;
+					}
+
+					this.view.setScrollTop(this.scrollTop + (firstLineLocation - wrapperBottom));
 					break;
 				}
 				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));

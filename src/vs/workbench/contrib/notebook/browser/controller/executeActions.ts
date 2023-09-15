@@ -458,9 +458,14 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 
 		const config = accessor.get(IConfigurationService);
 		const scrollBehavior = config.getValue(NotebookSetting.cellExecutionScroll);
-		const focusOptions: IFocusNotebookCellOptions = {
-			minimalScrolling: scrollBehavior === 'full' ? 'fullReveal' : 'partialReveal'
-		};
+		let focusOptions: IFocusNotebookCellOptions;
+		if (scrollBehavior === 'none') {
+			focusOptions = { skipReveal: true };
+		} else {
+			focusOptions = {
+				minimalScrolling: scrollBehavior === 'fullCell' ? 'fullReveal' : 'partialReveal'
+			};
+		}
 
 		if (context.cell.cellKind === CellKind.Markup) {
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
