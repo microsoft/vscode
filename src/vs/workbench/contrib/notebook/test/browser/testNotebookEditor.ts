@@ -215,7 +215,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions));
 	const viewModel: NotebookViewModel = disposables.add(instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false }));
 
-	const cellList = disposables.add(createNotebookCellList(instantiationService, disposables, viewContext));
+	const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 	cellList.attachViewModel(viewModel);
 	const listViewInfoAccessor = disposables.add(new ListViewInfoAccessor(cellList));
 
@@ -416,7 +416,7 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 	});
 }
 
-export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: DisposableStore, viewContext?: ViewContext) {
+export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: DisposableStore) {
 	const delegate: IListVirtualDelegate<CellViewModel> = {
 		getHeight(element: CellViewModel) { return element.getHeight(17); },
 		getTemplateId() { return 'template'; }
