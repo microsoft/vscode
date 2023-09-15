@@ -427,13 +427,16 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 				switch (arg?.$mid) {
 					case MarshalledId.TerminalContext: return deserialize(arg);
 					default: {
+						// Do array transformation in place as this is a hot path
 						if (Array.isArray(arg)) {
-							return arg.map(e => {
-								switch (e?.$mid) {
-									case MarshalledId.TerminalContext: return deserialize(e);
-									default: return e;
+							for (let i = 0; i < arg.length; i++) {
+								if (arg[i].$mid === MarshalledId.TerminalContext) {
+									arg[i] = deserialize(arg[i]);
+								} else {
+									// Probably something else, so exit early
+									break;
 								}
-							});
+							}
 						}
 						return arg;
 					}
