@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, hasFileFolderCopyCapability, hasFileAtomicWriteCapability } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, IFileOverwriteOptions, FileType, IFileWriteOptions, IFileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, hasFileFolderCopyCapability, hasFileAtomicWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -25,9 +25,10 @@ export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	get capabilities() { return this.fileSystemProvider.capabilities & ~FileSystemProviderCapabilities.FileOpenReadWriteClose; }
+	get capabilities() { return this.fileSystemProvider.capabilities; }
 	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
 
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
@@ -38,7 +39,7 @@ export class FileUserDataProvider extends Disposable implements
 
 	constructor(
 		private readonly fileSystemScheme: string,
-		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability | IFileSystemProviderWithFileFolderCopyCapability),
+		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & IFileSystemProviderWithOpenReadWriteCloseCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability | IFileSystemProviderWithFileFolderCopyCapability),
 		private readonly userDataScheme: string,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 		uriIdentityService: IUriIdentityService,
@@ -49,6 +50,22 @@ export class FileUserDataProvider extends Disposable implements
 		this.updateAtomicWritesResources();
 		this._register(userDataProfilesService.onDidChangeProfiles(() => this.updateAtomicWritesResources()));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
+	}
+
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+		return this.fileSystemProvider.open(this.toFileSystemResource(resource), opts);
+	}
+
+	close(fd: number): Promise<void> {
+		return this.fileSystemProvider.close(fd);
+	}
+
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		return this.fileSystemProvider.read(fd, pos, data, offset, length);
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		return this.fileSystemProvider.write(fd, pos, data, offset, length);
 	}
 
 	private updateAtomicWritesResources(): void {

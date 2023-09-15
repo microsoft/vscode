@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, createFileSystemProviderError } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, createFileSystemProviderError, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions } from 'vs/platform/files/common/files';
 
 class File implements IStat {
 
@@ -50,8 +51,9 @@ class Directory implements IStat {
 
 type Entry = File | Directory;
 
-export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
-
+export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability {
+	private memoryFdCounter = 0;
+	private readonly fdMemory = new Map<number, Uint8Array>();
 	private _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
@@ -115,6 +117,44 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 		entry.data = content;
 
 		this._fireSoon({ type: FileChangeType.UPDATED, resource });
+	}
+
+	// file open/read/write/close
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+		const data = this._lookupAsFile(resource, false).data;
+		if (data) {
+			const fd = this.memoryFdCounter++;
+			this.fdMemory.set(fd, data);
+			return Promise.resolve(fd);
+		}
+		throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+	}
+
+	close(fd: number): Promise<void> {
+		this.fdMemory.delete(fd);
+		return Promise.resolve();
+	}
+
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		const memory = this.fdMemory.get(fd);
+		if (!memory) {
+			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
+		}
+
+		const toWrite = VSBuffer.wrap(memory).slice(pos, pos + length);
+		data.set(toWrite.buffer, offset);
+		return Promise.resolve(toWrite.byteLength);
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		const memory = this.fdMemory.get(fd);
+		if (!memory) {
+			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
+		}
+
+		const toWrite = VSBuffer.wrap(data).slice(offset, offset + length);
+		memory.set(toWrite.buffer, pos);
+		return Promise.resolve(toWrite.byteLength);
 	}
 
 	// --- manage files/folders
@@ -240,5 +280,11 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 			this._onDidChangeFile.fire(this._bufferedChanges);
 			this._bufferedChanges.length = 0;
 		}, 5);
+	}
+
+	public override dispose(): void {
+		super.dispose();
+
+		this.fdMemory.clear();
 	}
 }
