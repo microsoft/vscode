@@ -238,7 +238,6 @@ class SCMInputHistory {
 			providerHistories.set(rootUri, new HistoryNavigator2(history, 100));
 		}
 
-		// TODO@joaomoreno: Remove from January 2024 onwards.
 		if (this.migrateStorage()) {
 			this.saveToStorage();
 		}
@@ -300,6 +299,7 @@ class SCMInputHistory {
 	}
 
 	// Migrates from Application scope storage to Workspace scope.
+	// TODO@joaomoreno: Change from January 2024 onwards such that the only code is to remove all `scm/input:` storage keys
 	private migrateStorage(): boolean {
 		let didSomethingChange = false;
 		const machineKeys = Iterable.filter(this.storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
@@ -309,20 +309,23 @@ class SCMInputHistory {
 				const legacyHistory = JSON.parse(this.storageService.get(key, StorageScope.APPLICATION, ''));
 				const match = /^scm\/input:([^:]+):(.+)$/.exec(key);
 
-				if (match && !(Array.isArray(legacyHistory?.history) && Number.isInteger(legacyHistory?.timestamp) && new Date().getTime() - legacyHistory?.timestamp > 2592000000)) {
-					const [, providerLabel, rootPath] = match;
-					const rootUri = URI.file(rootPath);
+				if (!match || !Array.isArray(legacyHistory?.history) || !Number.isInteger(legacyHistory?.timestamp)) {
+					this.storageService.remove(key, StorageScope.APPLICATION);
+					continue;
+				}
 
-					if (this.workspaceContextService.getWorkspaceFolder(rootUri)) {
-						const history = this.getHistory(providerLabel, rootUri);
+				const [, providerLabel, rootPath] = match;
+				const rootUri = URI.file(rootPath);
 
-						for (const entry of Iterable.reverse(legacyHistory.history as string[])) {
-							history.prepend(entry);
-						}
+				if (this.workspaceContextService.getWorkspaceFolder(rootUri)) {
+					const history = this.getHistory(providerLabel, rootUri);
 
-						didSomethingChange = true;
-						this.storageService.remove(key, StorageScope.APPLICATION);
+					for (const entry of Iterable.reverse(legacyHistory.history as string[])) {
+						history.prepend(entry);
 					}
+
+					didSomethingChange = true;
+					this.storageService.remove(key, StorageScope.APPLICATION);
 				}
 			} catch {
 				this.storageService.remove(key, StorageScope.APPLICATION);
