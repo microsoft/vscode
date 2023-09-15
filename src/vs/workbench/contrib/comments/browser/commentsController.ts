@@ -243,12 +243,12 @@ class CommentingRangeDecorator {
 
 	private areRangesIntersectingOrTouchingByLine(a: Range, b: Range) {
 		// Check if `a` is before `b`
-		if (a.endLineNumber < b.startLineNumber) {
+		if (a.endLineNumber < (b.startLineNumber - 1)) {
 			return false;
 		}
 
 		// Check if `b` is before `a`
-		if (b.endLineNumber < a.startLineNumber) {
+		if ((b.endLineNumber + 1) < a.startLineNumber) {
 			return false;
 		}
 
@@ -300,6 +300,46 @@ class CommentingRangeDecorator {
 		return Array.from(foundHoverActions.values()).filter(action => {
 			return (action.range.startLineNumber <= commentRange.startLineNumber) && (commentRange.endLineNumber <= action.range.endLineNumber);
 		}).map(actions => actions.action);
+	}
+
+	public getNearestCommentingRange(findPosition: Position, reverse?: boolean): Range | undefined {
+		let findPositionContainedWithin: Range | undefined;
+		let decorations: CommentingRangeDecoration[];
+		if (reverse) {
+			decorations = [];
+			for (let i = this.commentingRangeDecorations.length - 1; i >= 0; i--) {
+				decorations.push(this.commentingRangeDecorations[i]);
+			}
+		} else {
+			decorations = this.commentingRangeDecorations;
+		}
+		for (const decoration of decorations) {
+			const range = decoration.getActiveRange();
+			if (!range) {
+				continue;
+			}
+
+			if (findPositionContainedWithin && this.areRangesIntersectingOrTouchingByLine(range, findPositionContainedWithin)) {
+				findPositionContainedWithin = Range.plusRange(findPositionContainedWithin, range);
+				continue;
+			}
+
+			if (range.startLineNumber <= findPosition.lineNumber && findPosition.lineNumber <= range.endLineNumber) {
+				findPositionContainedWithin = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+				continue;
+			}
+
+			if (!reverse && range.endLineNumber < findPosition.lineNumber) {
+				continue;
+			}
+
+			if (reverse && range.startLineNumber > findPosition.lineNumber) {
+				continue;
+			}
+
+			return range;
+		}
+		return decorations[0].getActiveRange() ?? undefined;
 	}
 
 	public dispose(): void {
@@ -669,6 +709,28 @@ export class CommentController implements IEditorContribution {
 
 	public previousCommentThread(): void {
 		this._findNearestCommentThread(true);
+	}
+
+	private _findNearestCommentingRange(reverse?: boolean): void {
+		if (!this.editor?.hasModel()) {
+			return;
+		}
+
+		const after = this.editor.getSelection().getEndPosition();
+		const range = this._commentingRangeDecorator.getNearestCommentingRange(after, reverse);
+		if (range) {
+			const position = reverse ? range.getEndPosition() : range.getStartPosition();
+			this.editor.setPosition(position);
+			this.editor.revealLineInCenterIfOutsideViewport(position.lineNumber);
+		}
+	}
+
+	public nextCommentingRange(): void {
+		this._findNearestCommentingRange();
+	}
+
+	public previousCommentingRange(): void {
+		this._findNearestCommentingRange(true);
 	}
 
 	public dispose(): void {
