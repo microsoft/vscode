@@ -826,12 +826,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._revealInViewWithMinimalScrolling(startIndex);
 	}
 
-	private _revealInViewWithMinimalScrolling(viewIndex: number, partial?: boolean) {
+	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
 		const firstIndex = this.view.firstVisibleIndex;
 		if (viewIndex <= firstIndex) {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Top, partial);
+			this._revealInternal(viewIndex, true, CellRevealPosition.Top, firstLine);
 		} else {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom, partial);
+			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom, firstLine);
 		}
 	}
 
@@ -861,7 +861,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			case CellRevealSyncType.CenterIfOutsideViewport:
 				this._revealInternal(index, true, CellRevealPosition.Center);
 				break;
-			case CellRevealSyncType.PartialIfOutsideViewport:
+			case CellRevealSyncType.FirstLineIfOutsideViewport:
 				this._revealInViewWithMinimalScrolling(index, true);
 				break;
 			case CellRevealSyncType.Default:
@@ -870,7 +870,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition, partial?: boolean) {
+	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition, firstLine?: boolean) {
 		if (viewIndex >= this.view.length) {
 			return;
 		}
@@ -912,11 +912,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 				break;
 			case CellRevealPosition.Bottom:
-				if (partial) {
+				if (firstLine) {
 					const lineHeight = this.viewModel?.layoutInfo?.fontInfo.lineHeight ?? 15;
 					const firstLineLocation = elementTop + lineHeight + 20;
 					if (firstLineLocation < wrapperBottom) {
-						// first line is already partially visible
+						// first line is already visible
 						return;
 					}
 
