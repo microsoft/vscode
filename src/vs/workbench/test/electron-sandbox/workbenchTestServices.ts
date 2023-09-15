@@ -46,6 +46,8 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -230,7 +232,9 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 
 		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());
 		this._register(fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider));
-		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService))));
+		const uriIdentityService = this._register(new UriIdentityService(fileService));
+		const userDataProfilesService = this._register(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
 
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];

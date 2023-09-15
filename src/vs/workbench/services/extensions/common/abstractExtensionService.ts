@@ -31,7 +31,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionDescriptionRegistryLock, IActivationEventsReader, LockableExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import { ExtensionDescriptionRegistryLock, ExtensionDescriptionRegistrySnapshot, IActivationEventsReader, LockableExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
@@ -298,22 +298,22 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
 
 		// Update the extension host
-		await this._updateExtensionsOnExtHosts(toAdd, toRemove.map(e => e.identifier));
+		await this._updateExtensionsOnExtHosts(result.versionId, toAdd, toRemove.map(e => e.identifier));
 
 		for (let i = 0; i < toAdd.length; i++) {
 			this._activateAddedExtensionIfNeeded(toAdd[i]);
 		}
 	}
 
-	private async _updateExtensionsOnExtHosts(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+	private async _updateExtensionsOnExtHosts(versionId: number, toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
 		const removedRunningLocation = this._runningLocations.deltaExtensions(toAdd, toRemove);
 		const promises = this._extensionHostManagers.map(
-			extHostManager => this._updateExtensionsOnExtHost(extHostManager, toAdd, toRemove, removedRunningLocation)
+			extHostManager => this._updateExtensionsOnExtHost(extHostManager, versionId, toAdd, toRemove, removedRunningLocation)
 		);
 		await Promise.all(promises);
 	}
 
-	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[], removedRunningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>): Promise<void> {
+	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, versionId: number, toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[], removedRunningLocation: ExtensionIdentifierMap<ExtensionRunningLocation | null>): Promise<void> {
 		const myToAdd = this._runningLocations.filterByExtensionHostManager(toAdd, extensionHostManager);
 		const myToRemove = filterExtensionIdentifiers(toRemove, removedRunningLocation, extRunningLocation => extensionHostManager.representsRunningLocation(extRunningLocation));
 		const addActivationEvents = ImplicitActivationEvents.createActivationEventsMap(toAdd);
@@ -322,7 +322,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			const printIds = (extensions: ExtensionIdentifier[]) => extensions.map(e => e.value).join(',');
 			this._logService.info(`AbstractExtensionService: Calling deltaExtensions: toRemove: [${printIds(toRemove)}], toAdd: [${printExtIds(toAdd)}], myToRemove: [${printIds(myToRemove)}], myToAdd: [${printExtIds(myToAdd)}],`);
 		}
-		await extensionHostManager.deltaExtensions({ toRemove, toAdd, addActivationEvents, myToRemove, myToAdd: myToAdd.map(extension => extension.identifier) });
+		await extensionHostManager.deltaExtensions({ versionId, toRemove, toAdd, addActivationEvents, myToRemove, myToAdd: myToAdd.map(extension => extension.identifier) });
 	}
 
 	public canAddExtension(extension: IExtensionDescription): boolean {
@@ -440,11 +440,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			this._processExtensions(lock, resolvedExtensions);
 
 			// Start extension hosts which are not automatically started
-			const allExtensions = this._registry.getAllExtensionDescriptions();
+			const snapshot = this._registry.getSnapshot();
 			for (const extHostManager of this._extensionHostManagers) {
 				if (extHostManager.startup !== ExtensionHostStartup.EagerAutoStart) {
-					const extensions = this._runningLocations.filterByExtensionHostManager(allExtensions, extHostManager);
-					extHostManager.start(allExtensions, extensions.map(extension => extension.identifier));
+					const extensions = this._runningLocations.filterByExtensionHostManager(snapshot.extensions, extHostManager);
+					extHostManager.start(snapshot.versionId, snapshot.extensions, extensions.map(extension => extension.identifier));
 				}
 			}
 		} finally {
@@ -510,7 +510,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		let exitCode: number;
 		try {
 			exitCode = await extensionHostManager.extensionTestsExecute();
+			if (isCI) {
+				this._logService.info(`Extension host test runner exit code: ${exitCode}`);
+			}
 		} catch (err) {
+			if (isCI) {
+				this._logService.error(`Extension host test runner error`, err);
+			}
 			console.error(err);
 			exitCode = 1 /* ERROR */;
 		}
@@ -928,8 +934,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._registry.getAllExtensionDescriptions();
 	}
 
-	protected _getExtensions(): Promise<IExtensionDescription[]> {
-		return this._installedExtensionsReady.wait().then(() => this.extensions);
+	protected _getExtensionRegistrySnapshotWhenReady(): Promise<ExtensionDescriptionRegistrySnapshot> {
+		return this._installedExtensionsReady.wait().then(() => this._registry.getSnapshot());
 	}
 
 	public getExtension(id: string): Promise<IExtensionDescription | undefined> {

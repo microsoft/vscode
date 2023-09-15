@@ -13,7 +13,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, Ex
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionDescriptionDelta } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionDescriptionDelta, IExtensionDescriptionSnapshot } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -120,7 +120,7 @@ export interface IExtensionHost {
 	 * extension will execute or is executing on this extension host.
 	 * **NOTE**: this will reflect extensions correctly only after `start()` resolves.
 	 */
-	readonly extensions: ExtensionHostExtensions;
+	readonly extensions: ExtensionHostExtensions | null;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol>;
@@ -130,26 +130,41 @@ export interface IExtensionHost {
 }
 
 export class ExtensionHostExtensions {
-
+	private _versionId: number;
 	private _allExtensions: IExtensionDescription[];
 	private _myExtensions: ExtensionIdentifier[];
 
-	constructor() {
-		this._allExtensions = [];
-		this._myExtensions = [];
+	public get versionId(): number {
+		return this._versionId;
 	}
 
-	public toDelta(): IExtensionDescriptionDelta {
+	public get allExtensions(): IExtensionDescription[] {
+		return this._allExtensions;
+	}
+
+	public get myExtensions(): ExtensionIdentifier[] {
+		return this._myExtensions;
+	}
+
+	constructor(versionId: number, allExtensions: readonly IExtensionDescription[], myExtensions: ExtensionIdentifier[]) {
+		this._versionId = versionId;
+		this._allExtensions = allExtensions.slice(0);
+		this._myExtensions = myExtensions.slice(0);
+	}
+
+	toSnapshot(): IExtensionDescriptionSnapshot {
 		return {
-			toRemove: [],
-			toAdd: this._allExtensions,
-			addActivationEvents: ImplicitActivationEvents.createActivationEventsMap(this._allExtensions),
-			myToRemove: [],
-			myToAdd: this._myExtensions
+			versionId: this._versionId,
+			allExtensions: this._allExtensions,
+			myExtensions: this._myExtensions,
+			activationEvents: ImplicitActivationEvents.createActivationEventsMap(this._allExtensions)
 		};
 	}
 
-	public set(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): IExtensionDescriptionDelta {
+	public set(versionId: number, allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): IExtensionDescriptionDelta {
+		if (this._versionId > versionId) {
+			throw new Error(`ExtensionHostExtensions: invalid versionId ${versionId} (current: ${this._versionId})`);
+		}
 		const toRemove: ExtensionIdentifier[] = [];
 		const toAdd: IExtensionDescription[] = [];
 		const myToRemove: ExtensionIdentifier[] = [];
@@ -210,12 +225,17 @@ export class ExtensionHostExtensions {
 		}
 
 		const addActivationEvents = ImplicitActivationEvents.createActivationEventsMap(toAdd);
-		const delta = { toRemove, toAdd, addActivationEvents, myToRemove, myToAdd };
+		const delta = { versionId, toRemove, toAdd, addActivationEvents, myToRemove, myToAdd };
 		this.delta(delta);
 		return delta;
 	}
 
-	public delta(extensionsDelta: IExtensionDescriptionDelta): void {
+	public delta(extensionsDelta: IExtensionDescriptionDelta): IExtensionDescriptionDelta | null {
+		if (this._versionId >= extensionsDelta.versionId) {
+			// ignore older deltas
+			return null;
+		}
+
 		const { toRemove, toAdd, myToRemove, myToAdd } = extensionsDelta;
 		// First handle removals
 		const toRemoveSet = new ExtensionIdentifierSet(toRemove);
@@ -239,6 +259,8 @@ export class ExtensionHostExtensions {
 		for (const extensionId of myToAdd) {
 			this._myExtensions.push(extensionId);
 		}
+
+		return extensionsDelta;
 	}
 
 	public containsExtension(extensionId: ExtensionIdentifier): boolean {
