@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement, IMutableEditorGroup, IReadableEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -125,15 +125,7 @@ export interface IEditorGroupTitleHeight {
 	offset: number;
 }
 
-export interface IMutableEditorGroupView extends IDisposable, ISerializableView, IMutableEditorGroup {
-
-	setActive(isActive: boolean): void;
-
-	relayout(): void;
-	notifyIndexChanged(newIndex: number): void;
-}
-
-export interface IReadableEditorGroupView extends IDisposable, ISerializableView, IReadableEditorGroup {
+export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;
 
@@ -151,9 +143,13 @@ export interface IReadableEditorGroupView extends IDisposable, ISerializableView
 	readonly titleHeight: IEditorGroupTitleHeight;
 
 	readonly disposed: boolean;
-}
 
-export interface IEditorGroupView extends IMutableEditorGroupView, IReadableEditorGroupView { }
+	setActive(isActive: boolean): void;
+
+	notifyIndexChanged(newIndex: number): void;
+
+	relayout(): void;
+}
 
 export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {
 	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {

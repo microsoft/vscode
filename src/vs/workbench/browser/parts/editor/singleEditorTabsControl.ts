@@ -56,7 +56,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.accessor, this.tabsModel, {
+		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupViewer, {
 			showFileIcons: false,
 			showSymbolIcons: true,
 			showDecorationColors: false,

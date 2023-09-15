@@ -6,7 +6,7 @@
 import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -31,10 +31,10 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService, IReadonlyEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, EditorServiceImpl, IReadableEditorGroupView, IMutableEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -136,8 +136,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	constructor(
 		parent: HTMLElement,
 		accessor: IEditorGroupsAccessor,
-		groupViewer: IMutableEditorGroupView & { getIndexOfEditor(editor: EditorInput): number; getEditorByIndex(index: number): EditorInput | undefined; readonly count: number; readonly activeEditor: EditorInput | null; readonly activeEditorPane: IVisibleEditorPane | undefined },
-		tabsModel: IReadableEditorGroupView,
+		groupViewer: IEditorGroupView,
+		tabsModel: IReadonlyEditorGroup,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -778,7 +778,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private forEachTab(fn: (editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void, fromTabIndex?: number, toTabIndex?: number): void {
-		this.tabsModel.editors.forEach((editor, tabIndex) => {
+		this.tabsModel.editors.forEach((editor: EditorInput, tabIndex: number) => {
 			if (typeof fromTabIndex === 'number' && fromTabIndex > tabIndex) {
 				return; // do nothing if we are not yet at `fromIndex`
 			}
@@ -1584,6 +1584,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	layout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): Dimension {
+		if (!this.visible) {
+			if (!this.dimensions.used) {
+				this.dimensions.used = new Dimension(dimensions.container.width, this.computeHeight());
+			}
+			return this.dimensions.used;
+		}
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1618,13 +1624,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
-
-		// Only layout if we have valid tab index and dimensions
-		const activeTabAndIndex = this.tabsModel.activeEditor ? this.getTabAndIndex(this.tabsModel.activeEditor) : undefined;
-		if (activeTabAndIndex && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
-
+		// Only layout when there is an active editor
+		// The active editor might be located in a different tab row
+		if (this.groupViewer.activeEditor && dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
 			// Tabs
-			const [activeTab, activeTabIndex] = activeTabAndIndex;
+			const activeTabAndIndex = this.tabsModel.activeEditor ? this.getTabAndIndex(this.tabsModel.activeEditor) : undefined;
+			const [activeTab, activeTabIndex] = activeTabAndIndex ?? [undefined, undefined];
 			this.doLayoutTabs(activeTab, activeTabIndex, dimensions, options);
 		}
 
@@ -1643,7 +1648,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeTabIndex: number, dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
+	private doLayoutTabs(activeTab: HTMLElement | undefined, activeTabIndex: number | undefined, dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1785,7 +1790,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return tabsWrapMultiLine;
 	}
 
-	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeTabIndex: number, options?: IMultiEditorTabsControlLayoutOptions): void {
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement | undefined, activeTabIndex: number | undefined, options?: IMultiEditorTabsControlLayoutOptions): void {
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
@@ -1828,7 +1833,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Figure out if active tab is positioned static which has an
 		// impact on whether to reveal the tab or not later
-		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && this.tabsModel.isSticky(activeTabIndex);
+		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && activeTabIndex && this.tabsModel.isSticky(activeTabIndex);
 
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
@@ -1847,7 +1852,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		let activeTabPosX: number | undefined;
 		let activeTabWidth: number | undefined;
 
-		if (!this.blockRevealActiveTab) {
+		if (!this.blockRevealActiveTab && activeTab) {
 			activeTabPosX = activeTab.offsetLeft;
 			activeTabWidth = activeTab.offsetWidth;
 		}

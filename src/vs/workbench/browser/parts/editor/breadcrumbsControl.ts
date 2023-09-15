@@ -29,8 +29,7 @@ import { BreadcrumbsModel, FileElement, OutlineElement2 } from 'vs/workbench/bro
 import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
 import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorGroupsAccessor, IReadableEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -40,7 +39,6 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -190,8 +188,7 @@ export class BreadcrumbsControl {
 	constructor(
 		container: HTMLElement,
 		private readonly _options: IBreadcrumbsControlOptions,
-		private readonly _accessor: IEditorGroupsAccessor,
-		private readonly _editorGroup: IReadableEditorGroupView,
+		private readonly _editorGroup: IEditorGroup,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -370,7 +367,7 @@ export class BreadcrumbsControl {
 		}
 
 		const { element } = event.item as FileItem | OutlineItem;
-		assertIsDefined(this._accessor.getGroup(this._editorGroup.id)).focus();
+		this._editorGroup.focus();
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -516,8 +513,7 @@ export class BreadcrumbsControlFactory {
 
 	constructor(
 		container: HTMLElement,
-		accessor: IEditorGroupsAccessor,
-		editorGroup: IReadableEditorGroupView,
+		editorGroup: IEditorGroup,
 		options: IBreadcrumbsControlOptions,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -531,14 +527,14 @@ export class BreadcrumbsControlFactory {
 				this._control = undefined;
 				this._onDidEnablementChange.fire();
 			} else if (value && !this._control) {
-				this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, accessor, editorGroup);
+				this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
 				this._control.update();
 				this._onDidEnablementChange.fire();
 			}
 		}));
 
 		if (config.getValue()) {
-			this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, accessor, editorGroup);
+			this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
 		}
 
 		this._disposables.add(fileService.onDidChangeFileSystemProviderRegistrations(e => {

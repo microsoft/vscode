@@ -11,7 +11,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -24,8 +24,8 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorGroupsAccessor, IMutableEditorGroupView, IReadableEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -38,6 +38,7 @@ import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
+import { IReadonlyEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export interface IToolbarActions {
 	readonly primary: IAction[];
@@ -70,7 +71,27 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 	}
 }
 
-export abstract class EditorTabsControl extends Themable {
+export interface IEditorTabsControl extends IDisposable {
+	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
+	hideEditorActionsToolbar(): void;
+	showEditorActionsToolbar(): void;
+	openEditor(editor: EditorInput): boolean;
+	openEditors(editors: EditorInput[]): boolean;
+	beforeCloseEditor(editor: EditorInput): void;
+	closeEditor(editor: EditorInput): void;
+	closeEditors(editors: EditorInput[]): void;
+	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange?: boolean): void;
+	pinEditor(editor: EditorInput): void;
+	stickEditor(editor: EditorInput): void;
+	unstickEditor(editor: EditorInput): void;
+	setActive(isActive: boolean): void;
+	updateEditorLabel(editor: EditorInput): void;
+	updateEditorDirty(editor: EditorInput): void;
+	layout(dimensions: IEditorTitleControlDimensions): Dimension;
+	getHeight(): number;
+}
+
+export abstract class EditorTabsControl extends Themable implements IEditorTabsControl {
 
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
@@ -103,8 +124,8 @@ export abstract class EditorTabsControl extends Themable {
 	constructor(
 		private parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
-		protected groupViewer: IMutableEditorGroupView & { getIndexOfEditor(editor: EditorInput): number; getEditorByIndex(index: number): EditorInput | undefined; readonly count: number; readonly activeEditor: EditorInput | null; readonly activeEditorPane: IVisibleEditorPane | undefined },
-		protected tabsModel: IReadableEditorGroupView,
+		protected groupViewer: IEditorGroupView,
+		protected tabsModel: IReadonlyEditorGroup,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -209,10 +230,10 @@ export abstract class EditorTabsControl extends Themable {
 
 			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 
-			this.editorPinnedContext.set(activeEditor ? this.tabsModel.isPinned(activeEditor) : false);
-			this.editorIsFirstContext.set(activeEditor ? this.tabsModel.isFirst(activeEditor) : false);
-			this.editorIsLastContext.set(activeEditor ? this.tabsModel.isLast(activeEditor) : false);
-			this.editorStickyContext.set(activeEditor ? this.tabsModel.isSticky(activeEditor) : false);
+			this.editorPinnedContext.set(activeEditor ? this.groupViewer.isPinned(activeEditor) : false);
+			this.editorIsFirstContext.set(activeEditor ? this.groupViewer.isFirst(activeEditor) : false);
+			this.editorIsLastContext.set(activeEditor ? this.groupViewer.isLast(activeEditor) : false);
+			this.editorStickyContext.set(activeEditor ? this.groupViewer.isSticky(activeEditor) : false);
 			applyAvailableEditorIds(this.editorAvailableEditorIds, activeEditor, this.editorResolverService);
 
 			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
