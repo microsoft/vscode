@@ -1018,7 +1018,12 @@ configurationRegistry.registerConfiguration({
 		[NotebookSetting.cellExecutionScroll]: {
 			markdownDescription: nls.localize('notebook.executeCell.scrollToRevealBehavior', "How far to scroll when revealing the next cell upon exectuting {0}.", 'notebook.cell.executeAndSelectBelow'),
 			type: 'string',
-			enum: ['full', 'partial'],
+			enum: ['full', 'firstLine', 'none'],
+			markdownEnumDescriptions: [
+				nls.localize('notebook.executeCell.scrollToRevealBehavior.full', 'Fully reveal the next cell.'),
+				nls.localize('notebook.executeCell.scrollToRevealBehavior.firstLine', 'Reveal the first line of the next cell.'),
+				nls.localize('notebook.executeCell.scrollToRevealBehavior.none', 'Do not scroll with the focus change.'),
+			],
 			default: 'full'
 		}
 	}

@@ -916,7 +916,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				break;
 			case CellRevealPosition.Bottom:
 				if (partial) {
-					this.view.setScrollTop(elementTop - (this.view.renderHeight - 100));
+					const lineHeight = this.viewModel?.layoutInfo?.fontInfo.lineHeight ?? 15;
+					const cellPadding = 20;
+					this.view.setScrollTop(this.scrollTop + elementTop - wrapperBottom + lineHeight + cellPadding);
 					break;
 				}
 				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
