@@ -23,7 +23,6 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 	private stopped: boolean = false;
 
 	private buffer: Float32Array[] = [];
-	private text = '';
 
 	private sharedProcessConnection: MessagePort | undefined = undefined;
 
@@ -45,7 +44,7 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 						}
 
 						if (typeof event.data === 'string') {
-							this.processText(event.data);
+							this.port.postMessage(event.data);
 						}
 					};
 
@@ -65,11 +64,6 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 		};
 	}
 
-	private processText(text: string = this.text): void {
-		this.text = text;
-		this.port.postMessage(this.text);
-	}
-
 	override process(inputs: [Float32Array[]]): boolean {
 		if (this.startTime === undefined) {
 			this.startTime = Date.now();
@@ -86,11 +80,12 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 			const buffer = this.joinFloat32Arrays(this.buffer);
 			this.buffer = [];
 
-			if (!this.appearsToBeSilence(buffer)) {
-				this.sharedProcessConnection.postMessage(buffer);
-			} else {
-				this.processText();
-			}
+			// Send buffer to shared process for transcription.
+			// Send an empty buffer if it appears to be silence
+			// so that we can still trigger the transcription
+			// service and let it know about this.
+
+			this.sharedProcessConnection.postMessage(this.appearsToBeSilence(buffer) ? new Float32Array(0) : buffer);
 
 			this.startTime = Date.now();
 		}
@@ -99,6 +94,12 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 	}
 
 	private appearsToBeSilence(data: Float32Array): boolean {
+
+		// This is the most simple Voice Activity Detection (VAD)
+		// and it is based on the Root Mean Square (RMS) of the signal
+		// with a certain threshold. Good for testing but probably
+		// not suitable for shipping to stable (TODO@bpasero).
+
 		let sum = 0;
 		for (let i = 0; i < data.length; i++) {
 			sum += data[i] * data[i];

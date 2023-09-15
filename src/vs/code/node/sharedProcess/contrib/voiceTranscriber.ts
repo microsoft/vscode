@@ -38,6 +38,9 @@ class VoiceTranscriber extends Disposable {
 
 	private data: Float32Array | undefined = undefined;
 
+	private transcribedDataLength = 0;
+	private transcribedResult = '';
+
 	constructor(
 		private readonly port: MessagePortMain,
 		private readonly voiceRecognitionService: IVoiceRecognitionService,
@@ -74,7 +77,6 @@ class VoiceTranscriber extends Disposable {
 		}
 
 		const dataCandidate = this.data ? this.joinFloat32Arrays([this.data, e.data]) : e.data;
-
 		if (dataCandidate.length > VoiceTranscriber.MAX_DATA_LENGTH) {
 			this.logService.warn(`[voice] transcriber: refusing to accept more than 30s of audio data`);
 			return;
@@ -95,7 +97,19 @@ class VoiceTranscriber extends Disposable {
 			return;
 		}
 
-		const result = await this.voiceRecognitionService.transcribe(data, cancellation);
+		let result: string;
+		if (data.length === this.transcribedDataLength) {
+			// Optimization: if the data is the same as the last time
+			// we transcribed, don't transcribe again, just return the
+			// same result as we had last time.
+			this.logService.info(`[voice] transcriber: silence detected, reusing previous transcription result`);
+			result = this.transcribedResult;
+		} else {
+			result = await this.voiceRecognitionService.transcribe(data, cancellation);
+		}
+
+		this.transcribedResult = result;
+		this.transcribedDataLength = data.length;
 
 		if (cancellation.isCancellationRequested) {
 			return;
