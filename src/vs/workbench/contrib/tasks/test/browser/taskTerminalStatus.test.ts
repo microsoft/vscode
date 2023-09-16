@@ -81,10 +81,9 @@ suite('Task Terminal Status', () => {
 		problemCollector = instantiationService.createInstance(TestProblemCollector) as any;
 		store.add(instantiationService);
 		store.add(taskTerminalStatus);
-		store.add(testTerminal);
 	});
 	teardown(() => {
-		store.dispose();
+		store.clear();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Should add failed status when there is an exit code on task end', async () => {
