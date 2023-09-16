@@ -282,7 +282,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 		}, 5);
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.fdMemory.clear();
