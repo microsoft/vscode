@@ -53,7 +53,7 @@ import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndServ
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/browser/parts/editor/stickyEditorGroup';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/services/editor/common/filteredEditorGroup';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
