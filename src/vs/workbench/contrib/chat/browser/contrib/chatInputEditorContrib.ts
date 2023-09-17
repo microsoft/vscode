@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -28,7 +29,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -44,9 +45,72 @@ const slashCommandTextDecorationType = 'chat-session-text';
 const variableTextDecorationType = 'chat-variable-text';
 const fileDecorationType = 'chat-file-reference';
 
+interface IDynamicReference {
+	range: IRange;
+	// data: any; // File details for a file, something else for a different type of thing, is it typed?
+	data: URI;
+}
+
+class ChatDynamicReferenceModel extends Disposable implements IChatWidgetContrib {
+	public static readonly ID = 'chatDynamicReferenceModel';
+
+	private readonly references: IDynamicReference[] = [];
+
+	get id() {
+		return ChatDynamicReferenceModel.ID;
+	}
+
+	constructor(
+		private readonly widget: IChatWidget
+	) {
+		super();
+		this._register(widget.inputEditor.onDidChangeModelContent(e => {
+			e.changes.forEach(c => {
+				this.references.forEach((ref, i) => {
+					if (Range.areIntersecting(ref.range, c.range)) {
+						// The reference text was changed, it's broken
+						this.references.splice(i, 1);
+					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
+						const delta = c.text.length - c.rangeLength;
+						ref.range = {
+							startLineNumber: ref.range.startLineNumber,
+							startColumn: ref.range.startColumn + delta,
+							endLineNumber: ref.range.endLineNumber,
+							endColumn: ref.range.endColumn + delta
+						};
+					}
+				});
+			});
+
+			this.updateReferences();
+		}));
+	}
+
+	addReference(ref: IDynamicReference): void {
+		this.references.push(ref);
+		this.updateReferences();
+	}
+
+	private updateReferences(): void {
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, fileDecorationType, this.references.map(r => (<IDecorationOptions>{
+			range: {
+				startLineNumber: r.range.startLineNumber,
+				startColumn: r.range.startColumn,
+				endLineNumber: r.range.endLineNumber,
+				endColumn: r.range.startColumn + (r.range.endColumn - r.range.startColumn) - 1
+			},
+			hoverMessage: new MarkdownString('`' + r.data.fsPath + '`')
+		})));
+	}
+}
+
+ChatWidget.CONTRIBS.push(ChatDynamicReferenceModel);
+
 class InputEditorDecorations extends Disposable {
 
 	private _previouslyUsedSlashCommands = new Set<string>();
+
+	public readonly id = 'inputEditorDecorations';
 
 	constructor(
 		private readonly widget: IChatWidget,
@@ -217,6 +281,8 @@ class InputEditorDecorations extends Disposable {
 }
 
 class InputEditorSlashCommandMode extends Disposable {
+	public readonly id = 'InputEditorSlashCommandMode';
+
 	constructor(
 		private readonly widget: IChatWidget,
 		@IChatService private readonly chatService: IChatService
@@ -412,6 +478,15 @@ class AgentCompletions extends Disposable {
 	}
 }
 
+interface SelectAndInsertFileActionContext {
+	widget: ChatWidget;
+	range: IRange;
+}
+
+function isSelectAndInsertFileActionContext(context: any): context is SelectAndInsertFileActionContext {
+	return 'widget' in context && 'range' in context;
+}
+
 class SelectAndInsertFileAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.selectAndInsertFile';
 
@@ -424,24 +499,24 @@ class SelectAndInsertFileAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const context = args[0];
+		if (!isSelectAndInsertFileActionContext(context)) {
+			return;
+		}
+
 		const quickInputService = accessor.get(IQuickInputService);
 		const picks = await quickInputService.quickAccess.pick('');
 		if (picks?.length) {
 			const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
 			const fileName = basename(resource);
-			const editor = (context.widget as ChatWidget).inputEditor;
-			const range = context.range as IRange;
-			const text = `$file:${fileName} `;
-			const success = editor.executeEdits('chatInsertFile', [{ range, text }]);
+			const editor = context.widget.inputEditor;
+			const text = `$file:${fileName}`;
+			const range = context.range;
+			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
 			if (success) {
-				editor.setDecorationsByType(decorationDescription, fileDecorationType, [{
-					range: {
-						startLineNumber: range.startLineNumber,
-						startColumn: range.startColumn,
-						endLineNumber: range.endLineNumber,
-						endColumn: range.startColumn + text.length - 1
-					}
-				}]);
+				context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
+					range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
+					data: resource
+				});
 			}
 		} else {
 			(context.widget as ChatWidget).inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
@@ -483,13 +558,13 @@ class BuiltinDynamicCompletions extends Disposable {
 					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
 				}
 
-				const range = new Range(position.lineNumber, replace.startColumn, position.lineNumber, replace.endColumn + 'file:'.length); // ?
+				const range = new Range(position.lineNumber, replace.startColumn, position.lineNumber, replace.endColumn + 'file:'.length); // ehhh?
 				return <CompletionList>{
 					suggestions: [
 						<CompletionItem>{
 							label: '$file:',
 							insertText: '$file:',
-							detail: 'Pick a file',
+							detail: localize('pickFileLabel', "Pick a file"),
 							range: { insert, replace },
 							kind: CompletionItemKind.Text,
 							command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range }] },
