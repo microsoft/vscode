@@ -3,8 +3,6 @@
 	"version": "0.0.0",
 	"private": true,
 	"dependencies": {
-		"@microsoft/1ds-core-js": "^3.2.13",
-		"@microsoft/1ds-post-js": "^3.2.13",
 		"@vscode/iconv-lite-umd": "0.7.0",
 		"@vscode/vscode-languagedetection": "1.0.22",
 		"jschardet": "3.0.0",

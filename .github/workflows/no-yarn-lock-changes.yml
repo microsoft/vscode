@@ -1,5 +1,5 @@
-name: Prevent yarn.lock changes in PRs
-on: [pull_request]
+name: yarn.lock changes in PRs
+on: [push request]
 
 jobs:
   main:
@@ -7,7 +7,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: octokit/request-action@v2.x
-        id: get_permissions
 
 Run octokit/request-action@v2.x
 
@@ -15,7 +14,7 @@ Run octokit/request-action@v2.x
 
     route: GET /repos/microsoft/vscode/collaborators/{username}/permission
 
-    username: sammyfilly
+    username: 
 
     mediaType: {}
 
@@ -25,12 +24,12 @@ Run octokit/request-action@v2.x
 
 GET github/repos/microsoft/vscode/collaborators/{username}/permission
 
-> username: sammyfilly
+> username: 
 
 > mediaType: [object Object]
         with: github
           route: GET /repos/microsoft/vscode/collaborators/{username}/permission
-          sammyfilly: ${{ github.event.pull_request.user.login }}
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Set control output variable
