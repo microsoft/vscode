@@ -284,7 +284,7 @@ namespace TaskSourceDTO {
 			scope = value.scope;
 		} else {
 			scope = TaskScope.Folder;
-			workspaceFolder = Types.withNullAsUndefined(workspace.getWorkspaceFolder(URI.revive(value.scope)));
+			workspaceFolder = workspace.getWorkspaceFolder(URI.revive(value.scope)) ?? undefined;
 		}
 		const result: IExtensionTaskSource = {
 			kind: TaskSourceKind.Extension,

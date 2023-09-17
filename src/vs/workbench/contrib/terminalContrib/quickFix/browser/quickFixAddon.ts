@@ -28,12 +28,13 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixExecuteTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const quickFixSelectors = [
 	DecorationSelector.QuickFix,
@@ -75,6 +76,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		private readonly _aliases: string[][] | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -192,7 +194,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			await this._extensionService.activateByEvent(`onTerminalQuickFixRequest:${id}`);
 			return this._quickFixService.providers.get(id)?.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, commandExitResult: selector.commandExitResult, id: selector.id }, new CancellationTokenSource().token);
 		};
-		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._openerService, this._labelService, this._onDidRequestRerunCommand, resolver);
+		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._commandService, this._openerService, this._labelService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {
 			return;
 		}
@@ -248,12 +250,6 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 		decoration?.onRender((e: HTMLElement) => {
-			if (e.classList.contains(DecorationSelector.QuickFix)) {
-				return;
-			}
-			e.classList.add(...quickFixSelectors);
-			updateLayout(this._configurationService, e);
-			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 			const rect = e.getBoundingClientRect();
 			const anchor = {
 				x: rect.x,
@@ -261,6 +257,18 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				width: rect.width,
 				height: rect.height
 			};
+
+			if (e.classList.contains(DecorationSelector.QuickFix)) {
+				if (this._currentRenderContext) {
+					this._currentRenderContext.anchor = anchor;
+				}
+
+				return;
+			}
+
+			e.classList.add(...quickFixSelectors);
+			updateLayout(this._configurationService, e);
+			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 
 			const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
 			if (!parentElement) {
@@ -287,6 +295,7 @@ export async function getQuickFixesForCommand(
 	terminal: Terminal,
 	terminalCommand: ITerminalCommand,
 	quickFixOptions: Map<string, ITerminalQuickFixOptions[]>,
+	commandService: ICommandService,
 	openerService: IOpenerService,
 	labelService: ILabelService,
 	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
@@ -333,15 +342,15 @@ export async function getQuickFixesForCommand(
 					let action: ITerminalAction | undefined;
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
-							case TerminalQuickFixType.Command: {
-								const fix = quickFix as ITerminalQuickFixCommandAction;
+							case TerminalQuickFixType.TerminalCommand: {
+								const fix = quickFix as ITerminalQuickFixExecuteTerminalCommandAction;
 								if (commandQuickFixSet.has(fix.terminalCommand)) {
 									continue;
 								}
 								commandQuickFixSet.add(fix.terminalCommand);
 								const label = localize('quickFix.command', 'Run: {0}', fix.terminalCommand);
 								action = {
-									type: TerminalQuickFixType.Command,
+									type: TerminalQuickFixType.TerminalCommand,
 									class: undefined,
 									source: quickFix.source,
 									id: quickFix.id,
@@ -396,6 +405,20 @@ export async function getQuickFixesForCommand(
 										fix.run();
 									},
 									tooltip: fix.tooltip
+								};
+								break;
+							}
+							case TerminalQuickFixType.VscodeCommand: {
+								const fix = quickFix as ITerminalQuickFixCommandAction;
+								action = {
+									source: quickFix.source,
+									type: fix.type,
+									id: fix.id,
+									label: fix.title,
+									class: undefined,
+									enabled: true,
+									run: () => commandService.executeCommand(fix.id),
+									tooltip: fix.title
 								};
 								break;
 							}
@@ -471,9 +494,11 @@ function getQuickFixIcon(quickFix: TerminalQuickFixItem): ThemeIcon {
 				const isUrl = (quickFix.action.uri.scheme === Schemas.http || quickFix.action.uri.scheme === Schemas.https);
 				return isUrl ? Codicon.linkExternal : Codicon.goToFile;
 			}
-		case TerminalQuickFixType.Command:
+		case TerminalQuickFixType.TerminalCommand:
 			return Codicon.run;
 		case TerminalQuickFixType.Port:
 			return Codicon.debugDisconnect;
+		case TerminalQuickFixType.VscodeCommand:
+			return Codicon.lightbulb;
 	}
 }

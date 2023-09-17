@@ -325,9 +325,9 @@ export class DiffReview extends Disposable {
 		}
 		const element = !type ? current : type === 'next' ? current?.nextElementSibling : current?.previousElementSibling;
 		if (element?.classList.contains(DiffEditorLineClasses.Insert)) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+			this._audioCueService.playAudioCue(AudioCue.diffLineInserted, { allowManyInParallel: true });
 		} else if (element?.classList.contains(DiffEditorLineClasses.Delete)) {
-			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
+			this._audioCueService.playAudioCue(AudioCue.diffLineDeleted, { allowManyInParallel: true });
 		}
 		this.scrollbar.scanDomNode();
 	}

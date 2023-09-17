@@ -30,6 +30,7 @@ import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { assertType } from 'vs/base/common/types';
 import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
 	const groups = menu.getActions(options);
@@ -126,7 +127,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextKeyService protected _contextKeyService: IContextKeyService,
 		@IThemeService protected _themeService: IThemeService,
-		@IContextMenuService protected _contextMenuService: IContextMenuService
+		@IContextMenuService protected _contextMenuService: IContextMenuService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding, hoverDelegate: options?.hoverDelegate });
 		this._altKey = ModifierKeyEmitter.getInstance();
@@ -160,13 +162,14 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 
 		if (this._menuItemAction.alt) {
-			let mouseOverOnWindowsOrLinux = false;
+			let isMouseOver = false;
 
 			const updateAltState = () => {
-				const wantsAltCommand = !!this._menuItemAction.alt?.enabled && (
-					this._altKey.keyStatus.altKey
-					|| (this._altKey.keyStatus.shiftKey && mouseOverOnWindowsOrLinux)
-				);
+				const wantsAltCommand = !!this._menuItemAction.alt?.enabled &&
+					(!this._accessibilityService.isMotionReduced() || isMouseOver) && (
+						this._altKey.keyStatus.altKey ||
+						(this._altKey.keyStatus.shiftKey && isMouseOver)
+					);
 
 				if (wantsAltCommand !== this._wantsAltCommand) {
 					this._wantsAltCommand = wantsAltCommand;
@@ -178,17 +181,15 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 			this._register(this._altKey.event(updateAltState));
 
-			if (isWindows || isLinux) {
-				this._register(addDisposableListener(container, 'mouseleave', _ => {
-					mouseOverOnWindowsOrLinux = false;
-					updateAltState();
-				}));
+			this._register(addDisposableListener(container, 'mouseleave', _ => {
+				isMouseOver = false;
+				updateAltState();
+			}));
 
-				this._register(addDisposableListener(container, 'mouseenter', _ => {
-					mouseOverOnWindowsOrLinux = true;
-					updateAltState();
-				}));
-			}
+			this._register(addDisposableListener(container, 'mouseenter', _ => {
+				isMouseOver = true;
+				updateAltState();
+			}));
 
 			updateAltState();
 		}

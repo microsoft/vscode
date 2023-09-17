@@ -188,11 +188,18 @@ export interface IOutputRequestDto {
 export interface OutputItemEntry {
 	readonly mime: string;
 	readonly valueBytes: Uint8Array;
+	readonly appended?: { valueBytes: Uint8Array; previousVersion: number };
 }
 
 export type ICreationContent =
 	| { readonly type: RenderOutputType.Html; readonly htmlContent: string }
-	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly metadata: unknown; readonly output: OutputItemEntry; readonly allOutputs: ReadonlyArray<{ readonly mime: string }> };
+	| {
+		readonly type: RenderOutputType.Extension;
+		readonly outputId: string;
+		readonly metadata: unknown;
+		readonly output: OutputItemEntry;
+		readonly allOutputs: ReadonlyArray<{ readonly mime: string }>;
+	};
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -259,9 +266,14 @@ export interface IShowOutputMessage {
 	readonly content?: ICreationContent;
 }
 
+export interface ICopyImageMessage {
+	readonly type: 'copyImage';
+	readonly outputId: string;
+}
+
 export interface IFocusOutputMessage {
 	readonly type: 'focus-output';
-	readonly cellId: string;
+	readonly cellOrOutputId: string;
 }
 
 export interface IAckOutputHeight {
@@ -520,6 +532,7 @@ export type ToWebviewMessage = IClearMessage |
 	IClearOutputRequestMessage |
 	IHideOutputMessage |
 	IShowOutputMessage |
+	ICopyImageMessage |
 	IUpdateControllerPreloadsMessage |
 	IUpdateRenderersMessage |
 	IUpdateDecorationsMessage |

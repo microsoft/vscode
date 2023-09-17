@@ -455,7 +455,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 		if (sizing?.type === 'distribute') {
 			gridViewSizing = GridViewSizing.Distribute;
 		} else if (sizing?.type === 'auto') {
-			gridViewSizing = GridViewSizing.Auto(0);
+			const index = location[location.length - 1];
+			gridViewSizing = GridViewSizing.Auto(index === 0 ? 1 : index - 1);
 		}
 
 		this.gridview.removeView(location, gridViewSizing);

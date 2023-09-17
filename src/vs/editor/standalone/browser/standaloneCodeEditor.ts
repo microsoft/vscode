@@ -38,6 +38,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 /**
  * Description of an action contribution
@@ -572,7 +573,8 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget2 implements IStandal
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@IAudioCueService audioCueService: IAudioCueService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -591,6 +593,7 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget2 implements IStandal
 			contextKeyService,
 			instantiationService,
 			codeEditorService,
+			audioCueService,
 		);
 
 		this._configurationService = configurationService;

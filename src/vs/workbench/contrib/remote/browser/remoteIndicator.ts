@@ -81,7 +81,6 @@ interface RemoteExtensionMetadata {
 	supportedPlatforms?: PlatformName[];
 }
 
-export const showRemoteStartEntry = new RawContextKey<boolean>('showRemoteStartEntry', false);
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
@@ -341,7 +340,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		this.remoteMetadataInitialized = true;
 		this._onDidChangeEntries.fire();
-		showRemoteStartEntry.bindTo(this.contextKeyService).set(true);
 		this.updateRemoteStatusIndicator();
 	}
 
@@ -725,6 +723,27 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
+			if (this.extensionGalleryService.isEnabled() && this.remoteMetadataInitialized) {
+
+				const notInstalledItems: QuickPickItem[] = [];
+				for (const metadata of this.remoteExtensionMetadata) {
+					if (!metadata.installed && metadata.isPlatformCompatible) {
+						// Create Install QuickPick with a help link
+						const label = metadata.startConnectLabel;
+						const buttons: IQuickInputButton[] = [{
+							iconClass: ThemeIcon.asClassName(infoIcon),
+							tooltip: nls.localize('remote.startActions.help', "Learn More")
+						}];
+						notInstalledItems.push({ type: 'item', id: metadata.id, label: label, buttons: buttons });
+					}
+				}
+
+				items.push({
+					type: 'separator', label: nls.localize('remote.startActions.install', 'Install')
+				});
+				items.push(...notInstalledItems);
+			}
+
 			items.push({
 				type: 'separator'
 			});
@@ -757,27 +776,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 			if (items.length === entriesBeforeConfig) {
 				items.pop(); // remove the separator again
-			}
-
-			if (this.extensionGalleryService.isEnabled() && this.remoteMetadataInitialized) {
-
-				const notInstalledItems: QuickPickItem[] = [];
-				for (const metadata of this.remoteExtensionMetadata) {
-					if (!metadata.installed && metadata.isPlatformCompatible) {
-						// Create Install QuickPick with a help link
-						const label = metadata.startConnectLabel;
-						const buttons: IQuickInputButton[] = [{
-							iconClass: ThemeIcon.asClassName(infoIcon),
-							tooltip: nls.localize('remote.startActions.help', "Learn More")
-						}];
-						notInstalledItems.push({ type: 'item', id: metadata.id, label: label, buttons: buttons });
-					}
-				}
-
-				items.push({
-					type: 'separator', label: nls.localize('remote.startActions.install', 'Install')
-				});
-				items.push(...notInstalledItems);
 			}
 
 			return items;

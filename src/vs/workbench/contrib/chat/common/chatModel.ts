@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -22,6 +22,13 @@ export interface IChatRequestModel {
 	readonly response: IChatResponseModel | undefined;
 }
 
+export interface IResponse {
+	readonly value: (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	onDidChangeValue: Event<void>;
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void;
+	asString(): string;
+}
+
 export interface IChatResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
@@ -30,7 +37,7 @@ export interface IChatResponseModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
-	readonly response: IMarkdownString;
+	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
@@ -81,6 +88,93 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 }
 
+
+type ResponsePart = { string: IMarkdownString; resolving?: boolean } | { treeData: IChatResponseProgressFileTreeData; resolving?: boolean };
+export class Response implements IResponse {
+	private _onDidChangeValue = new Emitter<void>();
+	public get onDidChangeValue() {
+		return this._onDidChangeValue.event;
+	}
+
+	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
+	private _responseParts: ResponsePart[];
+	// responseData externally presents the response parts with consolidated contiguous strings (including strings which were previously resolving)
+	private _responseData: (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
+	private _responseRepr: string;
+
+	get value(): (IMarkdownString | IChatResponseProgressFileTreeData)[] {
+		return this._responseData;
+	}
+
+	constructor(value: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[]) {
+		this._responseData = Array.isArray(value) ? value : [value];
+		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
+		this._responseRepr = this._responseParts.map((part) => {
+			if ('treeData' in part) {
+				return '';
+			}
+			return part.string.value;
+		}).join('\n');
+	}
+
+	asString(): string {
+		return this._responseRepr;
+	}
+
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean): void {
+		if (typeof responsePart === 'string') {
+			const responsePartLength = this._responseParts.length - 1;
+			const lastResponsePart = this._responseParts[responsePartLength];
+
+			if (lastResponsePart.resolving === true || 'treeData' in lastResponsePart) {
+				// The last part is resolving or a tree data item, start a new part
+				this._responseParts.push({ string: new MarkdownString(responsePart) });
+			} else {
+				// Combine this part with the last, non-resolving string part
+				this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart) };
+			}
+
+			this._updateRepr(quiet);
+		} else if ('placeholder' in responsePart) {
+			// Add a new resolving part
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), resolving: true }) - 1;
+			this._updateRepr(quiet);
+
+			responsePart.resolvedContent?.then((content) => {
+				// Replace the resolving part's content with the resolved response
+				if (typeof content === 'string') {
+					this._responseParts[responsePosition] = { string: new MarkdownString(content), resolving: true };
+					this._updateRepr(quiet);
+				} else if (content.treeData) {
+					this._responseParts[responsePosition] = { treeData: content.treeData, resolving: true };
+					this._updateRepr(quiet);
+				}
+			});
+		}
+	}
+
+	private _updateRepr(quiet?: boolean) {
+		this._responseData = this._responseParts.map(part => {
+			if ('treeData' in part) {
+				return part.treeData;
+			}
+			return part.string;
+		});
+
+		this._responseRepr = this._responseParts.map(part => {
+			if ('treeData' in part) {
+				return '';
+			}
+			return part.string.value;
+		}).join('\n\n');
+
+		if (!quiet) {
+			this._onDidChangeValue.fire();
+		}
+	}
+}
+
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -112,7 +206,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._followups;
 	}
 
-	public get response(): IMarkdownString {
+	private _response: IResponse;
+	public get response(): IResponse {
 		return this._response;
 	}
 
@@ -133,7 +228,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	constructor(
-		private _response: IMarkdownString,
+		_response: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[],
 		public readonly session: ChatModel,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
@@ -143,14 +238,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _followups?: IChatFollowup[]
 	) {
 		super();
+		this._response = new Response(_response);
+		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: string, quiet?: boolean) {
-		this._response = new MarkdownString(this.response.value + responsePart);
-		if (!quiet) {
-			this._onDidChange.fire();
-		}
+	updateContent(responsePart: string | { placeholder: string; resolvedContent?: Promise<string | { treeData: IChatResponseProgressFileTreeData }> }, quiet?: boolean) {
+		this._response.updateContent(responsePart, quiet);
 	}
 
 	setProviderResponseId(providerResponseId: string) {
@@ -206,7 +300,7 @@ export interface ISerializableChatsData {
 export interface ISerializableChatRequestData {
 	providerRequestId: string | undefined;
 	message: string;
-	response: string | undefined;
+	response: (IMarkdownString | IChatResponseProgressFileTreeData)[] | undefined;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
 	followups: IChatFollowup[] | undefined;
 	isCanceled: boolean | undefined;
@@ -372,13 +466,13 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new ChatWelcomeMessageModel(content, obj.responderUsername, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri));
+			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
 		return requests.map((raw: ISerializableChatRequestData) => {
 			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new ChatResponseModel(new MarkdownString(raw.response), this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -453,6 +547,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if ('content' in progress) {
 			request.response.updateContent(progress.content, quiet);
+		} else if ('placeholder' in progress) {
+			request.response.updateContent(progress, quiet);
 		} else {
 			request.setProviderRequestId(progress.requestId);
 			request.response.setProviderResponseId(progress.requestId);
@@ -581,7 +677,18 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 		return this._id;
 	}
 
-	constructor(public readonly content: IChatWelcomeMessageContent[], public readonly username: string, public readonly avatarIconUri?: URI) {
+	constructor(
+		private readonly session: ChatModel,
+		public readonly content: IChatWelcomeMessageContent[],
+	) {
 		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
+	}
+
+	public get username(): string {
+		return this.session.responderUsername;
+	}
+
+	public get avatarIconUri(): URI | undefined {
+		return this.session.responderAvatarIconUri;
 	}
 }

@@ -3017,7 +3017,7 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },

@@ -56,7 +56,11 @@
 			{
 				"command": "ipynb.cleanInvalidImageAttachment",
 				"title": "%cleanInvalidImageAttachment.title%"
-			}
+			},
+      {
+        "command": "notebook.cellOutput.copyToClipboard",
+        "title": "%copyOutputToClipboard.title%"
+      }
 		],
 		"notebooks": [
 			{
@@ -99,7 +103,13 @@
 					"command": "ipynb.cleanInvalidImageAttachment",
 					"when": "false"
 				}
-			]
+			],
+      "webview/context": [
+        {
+          "command": "notebook.cellOutput.copyToClipboard",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+        }
+      ]
 		}
 	},
 	"scripts": {

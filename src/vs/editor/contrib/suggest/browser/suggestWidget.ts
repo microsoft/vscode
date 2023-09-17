@@ -34,6 +34,7 @@ import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu }
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 /**
  * Suggest widget colors
@@ -237,9 +238,9 @@ export class SuggestWidget implements IDisposable {
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0}{1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0}{1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}', label, detail);
 						} else if (description) {
 							label = nls.localize('label.desc', '{0}, {1}', label, description);
 						}
@@ -463,6 +464,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.LOADING_MESSAGE);
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
@@ -472,6 +474,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.NO_SUGGESTIONS_MESSAGE);
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);

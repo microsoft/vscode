@@ -120,7 +120,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(this.adapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.disposables.add(this.configurationManager);
-		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
+		this.debugStorage = this.disposables.add(this.instantiationService.createInstance(DebugStorage));
 
 		this.chosenEnvironments = this.debugStorage.loadChosenEnvironments();
 

@@ -717,7 +717,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		e.join((async () => {
 			const promises: Promise<ConfigurationModel>[] = [];
 			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, { scopes: getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration) }));
-			if (e.previous.isDefault !== e.profile.isDefault) {
+			if (e.previous.isDefault !== e.profile.isDefault
+				|| !!e.previous.useDefaultFlags?.settings !== !!e.profile.useDefaultFlags?.settings) {
 				this.createApplicationConfiguration();
 				if (this.applicationConfiguration) {
 					promises.push(this.reloadApplicationConfiguration(true));
@@ -1127,16 +1128,6 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
-
-		this.registerSchemas({
-			defaultSettingsSchema: {},
-			userSettingsSchema: {},
-			profileSettingsSchema: {},
-			machineSettingsSchema: {},
-			workspaceSettingsSchema: {},
-			folderSettingsSchema: {},
-			configDefaultsSchema: {},
-		});
 
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.registerConfigurationSchemas();

@@ -33,6 +33,11 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 export interface IEditorConfiguration {
 	editor: object;
 	diffEditor: object;
+	accessibility?: {
+		verbosity?: {
+			diffEditor?: boolean;
+		};
+	};
 }
 
 /**

@@ -15,7 +15,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -25,7 +25,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService implements IProfileAwareExtensionManagementService {
+export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService {
 
 	constructor(
 		channel: IChannel,

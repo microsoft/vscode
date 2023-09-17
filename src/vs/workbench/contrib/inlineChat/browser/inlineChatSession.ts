@@ -372,6 +372,8 @@ export interface IInlineChatSessionService {
 
 	onWillStartSession: Event<IActiveCodeEditor>;
 
+	onDidEndSession: Event<ICodeEditor>;
+
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
@@ -397,6 +399,9 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
 
+	private readonly _onDidEndSession = new Emitter<ICodeEditor>();
+	readonly onDidEndSession: Event<ICodeEditor> = this._onDidEndSession.event;
+
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
 	private _recordings: Recording[] = [];
@@ -411,6 +416,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	dispose() {
 		this._onWillStartSession.dispose();
+		this._onDidEndSession.dispose();
 		this._sessions.forEach(x => x.store.dispose());
 		this._sessions.clear();
 	}
@@ -505,6 +511,8 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 		// send telemetry
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
+
+		this._onDidEndSession.fire(editor);
 	}
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined {

@@ -1,27 +1,23 @@
-name: Latest Release Monitor
-on:
-  schedule:
-    - cron: 0/5 * * * *
-  repository_dispatch:
-    types: [trigger-latest-release-monitor]
+valid inputs are ['token', 'storageKey']
+2
+Run ./actions/latest-release-monitor
+4
+/home/runner/work/vscode/vscode/actions/node_modules/@actions/core/lib/core.js:118
 
-jobs:
-  main:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Actions
-        uses: actions/checkout@v3
-        with:
-          repository: "microsoft/vscode-github-triage-actions"
-          path: ./actions
-          ref: stable
-      - name: Install Actions
-        run: npm install --production --prefix ./actions
-      - name: Install Storage Module
-        run: npm install @azure/storage-blob@12.1.1
-      - name: Run Latest Release Monitor
-        uses: ./actions/latest-release-monitor
-        with:
-          storageKey: ${{secrets.AZURE_BLOB_STORAGE_CONNECTION_STRING}}
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+
+Error: Input required and not supplied: token
+     if any error: fix error for better performance
+    at Object.getInput (/home/runner/work/vscode/vscode/actions/node_modules/@actions/core/lib/core.js:118:15)
+    at getRequiredInput (/home/runner/work/vscode/vscode/actions/common/utils.js:15:41)
+    at Object.<anonymous> (/home/runner/work/vscode/vscode/actions/latest-release-monitor/index.js:12:44)
+
+    at Module._compile (node:internal/modules/cjs/loader:1105:14)
+    at Object.Module._extensions..js (node:internal/modules/cjs/loader:1159:10)
+
+  at Module.load (node:internal/modules/cjs/loader:981:32)
+15
+    at Function.Module._load (node:internal/modules/cjs/loader:822:12)
+16
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:77:12)
+17
+    at node:internal/main/run_main_module:17:47

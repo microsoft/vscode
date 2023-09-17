@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- use crate::{
+use crate::{
 	constants::{APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME},
 	rpc::ResponseError,
 };
@@ -509,10 +509,14 @@ pub enum CodeError {
 	ServerAuthRequired,
 	#[error("challenge not yet issued")]
 	AuthChallengeNotIssued,
+	#[error("challenge token is invalid")]
+	AuthChallengeBadToken,
 	#[error("unauthorized client refused")]
 	AuthMismatch,
 	#[error("keyring communication timed out after 5s")]
 	KeyringTimeout,
+	#[error("no host is connected to the tunnel relay")]
+	NoTunnelEndpoint,
 }
 
 makeAnyError!(

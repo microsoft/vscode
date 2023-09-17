@@ -217,6 +217,47 @@ suite('UserDataProfilesManifestSync', () => {
 		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
 	});
 
+	test('sync profile when the profile is updated to use default profile locally', async () => {
+		await client2.instantiationService.get(IUserDataProfilesService).createProfile('1', 'name 1');
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+
+		const profile = testClient.instantiationService.get(IUserDataProfilesService).profiles.find(p => p.id === '1')!;
+		testClient.instantiationService.get(IUserDataProfilesService).updateProfile(profile, { useDefaultFlags: { keybindings: true } });
+
+		await testObject.sync(await testClient.getResourceManifest());
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseRemoteProfiles(content!);
+		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
+	});
+
+	test('sync profile when the profile is updated to use default profile remotely', async () => {
+		const profile = await client2.instantiationService.get(IUserDataProfilesService).createProfile('1', 'name 1');
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+
+		client2.instantiationService.get(IUserDataProfilesService).updateProfile(profile, { useDefaultFlags: { keybindings: true } });
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseRemoteProfiles(content!);
+		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
+
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
+	});
+
 	function parseRemoteProfiles(content: string): ISyncUserDataProfile[] {
 		const syncData: ISyncData = JSON.parse(content);
 		return JSON.parse(syncData.content);

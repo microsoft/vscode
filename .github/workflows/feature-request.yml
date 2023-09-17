@@ -1,7 +1,7 @@
-name: new Request Manager(sammyfilly)
-on:
-  repository_dispatch:
-    types: [trigger-feature-request-manager]
+
+root key on:from root 
+  
+    types: 
   issues:
     types: [milestoned]
   schedule:

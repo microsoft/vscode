@@ -562,5 +562,8 @@
 				"foreground": "#800080"
 			}
 		}
-	]
+	],
+	"colors": {
+		"actionBar.toggledBackground": "#dddddd"
+	}
 }

@@ -19,7 +19,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookExclusiveDocumentFilter, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
-import { IFileMatchWithCells, ICellMatch, CellSearchModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { IFileMatchWithCells, ICellMatch, CellSearchModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { IEditorResolverService, priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ITextQuery, IFileQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, ISearchService } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
@@ -202,7 +202,8 @@ export class NotebookSearchService implements INotebookSearchService {
 					return;
 				}
 
-				const cells = deserializedNotebooks.get(uri)?.cells ?? (await this._notebookDataCache.getNotebookData(uri)).cells;
+				const notebook = deserializedNotebooks.get(uri) ?? (await this._notebookDataCache.getNotebookData(uri));
+				const cells = notebook.cells;
 
 				if (token.isCancellationRequested) {
 					return;
@@ -210,15 +211,24 @@ export class NotebookSearchService implements INotebookSearchService {
 
 				cells.forEach((cell, index) => {
 					const target = textQuery.contentPattern.pattern;
-					const cellModel = cell instanceof NotebookCellTextModel ? new CellSearchModel('', cell.textBuffer, uri, index) : new CellSearchModel(cell.source, undefined, uri, index);
+					const cellModel = cell instanceof NotebookCellTextModel ? new CellSearchModel('', cell.textBuffer, cell.outputs.flatMap(value => value.outputs), uri, index) : new CellSearchModel(cell.source, undefined, cell.outputs.flatMap(value => value.outputs), uri, index);
 
-					const matches = cellModel.find(target);
-					if (matches.length > 0) {
+					const inputMatches = cellModel.findInInputs(target);
+					const outputMatches = cellModel.findInOutputs(target);
+					const webviewResults = outputMatches
+						.flatMap(outputMatch =>
+							genericCellMatchesToTextSearchMatches(outputMatch.matches, outputMatch.textBuffer, cellModel))
+						.map((textMatch, index) => {
+							textMatch.webviewIndex = index;
+							return textMatch;
+						});
+
+					if (inputMatches.length > 0 || outputMatches.length > 0) {
 						const cellMatch: ICellMatch = {
 							cell: cellModel,
 							index: index,
-							contentResults: contentMatchesToTextSearchMatches(matches, cellModel),
-							webviewResults: []
+							contentResults: contentMatchesToTextSearchMatches(inputMatches, cellModel),
+							webviewResults
 						};
 						cellMatches.push(cellMatch);
 					}

@@ -91,6 +91,12 @@
           "default": false,
           "description": "%json.format.keepLines.desc%"
         },
+        "json.sortOnSave.enable": {
+          "type": "boolean",
+          "scope": "window",
+          "default": false,
+          "description": "%json.sortOnSave.enable.desc%"
+        },
         "json.trace.server": {
           "type": "string",
           "scope": "window",
@@ -163,7 +169,7 @@
     "vscode-languageclient": "^8.2.0-next.1"
   },
   "devDependencies": {
-    "@types/node": "16.x"
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

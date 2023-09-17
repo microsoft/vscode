@@ -18,6 +18,7 @@ import { createStringDataTransferItem, VSDataTransfer } from 'vs/base/common/dat
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -90,8 +91,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		return Promise.resolve();
 	}
 
-	$setMessage(treeViewId: string, message: string): void {
-		this.logService.trace('MainThreadTreeViews#$setMessage', treeViewId, message);
+	$setMessage(treeViewId: string, message: string | IMarkdownString): void {
+		this.logService.trace('MainThreadTreeViews#$setMessage', treeViewId, message.toString());
 
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {

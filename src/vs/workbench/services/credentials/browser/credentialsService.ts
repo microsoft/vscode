@@ -30,15 +30,18 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 	) {
 		super();
 
-		if (environmentService.remoteAuthority && !environmentService.options?.credentialsProvider) {
+		if (
+			environmentService.remoteAuthority
+			&& !environmentService.options?.credentialsProvider
+			&& !environmentService.options?.secretStorageProvider
+		) {
 			// If we have a remote authority but the embedder didn't provide a credentialsProvider,
 			// we can use the CredentialsService on the remote side
 			const remoteCredentialsService = ProxyChannel.toService<ICredentialsService>(remoteAgentService.getConnection()!.getChannel('credentials'));
 			this.credentialsProvider = remoteCredentialsService;
 			this._secretStoragePrefix = remoteCredentialsService.getSecretStoragePrefix();
 		} else {
-			// fall back to InMemoryCredentialsProvider if none was given to us. This should really only be used
-			// when running tests.
+			// fall back to InMemoryCredentialsProvider if none was given to us.
 			this.credentialsProvider = environmentService.options?.credentialsProvider ?? new InMemoryCredentialsProvider();
 			this._secretStoragePrefix = Promise.resolve(this.productService.urlProtocol);
 		}

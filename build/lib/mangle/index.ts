@@ -278,13 +278,6 @@ function isNameTakenInFile(node: ts.Node, name: string): boolean {
 	return false;
 }
 
-const fileIdents = new class {
-	private readonly idents = new ShortIdent('$');
-
-	next() {
-		return this.idents.next();
-	}
-};
 
 const skippedExportMangledFiles = [
 	// Build
@@ -346,6 +339,7 @@ class DeclarationData {
 		readonly fileName: string,
 		readonly node: ts.FunctionDeclaration | ts.ClassDeclaration | ts.EnumDeclaration | ts.VariableDeclaration,
 		private readonly service: ts.LanguageService,
+		fileIdents: ShortIdent,
 	) {
 		// Todo: generate replacement names based on usage count, with more used names getting shorter identifiers
 		this.replacementName = fileIdents.next();
@@ -427,6 +421,8 @@ export class Mangler {
 		// - Find all classes and their field info.
 		// - Find exported symbols.
 
+		const fileIdents = new ShortIdent('$');
+
 		const visit = (node: ts.Node): void => {
 			if (this.config.manglePrivateFields) {
 				if (ts.isClassDeclaration(node) || ts.isClassExpression(node)) {
@@ -475,7 +471,7 @@ export class Mangler {
 						return;
 					}
 
-					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service));
+					this.allExportedSymbols.add(new DeclarationData(node.getSourceFile().fileName, node, this.service, fileIdents));
 				}
 			}
 

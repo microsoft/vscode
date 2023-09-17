@@ -120,6 +120,9 @@ export class StickyModelProvider implements IStickyModelProvider {
 				}
 			}
 			return null;
+		}).catch((error) => {
+			onUnexpectedError(error);
+			return null;
 		});
 	}
 }

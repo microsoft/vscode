@@ -337,6 +337,7 @@ export interface ILocalSyncExtension {
 	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -347,6 +348,7 @@ export interface IRemoteSyncExtension {
 	preRelease?: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 

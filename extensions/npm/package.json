@@ -22,7 +22,7 @@
   "dependencies": {
     "find-up": "^4.1.0",
     "find-yarn-workspace-root": "^2.0.0",
-    "jsonc-parser": "^2.2.1",
+    "jsonc-parser": "^2.3.1",
     "minimatch": "^3.0.4",
     "request-light": "^0.7.0",
     "which": "^2.0.2",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/which": "^2.0.0"
   },
   "resolutions": {

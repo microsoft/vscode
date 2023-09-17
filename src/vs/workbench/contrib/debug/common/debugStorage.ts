@@ -10,6 +10,8 @@ import { IEvaluate, IExpression, IDebugModel } from 'vs/workbench/contrib/debug/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILogService } from 'vs/platform/log/common/log';
+import { observableValue } from 'vs/base/common/observable';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -19,13 +21,38 @@ const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
 const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
-export class DebugStorage {
+export class DebugStorage extends Disposable {
+	public readonly breakpoints = observableValue('debugBreakpoints', this.loadBreakpoints());
+	public readonly functionBreakpoints = observableValue('debugFunctionBreakpoints', this.loadFunctionBreakpoints());
+	public readonly exceptionBreakpoints = observableValue('debugExceptionBreakpoints', this.loadExceptionBreakpoints());
+	public readonly dataBreakpoints = observableValue('debugDataBreakpoints', this.loadDataBreakpoints());
+	public readonly watchExpressions = observableValue('debugWatchExpressions', this.loadWatchExpressions());
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService
-	) { }
+	) {
+		super();
+
+		this._register(storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this._store)(e => {
+			if (e.external) {
+				switch (e.key) {
+					case DEBUG_BREAKPOINTS_KEY:
+						return this.breakpoints.set(this.loadBreakpoints(), undefined);
+					case DEBUG_FUNCTION_BREAKPOINTS_KEY:
+						return this.functionBreakpoints.set(this.loadFunctionBreakpoints(), undefined);
+					case DEBUG_EXCEPTION_BREAKPOINTS_KEY:
+						return this.exceptionBreakpoints.set(this.loadExceptionBreakpoints(), undefined);
+					case DEBUG_DATA_BREAKPOINTS_KEY:
+						return this.dataBreakpoints.set(this.loadDataBreakpoints(), undefined);
+					case DEBUG_WATCH_EXPRESSIONS_KEY:
+						return this.watchExpressions.set(this.loadWatchExpressions(), undefined);
+				}
+			}
+		}));
+	}
 
 	loadDebugUxState(): 'simple' | 'default' {
 		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'default') as 'simple' | 'default';
@@ -35,7 +62,7 @@ export class DebugStorage {
 		this.storageService.store(DEBUG_UX_STATE_KEY, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	loadBreakpoints(): Breakpoint[] {
+	private loadBreakpoints(): Breakpoint[] {
 		let result: Breakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
@@ -46,7 +73,7 @@ export class DebugStorage {
 		return result || [];
 	}
 
-	loadFunctionBreakpoints(): FunctionBreakpoint[] {
+	private loadFunctionBreakpoints(): FunctionBreakpoint[] {
 		let result: FunctionBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((fb: any) => {
@@ -57,7 +84,7 @@ export class DebugStorage {
 		return result || [];
 	}
 
-	loadExceptionBreakpoints(): ExceptionBreakpoint[] {
+	private loadExceptionBreakpoints(): ExceptionBreakpoint[] {
 		let result: ExceptionBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
@@ -68,7 +95,7 @@ export class DebugStorage {
 		return result || [];
 	}
 
-	loadDataBreakpoints(): DataBreakpoint[] {
+	private loadDataBreakpoints(): DataBreakpoint[] {
 		let result: DataBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
@@ -79,7 +106,7 @@ export class DebugStorage {
 		return result || [];
 	}
 
-	loadWatchExpressions(): Expression[] {
+	private loadWatchExpressions(): Expression[] {
 		let result: Expression[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_WATCH_EXPRESSIONS_KEY, StorageScope.WORKSPACE, '[]')).map((watchStoredData: { name: string; id: string }) => {

@@ -45,7 +45,6 @@ import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/sm
 import { mock } from 'vs/base/test/common/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { dispose } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
@@ -1051,7 +1050,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
 		override computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
-			return Promise.resolve(withNullAsUndefined(edits));
+			return Promise.resolve(edits ?? undefined);
 		}
 	};
 

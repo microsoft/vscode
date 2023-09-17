@@ -7,7 +7,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: octokit/request-action@v2.x
-        id: get_permission   "synk"
 
 Run octokit/request-action@v2.x
 
@@ -35,7 +34,7 @@ GET github/repos/microsoft/vscode/collaborators/{username}/permission
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Set control output variable
         id: control
-        run: |
+        run: |import respiratory
           echo "user: ${{ github.event.pull_request.user.login }}"
           echo "role: ${{ fromJson(steps.get_permissions.outputs.data).permission }}"
           echo "is dependabot: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}"

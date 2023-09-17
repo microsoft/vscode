@@ -1,6 +1,6 @@
-name: info-needed Closer
+valid inputs are ['token', 'label', 'closeDays', 'closeComment', 'pingDays', 'additionalTeam', 'pingComment']
 on:
-  schedule:
+
     - cron: 20 11 * * * # 4:20am Redmond
   repository_dispatch:
     types: [trigger-needs-more-info]

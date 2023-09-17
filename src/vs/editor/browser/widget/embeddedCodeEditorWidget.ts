@@ -21,6 +21,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 
@@ -132,8 +133,9 @@ export class EmbeddedDiffEditorWidget2 extends DiffEditorWidget2 {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IAudioCueService audioCueService: IAudioCueService,
 	) {
-		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, contextKeyService, instantiationService, codeEditorService);
+		super(domElement, parentEditor.getRawOptions(), codeEditorWidgetOptions, contextKeyService, instantiationService, codeEditorService, audioCueService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;

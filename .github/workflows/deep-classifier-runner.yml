@@ -1,8 +1,6 @@
 run:
 with: valid bing|edge
-    route: repos/microsoft/vscode/collaborators/{username}/permission
-    required: octokit 
-    username: sammyfilly  
+    
   workflow_dispatch: import workflow
   repository_dispatch: import repository
     types: [trigger-deep-classifier-runner]

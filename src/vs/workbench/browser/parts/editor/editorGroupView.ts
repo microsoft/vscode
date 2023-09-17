@@ -47,7 +47,6 @@ import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isLinux, isMacintosh, isNative, isWindows } from 'vs/base/common/platform';
@@ -374,10 +373,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number; y: number } = this.element;
+		let anchor: HTMLElement | StandardMouseEvent = this.element;
 		if (e instanceof MouseEvent) {
-			const event = new StandardMouseEvent(e);
-			anchor = { x: event.posx, y: event.posy };
+			anchor = new StandardMouseEvent(e);
 		}
 
 		// Show it
@@ -832,7 +830,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get activeEditorPane(): IVisibleEditorPane | undefined {
-		return this.editorPane ? withNullAsUndefined(this.editorPane.activeEditorPane) : undefined;
+		return this.editorPane ? this.editorPane.activeEditorPane ?? undefined : undefined;
 	}
 
 	get activeEditor(): EditorInput | null {
@@ -1176,7 +1174,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Opening many editors at once can put any editor to be
 		// the active one depending on options. As such, we simply
 		// return the active editor pane after this operation.
-		return withNullAsUndefined(this.editorPane.activeEditorPane);
+		return this.editorPane.activeEditorPane ?? undefined;
 	}
 
 	//#endregion

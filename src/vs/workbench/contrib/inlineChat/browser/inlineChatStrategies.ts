@@ -66,7 +66,9 @@ export class PreviewStrategy extends EditModeStrategy {
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
-			this._ctxDocumentChanged.set(!_session.textModelN.equalsTextBuffer(_session.textModel0.getTextBuffer()));
+			if (!_session.textModelN.isDisposed() && !_session.textModel0.isDisposed()) {
+				this._ctxDocumentChanged.set(_session.hasChangedText);
+			}
 		});
 	}
 

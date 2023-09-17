@@ -25,6 +25,7 @@ import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/workspaceActions';
 import 'vs/workbench/browser/actions/workspaceCommands';
 import 'vs/workbench/browser/actions/quickAccessActions';
+import 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 //#endregion
 
@@ -324,9 +325,6 @@ import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contrib
 
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
-
-// Send a Smile
-import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';

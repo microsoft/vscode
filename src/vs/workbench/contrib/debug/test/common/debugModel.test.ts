@@ -5,12 +5,17 @@
 
 import * as assert from 'assert';
 import { DeferredPromise } from 'vs/base/common/async';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mockObject } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('DebugModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('FunctionBreakpoint', () => {
 		test('Id is saved', () => {
 			const fbp = new FunctionBreakpoint('function', true, 'hit condition', 'condition', 'log message');
@@ -42,7 +47,10 @@ suite('DebugModel', () => {
 			});
 			fakeThread.getId.returns(1);
 
-			const model = new DebugModel(new MockDebugStorage(), <any>{ isDirty: (e: any) => false }, undefined!, new NullLogService());
+			const disposable = new DisposableStore();
+			const storage = disposable.add(new TestStorageService());
+			const model = new DebugModel(disposable.add(new MockDebugStorage(storage)), <any>{ isDirty: (e: any) => false }, undefined!, new NullLogService());
+			disposable.add(model);
 
 			let top1Resolved = false;
 			let whole1Resolved = false;
@@ -70,6 +78,8 @@ suite('DebugModel', () => {
 			await wholeStackDeferred.complete();
 			await result1.wholeCallStack;
 			await result2.wholeCallStack;
+
+			disposable.dispose();
 		});
 	});
 });

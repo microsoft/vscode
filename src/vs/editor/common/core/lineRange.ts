@@ -219,6 +219,12 @@ export class LineRange {
 		return result;
 	}
 
+	public forEach(f: (lineNumber: number) => void): void {
+		for (let lineNumber = this.startLineNumber; lineNumber < this.endLineNumberExclusive; lineNumber++) {
+			f(lineNumber);
+		}
+	}
+
 	/**
 	 * @internal
 	 */

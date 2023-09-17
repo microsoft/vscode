@@ -27,8 +27,7 @@ jobs:
         with:
           creds: ${{ secrets.AZ_ACR_CREDS }}
 
-      - name: Build and push
-        id: build_and_push
+      - name:  build/import_and_push
         run: |
           set -e
 

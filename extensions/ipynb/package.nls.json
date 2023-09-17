@@ -6,6 +6,7 @@
 	"newUntitledIpynb.shortTitle": "Jupyter Notebook",
 	"openIpynbInNotebookEditor.title": "Open IPYNB File In Notebook Editor",
 	"cleanInvalidImageAttachment.title": "Clean Invalid Image Attachment Reference",
+	"copyOutputToClipboard.title": "Copy Output to Clipboard",
 	"markdownAttachmentRenderer.displayName": {
 		"message": "Markdown-It ipynb Cell Attachment renderer",
 		"comment": [

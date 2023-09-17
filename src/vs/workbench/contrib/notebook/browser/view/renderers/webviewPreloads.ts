@@ -474,8 +474,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableOrContainerInOutput(cellId: string) {
-		const cellOutputContainer = document.getElementById(cellId);
+	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string) {
+		const cellOutputContainer = document.getElementById(cellOrOutputId);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
@@ -804,6 +804,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	interface ExtendedOutputItem extends rendererApi.OutputItem {
 		readonly _allOutputItems: ReadonlyArray<AdditionalOutputItemInfo>;
+		appendedText?(): string | undefined;
 	}
 
 	let hasWarnedAboutAllOutputItemsProposal = false;
@@ -813,7 +814,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		mime: string,
 		metadata: unknown,
 		valueBytes: Uint8Array,
-		allOutputItemData: ReadonlyArray<{ readonly mime: string }>
+		allOutputItemData: ReadonlyArray<{ readonly mime: string }>,
+		appended?: { valueBytes: Uint8Array; previousVersion: number }
 	): ExtendedOutputItem {
 
 		function create(
@@ -821,11 +823,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			mime: string,
 			metadata: unknown,
 			valueBytes: Uint8Array,
+			appended?: { valueBytes: Uint8Array; previousVersion: number }
 		): ExtendedOutputItem {
 			return Object.freeze<ExtendedOutputItem>({
 				id,
 				mime,
 				metadata,
+
+				appendedText(): string | undefined {
+					if (appended) {
+						return textDecoder.decode(appended.valueBytes);
+					}
+					return undefined;
+				},
 
 				data(): Uint8Array {
 					return valueBytes;
@@ -874,7 +884,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}));
 
-		const item = create(id, mime, metadata, valueBytes);
+		const item = create(id, mime, metadata, valueBytes, appended);
 		allOutputItemCache.set(mime, Promise.resolve(item));
 		return item;
 	}
@@ -1352,6 +1362,43 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
+	const copyOutputImage = async (outputId: string, retries = 5) => {
+		if (!document.hasFocus() && retries > 0) {
+			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
+			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+			setTimeout(() => { copyOutputImage(outputId, retries - 1); }, 20);
+			return;
+		}
+
+		try {
+			const image = document.getElementById(outputId)?.querySelector('img');
+			if (image) {
+				await navigator.clipboard.write([new ClipboardItem({
+					'image/png': new Promise((resolve) => {
+						const canvas = document.createElement('canvas');
+						if (canvas !== null) {
+							canvas.width = image.naturalWidth;
+							canvas.height = image.naturalHeight;
+							const context = canvas.getContext('2d');
+							context?.drawImage(image, 0, 0);
+						}
+						canvas.toBlob((blob) => {
+							if (blob) {
+								resolve(blob);
+							}
+							canvas.remove();
+						}, 'image/png');
+					})
+				})]);
+			} else {
+				console.error('Could not find image element to copy for output with id', outputId);
+			}
+		} catch (e) {
+			console.error('Could not copy image:', e);
+		}
+	};
+
 	window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage });
 
@@ -1452,6 +1499,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 				break;
 			}
+			case 'copyImage': {
+
+				await copyOutputImage(event.data.outputId);
+
+				break;
+			}
 			case 'ack-dimension': {
 				for (const { cellId, outputId, height } of event.data.updates) {
 					viewModel.updateOutputHeight(cellId, outputId, height);
@@ -1471,7 +1524,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableOrContainerInOutput(event.data.cellId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);
@@ -2509,6 +2562,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		) {
 			this.element = document.createElement('div');
 			this.element.classList.add('output_container');
+			this.element.setAttribute('data-vscode-context', JSON.stringify({ 'preventDefaultContextMenuItems': true }));
 			this.element.style.position = 'absolute';
 			this.element.style.overflow = 'hidden';
 		}
@@ -2611,13 +2665,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this._content = { preferredRendererId, preloadErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
-				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent; // CodeQL [SM03712] The content comes from renderer extensions, not from direct user input.
 				this.element.innerHTML = trustedHtml as string;
 			} else if (preloadErrors.some(e => e instanceof Error)) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs);
+				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();
 				this.renderTaskAbort = controller;

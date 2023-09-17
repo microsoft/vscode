@@ -9,7 +9,6 @@ import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hi
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -24,7 +23,7 @@ import { ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIV
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSessionAccount, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -42,6 +41,9 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { runWhenIdle } from 'vs/base/common/async';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -150,13 +152,9 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 			const actions = await this.resolveContextMenuActions(disposables);
 
 			const event = new StandardMouseEvent(e);
-			const anchor = {
-				x: event.posx,
-				y: event.posy
-			};
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => event,
 				getActions: () => actions,
 				onHide: () => disposables.dispose()
 			});
@@ -236,7 +234,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	private readonly problematicProviders: Set<string> = new Set();
 
 	private initialized = false;
-	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
+	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService));
 
 	constructor(
 		action: ActivityAction,
@@ -244,6 +242,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHoverService hoverService: IHoverService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -290,6 +289,16 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	// This function exists to ensure that the accounts are added for auth providers that had already been registered
 	// before the menu was created.
 	private async initialize(): Promise<void> {
+		// Resolving the menu doesn't need to happen immediately, so we can wait until after the workbench has been restored
+		// and only run this when the system is idle.
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+		const disposable = this._register(runWhenIdle(async () => {
+			await this.doInitialize();
+			disposable.dispose();
+		}));
+	}
+
+	private async doInitialize(): Promise<void> {
 		const providerIds = this.authenticationService.getProviderIds();
 		const results = await Promise.allSettled(providerIds.map(providerId => this.addAccountsFromProvider(providerId)));
 
@@ -406,7 +415,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			this.groupedAccounts.set(providerId, accounts);
 		}
 
-		const sessionFromEmbedder = await this.sessionFromEmbedder;
+		const sessionFromEmbedder = await this.sessionFromEmbedder.value;
 		// If the session stored from the embedder allows sign out, then we can treat it and all others as sign out-able
 		let canSignOut = !!sessionFromEmbedder?.canSignOut;
 		if (!canSignOut) {
@@ -485,7 +494,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-		this._register(Event.any(this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfileService.onDidChangeCurrentProfile)(() => this.updateProfileBadge()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.updateProfileBadge()));
 	}
 
 	override render(container: HTMLElement): void {

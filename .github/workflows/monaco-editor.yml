@@ -2,7 +2,32 @@ name: Monaco Editor checks
 
 on:
   push:
-    branches:
+    branches
+    yarn --frozen-lockfile --network-timeout 180000
+
+  shell: /usr/bin/bash -e {0}
+
+  env:
+
+    GITHUB_TOKEN: 
+
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+yarn install v1.22.19
+
+$ node build/npm/preinstall.js
+
+[1/4] Resolving packages...
+
+[2/4] Fetching packages...
+
+error An unexpected error occurred: "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.13.2.tgz: Request failed \"404 Not Found\"".
+fix issues:
+info If you think this is a bug, please open a bug report with the information provided in "/home/runner/work/vscode/vscode/yarn-error.log".
+14
+info Visit https://yarnpkg.com/en/docs/cli/install for documentation about this command.
+    
       - main
       - release/*
   pull_request:
@@ -22,7 +47,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -45,6 +70,9 @@ jobs:
           path: ${{ steps.yarnCacheDirPath.outputs.dir }}
           key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Install libkrb5-dev
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: sudo apt install -y libkrb5-dev
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
@@ -89,3 +117,4 @@ jobs:
         timeout-minutes: 5
         working-directory: ./test/monaco
         run: yarn test
+        create new file 

@@ -11,7 +11,8 @@
 		"editor.selectionBackground": "#FFFFFF",
 		"statusBarItem.remoteBackground": "#00000000",
 		"ports.iconRunningProcessForeground": "#FFFFFF",
-		"editorWhitespace.foreground": "#7c7c7c"
+		"editorWhitespace.foreground": "#7c7c7c",
+		"actionBar.toggledBackground": "#383a49"
 	},
 	"tokenColors": [
 		{

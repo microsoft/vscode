@@ -13,7 +13,7 @@ import { raceTimeout } from 'vs/base/common/async';
 import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
 import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
-import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
 import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 

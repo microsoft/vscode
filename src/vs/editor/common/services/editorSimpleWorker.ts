@@ -440,10 +440,10 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			quitEarly: result.hitTimeout,
 			changes: getLineChanges(result.changes),
 			moves: result.moves.map(m => ([
-				m.lineRangeMapping.originalRange.startLineNumber,
-				m.lineRangeMapping.originalRange.endLineNumberExclusive,
-				m.lineRangeMapping.modifiedRange.startLineNumber,
-				m.lineRangeMapping.modifiedRange.endLineNumberExclusive,
+				m.lineRangeMapping.original.startLineNumber,
+				m.lineRangeMapping.original.endLineNumberExclusive,
+				m.lineRangeMapping.modified.startLineNumber,
+				m.lineRangeMapping.modified.endLineNumberExclusive,
 				getLineChanges(m.changes)
 			])),
 		};

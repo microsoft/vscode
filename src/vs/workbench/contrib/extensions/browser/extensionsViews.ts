@@ -29,7 +29,7 @@ import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'v
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
+import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -150,7 +150,7 @@ export class ExtensionsListView extends ViewPane {
 	) {
 		super({
 			...(viewletViewOptions as IViewPaneOptions),
-			showActionsAlways: true,
+			showActions: ViewPaneShowActions.Always,
 			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.PROFILE, 0) ? undefined : 0) : undefined
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		if (this.options.onDidChangeTitle) {

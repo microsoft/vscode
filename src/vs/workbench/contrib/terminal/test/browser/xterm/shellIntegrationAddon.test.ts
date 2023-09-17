@@ -39,7 +39,7 @@ suite('ShellIntegrationAddon', () => {
 		capabilities = shellIntegrationAddon.capabilities;
 	});
 
-	suite('cwd detection', async () => {
+	suite('cwd detection', () => {
 		test('should activate capability on the cwd sequence (OSC 633 ; P ; Cwd=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
 			await writeP(xterm, 'foo');
@@ -70,7 +70,7 @@ suite('ShellIntegrationAddon', () => {
 			}
 		});
 
-		suite('detect `SetCwd` sequence: `OSC 7; scheme://cwd ST`', async () => {
+		suite('detect `SetCwd` sequence: `OSC 7; scheme://cwd ST`', () => {
 			test('should accept well-formatted URLs', async () => {
 				type TestCase = [title: string, input: string, expected: string];
 				const cases: TestCase[] = [
@@ -133,7 +133,7 @@ suite('ShellIntegrationAddon', () => {
 		});
 	});
 
-	suite('command tracking', async () => {
+	suite('command tracking', () => {
 		test('should activate capability on the prompt start sequence (OSC 633 ; A ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
@@ -212,7 +212,7 @@ suite('ShellIntegrationAddon', () => {
 			mock.verify();
 		});
 	});
-	suite('BufferMarkCapability', async () => {
+	suite('BufferMarkCapability', () => {
 		test('SetMark', async () => {
 			strictEqual(capabilities.has(TerminalCapability.BufferMarkDetection), false);
 			await writeP(xterm, 'foo');

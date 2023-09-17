@@ -481,7 +481,7 @@ export class Git {
 		const result = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--show-toplevel']);
 
 		// Keep trailing spaces which are part of the directory name
-		const repositoryRootPath = path.normalize(result.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+		const repositoryRootPath = path.normalize(result.stdout.trimStart().replace(/[\r\n]+$/, ''));
 
 		if (isWindows) {
 			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
@@ -528,7 +528,7 @@ export class Git {
 			!isDescendant(pathInsidePossibleRepository, repositoryRootPath) &&
 			this.compareGitVersionTo('2.31.0') !== -1) {
 			const relativePathResult = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
-			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimLeft().replace(/[\r\n]+$/, ''));
+			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimStart().replace(/[\r\n]+$/, ''));
 		}
 
 		return repositoryRootPath;

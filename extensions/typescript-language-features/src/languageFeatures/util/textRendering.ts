@@ -188,10 +188,10 @@ function convertLinkTags(
 							if (/^https?:/.test(text)) {
 								const parts = text.split(' ');
 								if (parts.length === 1) {
-									out.push(parts[0]);
+									out.push(`<${parts[0]}>`);
 								} else if (parts.length > 1) {
-									const linkText = escapeMarkdownSyntaxTokensForCode(parts.slice(1).join(' '));
-									out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${parts[0]})`);
+									const linkText = parts.slice(1).join(' ');
+									out.push(`[${currentLink.linkcode ? '`' + escapeMarkdownSyntaxTokensForCode(linkText) + '`' : linkText}](${parts[0]})`);
 								}
 							} else {
 								out.push(escapeMarkdownSyntaxTokensForCode(text));

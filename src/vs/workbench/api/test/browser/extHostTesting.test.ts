@@ -11,6 +11,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import * as editorRange from 'vs/editor/common/core/range';
+import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
@@ -594,6 +595,7 @@ suite('ExtHost Testing', () => {
 		let req: TestRunRequest;
 
 		let dto: TestRunDto;
+		const ext: IRelaxedExtensionDescription = {} as any;
 
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
@@ -621,11 +623,11 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('tracks a run started from a main thread request', () => {
-			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			const tracker = c.prepareForMainThreadTestRun(req, dto, ext, cts.token);
 			assert.strictEqual(tracker.hasRunningTasks, false);
 
-			const task1 = c.createTestRun('ctrl', single, req, 'run1', true);
-			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
+			const task1 = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+			const task2 = c.createTestRun(ext, 'ctrl', single, req, 'run2', true);
 			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
 			assert.strictEqual(tracker.hasRunningTasks, true);
 
@@ -646,8 +648,8 @@ suite('ExtHost Testing', () => {
 		test('run cancel force ends after a timeout', () => {
 			const clock = sinon.useFakeTimers();
 			try {
-				const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
-				const task = c.createTestRun('ctrl', single, req, 'run1', true);
+				const tracker = c.prepareForMainThreadTestRun(req, dto, ext, cts.token);
+				const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
 				const onEnded = sinon.stub();
 				tracker.onEnd(onEnded);
 
@@ -671,8 +673,8 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('run cancel force ends on second cancellation request', () => {
-			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
-			const task = c.createTestRun('ctrl', single, req, 'run1', true);
+			const tracker = c.prepareForMainThreadTestRun(req, dto, ext, cts.token);
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
 			const onEnded = sinon.stub();
 			tracker.onEnd(onEnded);
 
@@ -690,7 +692,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('tracks a run started from an extension request', () => {
-			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
+			const task1 = c.createTestRun(ext, 'ctrl', single, req, 'hello world', false);
 
 			const tracker = Iterable.first(c.trackers)!;
 			assert.strictEqual(tracker.hasRunningTasks, true);
@@ -706,8 +708,8 @@ suite('ExtHost Testing', () => {
 				}]
 			]);
 
-			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
-			const task3Detached = c.createTestRun('ctrl', single, { ...req }, 'task3Detached', true);
+			const task2 = c.createTestRun(ext, 'ctrl', single, req, 'run2', true);
+			const task3Detached = c.createTestRun(ext, 'ctrl', single, { ...req }, 'task3Detached', true);
 
 			task1.end();
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
@@ -721,7 +723,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('adds tests to run smartly', () => {
-			const task1 = c.createTestRun('ctrlId', single, req, 'hello world', false);
+			const task1 = c.createTestRun(ext, 'ctrlId', single, req, 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 			const expectedArgs: unknown[][] = [];
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
@@ -758,7 +760,7 @@ suite('ExtHost Testing', () => {
 			const test2 = new TestItemImpl('ctrlId', 'id-d', 'test d', URI.file('/testd.txt'));
 			test1.range = test2.range = new Range(new Position(0, 0), new Position(1, 0));
 			single.root.children.replace([test1, test2]);
-			const task = c.createTestRun('ctrlId', single, req, 'hello world', false);
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'hello world', false);
 
 			const message1 = new TestMessage('some message');
 			message1.location = new Location(URI.file('/a.txt'), new Position(0, 0));
@@ -773,6 +775,7 @@ suite('ExtHost Testing', () => {
 					message: 'some message',
 					type: TestMessageType.Error,
 					expected: undefined,
+					contextValue: undefined,
 					actual: undefined,
 					location: convert.location.from(message1.location)
 				}]
@@ -787,6 +790,7 @@ suite('ExtHost Testing', () => {
 				[{
 					message: 'some message',
 					type: TestMessageType.Error,
+					contextValue: undefined,
 					expected: undefined,
 					actual: undefined,
 					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
@@ -795,7 +799,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('guards calls after runs are ended', () => {
-			const task = c.createTestRun('ctrl', single, req, 'hello world', false);
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'hello world', false);
 			task.end();
 
 			task.failed(single.root, new TestMessage('some message'));
@@ -807,7 +811,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('excludes tests outside tree or explicitly excluded', () => {
-			const task = c.createTestRun('ctrlId', single, {
+			const task = c.createTestRun(ext, 'ctrlId', single, {
 				profile: configuration,
 				include: [single.root.children.get('id-a')!],
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
@@ -835,7 +839,7 @@ suite('ExtHost Testing', () => {
 			const childB = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
 			testB!.children.replace([childB]);
 
-			const task1 = c.createTestRun('ctrl', single, new TestRunRequestImpl(), 'hello world', false);
+			const task1 = c.createTestRun(ext, 'ctrl', single, new TestRunRequestImpl(), 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 
 			task1.passed(childA);

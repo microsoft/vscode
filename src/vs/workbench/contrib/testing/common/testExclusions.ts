@@ -13,7 +13,7 @@ import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testTypes'
 
 export class TestExclusions extends Disposable {
 	private readonly excluded = this._register(
-		MutableObservableValue.stored(new StoredValue<ReadonlySet<string>>({
+		MutableObservableValue.stored(this._register(new StoredValue<ReadonlySet<string>>({
 			key: 'excludedTestItems',
 			scope: StorageScope.WORKSPACE,
 			target: StorageTarget.MACHINE,
@@ -21,7 +21,7 @@ export class TestExclusions extends Disposable {
 				deserialize: v => new Set(JSON.parse(v)),
 				serialize: v => JSON.stringify([...v])
 			},
-		}, this.storageService), new Set())
+		}, this.storageService)), new Set())
 	);
 
 	constructor(@IStorageService private readonly storageService: IStorageService) {

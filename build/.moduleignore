@@ -73,6 +73,12 @@ windows-foreground-love/build/**
 windows-foreground-love/src/**
 !windows-foreground-love/**/*.node
 
+kerberos/binding.gyp
+kerberos/build/**
+kerberos/src/**
+kerberos/node_modules/**
+!kerberos/**/*.node
+
 keytar/binding.gyp
 keytar/build/**
 keytar/src/**
@@ -107,14 +113,6 @@ vsda/README.md
 vsda/SECURITY.md
 vsda/targets
 !vsda/build/Release/vsda.node
-
-vscode-encrypt/build/**
-vscode-encrypt/src/**
-vscode-encrypt/vendor/**
-vscode-encrypt/.gitignore
-vscode-encrypt/binding.gyp
-vscode-encrypt/README.md
-!vscode-encrypt/build/Release/vscode-encrypt-native.node
 
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**

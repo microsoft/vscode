@@ -125,7 +125,7 @@ export class FindModel extends Disposable {
 
 		// we only update cell state if users are using the hybrid mode (both input and preview are enabled)
 		const updateEditingState = () => {
-			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			const viewModel = this._notebookEditor.getViewModel() as NotebookViewModel | undefined;
 			if (!viewModel) {
 				return;
 			}
@@ -164,7 +164,7 @@ export class FindModel extends Disposable {
 
 		if (e.isReplaceRevealed && !this._state.isReplaceRevealed) {
 			// replace is hidden, we need to switch all markdown cells to preview mode
-			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			const viewModel = this._notebookEditor.getViewModel() as NotebookViewModel | undefined;
 			if (!viewModel) {
 				return;
 			}

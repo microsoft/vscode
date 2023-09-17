@@ -5,10 +5,10 @@
 
 import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
-import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { INativeWindowConfiguration, IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
-import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
+import { setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -58,6 +58,8 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ElectronRemoteResourceLoader } from 'vs/platform/remote/electron-sandbox/electronRemoteResourceLoader';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 
 export class DesktopMain extends Disposable {
 
@@ -74,10 +76,7 @@ export class DesktopMain extends Disposable {
 		// Massage configuration file URIs
 		this.reviveUris();
 
-		// Browser config
-		const zoomLevel = this.configuration.zoomLevel || 0;
-		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
-		setZoomLevel(zoomLevel, true /* isTrusted */);
+		// Apply fullscreen early if configured
 		setFullscreen(!!this.configuration.fullscreen);
 	}
 
@@ -112,6 +111,13 @@ export class DesktopMain extends Disposable {
 		// Init services and wait for DOM to be ready in parallel
 		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
 
+		// Apply zoom level early once we have a configuration service
+		// and before the workbench is created to prevent flickering.
+		// We also need to respect that zoom level can be configured per
+		// workspace, so we need the resolved configuration service.
+		// (fixes https://github.com/microsoft/vscode/issues/187982)
+		this.applyConfiguredWindowZoomLevel(services.configurationService);
+
 		// Create Workbench
 		const workbench = new Workbench(document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
 
@@ -123,6 +129,13 @@ export class DesktopMain extends Disposable {
 
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
+	}
+
+	private applyConfiguredWindowZoomLevel(configurationService: IConfigurationService) {
+		const windowConfig = configurationService.getValue<IWindowsConfiguration>();
+		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+
+		applyZoom(windowZoomLevel);
 	}
 
 	private getExtraClasses(): string[] {
@@ -142,7 +155,7 @@ export class DesktopMain extends Disposable {
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeWorkbenchStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeWorkbenchStorageService; configurationService: IConfigurationService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -310,7 +323,7 @@ export class DesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService };
+		return { serviceCollection, logService, storageService, configurationService };
 	}
 
 	private resolveWorkspaceIdentifier(environmentService: INativeWorkbenchEnvironmentService): IAnyWorkspaceIdentifier {

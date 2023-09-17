@@ -10,19 +10,43 @@ export {
 	ISettable,
 	ISettableObservable,
 	ITransaction,
+	IChangeContext,
+	IChangeTracker,
 	observableValue,
+	disposableObservableValue,
 	transaction,
-} from 'vs/base/common/observableImpl/base';
-export { derived } from 'vs/base/common/observableImpl/derived';
+	subtransaction,
+} from 'vs/base/common/observableInternal/base';
+export {
+	derived,
+	derivedOpts,
+	derivedHandleChanges,
+	derivedWithStore,
+} from 'vs/base/common/observableInternal/derived';
 export {
 	autorun,
 	autorunDelta,
 	autorunHandleChanges,
 	autorunWithStore,
-} from 'vs/base/common/observableImpl/autorun';
-export * from 'vs/base/common/observableImpl/utils';
+	autorunOpts,
+	autorunWithStoreHandleChanges,
+} from 'vs/base/common/observableInternal/autorun';
+export {
+	IObservableSignal,
+	constObservable,
+	debouncedObservable,
+	derivedObservableWithCache,
+	derivedObservableWithWritableCache,
+	keepAlive,
+	observableFromEvent,
+	observableFromPromise,
+	observableSignal,
+	observableSignalFromEvent,
+	waitForState,
+	wasEventTriggeredRecently,
+} from 'vs/base/common/observableInternal/utils';
 
-import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableImpl/logging';
+import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableInternal/logging';
 
 const enableLogging = false;
 if (enableLogging) {

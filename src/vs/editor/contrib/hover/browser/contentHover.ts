@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction, HoverWidget, getHoverAccessibleViewHint } from 'vs/base/browser/ui/hover/hoverWidget';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -24,13 +24,16 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResizableContentWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 
-	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	private readonly _widget: ContentHoverWidget;
 
 	getWidgetContent(): string | undefined {
 		const node = this._widget.getDomNode();
@@ -51,6 +54,8 @@ export class ContentHoverController extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
+
+		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -284,6 +289,7 @@ export class ContentHoverController extends Disposable {
 			statusBar,
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => this._widget.onContentsChanged(),
+			setMinimumDimensions: (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions),
 			hide: () => this.hide()
 		};
 
@@ -467,6 +473,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	private _visibleData: ContentHoverVisibleData | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
+	private _minimumSize: dom.Dimension;
+	private _contentWidth: number | undefined;
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
@@ -490,9 +498,16 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
-		super(editor);
+		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
+		const minimumWidth = 150;
+		const minimumSize = new dom.Dimension(minimumWidth, minimumHeight);
+		super(editor, minimumSize);
+		this._minimumSize = minimumSize;
 		this._hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(contextKeyService);
 		this._hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(contextKeyService);
 
@@ -550,12 +565,18 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._layoutContentWidget();
 	}
 
-	private _setContentsDomNodeMaxDimensions(width: number | string, height: number | string): void {
+	private static _applyMaxDimensions(container: HTMLElement, width: number | string, height: number | string) {
 		const transformedWidth = typeof width === 'number' ? `${width}px` : width;
 		const transformedHeight = typeof height === 'number' ? `${height}px` : height;
-		const contentsDomNode = this._hover.contentsDomNode;
-		contentsDomNode.style.maxWidth = transformedWidth;
-		contentsDomNode.style.maxHeight = transformedHeight;
+		container.style.maxWidth = transformedWidth;
+		container.style.maxHeight = transformedHeight;
+	}
+
+	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
+		ContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
+		ContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
+		this._layoutContentWidget();
 	}
 
 	private _hasHorizontalScrollbar(): boolean {
@@ -573,7 +594,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _setAdjustedHoverWidgetDimensions(size: dom.Dimension): void {
-		this._setContentsDomNodeMaxDimensions('none', 'none');
+		this._setHoverWidgetMaxDimensions('none', 'none');
 		const width = size.width;
 		const height = size.height;
 		this._setHoverWidgetDimensions(width, height);
@@ -584,17 +605,18 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		}
 	}
 
-	private _setResizableNodeMaxDimensions(): void {
+	private _updateResizableNodeMaxDimensions(): void {
 		const maxRenderingWidth = this._findMaximumRenderingWidth() ?? Infinity;
 		const maxRenderingHeight = this._findMaximumRenderingHeight() ?? Infinity;
 		this._resizableNode.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
+		this._setHoverWidgetMaxDimensions(maxRenderingWidth, maxRenderingHeight);
 	}
 
 	protected override _resize(size: dom.Dimension): void {
 		ContentHoverWidget._lastDimensions = new dom.Dimension(size.width, size.height);
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._resizableNode.layout(size.height, size.width);
-		this._setResizableNodeMaxDimensions();
+		this._updateResizableNodeMaxDimensions();
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 		this._visibleData?.colorPicker?.layout();
@@ -624,13 +646,41 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return Math.min(availableSpace, maximumHeight);
 	}
 
+	private _isHoverTextOverflowing(): boolean {
+		// To find out if the text is overflowing, we will disable wrapping, check the widths, and then re-enable wrapping
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-whiteSpace', 'nowrap');
+		this._hover.containerDomNode.style.setProperty('--vscode-hover-sourceWhiteSpace', 'nowrap');
+
+		const overflowing = Array.from(this._hover.contentsDomNode.children).some((hoverElement) => {
+			return hoverElement.scrollWidth > hoverElement.clientWidth;
+		});
+
+		this._hover.containerDomNode.style.removeProperty('--vscode-hover-whiteSpace');
+		this._hover.containerDomNode.style.removeProperty('--vscode-hover-sourceWhiteSpace');
+
+		return overflowing;
+	}
+
 	private _findMaximumRenderingWidth(): number | undefined {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		const bodyBoxWidth = dom.getClientArea(document.body).width;
-		const horizontalPadding = 14;
-		return bodyBoxWidth - horizontalPadding;
+
+		const overflowing = this._isHoverTextOverflowing();
+
+		const initialWidth = (
+			typeof this._contentWidth === 'undefined'
+				? 0
+				: this._contentWidth - 2 // - 2 for the borders
+		);
+
+		if (overflowing || this._hover.containerDomNode.clientWidth < initialWidth) {
+			const bodyBoxWidth = dom.getClientArea(document.body).width;
+			const horizontalPadding = 14;
+			return bodyBoxWidth - horizontalPadding;
+		} else {
+			return this._hover.containerDomNode.clientWidth + 2;
+		}
 	}
 
 	public isMouseGettingCloser(posx: number, posy: number): boolean {
@@ -664,13 +714,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 		const contentsDomNode = this._hover.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		this._setContentsDomNodeMaxDimensions(width, height);
+		this._updateMaxDimensions();
 	}
 
 	private _updateFont(): void {
@@ -690,17 +738,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._hover.onContentsChanged();
 	}
 
-	private _updateContentsDomNodeMaxDimensions() {
+	private _updateMaxDimensions() {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
 		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
-		this._setContentsDomNodeMaxDimensions(width, height);
+		this._setHoverWidgetMaxDimensions(width, height);
 	}
 
 	private _render(node: DocumentFragment, hoverData: ContentHoverVisibleData) {
 		this._setHoverData(hoverData);
 		this._updateFont();
 		this._updateContent(node);
-		this._updateContentsDomNodeMaxDimensions();
+		this._updateMaxDimensions();
 		this.onContentsChanged();
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
@@ -735,6 +783,12 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._hover.containerDomNode.focus();
 		}
 		hoverData.colorPicker?.layout();
+
+		// The aria label overrides the label, so if we add to it, add the contents of the hover
+		const accessibleViewHint = getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel() ?? '');
+		if (accessibleViewHint) {
+			this._hover.contentsDomNode.ariaLabel = this._hover.contentsDomNode.textContent + ', ' + accessibleViewHint;
+		}
 	}
 
 	public hide(): void {
@@ -767,6 +821,25 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setContentsDomNodeDimensions(dom.getTotalWidth(contentsDomNode), Math.min(maxRenderingHeight, height - SCROLLBAR_WIDTH));
 	}
 
+	public setMinimumDimensions(dimensions: dom.Dimension): void {
+		// We combine the new minimum dimensions with the previous ones
+		this._minimumSize = new dom.Dimension(
+			Math.max(this._minimumSize.width, dimensions.width),
+			Math.max(this._minimumSize.height, dimensions.height)
+		);
+		this._updateMinimumWidth();
+	}
+
+	private _updateMinimumWidth(): void {
+		const width = (
+			typeof this._contentWidth === 'undefined'
+				? this._minimumSize.width
+				: Math.min(this._contentWidth, this._minimumSize.width)
+		);
+		// We want to avoid that the hover is artificially large, so we use the content width as minimum width
+		this._resizableNode.minSize = new dom.Dimension(width, this._minimumSize.height);
+	}
+
 	public onContentsChanged(): void {
 		this._removeConstraintsRenderNormally();
 		const containerDomNode = this._hover.containerDomNode;
@@ -779,11 +852,17 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 		height = dom.getTotalHeight(containerDomNode);
 		width = dom.getTotalWidth(containerDomNode);
+		this._contentWidth = width;
+		this._updateMinimumWidth();
 		this._resizableNode.layout(height, width);
 
 		if (this._hasHorizontalScrollbar()) {
 			this._adjustContentsBottomPadding();
 			this._adjustHoverHeightForScrollbar(height);
+		}
+		if (this._visibleData?.showAtPosition) {
+			const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
+			this._positionPreference = this._findPositionPreference(widgetHeight, this._visibleData.showAtPosition);
 		}
 		this._layoutContentWidget();
 	}

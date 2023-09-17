@@ -1237,16 +1237,16 @@ class ViewModel {
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
 
-		this.storageService.onWillSaveState(e => {
+		this.disposables.add(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(`scm.viewState`, JSON.stringify(this.treeViewState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 
 			this.mode = this.getViewModelMode();
 			this.sortKey = this.getViewModelSortKey();
-		});
+		}));
 
-		this.storageService.onDidChangeValue(e => {
+		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
 			switch (e.key) {
 				case 'scm.viewMode':
 					this.mode = this.getViewModelMode();
@@ -1255,7 +1255,7 @@ class ViewModel {
 					this.sortKey = this.getViewModelSortKey();
 					break;
 			}
-		});
+		}));
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {

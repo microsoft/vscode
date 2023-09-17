@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/e2af2e59c84c47b7b3c3ea690d74e7001bab96a1",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/c635942289ebf40954e69cf3637aac906465ade8",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -41,6 +41,9 @@
 				},
 				{
 					"include": "#html"
+				},
+				{
+					"include": "#table"
 				},
 				{
 					"include": "#paragraph"
@@ -2437,7 +2440,7 @@
 					"while": "((^|\\G)([ ]{2,4}|\\t))|(^[ \\t]*$)"
 				},
 				{
-					"begin": "(^|\\G)([ ]{0,3})([0-9]+\\.)([ \\t])",
+					"begin": "(^|\\G)([ ]{0,3})([0-9]+[\\.\\)])([ \\t])",
 					"beginCaptures": {
 						"3": {
 							"name": "punctuation.definition.list.begin.markdown"
@@ -2457,7 +2460,7 @@
 			]
 		},
 		"paragraph": {
-			"begin": "(^|\\G)[ ]{0,3}(?=\\S)",
+			"begin": "(^|\\G)[ ]{0,3}(?=[^ \\t\\n])",
 			"name": "meta.paragraph.markdown",
 			"patterns": [
 				{
@@ -2470,7 +2473,7 @@
 					"include": "#heading-setext"
 				}
 			],
-			"while": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=\\S))"
+			"while": "(^|\\G)((?=\\s*[-=]{3,}\\s*$)|[ ]{4,}(?=[^ \\t\\n]))"
 		},
 		"raw_block": {
 			"begin": "(^|\\G)([ ]{4}|\\t)",
@@ -2490,6 +2493,42 @@
 				}
 			],
 			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
+		},
+		"table": {
+			"name": "markup.table.markdown",
+			"begin": "(^|\\G)(\\|)(?=[^|].+\\|\\s*$)",
+			"beginCaptures": {
+				"2": {
+					"name": "punctuation.definition.table.markdown"
+				}
+			},
+			"while": "(^|\\G)(?=\\|)",
+			"patterns": [
+				{
+					"match": "\\|",
+					"name": "punctuation.definition.table.markdown"
+				},
+				{
+					"match": "(?<=\\|)\\s*(:?-+:?)\\s*(?=\\|)",
+					"captures": {
+						"1": {
+							"name": "punctuation.separator.table.markdown"
+						}
+					}
+				},
+				{
+					"match": "(?<=\\|)\\s*(?=\\S)((\\\\\\||[^|])+)(?<=\\S)\\s*(?=\\|)",
+					"captures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#inline"
+								}
+							]
+						}
+					}
+				}
+			]
 		},
 		"inline": {
 			"patterns": [

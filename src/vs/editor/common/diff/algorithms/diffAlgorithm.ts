@@ -68,6 +68,13 @@ export interface ISequence {
 	 * Must not be negative.
 	*/
 	getBoundaryScore?(length: number): number;
+
+	/**
+	 * For line sequences, getElement returns a number representing trimmed lines.
+	 * This however checks equality for the original lines.
+	 * It prevents shifting to less matching lines.
+	 */
+	isStronglyEqual(offset1: number, offset2: number): boolean;
 }
 
 export interface ITimeout {

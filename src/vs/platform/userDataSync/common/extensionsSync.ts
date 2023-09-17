@@ -18,7 +18,7 @@ import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagemen
 import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, ExtensionManagementErrorCode, IGalleryExtension, DISABLED_EXTENSIONS_STORAGE_PATH, EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, EXTENSION_INSTALL_SYNC_CONTEXT, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
-import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionIdentifier, isApplicationScopedExtension } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -101,7 +101,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	*/
 	/* Version 4: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
 	/* Version 5: Introduce extension state */
-	protected readonly version: number = 5;
+	/* Version 6: Added isApplicationScoped property */
+	protected readonly version: number = 6;
 
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'extensions.json');
 	private readonly baseResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'base' });
@@ -375,8 +376,11 @@ export class LocalExtensionsProvider {
 			const disabledExtensions = extensionEnablementService.getDisabledExtensions();
 			return installedExtensions
 				.map(extension => {
-					const { identifier, isBuiltin, manifest, preRelease, pinned } = extension;
+					const { identifier, isBuiltin, manifest, preRelease, pinned, isApplicationScoped } = extension;
 					const syncExntesion: ILocalSyncExtension = { identifier, preRelease, version: manifest.version, pinned: !!pinned };
+					if (isApplicationScoped && !isApplicationScopedExtension(manifest)) {
+						syncExntesion.isApplicationScoped = isApplicationScoped;
+					}
 					if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
 						syncExntesion.disabled = true;
 					}
@@ -481,6 +485,7 @@ export class LocalExtensionsProvider {
 											installGivenVersion: e.pinned && !!e.version,
 											installPreReleaseVersion: e.preRelease,
 											profileLocation: profile.extensionsResource,
+											isApplicationScoped: e.isApplicationScoped,
 											context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true, [EXTENSION_INSTALL_SYNC_CONTEXT]: true }
 										}
 									});

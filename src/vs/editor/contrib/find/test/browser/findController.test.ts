@@ -63,14 +63,14 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 	});
 }
 
-suite('FindController', async () => {
+suite('FindController', () => {
 	const queryState: { [key: string]: any } = {};
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
+		onDidChangeValue: () => Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],
@@ -495,7 +495,7 @@ suite('FindController', async () => {
 	});
 });
 
-suite('FindController query options persistence', async () => {
+suite('FindController query options persistence', () => {
 	let queryState: { [key: string]: any } = {};
 	queryState['editor.isRegex'] = false;
 	queryState['editor.matchCase'] = false;
@@ -504,7 +504,7 @@ suite('FindController query options persistence', async () => {
 	serviceCollection.set(IStorageService, {
 		_serviceBrand: undefined,
 		onDidChangeTarget: Event.None,
-		onDidChangeValue: Event.None,
+		onDidChangeValue: () => Event.None,
 		onWillSaveState: Event.None,
 		get: (key: string) => queryState[key],
 		getBoolean: (key: string) => !!queryState[key],

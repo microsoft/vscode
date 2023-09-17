@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
@@ -153,7 +152,7 @@ export class ProxyAuthHandler extends Disposable {
 			let encryptedSerializedProxyCredentials = this.applicationStorageMainService.get(this.PROXY_CREDENTIALS_SERVICE_KEY + authInfoHash, StorageScope.APPLICATION);
 			let decryptedSerializedProxyCredentials: string | undefined;
 			if (!encryptedSerializedProxyCredentials) {
-				encryptedSerializedProxyCredentials = withNullAsUndefined(await this.credentialsService.getPassword(this.OLD_PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash));
+				encryptedSerializedProxyCredentials = await this.credentialsService.getPassword(this.OLD_PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash) ?? undefined;
 				if (encryptedSerializedProxyCredentials) {
 					// re-encrypt to force new encryption algorithm to apply
 					decryptedSerializedProxyCredentials = await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials);

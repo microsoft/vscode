@@ -59,7 +59,7 @@ const TestNativeWindowConfiguration: INativeWindowConfiguration = {
 	execPath: process.execPath,
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
-	os: { release: 'unknown', hostname: 'unknown' },
+	os: { release: 'unknown', hostname: 'unknown', arch: 'unknown' },
 	product,
 	homeDir: homeDir.fsPath,
 	tmpDir: tmpDir.fsPath,
