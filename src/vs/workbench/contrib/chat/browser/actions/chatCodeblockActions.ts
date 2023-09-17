@@ -134,6 +134,11 @@ export function registerChatCodeBlockActions() {
 		}
 
 		const noSelection = editor.getSelections()?.length === 1 && editor.getSelection()?.isEmpty();
+
+		if (noSelection && editorModel.isTooLargeForTokenization()) {
+			return false;
+		}
+
 		const copiedText = noSelection ?
 			editorModel.getValue() :
 			editor.getSelections()?.reduce((acc, selection) => acc + editorModel.getValueInRange(selection), '') ?? '';
