@@ -373,7 +373,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 					if (Array.isArray(data)) {
 						const localDraggedEditor = data[0].identifier;
-						if (this.tabsModel.id === localDraggedEditor.groupId && this.groupViewer.getIndexOfEditor(localDraggedEditor.editor) === this.groupViewer.count - 1) {
+						if (this.tabsModel.id === localDraggedEditor.groupId && this.tabsModel.getIndexOfEditor(localDraggedEditor.editor) === this.tabsModel.count - 1) {
 							if (e.dataTransfer) {
 								e.dataTransfer.dropEffect = 'none';
 							}
