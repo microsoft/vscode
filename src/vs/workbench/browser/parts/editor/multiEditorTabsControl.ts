@@ -1552,6 +1552,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	getHeight(): number {
+		if (!this.visible) {
+			return 0;
+		}
 
 		// Return quickly if our used dimensions are known
 		if (this.dimensions.used) {
