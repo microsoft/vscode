@@ -662,9 +662,7 @@ export class DebugService implements IDebugService {
 				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
 			}
 		}, 200);
-		const sessionStore = new DisposableStore();
-
-		sessionStore.add(session.onDidChangeState(() => {
+		this.disposables.add(session.onDidChangeState(() => {
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				sessionRunningScheduler.schedule();
 			}
@@ -673,7 +671,7 @@ export class DebugService implements IDebugService {
 			}
 		}));
 
-		sessionStore.add(session.onDidEndAdapter(async adapterExitEvent => {
+		this.disposables.add(session.onDidEndAdapter(async adapterExitEvent => {
 
 			if (adapterExitEvent) {
 				if (adapterExitEvent.error) {
@@ -726,7 +724,6 @@ export class DebugService implements IDebugService {
 			}
 
 			this.model.removeExceptionBreakpointsForSession(session.getId());
-			sessionStore.dispose();
 			// session.dispose(); TODO@roblourens
 		}));
 	}

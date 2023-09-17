@@ -81,8 +81,8 @@ class ToggleBreakpointAction extends Action2 {
 			// Does not account for multi line selections, Set to remove multiple cursor on the same line
 			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
 
-			const bps = debugService.getModel().getBreakpoints();
 			await Promise.all(lineNumbers.map(async line => {
+				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
 				if (bps.length) {
 					await Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 				} else if (canSet) {

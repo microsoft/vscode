@@ -936,7 +936,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			if (trigger === Triggers.reconnect && !!terminal.xterm) {
 				const bufferLines = [];
-				this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
 				const bufferReverseIterator = terminal.xterm.getBufferReverseIterator();
 				const startRegex = new RegExp(watchingProblemMatcher.beginPatterns.map(pattern => pattern.source).join('|'));
 				for (const nextLine of bufferReverseIterator) {
@@ -945,10 +944,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						break;
 					}
 				}
+				let delayer: Async.Delayer<any> | undefined = undefined;
 				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
+					if (!delayer) {
+						delayer = new Async.Delayer(3000);
+					}
+					delayer.trigger(() => {
+						watchingProblemMatcher.forceDelivery();
+						delayer = undefined;
+					});
 				}
-				this._fireTaskEvent(TaskEvent.general(TaskEventKind.Inactive, task, terminal.instanceId));
 			}
 		} else {
 			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);

@@ -41,6 +41,10 @@ class ResourceMapEntry<T> {
 	constructor(readonly uri: URI, readonly value: T) { }
 }
 
+function isEntries<T>(arg: ResourceMap<T> | ResourceMapKeyFn | readonly (readonly [URI, T])[] | undefined): arg is readonly (readonly [URI, T])[] {
+	return Array.isArray(arg);
+}
+
 export class ResourceMap<T> implements Map<URI, T> {
 
 	private static readonly defaultToKey = (resource: URI) => resource.toString();
@@ -63,13 +67,27 @@ export class ResourceMap<T> implements Map<URI, T> {
 	 */
 	constructor(other?: ResourceMap<T>, toKey?: ResourceMapKeyFn);
 
-	constructor(mapOrKeyFn?: ResourceMap<T> | ResourceMapKeyFn, toKey?: ResourceMapKeyFn) {
-		if (mapOrKeyFn instanceof ResourceMap) {
-			this.map = new Map(mapOrKeyFn.map);
+	/**
+	 *
+	 * @param other Another resource which this maps is created from
+	 * @param toKey Custom uri identity function, e.g use an existing `IExtUri#getComparison`-util
+	 */
+	constructor(entries?: readonly (readonly [URI, T])[], toKey?: ResourceMapKeyFn);
+
+	constructor(arg?: ResourceMap<T> | ResourceMapKeyFn | readonly (readonly [URI, T])[], toKey?: ResourceMapKeyFn) {
+		if (arg instanceof ResourceMap) {
+			this.map = new Map(arg.map);
 			this.toKey = toKey ?? ResourceMap.defaultToKey;
+		} else if (isEntries(arg)) {
+			this.map = new Map();
+			this.toKey = toKey ?? ResourceMap.defaultToKey;
+
+			for (const [resource, value] of arg) {
+				this.set(resource, value);
+			}
 		} else {
 			this.map = new Map();
-			this.toKey = mapOrKeyFn ?? ResourceMap.defaultToKey;
+			this.toKey = arg ?? ResourceMap.defaultToKey;
 		}
 	}
 
