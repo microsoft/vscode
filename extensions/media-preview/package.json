@@ -127,7 +127,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "0.7.5",
-    "vscode-uri": "^3.0.6"
+    "vscode-uri": "^3.0.7"
   },
   "repository": {
     "type": "git",
