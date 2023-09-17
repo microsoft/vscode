@@ -5,17 +5,22 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -37,6 +42,7 @@ const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
 const variableTextDecorationType = 'chat-variable-text';
+const fileDecorationType = 'chat-file-reference';
 
 class InputEditorDecorations extends Disposable {
 
@@ -71,6 +77,7 @@ class InputEditorDecorations extends Disposable {
 
 	private updateRegisteredDecorationTypes() {
 		this.codeEditorService.removeDecorationType(variableTextDecorationType);
+		this.codeEditorService.removeDecorationType(fileDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 
 		const theme = this.themeService.getColorTheme();
@@ -79,6 +86,11 @@ class InputEditorDecorations extends Disposable {
 			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString()
 		});
 		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+			color: theme.getColor(chatSlashCommandForeground)?.toString(),
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
+		});
+		this.codeEditorService.registerDecorationType(decorationDescription, fileDecorationType, {
 			color: theme.getColor(chatSlashCommandForeground)?.toString(),
 			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
 			borderRadius: '3px'
@@ -399,6 +411,97 @@ class AgentCompletions extends Disposable {
 		}));
 	}
 }
+
+class SelectAndInsertFileAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.selectAndInsertFile';
+
+	constructor() {
+		super({
+			id: SelectAndInsertFileAction.ID,
+			title: '' // not displayed
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const context = args[0];
+		const quickInputService = accessor.get(IQuickInputService);
+		const picks = await quickInputService.quickAccess.pick('');
+		if (picks?.length) {
+			const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
+			const fileName = basename(resource);
+			const editor = (context.widget as ChatWidget).inputEditor;
+			const range = context.range as IRange;
+			const text = `$file:${fileName} `;
+			const success = editor.executeEdits('chatInsertFile', [{ range, text }]);
+			if (success) {
+				editor.setDecorationsByType(decorationDescription, fileDecorationType, [{
+					range: {
+						startLineNumber: range.startLineNumber,
+						startColumn: range.startColumn,
+						endLineNumber: range.endLineNumber,
+						endColumn: range.startColumn + text.length - 1
+					}
+				}]);
+			}
+		} else {
+			(context.widget as ChatWidget).inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
+		}
+	}
+}
+registerAction2(SelectAndInsertFileAction);
+
+class BuiltinDynamicCompletions extends Disposable {
+	private static readonly VariableNameDef = /\$\w*/g; // MUST be using `g`-flag
+
+	constructor(
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+	) {
+		super();
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatDynamicCompletions',
+			triggerCharacters: ['$'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget) {
+					return null;
+				}
+
+				const varWord = getWordAtText(position.column, BuiltinDynamicCompletions.VariableNameDef, model.getLineContent(position.lineNumber), 0);
+				if (!varWord && model.getWordUntilPosition(position).word) {
+					// inside a "normal" word
+					return null;
+				}
+
+				let insert: Range;
+				let replace: Range;
+				if (!varWord) {
+					insert = replace = Range.fromPositions(position);
+				} else {
+					insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
+					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
+				}
+
+				const range = new Range(position.lineNumber, replace.startColumn, position.lineNumber, replace.endColumn + 'file:'.length); // ?
+				return <CompletionList>{
+					suggestions: [
+						<CompletionItem>{
+							label: '$file:',
+							insertText: '$file:',
+							detail: 'Pick a file',
+							range: { insert, replace },
+							kind: CompletionItemKind.Text,
+							command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range }] },
+						}
+					]
+				};
+			}
+		}));
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinDynamicCompletions, LifecyclePhase.Eventually);
 
 interface SlashCommandYieldTo {
 	command: string;
