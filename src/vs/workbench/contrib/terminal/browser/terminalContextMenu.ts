@@ -10,7 +10,6 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { SingleOrMany } from 'vs/base/common/types';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -31,28 +30,25 @@ class InstanceContext {
 }
 
 class TerminalContextActionRunner extends ActionRunner {
-	constructor(
-		private readonly _commandService: ICommandService
-	) {
-		super();
-	}
 
-	override run(action: IAction, context?: InstanceContext): Promise<void> {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	protected override async runAction(action: IAction, context?: InstanceContext): Promise<void> {
 		if (Array.isArray(context) && context.every(e => e instanceof InstanceContext)) {
 			// arg1: The (first) focused instance
 			// arg2: All selected instances
-			return this._commandService.executeCommand(action.id, context?.[0], context);
+			await action.run(context?.[0], context);
+			return;
 		}
-		return super.run(action, context);
+		return super.runAction(action, context);
 	}
 }
 
-export function openContextMenu(event: MouseEvent, contextInstances: SingleOrMany<ITerminalInstance> | undefined, menu: IMenu, commandService: ICommandService, contextMenuService: IContextMenuService, extraActions?: IAction[]): void {
+export function openContextMenu(event: MouseEvent, contextInstances: SingleOrMany<ITerminalInstance> | undefined, menu: IMenu, contextMenuService: IContextMenuService, extraActions?: IAction[]): void {
 	const standardEvent = new StandardMouseEvent(event);
 
 	const actions: IAction[] = [];
 
-	createAndFillInContextMenuActions(menu, undefined, actions);
+	createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
 
 	if (extraActions) {
 		actions.push(...extraActions);
@@ -61,7 +57,7 @@ export function openContextMenu(event: MouseEvent, contextInstances: SingleOrMan
 	const context: InstanceContext[] = contextInstances ? asArray(contextInstances).map(e => new InstanceContext(e)) : [];
 
 	contextMenuService.showContextMenu({
-		actionRunner: new TerminalContextActionRunner(commandService),
+		actionRunner: new TerminalContextActionRunner(),
 		getAnchor: () => standardEvent,
 		getActions: () => actions,
 		getActionsContext: () => context,
