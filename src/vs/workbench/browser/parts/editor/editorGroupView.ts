@@ -609,7 +609,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		return true;
+		return false;
 	}
 
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {

@@ -32,13 +32,16 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EventType, addDisposableListener, getClientArea, isHTMLElement, registerWindow } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { FileAccess } from 'vs/base/common/network';
 import { assertIsDefined } from 'vs/base/common/types';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -423,11 +426,11 @@ class PopEditorPartOutAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.popoutEditors',
+			id: 'workbench.action.popoutEditor',
 			title: {
-				value: localize('popEditorsOut', "Pop Editors Out"),
-				mnemonicTitle: localize({ key: 'miPopEditorsOut', comment: ['&& denotes a mnemonic'] }, "&&Pop-out Editors"),
-				original: 'Pop-out Editors'
+				value: localize('popEditorOut', "Pop Editor Out"),
+				mnemonicTitle: localize({ key: 'miPopEditorOut', comment: ['&& denotes a mnemonic'] }, "&&Pop-out Editor"),
+				original: 'Pop-out Editor'
 			},
 			category: Categories.View,
 			f1: true,
@@ -442,6 +445,14 @@ class PopEditorPartOutAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const activeEditor = editorService.activeEditor;
+		if (!activeEditor) {
+			return;
+		}
 
 		const disposables = new DisposableStore();
 
@@ -548,10 +559,15 @@ class PopEditorPartOutAction extends Action2 {
 			workbenchContainer.classList.add(className);
 		}
 
-		const editorPart = layoutService.getPart(Parts.EDITOR_PART);
-		const initialParent = editorPart.element.parentElement;
-		disposables.add(toDisposable(() => initialParent?.appendChild(editorPart.element)));
-		workbenchContainer.appendChild(editorPart.element);
+		const partContainer = document.createElement('div');
+		partContainer.classList.add('part', 'editor');
+		workbenchContainer.appendChild(partContainer);
+
+		const editorPart = disposables.add(instantiationService.createInstance(EditorPart));
+		editorPart.create(partContainer, { restorePreviousState: false });
+
+		await editorPart.activeGroup.openEditor(activeEditor, { pinned: true });
+		editorGroupService.activeGroup?.closeEditor(activeEditor);
 
 		function layout() {
 			const dim = getClientArea(childWindow.document.body);

@@ -424,10 +424,6 @@ export class CodeApplication extends Disposable {
 					}
 				});
 			}
-
-			if (isChildWindow && !this.environmentMainService.isBuilt) {
-				contents.openDevTools({ mode: 'bottom' });
-			}
 		});
 
 		//#endregion
