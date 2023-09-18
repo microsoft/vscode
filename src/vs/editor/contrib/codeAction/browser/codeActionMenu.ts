@@ -17,18 +17,22 @@ interface ActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
 	readonly icon?: ThemeIcon;
+	readonly exact?: boolean;
 }
 
 const uncategorizedCodeActionGroup = Object.freeze<ActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });
 
 const codeActionGroups = Object.freeze<ActionGroup[]>([
 	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix') },
+	{ kind: CodeActionKind.Refactor, title: localize('codeAction.widget.id.refactor', 'Refactor'), icon: Codicon.wrench, exact: true },
 	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract'), icon: Codicon.wrench },
 	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline'), icon: Codicon.wrench },
 	{ kind: CodeActionKind.RefactorRewrite, title: localize('codeAction.widget.id.convert', 'Rewrite'), icon: Codicon.wrench },
 	{ kind: CodeActionKind.RefactorMove, title: localize('codeAction.widget.id.move', 'Move'), icon: Codicon.wrench },
 	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With'), icon: Codicon.symbolSnippet },
-	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action'), icon: Codicon.symbolFile },
+	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action'), icon: Codicon.symbolFile, exact: true },
+	{ kind: CodeActionKind.SourceFixAll, title: localize('codeAction.widget.id.source.fixAll', 'Source Action Fix All'), icon: Codicon.symbolFile },
+	{ kind: CodeActionKind.SourceOrganizeImports, title: localize('codeAction.widget.id.source.organizeImports', 'Source Action Organize Imports'), icon: Codicon.symbolFile },
 	uncategorizedCodeActionGroup,
 ]);
 
@@ -56,7 +60,7 @@ export function toMenuItems(
 	for (const action of inputCodeActions) {
 		const kind = action.action.kind ? new CodeActionKind(action.action.kind) : CodeActionKind.None;
 		for (const menuEntry of menuEntries) {
-			if (menuEntry.group.kind.contains(kind)) {
+			if (menuEntry.group.exact ? menuEntry.group.kind.equals(kind) : menuEntry.group.kind.contains(kind)) {
 				menuEntry.actions.push(action);
 				break;
 			}
