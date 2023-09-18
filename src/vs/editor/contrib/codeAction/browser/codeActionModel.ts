@@ -138,9 +138,6 @@ const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 
 export class CodeActionModel extends Disposable {
 
-	// private _currentRequest: CancelablePromise<any> | null;
-
-
 	private readonly _codeActionOracle = this._register(new MutableDisposable<CodeActionOracle>());
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
 
@@ -204,6 +201,8 @@ export class CodeActionModel extends Disposable {
 				const startPosition = trigger.selection.getStartPosition();
 				const actions = createCancelablePromise(async token => {
 					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+
+					// Search for quickfixes in the curret code action set.
 					let foundQuickfix = false;
 					if (codeActionSet.validActions) {
 						for (const action of codeActionSet.validActions) {
