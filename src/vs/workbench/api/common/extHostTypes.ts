@@ -1872,6 +1872,24 @@ export namespace TextEditorSelectionChangeKind {
 	}
 }
 
+export enum SyntaxTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 3
+}
+export namespace SyntaxTokenType {
+	export function toString(v: SyntaxTokenType | unknown): 'other' | 'comment' | 'string' | 'regex' {
+		switch (v) {
+			case SyntaxTokenType.Other: return 'other';
+			case SyntaxTokenType.Comment: return 'comment';
+			case SyntaxTokenType.String: return 'string';
+			case SyntaxTokenType.RegEx: return 'regex';
+		}
+		return 'other';
+	}
+}
+
 @es5ClassCompat
 export class DocumentLink {
 
