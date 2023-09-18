@@ -30,6 +30,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { Event } from 'vs/base/common/event';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -90,6 +91,14 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		xterm.raw.loadAddon(addon);
 		addon.activate(xterm.raw);
 		this._xterm = xterm;
+		this._register(this._xterm.raw.onWriteParsed(async () => {
+			if (this._xterm!.raw.buffer.active.baseY === 0) {
+				this._bufferTracker?.update();
+				this.show();
+			}
+		}));
+		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
+		this._register(onRequestUpdateEditor(() => this.show()));
 	}
 	show(): void {
 		if (!this._xterm) {

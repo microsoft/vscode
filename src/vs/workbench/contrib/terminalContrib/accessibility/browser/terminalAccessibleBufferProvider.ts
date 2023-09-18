@@ -10,11 +10,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IXtermTerminal, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import type { Terminal } from 'xterm';
-import { Event } from 'vs/base/common/event';
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
 	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal' };
@@ -27,11 +26,9 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		@IConfigurationService _configurationService: IConfigurationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@ITerminalService _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
-		this.registerListeners();
 	}
 
 	onClose() {
@@ -41,14 +38,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		if (!this._xterm) {
 			return;
 		}
-		this._xterm.raw.onWriteParsed(async () => {
-			if (this._xterm!.raw.buffer.active.baseY === 0) {
-				this._bufferTracker.update();
-				this._accessibleViewService.show(this);
-			}
-		});
-		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
-		this.add(onRequestUpdateEditor(() => this._accessibleViewService.show(this)));
+
 	}
 
 	provideContent(): string {
