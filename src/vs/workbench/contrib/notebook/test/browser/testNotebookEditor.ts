@@ -429,11 +429,13 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		disposeTemplate() { }
 	};
 
+	const notebookOptions = !!viewContext ? viewContext.notebookOptions
+		: disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false));
 	const cellList: NotebookCellList = disposables.add(instantiationService.createInstance(
 		NotebookCellList,
 		'NotebookCellList',
 		DOM.$('container'),
-		viewContext ?? new ViewContext(disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false)), disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions)),
+		notebookOptions,
 		delegate,
 		[renderer],
 		instantiationService.get<IContextKeyService>(IContextKeyService),
