@@ -11,6 +11,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { GhostTextWidget } from 'vs/editor/contrib/multiGhostText/browser/ghostTextWidget';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export type GhostTextData = {
@@ -18,6 +19,10 @@ export type GhostTextData = {
 	readonly text: string;
 	readonly removeRange?: IRange;
 };
+
+function dataEquals(a: GhostTextData, b: GhostTextData): boolean {
+	return a.position.lineNumber === b.position.lineNumber && a.position.column === b.position.column && a.text === b.text;
+}
 
 export class MultiGhostTextController extends Disposable {
 	static ID = 'editor.contrib.multiGhostTextController';
@@ -45,19 +50,15 @@ export class MultiGhostTextController extends Disposable {
 		this._register(editor.onDidChangeModelContent(() => this.clear()));
 	}
 
-	private dataEquals(a: GhostTextData, b: GhostTextData): boolean {
-		return a.position.lineNumber === b.position.lineNumber && a.position.column === b.position.column && a.text === b.text;
-	}
-
 	public showGhostText(ghostTexts: GhostTextData[]): void {
 		//get repeated widgets
 		const repeatedWidgets = this._widgets.filter(([widget, data]) => {
-			return ghostTexts.some(ghostText => this.dataEquals(ghostText, data));
+			return ghostTexts.some(ghostText => dataEquals(ghostText, data));
 		});
 
 		//non-repeated widgets
 		const nonRepeatedWidgets = this._widgets.filter(([widget, data]) => {
-			return !ghostTexts.some(ghostText => this.dataEquals(ghostText, data));
+			return !ghostTexts.some(ghostText => dataEquals(ghostText, data));
 		});
 
 		nonRepeatedWidgets.forEach(([widget, data]) => {
@@ -68,7 +69,7 @@ export class MultiGhostTextController extends Disposable {
 		//non-repeated ghost texts
 		const newGhostText = ghostTexts.filter(ghostText => {
 			return !this._widgets.some(([widget, data]) => {
-				return this.dataEquals(ghostText, data);
+				return dataEquals(ghostText, data);
 			});
 		});
 
@@ -239,4 +240,152 @@ export class MultiGhostTextController extends Disposable {
 		super.dispose();
 	}
 
+}
+
+export class MultiGhostTextController2 extends Disposable {
+	static ID = 'editor.contrib.multiGhostTextController';
+
+	public static readonly multiGhostTextVisibleContext = new RawContextKey<boolean>('multiGhostTextVisible', false);
+	private _isVisibleContext = MultiGhostTextController2.multiGhostTextVisibleContext.bindTo(this.contextKeyService);
+
+	public static get(editor: ICodeEditor): MultiGhostTextController2 | null {
+		return editor.getContribution<MultiGhostTextController2>(MultiGhostTextController2.ID);
+	}
+
+	private _currentWidget: [GhostTextWidget, GhostTextData] | undefined;
+	private _widgetsData: GhostTextData[] = [];
+	private _dontClear = false;
+
+	constructor(
+		public readonly editor: ICodeEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		// @IConfigurationService private readonly configurationService: IConfigurationService,
+		// @ICommandService private readonly commandService: ICommandService,
+		// @ILanguageFeatureDebounceService private readonly debounceService: ILanguageFeatureDebounceService,
+		// @ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		// @IAudioCueService private readonly audioCueService: IAudioCueService,
+	) {
+		super();
+
+		this._register(editor.onDidChangeModelContent(() => this.clear()));
+	}
+
+	private showSingleGhostText(gt: GhostTextData) {
+		if (this._currentWidget) {
+			this._currentWidget[0].dispose();
+			this._currentWidget = undefined;
+		}
+
+		const ghostText = new GhostText(gt.position.lineNumber, [new GhostTextPart(gt.position.column, gt.text.split('\n'), false)]);
+		const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
+			ghostText: constObservable(ghostText),
+			minReservedLineCount: constObservable(0),
+			targetTextModel: constObservable(this.editor.getModel() ?? undefined),
+			removeRange: constObservable(gt.removeRange)
+		});
+
+		this._isVisibleContext.set(true);
+		this._currentWidget = [instance, gt];
+	}
+
+	public showGhostText(ghostTexts: GhostTextData[], auto: boolean): void {
+		if (this._currentWidget && auto) {
+			//ignore auto requests if we're displaying suggestions
+			return;
+		}
+
+
+		this._widgetsData = ghostTexts;
+		const ghostText = this._widgetsData.shift();
+		if (ghostText) {
+			this.showSingleGhostText(ghostText);
+
+		}
+		else {
+			this.clear();
+		}
+
+	}
+
+	private acceptCurrent(widget: GhostTextWidget, data: GhostTextData): number {
+		if (!this._currentWidget) {
+			return -1;
+		}
+
+		this._dontClear = true;
+		let lineDelta = 0;
+
+		this.editor.pushUndoStop();
+		if (data.removeRange) {
+			this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.removeRange), data.text)]);
+			lineDelta = data.text.split('\n').length - 1 - (data.removeRange.endLineNumber - data.removeRange.startLineNumber);
+		}
+		else {
+			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), data.text)]);
+			lineDelta = data.text.split('\n').length - 1;
+		}
+		widget.dispose();
+		return lineDelta;
+	}
+
+	private updateLocations(insertionLine: number, lineDelta: number) {
+		const tranlated = this._widgetsData.map((data) => {
+			if (data.position.column < insertionLine) {
+				return data;
+			}
+
+			const newPosition = {
+				lineNumber: data.position.lineNumber + lineDelta,
+				column: data.position.column
+			};
+
+
+			const newRemoveRange = !data.removeRange ? undefined : {
+				startLineNumber: data.removeRange.startLineNumber + lineDelta,
+				startColumn: data.removeRange.startColumn,
+				endLineNumber: data.removeRange.endLineNumber + lineDelta,
+				endColumn: data.removeRange.endColumn
+			};
+
+			return {
+				position: newPosition,
+				removeRange: newRemoveRange,
+				text: data.text
+			};
+		});
+
+		this._widgetsData = tranlated;
+	}
+
+	public acceptAndNext(): void {
+		if (!this._currentWidget) {
+			return;
+		}
+		const widget = this._currentWidget[0];
+		const data = this._currentWidget[1];
+
+		const lineDelta = this.acceptCurrent(widget, data);
+		this.updateLocations(data.position.lineNumber, lineDelta);
+		const ghostText = this._widgetsData.shift();
+		if (ghostText) {
+			this.showSingleGhostText(ghostText);
+		}
+		else {
+			this.clear();
+		}
+
+
+	}
+
+	public clear() {
+		if (this._dontClear) {
+			this._dontClear = false;
+			return;
+		}
+		this._widgetsData = [];
+		this._currentWidget?.[0].dispose();
+		this._currentWidget = undefined;
+		this._isVisibleContext.set(false);
+	}
 }
