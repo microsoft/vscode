@@ -21,6 +21,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -61,7 +62,8 @@ class ChatDynamicReferenceModel extends Disposable implements IChatWidgetContrib
 	}
 
 	constructor(
-		private readonly widget: IChatWidget
+		private readonly widget: IChatWidget,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
@@ -93,13 +95,9 @@ class ChatDynamicReferenceModel extends Disposable implements IChatWidgetContrib
 
 	private updateReferences(): void {
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, fileDecorationType, this.references.map(r => (<IDecorationOptions>{
-			range: {
-				startLineNumber: r.range.startLineNumber,
-				startColumn: r.range.startColumn,
-				endLineNumber: r.range.endLineNumber,
-				endColumn: r.range.startColumn + (r.range.endColumn - r.range.startColumn) - 1
-			},
-			hoverMessage: new MarkdownString('`' + r.data.fsPath + '`')
+			range: r.range,
+			// hoverMessage: new MarkdownString('`' + r.data.fsPath + '`')
+			hoverMessage: new MarkdownString(this.labelService.getUriLabel(r.data))
 		})));
 	}
 }
@@ -562,7 +560,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				return <CompletionList>{
 					suggestions: [
 						<CompletionItem>{
-							label: '$file:',
+							label: '$file',
 							insertText: '$file:',
 							detail: localize('pickFileLabel', "Pick a file"),
 							range: { insert, replace },
