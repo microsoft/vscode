@@ -187,7 +187,7 @@ export class BrowserMain extends Disposable {
 				},
 				window: {
 					withProgress: (options, task) => progressService.withProgress(options, task),
-					createTerminal: (options) => embedderTerminalService.createTerminal(options),
+					createTerminal: async (options) => embedderTerminalService.createTerminal(options),
 				},
 				workspace: {
 					openTunnel: async tunnelOptions => {
