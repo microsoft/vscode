@@ -356,6 +356,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._onDidFocus.fire();
 			this.chatListFocused.set(this.tree.isDOMFocused());
 		}));
+		this._register(this.tree.onDidBlur(() => this.chatListFocused.set(false)));
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<ChatTreeItem | null>): void {
