@@ -60,6 +60,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		return instance.getContribution<TerminalAccessibleViewContribution>(TerminalAccessibleViewContribution.ID);
 	}
 	private _bufferTracker: BufferContentTracker | undefined;
+	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -118,7 +119,10 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		if (!this._bufferTracker) {
 			this._bufferTracker = this._register(this._instantiationService.createInstance(BufferContentTracker, this._xterm));
 		}
-		this._accessibleViewService.show(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
+		if (!this._bufferProvider) {
+			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
+		}
+		this._accessibleViewService.show(this._bufferProvider);
 	}
 	navigateToCommand(type: NavigationType): void {
 		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;

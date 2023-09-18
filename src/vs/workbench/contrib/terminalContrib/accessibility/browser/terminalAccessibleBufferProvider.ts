@@ -38,7 +38,6 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		if (!this._xterm) {
 			return;
 		}
-
 	}
 
 	provideContent(): string {
