@@ -1935,13 +1935,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// to show just the file name. This should only happen if the title looks like an
 				// absolute Windows file path
 				this._sequence = title;
-				if (this._processManager.os === OperatingSystem.Windows) {
-					if (title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
-						title = path.win32.parse(title).name;
-						this._sequence = title;
-					} else {
-						this._sequence = undefined;
-					}
+				if (this._processManager.os === OperatingSystem.Windows &&
+					title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
+					this._sequence = path.win32.parse(title).name;
 				}
 				break;
 		}
