@@ -9,7 +9,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IXtermTerminal, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -32,14 +31,6 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
 	) {
 		super();
-		this.add(_instance.onDidRunText(() => {
-			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
-			if (focusAfterRun === 'terminal') {
-				_instance.focus(true);
-			} else if (focusAfterRun === 'accessible-buffer') {
-				_accessibleViewService.show(this);
-			}
-		}));
 		this.registerListeners();
 	}
 

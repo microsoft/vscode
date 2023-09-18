@@ -147,10 +147,15 @@ export interface ICommonCellInfo {
 	readonly executionId?: string;
 }
 
+export enum ScrollToRevealBehavior {
+	fullCell,
+	firstLine
+}
+
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 	readonly focusEditorLine?: number;
-	readonly minimalScrolling?: boolean;
+	readonly revealBehavior?: ScrollToRevealBehavior | undefined;
 	readonly outputId?: string;
 	readonly altOutputId?: string;
 }
@@ -325,7 +330,8 @@ export const enum CellRevealSyncType {
 	Default = 1,
 	Top = 2,
 	Center = 3,
-	CenterIfOutsideViewport = 4
+	CenterIfOutsideViewport = 4,
+	FirstLineIfOutsideViewport = 5
 }
 
 export enum CellRevealRangeType {

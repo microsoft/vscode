@@ -17,11 +17,18 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
+const createCodeActionsAutoSave = (description: string): IJSONSchema => {
+	return {
+		type: 'string',
+		enum: ['always', 'never', 'explicit'],
+		enumDescriptions: [nls.localize('alwaysSave', 'Always triggers Code Actions on save'), nls.localize('neverSave', 'Never triggers Code Actions on save'), nls.localize('explicitSave', 'Triggers Code Actions only when explicitly saved')],
+		default: 'explicit',
+		description: description
+	};
+};
+
 const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
-	'source.fixAll': {
-		type: 'boolean',
-		description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
-	}
+	'source.fixAll': createCodeActionsAutoSave(nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")),
 });
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
@@ -30,7 +37,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			type: 'object',
 			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
-				type: 'boolean'
+				type: 'string'
 			},
 		},
 		{
@@ -38,8 +45,12 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			items: { type: 'string' }
 		}
 	],
+	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run CodeActions for the editor on save. CodeActions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
+	type: 'object',
+	additionalProperties: {
+		type: 'string'
+	},
 	default: {},
-	description: nls.localize('codeActionsOnSave', "Code Action kinds to be run on save."),
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 };
 
@@ -77,10 +88,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
 		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
-			newProperties[sourceAction] = {
-				type: 'boolean',
-				description: nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title)
-			};
+			newProperties[sourceAction] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
 		}
 		codeActionsOnSaveSchema.properties = newProperties;
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
