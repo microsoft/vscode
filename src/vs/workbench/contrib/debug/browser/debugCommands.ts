@@ -705,8 +705,10 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
 	handler: async (accessor: ServicesAccessor, debugType: string | unknown) => {
+		const quickInputService = accessor.get(IQuickInputService);
+		const debugService = accessor.get(IDebugService);
+
 		if (debugType) {
-			const debugService = accessor.get(IDebugService);
 			const configManager = debugService.getConfigurationManager();
 			const dynamicProviders = await configManager.getDynamicProviders();
 			for (const provider of dynamicProviders) {
@@ -722,7 +724,6 @@ CommandsRegistry.registerCommand({
 			}
 		}
 
-		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.quickAccess.show(DEBUG_QUICK_ACCESS_PREFIX);
 	}
 });
