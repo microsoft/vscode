@@ -135,7 +135,11 @@ const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 	hasAutoFix: false
 });
 
+
 export class CodeActionModel extends Disposable {
+
+	// private _currentRequest: CancelablePromise<any> | null;
+
 
 	private readonly _codeActionOracle = this._register(new MutableDisposable<CodeActionOracle>());
 	private _state: CodeActionsState.State = CodeActionsState.Empty;
@@ -197,53 +201,57 @@ export class CodeActionModel extends Disposable {
 					return;
 				}
 
-				let startPosition = trigger.selection.getStartPosition();
-				let actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
-				const codeActionSet = await actions;
-
-				// const codeActionSet = createCancellablePromise(token => actions);
-				// if ((await.codeActionSet).validActions.length === 0 && trigger.trigger.type === CodeActionTriggerType.Invoke) {
-
-				let foundQuickfix = false;
-				if (codeActionSet.validActions) {
-					for (const action of codeActionSet.validActions) {
-						if (action.action.kind === 'quickfix') {
-							foundQuickfix = true;
+				const startPosition = trigger.selection.getStartPosition();
+				const actions = createCancelablePromise(async token => {
+					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+					let foundQuickfix = false;
+					if (codeActionSet.validActions) {
+						for (const action of codeActionSet.validActions) {
+							if (action.action.kind === 'quickfix') {
+								foundQuickfix = true;
+							}
 						}
 					}
-				}
 
-				const allMarkers = this._markerService.read({ resource: model.uri });
+					const allMarkers = this._markerService.read({ resource: model.uri });
 
-				// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
-				if (allMarkers.length > 0 && (!foundQuickfix || codeActionSet.validActions.length === 0) && trigger.trigger.type === CodeActionTriggerType.Invoke) {
-					const currPosition: Position = trigger.selection.getPosition();
-					let trackedPosition: Position = currPosition;
-					let toBeModified = false;
+					// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
+					if (allMarkers.length > 0 && (!foundQuickfix || codeActionSet.validActions.length === 0) && trigger.trigger.type === CodeActionTriggerType.Invoke) {
+						const currPosition: Position = trigger.selection.getPosition();
+						let trackedPosition: Position = currPosition;
+						let distance = Number.MAX_VALUE;
+						let toBeModified = false;
 
-					allMarkers.forEach((marker: IMarker) => {
-						const col = marker.endColumn;
-						const row = marker.endLineNumber;
+						allMarkers.forEach((marker: IMarker) => {
+							const col = marker.endColumn;
+							const row = marker.endLineNumber;
 
-						if (row === currPosition.lineNumber) {
-							trackedPosition = new Position(row, col);
-							toBeModified = true;
+							// Found quickfix on the same line and check relative distance to other markers
+							if (row === currPosition.lineNumber && Math.abs(currPosition.column - col) < distance) {
+								distance = Math.abs(currPosition.column - col);
+								toBeModified = true;
+								trackedPosition = new Position(row, col);
+							}
+						});
 
+						// Only retriggers if actually found quickfix on the line
+						if (toBeModified) {
+							const actionsAtMarker = getCodeActions(this._registry, model, trigger.selection.toPositions(trackedPosition), trigger.trigger, Progress.None, token);
+							const checkActions = await actionsAtMarker;
+							if (checkActions.validActions.length !== 0) {
+								for (const action of checkActions.validActions) {
+									if (action.action.kind === 'quickfix') {
+										action.toMark = true;
+										codeActionSet.validActions.push(action);
+									}
+								}
+							}
 						}
-					});
-
-
-					// Only retriggers if actually foound quickfix on the line
-					if (toBeModified) {
-						actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection.toPositions(trackedPosition), trigger.trigger, Progress.None, token));
-						const checkActions = await actions;
-						if (checkActions.validActions.length !== 0) {
-							// this._editor.setPosition({ lineNumber: trackedPosition.lineNumber, column: trackedPosition.column });
-							startPosition = trigger.selection.setPositionFromStart(trackedPosition.lineNumber, trackedPosition.column);
-						}
-
 					}
-				}
+
+					return codeActionSet;
+
+				});
 
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);

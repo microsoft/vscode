@@ -6,13 +6,16 @@
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ApplyCodeActionReason, applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
@@ -30,13 +33,15 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
 	readonly fromLightbulb?: boolean;
 }
+
+
+const DECORATION_CLASS_NAME = 'linked-editing-decoration';
 
 export class CodeActionController extends Disposable implements IEditorContribution {
 
@@ -72,7 +77,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		super();
 
 		this._editor = editor;
-
 		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
@@ -232,7 +236,16 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return undefined;
 	}
 
+	private static readonly DECORATION = ModelDecorationOptions.register({
+		description: 'linked-editing',
+		className: DECORATION_CLASS_NAME
+	});
+
+
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
+
+		const _currentDecorations: IEditorDecorationsCollection = this._editor.createDecorationsCollection();
+
 		const editorDom = this._editor.getDomNode();
 		if (!editorDom) {
 			return;
@@ -249,17 +262,28 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
 				this._applyCodeAction(action, /* retrigger */ true, !!preview);
 				this._actionWidgetService.hide();
+				_currentDecorations.clear();
 			},
 			onHide: () => {
 				this._editor?.focus();
+				_currentDecorations.clear();
 			},
-			onFocus: async (action: CodeActionItem, token: CancellationToken) => {
+			onHover: async (action: CodeActionItem, token: CancellationToken) => {
 				await action.resolve(token);
 				if (token.isCancellationRequested) {
 					return;
 				}
 				return { canPreview: !!action.action.edit?.edits.length };
+			},
+			onFocus: (action: CodeActionItem | undefined) => {
+				if (action && action.toMark && action.action.diagnostics) {
+					const decorations: IModelDeltaDecoration[] = [{ range: action.action.diagnostics[0], options: CodeActionController.DECORATION }];
+					_currentDecorations.set(decorations);
+				} else {
+					_currentDecorations.clear();
+				}
 			}
+
 		};
 
 		this._actionWidgetService.show(
