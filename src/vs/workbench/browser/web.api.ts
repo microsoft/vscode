@@ -101,7 +101,7 @@ export interface IWorkbench {
 		 * @param options The definition of the terminal, this is similar to
 		 * `ExtensionTerminalOptions` in the extension API.
 		 */
-		createTerminal(options: IEmbedderTerminalOptions): void;
+		createTerminal(options: IEmbedderTerminalOptions): Promise<void>;
 	};
 
 	workspace: {

@@ -600,18 +600,18 @@ export class CommentController implements IEditorContribution {
 		return editor.getContribution<CommentController>(ID);
 	}
 
-	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean): void {
+	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean, focus: boolean): void {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
-			commentThreadWidget[0].reveal(commentUniqueId);
+			commentThreadWidget[0].reveal(commentUniqueId, focus);
 		} else if (fetchOnceIfNotExist) {
 			if (this._computePromise) {
 				this._computePromise.then(_ => {
-					this.revealCommentThread(threadId, commentUniqueId, false);
+					this.revealCommentThread(threadId, commentUniqueId, false, focus);
 				});
 			} else {
 				this.beginCompute().then(_ => {
-					this.revealCommentThread(threadId, commentUniqueId, false);
+					this.revealCommentThread(threadId, commentUniqueId, false, focus);
 				});
 			}
 		}

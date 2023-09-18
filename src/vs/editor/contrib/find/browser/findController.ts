@@ -97,6 +97,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	protected readonly _storageService: IStorageService;
 	private readonly _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
+	protected readonly _notificationService: INotificationService;
 
 	get editor() {
 		return this._editor;
@@ -110,7 +111,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@INotificationService notificationService: INotificationService
 	) {
 		super();
 		this._editor = editor;
@@ -118,6 +120,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._contextKeyService = contextKeyService;
 		this._storageService = storageService;
 		this._clipboardService = clipboardService;
+		this._notificationService = notificationService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._state = this._register(new FindReplaceState());
@@ -390,6 +393,10 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public replaceAll(): boolean {
 		if (this._model) {
+			if (this._editor.getModel()?.isTooLargeForHeapOperation()) {
+				this._notificationService.warn(nls.localize('too.large.for.replaceall', "The file is too large to perform a replace all operation."));
+				return false;
+			}
 			this._model.replaceAll();
 			return true;
 		}
@@ -437,11 +444,11 @@ export class FindController extends CommonFindController implements IFindControl
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@INotificationService private readonly _notificationService: INotificationService,
+		@INotificationService notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 	) {
-		super(editor, _contextKeyService, _storageService, clipboardService);
+		super(editor, _contextKeyService, _storageService, clipboardService, notificationService);
 		this._widget = null;
 		this._findOptionsWidget = null;
 	}
