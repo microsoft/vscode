@@ -1397,16 +1397,6 @@ export class CodeActionKind {
 	}
 }
 
-export class NotebookCodeActionKind extends CodeActionKind {
-	public static override Notebook: CodeActionKind;
-
-	constructor(
-		public override readonly value: string
-	) {
-		super(value);
-	}
-}
-
 CodeActionKind.Empty = new CodeActionKind('');
 CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
 CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');

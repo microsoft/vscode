@@ -964,10 +964,14 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Experimental. Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `source.fixAll: true`"),
+			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `source.fixAll: true`"),
 			type: 'object',
 			additionalProperties: {
-				type: 'boolean'
+				type: 'string',
+				enum: ['explicit', 'never'],
+				// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
+				// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
+				enumDescriptions: [nls.localize('never', 'Never triggers Code Actions on save.'), nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.')],
 			},
 			default: {}
 		},
