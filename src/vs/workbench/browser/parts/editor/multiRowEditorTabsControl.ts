@@ -118,6 +118,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 				this.stickyEditorTabsControl.closeEditor(editor);
 				this.unstickyEditorTabsControl.openEditor(editor);
 			}
+			this.handlePinnedTabsSeparateRowToolbars();
+
 		} else {
 			if (this.group.isSticky(editor)) {
 				this.stickyEditorTabsControl.moveEditor(editor, fromIndex, targetIndex, false);
@@ -125,8 +127,6 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 				this.unstickyEditorTabsControl.moveEditor(editor, fromIndex - this.group.stickyCount, targetIndex - this.group.stickyCount, false);
 			}
 		}
-
-		this.handlePinnedTabsSeparateRowToolbars();
 	}
 
 	pinEditor(editor: EditorInput): void {

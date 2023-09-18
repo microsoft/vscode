@@ -601,7 +601,6 @@ export class EditorGroupModel extends Disposable {
 			return;
 		}
 
-
 		if (!isSticky) {
 			this.sticky++;
 		}

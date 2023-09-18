@@ -131,7 +131,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private lastMouseWheelEventTime = 0;
 	private isMouseOverTabs = false;
 
-	private visible: boolean = true;
+	private visible: boolean = false;
 
 	constructor(
 		parent: HTMLElement,
@@ -1983,7 +1983,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.updateDropFeedback(tabsContainer, false);
 		tabsContainer.classList.remove('scroll');
 
-		const groupTargetIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.tabsModel.stickyCount : targetTabIndex;
+		const groupTargetIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.groupViewer.stickyCount : targetTabIndex;
 
 		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
@@ -2015,15 +2015,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 					// Move editor to target position and index
 					if (this.isMoveOperation(e, draggedEditor.groupId, draggedEditor.editor)) {
-						// Move across different tab bars possibly across groups
-						if (!this.tabsModel.contains(draggedEditor.editor)) {
-							if (this.tabsModel instanceof StickyEditorGroupModel) {
-								sourceGroup.stickEditor(draggedEditor.editor);
-							} else if (this.tabsModel instanceof UnstickyEditorGroupModel) {
-								sourceGroup.unstickEditor(draggedEditor.editor);
-							}
-						}
-
 						if (this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === groupTargetIndex) {
 							sourceGroup.moveEditorToLastStickyPosition(draggedEditor.editor, group);
 						} else {

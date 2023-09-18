@@ -1215,12 +1215,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 
+		const oldSticky = this.model.stickyCount;
+
 		// Update model
 		this.model.moveEditor(editor, moveToIndex);
 		this.model.pin(editor);
 
 		// Forward to title control
-		this.titleControl.moveEditor(editor, currentIndex, moveToIndex, false);
+		this.titleControl.moveEditor(editor, currentIndex, moveToIndex, oldSticky !== this.model.stickyCount);
 		this.titleControl.pinEditor(editor);
 	}
 
@@ -1276,10 +1278,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return;
 		}
 
+		const oldSticky = this.model.stickyCount;
+
 		this.model.moveEditorToLastSticky(editor);
 		this.model.pin(editor);
 
-		this.titleControl.moveEditor(editor, currentIndex, this.stickyCount - 1, false);
+		this.titleControl.moveEditor(editor, currentIndex, this.stickyCount - 1, oldSticky !== this.model.stickyCount);
 		this.titleControl.pinEditor(editor);
 	}
 
