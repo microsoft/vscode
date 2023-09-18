@@ -119,6 +119,10 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 		const model = this.editor.getModel();
 
+		if (model.isTooLargeForSyncing()) {
+			return;
+		}
+
 		if (!this.providers.has(model)) {
 			return;
 		}
