@@ -175,7 +175,6 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITextModelService private readonly textModelService: ITextModelService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 	) { }
 
@@ -211,7 +210,7 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 
 		try {
 			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
-				if (cell.cellKind !== 2) {
+				if (cell.cellKind !== CellKind.Code) {
 					return;
 				}
 
@@ -225,10 +224,7 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 					}
 				}
 
-				const ref = await this.textModelService.createModelReference(cell.uri);
-				disposable.add(ref);
 				const textBuffer = cell.textBuffer;
-
 				const lastNonEmptyLine = this.findLastNonEmptyLine(textBuffer);
 				const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
 				const deletionRange = new Range(deleteFromLineNumber, 1, textBuffer.getLineCount(), textBuffer.getLineLastNonWhitespaceColumn(textBuffer.getLineCount()));
@@ -255,7 +251,6 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 	) { }
 
@@ -275,12 +270,9 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 
 		try {
 			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
-				if (cell.cellKind !== 2) {
+				if (cell.cellKind !== CellKind.Code) {
 					return;
 				}
-
-				const ref = await this.textModelService.createModelReference(cell.uri);
-				disposable.add(ref);
 
 				const lineCount = cell.textBuffer.getLineCount();
 				const lastLineIsEmptyOrWhitespace = cell.textBuffer.getLineFirstNonWhitespaceColumn(lineCount) === 0;
