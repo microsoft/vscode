@@ -13,9 +13,10 @@ export const ISCMHistoryService = createDecorator<ISCMHistoryService>('scmHistor
 
 export interface ISCMHistoryProvider {
 	actionButton: () => ISCMActionButtonDescriptor | undefined;
+	currentHistoryItemGroup: () => ISCMHistoryItemGroup | undefined;
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<ISCMHistoryItem | undefined>;
+	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
 
 export interface ISCMHistoryOptions {
@@ -32,10 +33,7 @@ export interface ISCMHistoryProviderChangeEvent {
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
 	readonly label: string;
-	readonly description?: string;
-	readonly range: { start: string; end: string };
-	readonly count?: number;
-	readonly priority?: number;
+	readonly upstream?: ISCMHistoryItemGroup;
 }
 
 export interface ISCMHistoryItem {

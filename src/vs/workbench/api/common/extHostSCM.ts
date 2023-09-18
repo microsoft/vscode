@@ -210,6 +210,18 @@ function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Comm
 	return equals(a, b, commandEquals);
 }
 
+function historyItemGroupEquals(a: vscode.SourceControlHistoryItemGroup | undefined, b: vscode.SourceControlHistoryItemGroup | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (!a || !b) {
+		return false;
+	}
+
+	return a.id === b.id && a.label === b.label && a.upstream?.id === b.upstream?.id && a.upstream?.label === b.upstream?.label;
+}
+
 export interface IValidateInput {
 	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
 }
@@ -520,8 +532,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel });
 	}
 
+	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
-	private _historyProvider: vscode.SourceControlHistoryProvider | undefined = undefined;
+	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
+	private _historyProviderActionButtonDisposable = new MutableDisposable<DisposableStore>();
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
@@ -532,25 +546,36 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
 
 		this._historyProvider = historyProvider;
+		this._historyProviderDisposable.value = new DisposableStore();
+
+		if (!historyProvider) {
+			return;
+		}
+
 		this.#proxy.$registerHistoryProvider(this.handle);
 
-		historyProvider?.onDidChange(e => {
-			this.#proxy.$onDidChangeHistoryProvider(this.handle, e);
-		});
+		this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
+			if (historyItemGroupEquals(this._historyProviderCurrentHistoryItemGroup, historyProvider?.currentHistoryItemGroup)) {
+				return;
+			}
 
-		historyProvider?.onDidChangeActionButton(() => {
+			this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
+			this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
+		}));
+
+		this._historyProviderDisposable.value.add(historyProvider.onDidChangeActionButton(() => {
 			checkProposedApiEnabled(this._extension, 'scmActionButton');
 
-			this._historyProviderDisposable.value = new DisposableStore();
+			this._historyProviderActionButtonDisposable.value = new DisposableStore();
 			const internal = historyProvider.actionButton !== undefined ?
 				{
-					command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderDisposable.value),
+					command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderActionButtonDisposable.value),
 					description: historyProvider.actionButton.description,
 					enabled: historyProvider.actionButton.enabled
 				} : undefined;
 
 			this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
-		});
+		}));
 	}
 
 	private _commitTemplate: string | undefined = undefined;
@@ -929,7 +954,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return Promise.resolve(undefined);
 	}
 
-	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<SCMHistoryItemDto | undefined> {
+	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 
 		if (!historyProvider) {
@@ -941,14 +966,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 			return undefined;
 		}
 
-		return {
-			id: ancestor.id,
-			parentIds: ancestor.parentIds,
-			label: ancestor.label,
-			description: ancestor.description,
-			icon: getHistoryItemIconDto(ancestor),
-			timestamp: ancestor.timestamp,
-		};
+		return ancestor;
 	}
 
 	async $provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {

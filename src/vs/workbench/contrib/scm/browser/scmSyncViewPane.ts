@@ -7,14 +7,13 @@ import * as path from 'vs/base/common/path';
 import { append, $, prepend } from 'vs/base/browser/dom';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,12 +29,15 @@ import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/vie
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ActionButtonRenderer } from 'vs/workbench/contrib/scm/browser/scmViewPane';
-import { getActionViewItemProvider, isSCMActionButton, isSCMRepository } from 'vs/workbench/contrib/scm/browser/util';
+import { getActionViewItemProvider, isSCMActionButton, isSCMRepository, isSCMRepositoryArray } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMActionButton, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
 import { comparePaths } from 'vs/base/common/comparers';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryService } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
+import { localize } from 'vs/nls';
+import { Iterable } from 'vs/base/common/iterator';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
-type TreeElement = ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement;
+type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement;
 
 function isSCMHistoryItemGroupTreeElement(obj: any): obj is SCMHistoryItemGroupTreeElement {
 	return (obj as SCMHistoryItemGroupTreeElement).type === 'historyItemGroup';
@@ -60,7 +62,34 @@ function toDiffEditorArguments(uri: URI, originalUri: URI, modifiedUri: URI): un
 	return [originalUri, modifiedUri, `${basename} (${originalShortRef}) ↔ ${basename} (${modifiedShortRef})`];
 }
 
+function getSCMResourceId(element: TreeElement): string {
+	if (isSCMRepository(element)) {
+		const provider = element.provider;
+		return `repo:${provider.id}`;
+	} else if (isSCMActionButton(element)) {
+		const provider = element.repository.provider;
+		return `actionButton:${provider.id}`;
+	} else if (isSCMHistoryItemGroupTreeElement(element)) {
+		const provider = element.repository.provider;
+		return `historyItemGroup:${provider.id}/${element.id}`;
+	} else if (isSCMHistoryItemTreeElement(element)) {
+		const historyItemGroup = element.historyItemGroup;
+		const provider = historyItemGroup.repository.provider;
+		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}`;
+	} else if (isSCMHistoryItemChangeTreeElement(element)) {
+		const historyItem = element.historyItem;
+		const historyItemGroup = historyItem.historyItemGroup;
+		const provider = historyItemGroup.repository.provider;
+		return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
+	} else {
+		throw new Error('Invalid tree element');
+	}
+}
+
 interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
+	readonly description?: string;
+	readonly ancestor?: string;
+	readonly count?: number;
 	readonly repository: ISCMRepository;
 	readonly type: 'historyItemGroup';
 }
@@ -207,9 +236,7 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 	static readonly TEMPLATE_ID = 'historyItemChange';
 	get templateId(): string { return HistoryItemChangeRenderer.TEMPLATE_ID; }
 
-	constructor(
-		private labels: ResourceLabels,
-	) { }
+	constructor(private labels: ResourceLabels) { }
 
 	renderTemplate(container: HTMLElement): HistoryItemChangeTemplate {
 		const element = append(container, $('.change'));
@@ -232,7 +259,28 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 	}
 }
 
-class SCMViewPaneTreeSorter implements ITreeSorter<TreeElement> {
+class SCMSyncViewPaneAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
+
+	getAriaLabel(element: TreeElement): string | null {
+		// TODO - localize
+		return 'SCM Sync View';
+	}
+	getWidgetAriaLabel(): string {
+		// TODO - Add label
+		return '';
+	}
+
+}
+
+class SCMSyncViewPaneTreeIdentityProvider implements IIdentityProvider<TreeElement> {
+
+	getId(element: TreeElement): string {
+		return getSCMResourceId(element);
+	}
+
+}
+
+class SCMSyncViewPaneTreeSorter implements ITreeSorter<TreeElement> {
 
 	compare(element: TreeElement, otherElement: TreeElement): number {
 		// Repository
@@ -257,11 +305,7 @@ class SCMViewPaneTreeSorter implements ITreeSorter<TreeElement> {
 				throw new Error('Invalid comparison');
 			}
 
-			if (!element.priority || !otherElement.priority) {
-				return 0;
-			}
-
-			return element.priority - otherElement.priority;
+			return 0;
 		}
 
 		// History item
@@ -315,42 +359,6 @@ export class SCMSyncViewPane extends ViewPane {
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
-		const identityProvider = {
-			getId: (item: any) => {
-				if (isSCMRepository(item)) {
-					const provider = item.provider;
-					return `repo:${provider.id}`;
-				} else if (isSCMActionButton(item)) {
-					const provider = item.repository.provider;
-					return `actionButton:${provider.id}`;
-				} else if (isSCMHistoryItemGroupTreeElement(item)) {
-					const provider = item.repository.provider;
-					return `historyItemGroup:${provider.id}/${item.id}`;
-				} else if (isSCMHistoryItemTreeElement(item)) {
-					const historyItemGroup = item.historyItemGroup;
-					const provider = historyItemGroup.repository.provider;
-					return `historyItem:${provider.id}/${historyItemGroup.id}/${item.id}`;
-				} else if (isSCMHistoryItemChangeTreeElement(item)) {
-					const historyItem = item.historyItem;
-					const historyItemGroup = historyItem.historyItemGroup;
-					const provider = historyItemGroup.repository.provider;
-					return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${item.uri.toString()}`;
-				} else {
-					throw new Error('Invalid tree element');
-				}
-			}
-		};
-
-		const accessibilityProvider = {
-			getWidgetAriaLabel() {
-				return 'SCM Sync View';
-			},
-			getAriaLabel(element: any) {
-				//throw new Error('Method not implemented.');
-				return '';
-			}
-		};
-
 		this._tree = this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'SCM Sync View',
@@ -365,10 +373,10 @@ export class SCMSyncViewPane extends ViewPane {
 			],
 			this.instantiationService.createInstance(SCMSyncDataSource),
 			{
-				accessibilityProvider,
-				identityProvider,
 				horizontalScrolling: false,
-				sorter: new SCMViewPaneTreeSorter(),
+				accessibilityProvider: new SCMSyncViewPaneAccessibilityProvider(),
+				identityProvider: new SCMSyncViewPaneTreeIdentityProvider(),
+				sorter: new SCMSyncViewPaneTreeSorter(),
 			}) as WorkbenchAsyncDataTree<TreeElement, TreeElement>;
 
 		this._register(this._tree);
@@ -395,53 +403,67 @@ export class SCMSyncViewPane extends ViewPane {
 
 class SCMSyncPaneViewModel {
 
-	private items = new Map<ISCMRepository, IDisposable>();
+	private repositories = new Map<ISCMRepository, IDisposable>();
+	private alwaysShowRepositories = false;
 
 	private disposables = new DisposableStore();
 
 	constructor(
 		private readonly tree: WorkbenchAsyncDataTree<TreeElement, TreeElement>,
 		@ISCMViewService scmViewService: ISCMViewService,
-		@ISCMHistoryService readonly scmHistoryService: ISCMHistoryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+
 	) {
+		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
+
 		scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this.disposables);
 		this._onDidChangeVisibleRepositories({ added: scmViewService.visibleRepositories, removed: [] });
+	}
+
+	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
+			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+			this.refresh();
+		}
 	}
 
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
 		for (const repository of added) {
 			const repositoryDisposable: IDisposable = combinedDisposable(
-				this.scmHistoryService.onDidChangeHistoryItemGroups(e => {
-					if (e === repository) {
-						this.refresh(repository);
-					}
-				}),
-				repository.provider.onDidChangeHistoryProviderActionButton(() => this.refresh(repository))
+				repository.provider.onDidChangeHistoryProviderActionButton(() => this.refresh(repository)),
+				repository.provider.onDidChangeHistoryProviderCurrentHistoryItemGroup(() => this.refresh(repository))
 			);
 
-			this.items.set(repository, { dispose() { repositoryDisposable.dispose(); } });
+			this.repositories.set(repository, { dispose() { repositoryDisposable.dispose(); } });
 		}
 
 		for (const repository of removed) {
-			this.items.get(repository)?.dispose();
-			this.items.delete(repository);
+			this.repositories.get(repository)?.dispose();
+			this.repositories.delete(repository);
 		}
 
 		this.refresh();
 	}
 
-	private async refresh(item?: ISCMRepository): Promise<void> {
-		if (this.items.size === 0) {
+	private async refresh(repository?: ISCMRepository): Promise<void> {
+		if (this.repositories.size === 0) {
 			return;
 		}
 
-		// TODO:
-		// - refresh particular node only
-		// - support multiple repositories
-		if (item) {
-			await this.tree.updateChildren(item);
+		if (repository) {
+			// Particular repository
+			await this.tree.updateChildren(repository);
+		} else if (this.repositories.size === 1 && !this.alwaysShowRepositories) {
+			// Single repository and not always show repositories
+			await this.tree.setInput(Iterable.first(this.repositories.keys())!);
 		} else {
-			await this.tree.setInput(Iterable.first(this.items.keys())!);
+			// Expand repository nodes
+			const expanded = Array.from(this.repositories.keys())
+				.map(repository => `repo:${repository.provider.id}`);
+
+			// Multiple repositories or always show repositories
+			await this.tree.setInput([...this.repositories.keys()], { expanded });
 		}
 		this.tree.layout();
 	}
@@ -449,10 +471,10 @@ class SCMSyncPaneViewModel {
 
 class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 
-	constructor(@ISCMHistoryService private readonly scmHistoryService: ISCMHistoryService) { }
-
 	hasChildren(element: TreeElement): boolean {
-		if (isSCMRepository(element)) {
+		if (isSCMRepositoryArray(element)) {
+			return true;
+		} else if (isSCMRepository(element)) {
 			return true;
 		} else if (isSCMActionButton(element)) {
 			return false;
@@ -470,11 +492,14 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 	async getChildren(element: TreeElement): Promise<TreeElement[]> {
 		const children: TreeElement[] = [];
 
-		if (isSCMRepository(element)) {
+		if (isSCMRepositoryArray(element)) {
+			children.push(...element);
+		} else if (isSCMRepository(element)) {
 			const scmProvider = element.provider;
 			const historyProvider = scmProvider.historyProvider;
+			const historyItemGroup = historyProvider?.currentHistoryItemGroup();
 
-			if (!historyProvider) {
+			if (!historyProvider || !historyItemGroup) {
 				return children;
 			}
 
@@ -485,12 +510,36 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 					type: 'actionButton',
 					repository: element,
 					button: actionButton
-				});
+				} as ISCMActionButton);
 			}
 
-			// History item groups
-			for (const historyItemGroup of this.scmHistoryService.getHistoryItemGroups(element)) {
-				children.push({ ...historyItemGroup, repository: element, type: 'historyItemGroup' });
+			// Common ancestor, ahead, behind
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroup.upstream?.id);
+
+			// Incoming
+			if (historyItemGroup?.upstream) {
+				children.push({
+					id: historyItemGroup.upstream.id,
+					label: localize('incoming', "$(cloud-download) Incoming Changes"),
+					description: historyItemGroup.upstream.label,
+					ancestor: ancestor?.id,
+					count: ancestor?.behind ?? 0,
+					repository: element,
+					type: 'historyItemGroup'
+				} as SCMHistoryItemGroupTreeElement);
+			}
+
+			// Outgoing
+			if (historyItemGroup) {
+				children.push({
+					id: historyItemGroup.id,
+					label: localize('outgoing', "$(cloud-upload) Outgoing Changes"),
+					description: historyItemGroup.label,
+					ancestor: ancestor?.id,
+					count: ancestor?.ahead ?? 0,
+					repository: element,
+					type: 'historyItemGroup'
+				} as SCMHistoryItemGroupTreeElement);
 			}
 		} else if (isSCMHistoryItemGroupTreeElement(element)) {
 			const scmProvider = element.repository.provider;
@@ -500,8 +549,7 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 				return children;
 			}
 
-			const historyItems = await historyProvider.provideHistoryItems(element.range.end, { limit: { id: element.range.start } }) ?? [];
-
+			const historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
 			children.push(...historyItems.map(historyItem => ({
 				id: historyItem.id,
 				label: historyItem.label,
@@ -518,6 +566,7 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 				return children;
 			}
 
+			// History Item Changes
 			const changes = await historyProvider.provideHistoryItemChanges(element.id) ?? [];
 			children.push(...changes.map(change => ({
 				uri: change.uri,

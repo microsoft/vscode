@@ -12,15 +12,28 @@ declare module 'vscode' {
 
 	export interface SourceControlHistoryProvider {
 		actionButton?: SourceControlActionButton;
+		currentHistoryItemGroup?: SourceControlHistoryItemGroup;
 
-		onDidChange: Event<SourceControlHistoryChangeEvent>;
+		/**
+		 * Fires when the action button changes
+		 */
 		onDidChangeActionButton: Event<void>;
+
+		/**
+		 * Fires when the current history item group changes (ex: checkout)
+		 */
+		onDidChangeCurrentHistoryItemGroup: Event<void>;
+
+		/**
+		 * Fires when the history item groups change (ex: commit, push, fetch)
+		 */
+		// onDidChangeHistoryItemGroups: Event<SourceControlHistoryChangeEvent>;
 
 		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemChanges(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
+		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): ProviderResult<{ id: string; ahead: number; behind: number }>;
 
 		// resolveHistoryItemGroup(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup | undefined>;
-		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): ProviderResult<SourceControlHistoryItem>;
 	}
 
 	export interface SourceControlHistoryOptions {
@@ -28,19 +41,10 @@ declare module 'vscode' {
 		readonly limit?: number | { id?: string };
 	}
 
-	export interface SourceControlHistoryChangeEvent {
-		readonly added: Iterable<SourceControlHistoryItemGroup>;
-		readonly removed: Iterable<SourceControlHistoryItemGroup>;
-		readonly modified: Iterable<SourceControlHistoryItemGroup>;
-	}
-
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
 		readonly label: string;
-		readonly description?: string;
-		readonly range: { start: string; end: string };
-		readonly count?: number;
-		readonly priority?: number;
+		readonly upstream?: SourceControlHistoryItemGroup;
 	}
 
 	export interface SourceControlHistoryItem {
@@ -58,5 +62,11 @@ declare module 'vscode' {
 		readonly modifiedUri: Uri | undefined;
 		readonly renameUri: Uri | undefined;
 	}
+
+	// export interface SourceControlHistoryChangeEvent {
+	// 	readonly added: Iterable<SourceControlHistoryItemGroup>;
+	// 	readonly removed: Iterable<SourceControlHistoryItemGroup>;
+	// 	readonly modified: Iterable<SourceControlHistoryItemGroup>;
+	// }
 
 }

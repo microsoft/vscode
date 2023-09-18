@@ -1401,10 +1401,7 @@ export interface SCMHistoryProviderChangeEventDto {
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
 	readonly label: string;
-	readonly description?: string;
-	readonly range: { start: string; end: string };
-	readonly count?: number;
-	readonly priority?: number;
+	readonly upstream?: SCMHistoryItemGroupDto;
 }
 
 export interface SCMHistoryItemDto {
@@ -1444,6 +1441,7 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$registerHistoryProvider(sourceControlHandle: number): void;
 	$onDidChangeHistoryProvider(sourceControlHandle: number, data: SCMHistoryProviderChangeEventDto): void;
+	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
 	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
 }
 
@@ -2154,7 +2152,7 @@ export interface ExtHostSCMShape {
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 	$provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined>;
 	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
-	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<SCMHistoryItemDto | undefined>;
+	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
 
 export interface ExtHostQuickDiffShape {

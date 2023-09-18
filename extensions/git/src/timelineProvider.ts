@@ -246,6 +246,8 @@ export class GitTimelineProvider implements TimelineProvider {
 			}
 		}
 
+		console.log(items);
+
 		return {
 			items: items,
 			paging: paging

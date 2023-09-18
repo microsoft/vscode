@@ -19,7 +19,7 @@ import { IFileWatcher, watch } from './watch';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { CommitActionButton, SyncActionButton } from './actionButton';
+import { CommitActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
@@ -839,11 +839,6 @@ export class Repository implements Disposable {
 		const historyProvider = new GitHistoryProvider(this);
 		this._sourceControl.historyProvider = historyProvider;
 		this.disposables.push(historyProvider);
-
-		const syncActionButton = new SyncActionButton(this);
-		this.disposables.push(syncActionButton);
-		syncActionButton.onDidChange(() => this._sourceControl.historyProvider!.actionButton = syncActionButton.button);
-		this._sourceControl.historyProvider.actionButton = syncActionButton.button;
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);

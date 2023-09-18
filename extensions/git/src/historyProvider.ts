@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, SourceControlActionButton, SourceControlHistoryChangeEvent, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, l10n } from 'vscode';
+import { Disposable, Event, EventEmitter, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon } from 'vscode';
 import { Repository } from './repository';
 import { IDisposable } from './util';
 import { toGitUri } from './uri';
+import { SyncActionButton } from './actionButton';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, IDisposable {
 
-	private readonly _onDidChange = new EventEmitter<SourceControlHistoryChangeEvent>();
-	readonly onDidChange: Event<SourceControlHistoryChangeEvent> = this._onDidChange.event;
-
 	private readonly _onDidChangeActionButton = new EventEmitter<void>();
 	readonly onDidChangeActionButton: Event<void> = this._onDidChangeActionButton.event;
+
+	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
+	readonly onDidChangeCurrentHistoryItemGroup: Event<void> = this._onDidChangeCurrentHistoryItemGroup.event;
 
 	private _actionButton: SourceControlActionButton | undefined;
 	get actionButton(): SourceControlActionButton | undefined { return this._actionButton; }
@@ -24,95 +25,37 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 		this._onDidChangeActionButton.fire();
 	}
 
-	private historyItemGroups = new Map<string, SourceControlHistoryItemGroup>();
+	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
+
+	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
+	set currentHistoryItemGroup(value: SourceControlHistoryItemGroup | undefined) {
+		this._currentHistoryItemGroup = value;
+		this._onDidChangeCurrentHistoryItemGroup.fire();
+	}
 
 	private disposables: Disposable[] = [];
 
 	constructor(protected readonly repository: Repository) {
+		const actionButton = new SyncActionButton(repository);
+		this.actionButton = actionButton.button;
+		this.disposables.push(actionButton);
+
 		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
+		this.disposables.push(actionButton.onDidChange(() => this.actionButton = actionButton.button));
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
 		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit) { return; }
 
-		const added: SourceControlHistoryItemGroup[] = [];
-		const removed: SourceControlHistoryItemGroup[] = [];
-		const modified: SourceControlHistoryItemGroup[] = [];
-
-		const headName = this.repository.HEAD.name;
-		const hasUpstream = !!this.repository.HEAD.upstream;
-		const defaultBranch = !hasUpstream ? await this.repository.getDefaultBranch() : undefined;
-		const upstreamName = hasUpstream ? `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}` : undefined;
-		const commonAncestor = hasUpstream ? await this.repository.getMergeBase(headName, upstreamName!) : defaultBranch!.commit;
-
-		// Incoming
-		if (upstreamName) {
-			// Resolve commit
-			const remoteCommit = await this.repository.revParse(upstreamName);
-			const incomingHistoryItemGroup = this.historyItemGroups.get(upstreamName);
-
-			if (remoteCommit) {
-				if (!incomingHistoryItemGroup) {
-					this.historyItemGroups.set(upstreamName, {
-						id: upstreamName,
-						label: l10n.t('{0} Incoming Commits', '$(cloud-download)'),
-						description: upstreamName,
-						range: { start: commonAncestor!, end: remoteCommit },
-						count: this.repository.HEAD.behind ?? 0,
-						priority: 1
-					});
-					added.push(this.historyItemGroups.get(upstreamName)!);
-				} else {
-					if (commonAncestor !== incomingHistoryItemGroup.range.start ||
-						remoteCommit !== incomingHistoryItemGroup.range.end) {
-						this.historyItemGroups.set(upstreamName, {
-							...incomingHistoryItemGroup,
-							range: { start: commonAncestor!, end: remoteCommit },
-							count: this.repository.HEAD.behind ?? 0
-						});
-						modified.push(this.historyItemGroups.get(upstreamName)!);
-					}
-				}
-			}
-		}
-
-		// Outgoing
-		const outgoingHistoryItemGroup = this.historyItemGroups.get(headName);
-		const ahead = hasUpstream ? this.repository.HEAD.ahead ?? 0 : (await this.repository.getCommitCount(`${headName}...${defaultBranch?.name}`)).ahead;
-
-		if (!outgoingHistoryItemGroup) {
-			this.historyItemGroups.set(headName, {
-				id: headName,
-				label: l10n.t('{0} Outgoing Commits', '$(cloud-upload)'),
-				description: headName,
-				range: { start: commonAncestor!, end: this.repository.HEAD.commit },
-				count: ahead,
-				priority: 2
-			});
-			added.push(this.historyItemGroups.get(headName)!);
-		} else {
-			if (commonAncestor !== outgoingHistoryItemGroup.range.start ||
-				this.repository.HEAD.commit !== outgoingHistoryItemGroup.range.end) {
-				this.historyItemGroups.set(headName, {
-					...outgoingHistoryItemGroup,
-					range: { start: commonAncestor!, end: this.repository.HEAD.commit },
-					count: ahead
-				});
-				modified.push(this.historyItemGroups.get(headName)!);
-			}
-		}
-
-		// Removed
-		for (const name of this.historyItemGroups.keys()) {
-			if (name !== headName && name !== upstreamName) {
-				removed.push(this.historyItemGroups.get(name)!);
-				this.historyItemGroups.delete(name);
-			}
-		}
-
-		if (added.length !== 0 || removed.length !== 0 || modified.length !== 0) {
-			this._onDidChange.fire({ added, removed, modified });
-		}
+		this.currentHistoryItemGroup = {
+			id: `refs/heads/${this.repository.HEAD.name}`,
+			label: this.repository.HEAD.name,
+			upstream: this.repository.HEAD.upstream ?
+				{
+					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+					label: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+				} : undefined
+		};
 	}
 
 	async provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
@@ -135,10 +78,13 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 
 		const historyItems = commits.length === 0 ? [] : [summary];
 		historyItems.push(...commits.map(commit => {
+			const newLineIndex = commit.message.indexOf('\n');
+			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
+
 			return {
 				id: commit.hash,
 				parentIds: commit.parents,
-				label: commit.message,
+				label: subject,
 				description: commit.authorName,
 				icon: new ThemeIcon('account'),
 				timestamp: commit.authorDate?.getTime()
@@ -163,15 +109,19 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 		}));
 	}
 
-	// resolveHistoryItemGroup(historyItemGroupId: string): Promise<SourceControlHistoryItemGroup> {
-	// 	throw new Error('Method not implemented.');
-	// }
+	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+		refId2 = refId2 ?? (await this.repository.getDefaultBranch()).name ?? '';
+		if (refId2 === '') {
+			return undefined;
+		}
 
-	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<SourceControlHistoryItem> {
-		const mergeBase = await this.repository.getMergeBase(refId1, refId2);
-		const commit = await this.repository.getCommit(mergeBase);
+		const ancestor = await this.repository.getMergeBase(refId1, refId2);
+		if (ancestor === '') {
+			return undefined;
+		}
 
-		return { id: mergeBase, parentIds: commit.parents, label: commit.message, description: commit.authorName, icon: new ThemeIcon('account'), timestamp: commit.authorDate?.getTime() };
+		const commitCount = await this.repository.getCommitCount(`${refId1}...${refId2}`);
+		return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
 	}
 
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
