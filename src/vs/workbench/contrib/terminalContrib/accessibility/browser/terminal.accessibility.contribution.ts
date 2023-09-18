@@ -28,6 +28,8 @@ import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessib
 import type { Terminal } from 'xterm';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -64,7 +66,8 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		widgetManager: TerminalWidgetManager,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService) {
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IConfigurationService configurationService: IConfigurationService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
@@ -73,6 +76,14 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this.show();
 			return true;
 		}, TerminalContextKeys.focus));
+		this._register(_instance.onDidRunText(() => {
+			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
+			if (focusAfterRun === 'terminal') {
+				_instance.focus(true);
+			} else if (focusAfterRun === 'accessible-buffer') {
+				this.show();
+			}
+		}));
 	}
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
 		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
