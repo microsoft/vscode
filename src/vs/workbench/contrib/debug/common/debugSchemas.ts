@@ -73,7 +73,7 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					default: ''
 				},
 				hiddenWhen: {
-					description: nls.localize('vscode.extension.contributes.debuggers.hiddenWhen', "Condition which must be true to hide this type of debugger from the debugger listing but enabled. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension-defined context key as appropriate for this."),
+					description: nls.localize('vscode.extension.contributes.debuggers.hiddenWhen', "When this condition is true, this debugger type is hidden from the debugger list, but is still enabled."),
 					type: 'string',
 					default: ''
 				},
