@@ -25,7 +25,6 @@ import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const $ = dom.$;
 
@@ -74,7 +73,6 @@ export class TerminalTabbedView extends Disposable {
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
@@ -356,7 +354,7 @@ export class TerminalTabbedView extends Disposable {
 				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, terminal, this._instanceMenu, this._commandService, this._contextMenuService);
+						openContextMenu(event, terminal, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -390,7 +388,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 			terminalContainer.focus();
 			if (!this._cancelContextMenu) {
-				openContextMenu(event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._commandService, this._contextMenuService);
+				openContextMenu(event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._contextMenuService);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -415,7 +413,7 @@ export class TerminalTabbedView extends Disposable {
 					selectedInstances.unshift(focusedInstance);
 				}
 
-				openContextMenu(event, selectedInstances, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._commandService, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
+				openContextMenu(event, selectedInstances, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
