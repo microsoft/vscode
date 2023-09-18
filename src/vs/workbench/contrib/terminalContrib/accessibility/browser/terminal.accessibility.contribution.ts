@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -68,7 +68,8 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService) {
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
@@ -92,14 +93,24 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		addon.activate(xterm.raw);
 		this._xterm = xterm;
 		this._register(this._xterm.raw.onWriteParsed(async () => {
-			if (this._xterm!.raw.buffer.active.baseY === 0) {
+			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
 				this._bufferTracker?.update();
 				this.show();
 			}
 		}));
+
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
-		this._register(onRequestUpdateEditor(() => this.show()));
+		this._register(onRequestUpdateEditor(() => {
+			if (this._isTerminalAccessibleViewOpen()) {
+				this.show();
+			}
+		}));
 	}
+
+	private _isTerminalAccessibleViewOpen(): boolean {
+		return accessibleViewCurrentProviderId.getValue(this._contextKeyService) === AccessibleViewProviderId.Terminal;
+	}
+
 	show(): void {
 		if (!this._xterm) {
 			return;
@@ -108,14 +119,6 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this._bufferTracker = this._register(this._instantiationService.createInstance(BufferContentTracker, this._xterm));
 		}
 		this._accessibleViewService.show(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
-		// wait for the render to happen so that the line count is correct and
-		// the cursor is at the bottom of the buffer
-		setTimeout(() => {
-			const lastPosition = this._accessibleViewService.getLastPosition();
-			if (lastPosition) {
-				this._accessibleViewService.setPosition(lastPosition, true);
-			}
-		}, 50);
 	}
 	navigateToCommand(type: NavigationType): void {
 		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;

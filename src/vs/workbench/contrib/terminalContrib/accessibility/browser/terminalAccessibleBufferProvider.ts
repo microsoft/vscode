@@ -16,7 +16,7 @@ import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/acces
 import type { Terminal } from 'xterm';
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal' };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	constructor(
