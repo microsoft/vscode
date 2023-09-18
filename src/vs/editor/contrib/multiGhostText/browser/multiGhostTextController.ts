@@ -300,7 +300,9 @@ export class MultiGhostTextController2 extends Disposable {
 		const ghostText = this._widgetsData.shift();
 		if (ghostText) {
 			this.showSingleGhostText(ghostText);
-
+			if (!auto) {
+				this.editor.setPosition(Position.lift(ghostText.position));
+			}
 		}
 		else {
 			this.clear();
@@ -370,6 +372,7 @@ export class MultiGhostTextController2 extends Disposable {
 		const ghostText = this._widgetsData.shift();
 		if (ghostText) {
 			this.showSingleGhostText(ghostText);
+			this.editor.setPosition(Position.lift(ghostText.position));
 		}
 		else {
 			this.clear();
