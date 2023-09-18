@@ -31,7 +31,8 @@ class InstanceContext {
 
 class TerminalContextActionRunner extends ActionRunner {
 
-	override async runAction(action: IAction, context?: InstanceContext): Promise<void> {
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	protected override async runAction(action: IAction, context?: InstanceContext): Promise<void> {
 		if (Array.isArray(context) && context.every(e => e instanceof InstanceContext)) {
 			// arg1: The (first) focused instance
 			// arg2: All selected instances

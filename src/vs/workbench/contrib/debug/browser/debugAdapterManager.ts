@@ -364,6 +364,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this.initExtensionActivationsIfNeeded();
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
+		candidates = candidates.filter(a => !a.isHiddenFromDropdown);
 
 		const suggestedCandidates: Debugger[] = [];
 		const otherCandidates: Debugger[] = [];
