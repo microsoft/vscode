@@ -95,7 +95,6 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		this._xterm = xterm;
 		this._register(this._xterm.raw.onWriteParsed(async () => {
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
-				this._bufferTracker?.update();
 				this.show();
 			}
 		}));
