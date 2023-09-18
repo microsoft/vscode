@@ -394,7 +394,7 @@ export class CodeApplication extends Disposable {
 					if (handler.url === 'about:blank') {
 						this.logService.trace('webContents#setWindowOpenHandler: Allowing about:blank window to open');
 
-						const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+						const windowZoomLevel = this.configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0;
 						const windowState = defaultWindowState();
 
 						return {
@@ -411,7 +411,7 @@ export class CodeApplication extends Disposable {
 									sandbox: true,
 									enableWebSQL: false,
 									spellcheck: false,
-									zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel)
+									zoomFactor: zoomLevelToZoomFactor(windowZoomLevel)
 								}
 							}
 						};
@@ -422,6 +422,13 @@ export class CodeApplication extends Disposable {
 
 						return { action: 'deny' };
 					}
+				});
+			} else {
+				contents.on('did-navigate', (event, url) => {
+					const windowZoomLevel = this.configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0;
+
+					contents.setZoomLevel(windowZoomLevel);
+					contents.setZoomFactor(zoomLevelToZoomFactor(windowZoomLevel));
 				});
 			}
 		});
