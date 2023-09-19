@@ -1052,10 +1052,12 @@ export class IssueReporter extends Disposable {
 			}, extension.name);
 		};
 
-		const extensionsSelector = this.getElementById('extension-selector');
+		const extensionsSelector = this.getElementById('extension-selector')! as HTMLSelectElement;
 		if (extensionsSelector) {
 			const { selectedExtension } = this.issueReporterModel.getData();
 			reset(extensionsSelector, $<HTMLOptionElement>('option'), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
+			extensionsSelector.replaceChild(this.makeOption('', localize('selectExtension', "Select extension"), true), extensionsSelector.firstChild!);
+			extensionsSelector.selectedIndex = 0;
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
