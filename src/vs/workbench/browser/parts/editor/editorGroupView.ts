@@ -740,6 +740,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get label(): string {
+		if (this.accessor.label) {
+			return localize('groupLabelLong', "{0}: Group {1}", this.accessor.label, this._index + 1);
+		}
+
 		return localize('groupLabel', "Group {0}", this._index + 1);
 	}
 

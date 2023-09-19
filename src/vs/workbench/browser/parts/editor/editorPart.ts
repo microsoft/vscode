@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
@@ -33,9 +34,9 @@ import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 
 interface IEditorPartUIState {
-	serializedGrid: ISerializedGrid;
-	activeGroup: GroupIdentifier;
-	mostRecentActiveGroups: GroupIdentifier[];
+	readonly serializedGrid: ISerializedGrid;
+	readonly activeGroup: GroupIdentifier;
+	readonly mostRecentActiveGroups: GroupIdentifier[];
 }
 
 class GridWidgetView<T extends IView> implements IView {
@@ -139,6 +140,7 @@ export class EditorPart extends Part implements IEditorGroupsAccessor {
 
 	constructor(
 		id: string,
+		readonly label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1237,7 +1239,7 @@ export class MainEditorPart extends EditorPart {
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(Parts.EDITOR_PART, instantiationService, themeService, configurationService, storageService, layoutService);
+		super(Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 }
 
@@ -1255,7 +1257,8 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(`workbench.parts.auxiliaryEditor.${AuxiliaryEditorPart.COUNTER++}`, instantiationService, themeService, configurationService, storageService, layoutService);
+		const id = AuxiliaryEditorPart.COUNTER++;
+		super(`workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 
 	async close(): Promise<void> {

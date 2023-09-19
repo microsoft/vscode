@@ -83,6 +83,8 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 
 export interface IEditorGroupsAccessor {
 
+	readonly label: string;
+
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
