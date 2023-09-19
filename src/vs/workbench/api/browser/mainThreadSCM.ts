@@ -16,7 +16,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 
 function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (!historyItem.icon) {
@@ -201,9 +201,10 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			this._historyProvider = {
 				actionButton: () => this._historyProviderActionButton ?? undefined,
 				currentHistoryItemGroup: () => this._historyProviderCurrentHistoryItemGroup ?? undefined,
-				provideHistoryItems: (historyItemGroupId, options) => this.provideHistoryItems(historyItemGroupId, options),
+				provideHistoryItems: (historyItemGroupId: string, options: ISCMHistoryOptions) => this.provideHistoryItems(historyItemGroupId, options),
 				provideHistoryItemChanges: (historyItemId: string) => this.provideHistoryItemChanges(historyItemId),
-				resolveHistoryItemGroupCommonAncestor: (historyItemGroupId1, historyItemGroupId2) => this.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2),
+				resolveHistoryItemGroupBase: (historyItemGroupId: string) => this.resolveHistoryItemGroupBase(historyItemGroupId),
+				resolveHistoryItemGroupCommonAncestor: (historyItemGroupId1: string, historyItemGroupId2: string) => this.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2),
 			};
 		} else if (features.hasHistoryProvider === false && this._historyProvider) {
 			this._historyProvider = undefined;
@@ -327,7 +328,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		this._onDidChangeHistoryProviderCurrentHistoryItemGroup.fire();
 	}
 
-	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined> {
+		return this.proxy.$resolveHistoryItemGroupBase(this.handle, historyItemGroupId, CancellationToken.None);
+	}
+
+	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		return this.proxy.$resolveHistoryItemGroupCommonAncestor(this.handle, historyItemGroupId1, historyItemGroupId2, CancellationToken.None);
 	}
 

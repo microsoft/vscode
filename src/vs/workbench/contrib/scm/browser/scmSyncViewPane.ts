@@ -516,15 +516,21 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 				} as ISCMActionButton);
 			}
 
+			// History item group base
+			const historyItemGroupBase = await historyProvider.resolveHistoryItemGroupBase(historyItemGroup.id);
+			if (!historyItemGroupBase) {
+				return children;
+			}
+
 			// Common ancestor, ahead, behind
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroup.upstream?.id);
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id);
 
 			// Incoming
-			if (historyItemGroup?.upstream) {
+			if (historyItemGroupBase) {
 				children.push({
-					id: historyItemGroup.upstream.id,
+					id: historyItemGroupBase.id,
 					label: localize('incoming', "$(cloud-download) Incoming Changes"),
-					description: historyItemGroup.upstream.label,
+					description: historyItemGroupBase.label,
 					ancestor: ancestor?.id,
 					count: ancestor?.behind ?? 0,
 					repository: element,
