@@ -200,7 +200,7 @@ async function main(): Promise<void> {
 	uploadPromises.push((async () => {
 		console.log(`Checking for blob in Azure...`);
 
-		if (await blobClient.exists()) {
+		if (await retry(() => blobClient.exists())) {
 			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		} else {
 			await retry(async (attempt) => {
@@ -222,7 +222,7 @@ async function main(): Promise<void> {
 		uploadPromises.push((async () => {
 			console.log(`Checking for blob in Mooncake Azure...`);
 
-			if (await mooncakeBlobClient.exists()) {
+			if (await retry(() => mooncakeBlobClient.exists())) {
 				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
 			} else {
 				await retry(async (attempt) => {
