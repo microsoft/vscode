@@ -1914,15 +1914,6 @@ export class Repository {
 		}
 	}
 
-	async revParse(ref: string): Promise<string | undefined> {
-		const result = await this.exec(['rev-parse', ref]);
-		if (result.exitCode) {
-			return undefined;
-		}
-
-		return result.stdout.trim();
-	}
-
 	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		const args = ['push'];
 

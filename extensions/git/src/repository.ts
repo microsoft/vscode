@@ -1477,10 +1477,6 @@ export class Repository implements Disposable {
 		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
 	}
 
-	async revParse(ref: string): Promise<string | undefined> {
-		return await this.run(Operation.RevParse, () => this.repository.revParse(ref));
-	}
-
 	async tag(name: string, message?: string): Promise<void> {
 		await this.run(Operation.Tag, () => this.repository.tag(name, message));
 	}

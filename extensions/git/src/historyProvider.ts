@@ -67,13 +67,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 			throw new Error('Unsupported options.');
 		}
 
-		// Resolve the history item group id to a commit
-		const historyItemGroupCommit = await this.repository.revParse(historyItemGroupId);
-
 		const optionsRef = options.limit.id;
 		const [commits, summary] = await Promise.all([
 			this.repository.log({ range: `${optionsRef}..${historyItemGroupId}`, sortByAuthorDate: true }),
-			this.getSummaryHistoryItem(optionsRef, historyItemGroupCommit!)
+			this.getSummaryHistoryItem(optionsRef, historyItemGroupId)
 		]);
 
 		const historyItems = commits.length === 0 ? [] : [summary];
