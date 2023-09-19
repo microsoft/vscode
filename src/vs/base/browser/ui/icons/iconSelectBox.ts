@@ -141,7 +141,9 @@ export class IconSelectBox extends Disposable {
 		}
 		const { height } = this.scrollableElement.getScrollDimensions();
 		const { scrollTop } = this.scrollableElement.getScrollPosition();
-		if (icon.offsetTop > scrollTop + height || icon.offsetTop < scrollTop) {
+		if (icon.offsetTop + this.iconContainerHeight > scrollTop + height) {
+			this.scrollableElement.setScrollPosition({ scrollTop: icon.offsetTop + this.iconContainerHeight - height });
+		} else if (icon.offsetTop < scrollTop) {
 			this.scrollableElement.setScrollPosition({ scrollTop: icon.offsetTop });
 		}
 	}
