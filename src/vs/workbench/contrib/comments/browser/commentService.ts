@@ -370,6 +370,13 @@ export class CommentService extends Disposable implements ICommentService {
 		for (const control of this._commentControls.values()) {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
 				.then(documentComments => {
+					// Check that there aren't any continue on comments in the provided comments
+					// This can happen because continue on comments are stored separately from local un-submitted comments.
+					for (const documentCommentThread of documentComments.threads) {
+						if (documentCommentThread.comments?.length === 0 && documentCommentThread.range) {
+							this.removeContinueOnComment({ range: documentCommentThread.range, uri: resource, owner: documentComments.owner });
+						}
+					}
 					const pendingComments = this._continueOnComments.get(documentComments.owner);
 					documentComments.pendingCommentThreads = pendingComments?.filter(pendingComment => pendingComment.uri.toString() === resource.toString());
 					return documentComments;
