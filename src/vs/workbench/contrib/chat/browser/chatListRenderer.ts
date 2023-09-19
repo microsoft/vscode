@@ -14,6 +14,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
+import { distinct } from 'vs/base/common/arrays';
 import { IntervalTimer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -52,6 +53,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -61,7 +63,9 @@ import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/a
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { fixVariableReferences, walkTreeAndAnnotateResourceLinks } from 'vs/workbench/contrib/chat/browser/chatVariableReferenceRenderer';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -70,9 +74,6 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { distinct } from 'vs/base/common/arrays';
-import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 
 const $ = dom.$;
 
@@ -137,7 +138,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -607,6 +608,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		const codeblocks: IChatCodeBlockInfo[] = [];
+
+		if (isRequestVM(element)) {
+			markdown = fixVariableReferences(markdown);
+		}
+
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
@@ -640,6 +646,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isResponseVM(element)) {
 			this.codeBlocksByResponseId.set(element.id, codeblocks);
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
+		}
+
+		if (isRequestVM(element)) {
+			walkTreeAndAnnotateResourceLinks(result.element);
 		}
 
 		if (usedSlashCommand) {
