@@ -112,7 +112,7 @@ interface ActionButtonTemplate {
 	readonly templateDisposable: IDisposable;
 }
 
-class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton, FuzzyScore, ActionButtonTemplate> {
+export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton, FuzzyScore, ActionButtonTemplate> {
 	static readonly DEFAULT_HEIGHT = 30;
 
 	static readonly TEMPLATE_ID = 'actionButton';
