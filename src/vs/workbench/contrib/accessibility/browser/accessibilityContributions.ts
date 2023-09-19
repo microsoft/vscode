@@ -39,8 +39,8 @@ import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ADD_COMMENT_COMMAND, NEXT_COMMENT_RANGE_COMMAND_ID, NEXT_COMMENT_THREAD_COMMAND_ID, PREVIOUS_COMMENT_RANGE_COMMAND_ID, PREVIOUS_COMMENT_THREAD_COMMAND_ID } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/comments.contribution';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -101,11 +101,11 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 		}
 
 		if (this._contextKeyService.getContextKeyValue<boolean>(CommentContextKeys.activeEditorHasCommentingRange.key)) {
-			content.push(this._descriptionForCommand(ADD_COMMENT_COMMAND, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
-			content.push(this._descriptionForCommand(NEXT_COMMENT_THREAD_COMMAND_ID, CommentAccessibilityHelpNLS.nextCommentThreadKb, CommentAccessibilityHelpNLS.nextCommentThreadNoKb));
-			content.push(this._descriptionForCommand(PREVIOUS_COMMENT_THREAD_COMMAND_ID, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadNoKb));
-			content.push(this._descriptionForCommand(NEXT_COMMENT_RANGE_COMMAND_ID, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
-			content.push(this._descriptionForCommand(PREVIOUS_COMMENT_RANGE_COMMAND_ID, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
+			content.push(this._descriptionForCommand(CommentCommandId.Add, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
+			content.push(this._descriptionForCommand(CommentCommandId.NextThread, CommentAccessibilityHelpNLS.nextCommentThreadKb, CommentAccessibilityHelpNLS.nextCommentThreadNoKb));
+			content.push(this._descriptionForCommand(CommentCommandId.PreviousThread, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadNoKb));
+			content.push(this._descriptionForCommand(CommentCommandId.NextRange, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
+			content.push(this._descriptionForCommand(CommentCommandId.PreviousRange, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
 		}
 
 		if (options.get(EditorOption.stickyScroll).enabled) {

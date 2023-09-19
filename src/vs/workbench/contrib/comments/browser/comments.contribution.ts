@@ -18,7 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ADD_COMMENT_COMMAND, NEXT_COMMENT_RANGE_COMMAND_ID, PREVIOUS_COMMENT_RANGE_COMMAND_ID, SUBMIT_COMMENT_COMMAND_ID } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -115,10 +115,10 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 		this._element = document.activeElement as HTMLElement;
 		const content: string[] = [];
 		content.push(CommentAccessibilityHelpNLS.escape);
-		content.push(this._descriptionForCommand(ADD_COMMENT_COMMAND, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
-		content.push(this._descriptionForCommand(NEXT_COMMENT_RANGE_COMMAND_ID, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
-		content.push(this._descriptionForCommand(PREVIOUS_COMMENT_RANGE_COMMAND_ID, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
-		content.push(this._descriptionForCommand(SUBMIT_COMMENT_COMMAND_ID, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.submitCommentNoKb));
+		content.push(this._descriptionForCommand(CommentCommandId.Add, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
+		content.push(this._descriptionForCommand(CommentCommandId.NextRange, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
+		content.push(this._descriptionForCommand(CommentCommandId.PreviousRange, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
+		content.push(this._descriptionForCommand(CommentCommandId.Submit, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.submitCommentNoKb));
 		return content.join('\n\n');
 	}
 	onClose(): void {

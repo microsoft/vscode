@@ -25,10 +25,24 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
+registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 
-export const NEXT_COMMENT_THREAD_COMMAND_ID = 'workbench.action.nextCommentThread';
+export const enum CommentCommandId {
+	Add = 'editor.action.addComment',
+	NextThread = 'workbench.action.nextCommentThreadAction',
+	PreviousThread = 'workbench.action.previousCommentThreadAction',
+	NextRange = 'workbench.action.nextCommentRange',
+	PreviousRange = 'workbench.action.previousCommentRange',
+	ToggleCommenting = 'workbench.action.toggleCommenting',
+	Submit = 'editor.action.submitComment',
+	Hide = 'workbench.action.hideComment',
+	CollapseAll = 'workbench.action.collapseAllComments',
+	ExpandAll = 'workbench.action.expandAllComments',
+	ExpandUnresolved = 'workbench.action.expandUnresolvedComments'
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: NEXT_COMMENT_THREAD_COMMAND_ID,
+	id: CommentCommandId.NextThread,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
@@ -46,9 +60,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Alt | KeyCode.F9,
 });
 
-export const PREVIOUS_COMMENT_THREAD_COMMAND_ID = 'workbench.action.previousCommentThread';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: PREVIOUS_COMMENT_THREAD_COMMAND_ID,
+	id: CommentCommandId.PreviousThread,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
@@ -66,13 +79,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
 });
 
-
-registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
-
-
-export const NEXT_COMMENT_RANGE_COMMAND_ID = 'workbench.action.nextCommentRange';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: NEXT_COMMENT_RANGE_COMMAND_ID,
+	id: CommentCommandId.NextRange,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
@@ -90,9 +98,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib
 });
 
-export const PREVIOUS_COMMENT_RANGE_COMMAND_ID = 'workbench.action.previousCommentRange';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: PREVIOUS_COMMENT_RANGE_COMMAND_ID,
+	id: CommentCommandId.PreviousRange,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
@@ -110,9 +117,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib
 });
 
-const TOGGLE_COMMENTING_COMMAND = 'workbench.action.toggleCommenting';
 CommandsRegistry.registerCommand({
-	id: TOGGLE_COMMENTING_COMMAND,
+	id: CommentCommandId.ToggleCommenting,
 	handler: (accessor) => {
 		const commentService = accessor.get(ICommentService);
 		const enable = commentService.isCommentingEnabled;
@@ -122,16 +128,15 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: TOGGLE_COMMENTING_COMMAND,
+		id: CommentCommandId.ToggleCommenting,
 		title: nls.localize('comments.toggleCommenting', "Toggle Editor Commenting"),
 		category: 'Comments',
 	},
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-export const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ADD_COMMENT_COMMAND,
+	id: CommentCommandId.Add,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
@@ -158,16 +163,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: ADD_COMMENT_COMMAND,
+		id: CommentCommandId.Add,
 		title: nls.localize('comments.addCommand', "Add Comment on Current Selection"),
 		category: 'Comments'
 	},
 	when: CommentContextKeys.activeCursorHasCommentingRange
 });
 
-const COLLAPSE_ALL_COMMENT_COMMAND = 'workbench.action.collapseAllComments';
 CommandsRegistry.registerCommand({
-	id: COLLAPSE_ALL_COMMENT_COMMAND,
+	id: CommentCommandId.CollapseAll,
 	handler: (accessor) => {
 		return getActiveController(accessor)?.collapseAll();
 	}
@@ -175,16 +179,15 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: COLLAPSE_ALL_COMMENT_COMMAND,
+		id: CommentCommandId.CollapseAll,
 		title: nls.localize('comments.collapseAll', "Collapse All Comments"),
 		category: 'Comments'
 	},
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-const EXPAND_ALL_COMMENT_COMMAND = 'workbench.action.expandAllComments';
 CommandsRegistry.registerCommand({
-	id: EXPAND_ALL_COMMENT_COMMAND,
+	id: CommentCommandId.ExpandAll,
 	handler: (accessor) => {
 		return getActiveController(accessor)?.expandAll();
 	}
@@ -192,16 +195,15 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: EXPAND_ALL_COMMENT_COMMAND,
+		id: CommentCommandId.ExpandAll,
 		title: nls.localize('comments.expandAll', "Expand All Comments"),
 		category: 'Comments'
 	},
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-const EXPAND_UNRESOLVED_COMMENT_COMMAND = 'workbench.action.expandUnresolvedComments';
 CommandsRegistry.registerCommand({
-	id: EXPAND_UNRESOLVED_COMMENT_COMMAND,
+	id: CommentCommandId.ExpandUnresolved,
 	handler: (accessor) => {
 		return getActiveController(accessor)?.expandUnresolved();
 	}
@@ -209,16 +211,15 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: EXPAND_UNRESOLVED_COMMENT_COMMAND,
+		id: CommentCommandId.ExpandUnresolved,
 		title: nls.localize('comments.expandUnresolved', "Expand Unresolved Comments"),
 		category: 'Comments'
 	},
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-export const SUBMIT_COMMENT_COMMAND_ID = 'workbench.action.submitComment';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: SUBMIT_COMMENT_COMMAND_ID,
+	id: CommentCommandId.Submit,
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	when: ctxCommentEditorFocused,
@@ -231,7 +232,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.hideComment',
+	id: CommentCommandId.Hide,
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
