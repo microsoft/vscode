@@ -44,7 +44,12 @@ declare module 'vscode' {
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
 		readonly label: string;
-		readonly upstream?: SourceControlHistoryItemGroup;
+		readonly upstream?: SourceControlRemoteHistoryItemGroup;
+	}
+
+	export interface SourceControlRemoteHistoryItemGroup {
+		readonly id: string;
+		readonly label: string;
 	}
 
 	export interface SourceControlHistoryItem {

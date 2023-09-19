@@ -1359,6 +1359,7 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 }
 
 export interface SCMProviderFeatures {
+	hasHistoryProvider?: boolean;
 	hasQuickDiffProvider?: boolean;
 	quickDiffLabel?: string;
 	count?: number;
@@ -1404,7 +1405,12 @@ export type SCMRawResourceSplices = [
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
 	readonly label: string;
-	readonly upstream?: SCMHistoryItemGroupDto;
+	readonly upstream?: SCMRemoteHistoryItemGroupDto;
+}
+
+export interface SCMRemoteHistoryItemGroupDto {
+	readonly id: string;
+	readonly label: string;
 }
 
 export interface SCMHistoryItemDto {
@@ -1442,7 +1448,6 @@ export interface MainThreadSCMShape extends IDisposable {
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 
-	$registerHistoryProvider(sourceControlHandle: number): void;
 	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
 }

@@ -114,7 +114,7 @@ viewsRegistry.registerViews([{
 	id: SYNC_VIEW_PANE_ID,
 	name: localize('source control sync', "Source Control Sync"),
 	ctorDescriptor: new SyncDescriptor(SCMSyncViewPane),
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	canMoveView: true,
 	weight: 20,
 	order: -998,
