@@ -285,6 +285,11 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		if (!setting) {
 			return undefined;
 		}
+
+		if (env.reason === SaveReason.AUTO) {
+			return undefined;
+		}
+
 		const convertedSetting: { [kind: string]: string } = {};
 		for (const key in setting) {
 			if (typeof setting[key] === 'boolean') {
