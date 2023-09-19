@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.icon-select-box>.icon-select-box-container {
+.icon-select-box > .icon-select-box-container {
 	height: 100%;
 }
 
 .icon-select-box .icon-select-icons-container {
-	display: flex;
-	flex-wrap: wrap;
-	box-sizing: border-box;
 	height: 100%;
 }
 
@@ -27,4 +24,10 @@
 	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.icon-select-box .icon-select-id-container .icon-select-id-label {
+	height: 24px;
+	padding: 0px 10px;
+	opacity: .8;
 }
