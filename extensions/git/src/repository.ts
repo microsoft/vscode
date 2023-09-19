@@ -1525,7 +1525,7 @@ export class Repository implements Disposable {
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		return await this.repository.getCommitCount(range);
+		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
