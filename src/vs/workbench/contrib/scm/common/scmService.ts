@@ -213,7 +213,7 @@ class WillSaveHistoryEvent {
 
 class SCMInputHistory {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private readonly histories = new Map<string, ResourceMap<HistoryNavigator2<string>>>();
 
 	private readonly _onWillSaveHistory = this.disposables.add(new Emitter<WillSaveHistoryEvent>());
