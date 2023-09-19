@@ -113,7 +113,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
-			description: localize('verbosity.comments', 'Provide information about relevant actions the comment widget or in a file which contains comments.'),
+			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
 			...baseProperty
 		}
 	}
