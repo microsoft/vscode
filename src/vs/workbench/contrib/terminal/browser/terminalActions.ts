@@ -491,11 +491,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			if (instance.target === TerminalLocation.Panel) {
-				c.groupService.showPanel(true);
-			} else {
-				c.editorService.activeInstance?.focus();
-			}
+			c.service.focusActiveInstance();
 		}
 	});
 
