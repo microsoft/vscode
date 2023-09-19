@@ -542,9 +542,25 @@ class PopEditorPartOutAction extends Action2 {
 		const codiconFontStyle = document.createElement('style');
 		codiconFontStyle.textContent = `
 			@font-face {
-				font-family: "codicon";
+				font-family: 'codicon';
 				font-display: block;
-				src: url("${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
+				src: url('${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6') format('truetype');
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
+				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-light.svg')}');
+			}
+
+			.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-dark.svg')}');
+			}
+
+			.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-hcLight.svg')}');
+			}
+
+			.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-hcDark.svg')}');
 			}
 			`;
 		childWindow.document.head.appendChild(codiconFontStyle);

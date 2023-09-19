@@ -600,7 +600,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private canDispose(accessor: ServicesAccessor, editor: EditorInput): boolean {
-		const editorGroupService = accessor.get(IEditorGroupsService);
+		const editorGroupService = accessor.get(IEditorGroupsService); // TODO@bpasero this is a bit backwards
 
 		for (const groupView of editorGroupService.groups) {
 			if (groupView instanceof EditorGroupView && groupView.model.contains(editor, {

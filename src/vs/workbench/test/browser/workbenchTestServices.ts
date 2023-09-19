@@ -813,8 +813,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	constructor(public groups: TestEditorGroupView[] = []) { }
 
-	registerEditorPart(part: any): IDisposable { return Disposable.None; }
-
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
 	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
@@ -862,6 +860,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
+
+	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {

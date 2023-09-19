@@ -145,7 +145,7 @@ export class CodeApplication extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) {
 		super();
 
