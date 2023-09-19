@@ -28,11 +28,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly _logService: ILogService) {
 		super();
-		this._taskService.onDidReconnectToTasks((() => {
-			if (this._workspaceTrustManagementService.isWorkspaceTrusted()) {
-				this._tryRunTasks();
-			}
-		}));
+		this._taskService.onDidReconnectToTasks((() => this._tryRunTasks()));
 		if (this._taskService.isReconnected) {
 			this._tryRunTasks();
 		}
@@ -44,6 +40,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	}
 
 	private async _tryRunTasks() {
+		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return;
+		}
 		if (this._hasRunTasks || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
 			return;
 		}
