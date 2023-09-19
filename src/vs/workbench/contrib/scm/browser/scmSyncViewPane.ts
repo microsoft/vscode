@@ -261,13 +261,12 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 
 class SCMSyncViewPaneAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
-	getAriaLabel(element: TreeElement): string | null {
-		// TODO - localize
-		return 'SCM Sync View';
+	getAriaLabel(element: TreeElement): string {
+		// TODO - add aria labels
+		return '';
 	}
 	getWidgetAriaLabel(): string {
-		// TODO - Add label
-		return '';
+		return localize('scmSync', 'Source Control Sync');
 	}
 
 }
