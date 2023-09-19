@@ -213,7 +213,7 @@ export class CodeActionItem {
 }
 
 export interface CodeActionSet extends ActionSet<CodeActionItem> {
-	validActions: CodeActionItem[];
+	readonly validActions: CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
 
 	readonly documentation: readonly languages.Command[];

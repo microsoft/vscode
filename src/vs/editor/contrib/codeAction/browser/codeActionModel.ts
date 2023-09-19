@@ -199,18 +199,12 @@ export class CodeActionModel extends Disposable {
 				}
 
 				const startPosition = trigger.selection.getStartPosition();
+
 				const actions = createCancelablePromise(async token => {
 					const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 
 					// Search for quickfixes in the curret code action set.
-					let foundQuickfix = false;
-					if (codeActionSet.validActions) {
-						for (const action of codeActionSet.validActions) {
-							if (action.action.kind === 'quickfix') {
-								foundQuickfix = true;
-							}
-						}
-					}
+					const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind === 'quickfix') || false;
 
 					const allMarkers = this._markerService.read({ resource: model.uri });
 
@@ -233,23 +227,23 @@ export class CodeActionModel extends Disposable {
 							}
 						});
 
-						// Only retriggers if actually found quickfix on the line
+						// Only retriggers if actually found quickfix on the same line as cursor
 						if (toBeModified) {
-							const actionsAtMarker = getCodeActions(this._registry, model, trigger.selection.toPositions(trackedPosition), trigger.trigger, Progress.None, token);
-							const checkActions = await actionsAtMarker;
-							if (checkActions.validActions.length !== 0) {
-								for (const action of checkActions.validActions) {
-									if (action.action.kind === 'quickfix') {
-										action.toMark = true;
-										codeActionSet.validActions.push(action);
-									}
-								}
+							const actionsAtMarker = await getCodeActions(this._registry, model, trigger.selection.toPositions(trackedPosition), trigger.trigger, Progress.None, token);
+							if (actionsAtMarker.validActions.length !== 0) {
+								const quickFixActions = actionsAtMarker.validActions.filter(action => {
+
+									// Ideally, mark only the main quickfix we are targetting, while copilot and other quickfixes are not marked.
+									action.toMark = action.action.isPreferred;
+									return action.action.kind === 'quickfix';
+								});
+
+								codeActionSet.validActions.push(...quickFixActions);
 							}
 						}
 					}
 
 					return codeActionSet;
-
 				});
 
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
