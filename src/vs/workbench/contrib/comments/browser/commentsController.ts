@@ -33,12 +33,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { Emitter } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/editor/common/core/position';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { status } from 'vs/base/browser/ui/aria/aria';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export const ID = 'editor.contrib.review';
 
@@ -347,11 +348,6 @@ class CommentingRangeDecorator {
 	}
 }
 
-export const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorHasCommentingRange', false, {
-	description: nls.localize('hasCommentingRange', "Whether the position at the active cursor has a commenting range"),
-	type: 'boolean'
-});
-
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
@@ -371,7 +367,8 @@ export class CommentController implements IEditorContribution {
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } }; // owner -> threadId -> uniqueIdInThread -> pending comment
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
-	private _hasProvidedAriaStatus: boolean = false;
+	private _activeEditorHasCommentingRange: IContextKey<boolean>;
+	private _hasRespondedToEditorChange: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -390,7 +387,8 @@ export class CommentController implements IEditorContribution {
 		this._pendingNewCommentCache = {};
 		this._pendingEditsCache = {};
 		this._computePromise = null;
-		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
+		this._activeCursorHasCommentingRange = CommentContextKeys.activeCursorHasCommentingRange.bindTo(contextKeyService);
+		this._activeEditorHasCommentingRange = CommentContextKeys.activeEditorHasCommentingRange.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -419,8 +417,8 @@ export class CommentController implements IEditorContribution {
 			}
 			this.beginCompute();
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginComputeAndProvideStatus()));
-		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginComputeAndProvideStatus()));
+		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginComputeAndHandleEditorChange()));
+		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginComputeAndHandleEditorChange()));
 
 		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
@@ -750,7 +748,7 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 
-		this._hasProvidedAriaStatus = false;
+		this._hasRespondedToEditorChange = false;
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -841,14 +839,19 @@ export class CommentController implements IEditorContribution {
 			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
 
-		this.beginComputeAndProvideStatus();
+		this.beginComputeAndHandleEditorChange();
 	}
 
-	private beginComputeAndProvideStatus(): void {
+	private beginComputeAndHandleEditorChange(): void {
 		this.beginCompute().then(() => {
-			if (!this._hasProvidedAriaStatus && this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
-				this._hasProvidedAriaStatus = true;
-				status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+			if (!this._hasRespondedToEditorChange) {
+				if (this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
+					this._hasRespondedToEditorChange = true;
+					this._activeEditorHasCommentingRange.set(true);
+					status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+				} else {
+					this._activeEditorHasCommentingRange.set(false);
+				}
 			}
 		});
 	}
