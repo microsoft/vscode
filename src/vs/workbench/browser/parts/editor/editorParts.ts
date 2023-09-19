@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IEditorDropTargetDelegate, IEditorGroupsService, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Emitter } from 'vs/base/common/event';
+import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorDropTargetDelegate, IEditorGroupsService, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDimension, getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
-import { EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IChildWindowService } from 'vs/workbench/services/childWindow/browser/childWindowService';
 
 export class EditorParts extends Disposable implements IEditorGroupsService {
 
@@ -20,18 +21,43 @@ export class EditorParts extends Disposable implements IEditorGroupsService {
 	private mainPart = this._register(this.instantiationService.createInstance(MainEditorPart));
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChildWindowService private readonly childWindowService: IChildWindowService
 	) {
 		super();
 
 		this._register(this.registerEditorPart(this.mainPart));
 	}
 
+	//#region Auxiliary Editor Parts
+
+	createAuxiliaryEditorPart(): IAuxiliaryEditorPart {
+		const disposables = new DisposableStore();
+		const childWindow = disposables.add(this.childWindowService.create());
+
+		const partContainer = document.createElement('div');
+		partContainer.classList.add('part', 'editor');
+		childWindow.container.appendChild(partContainer);
+
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart));
+		editorPart.create(partContainer, { restorePreviousState: false });
+
+		disposables.add(this.registerEditorPart(editorPart));
+
+		disposables.add(childWindow.onDidResize(dim => editorPart.layout(dim.width, dim.height, 0, 0)));
+		disposables.add(Event.once(childWindow.onDidClose)(() => disposables.dispose()));
+		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
+
+		return editorPart;
+	}
+
+	//#endregion
+
 	//#region Registration
 
 	private readonly parts = new Set<EditorPart>();
 
-	registerEditorPart(part: EditorPart): IDisposable {
+	private registerEditorPart(part: EditorPart): IDisposable {
 		this.parts.add(part);
 
 		const disposables = new DisposableStore();

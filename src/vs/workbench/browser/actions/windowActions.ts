@@ -29,17 +29,12 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { EventType, addDisposableListener, getClientArea, isHTMLElement, registerWindow } from 'vs/base/browser/dom';
+import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
-import { FileAccess } from 'vs/base/common/network';
-import { assertIsDefined } from 'vs/base/common/types';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -444,8 +439,6 @@ class PopEditorPartOutAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -454,148 +447,10 @@ class PopEditorPartOutAction extends Action2 {
 			return;
 		}
 
-		const disposables = new DisposableStore();
+		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
 
-		const refs = window.open('about:blank');
-		const childWindow = assertIsDefined(refs?.window);
-
-		const metaCharset = childWindow.document.head.appendChild(document.createElement('meta'));
-		metaCharset.setAttribute('charset', 'utf-8');
-
-		const csp = childWindow.document.head.appendChild(document.createElement('meta'));
-		csp.setAttribute('http-equiv', 'Content-Security-Policy');
-		csp.setAttribute('content', `
-			default-src
-				'none'
-				;
-				img-src
-					'self'
-					data:
-					blob:
-					vscode-remote-resource:
-					vscode-managed-remote-resource:
-					https:
-				;
-				media-src
-					'self'
-				;
-				frame-src
-					'self'
-					vscode-webview:
-				;
-				script-src
-					'self'
-					'unsafe-eval'
-					blob:
-				;
-				style-src
-					'self'
-					'unsafe-inline'
-				;
-				connect-src
-					'self'
-					https:
-					ws:
-				;
-				font-src
-					'self'
-					vscode-remote-resource:
-					vscode-managed-remote-resource:
-				;
-				require-trusted-types-for
-					'script'
-				;
-				trusted-types
-					amdLoader
-					cellRendererEditorText
-					defaultWorkerFactory
-					diffEditorWidget
-					diffReview
-					domLineBreaksComputer
-					dompurify
-					editorGhostText
-					editorViewLayer
-					notebookRenderer
-					stickyScrollViewLayer
-					tokenizeToString
-				;`
-		);
-
-		[...document.styleSheets].forEach((styleSheet) => {
-			try {
-				const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
-				const style = document.createElement('style');
-
-				style.textContent = cssRules;
-				childWindow!.document.head.appendChild(style);
-			} catch (e) {
-				const link = document.createElement('link');
-
-				link.rel = 'stylesheet';
-				link.type = styleSheet.type;
-				link.media = styleSheet.media.mediaText;
-				link.href = styleSheet.href!;
-				childWindow!.document.head.appendChild(link);
-			}
-		});
-
-		const codiconFontStyle = document.createElement('style');
-		codiconFontStyle.textContent = `
-			@font-face {
-				font-family: 'codicon';
-				font-display: block;
-				src: url('${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6') format('truetype');
-			}
-
-			.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-light.svg')}');
-			}
-
-			.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-dark.svg')}');
-			}
-
-			.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-hcLight.svg')}');
-			}
-
-			.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-hcDark.svg')}');
-			}
-			`;
-		childWindow.document.head.appendChild(codiconFontStyle);
-
-		for (const className of window.document.body.className.split(' ')) {
-			childWindow.document.body.classList.add(className);
-		}
-
-		const workbenchContainer = document.createElement('div');
-		childWindow.document.body.append(workbenchContainer);
-		for (const className of layoutService.container.className.split(' ')) {
-			workbenchContainer.classList.add(className);
-		}
-
-		const partContainer = document.createElement('div');
-		partContainer.classList.add('part', 'editor');
-		workbenchContainer.appendChild(partContainer);
-
-		const editorPart = disposables.add(instantiationService.createInstance(AuxiliaryEditorPart));
-		editorPart.create(partContainer, { restorePreviousState: false });
-
-		disposables.add(editorGroupService.registerEditorPart(editorPart));
-
-		await editorPart.activeGroup.openEditor(activeEditor, { pinned: true });
+		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, { pinned: true });
 		editorGroupService.activeGroup?.closeEditor(activeEditor);
-
-		function layout() {
-			const dim = getClientArea(childWindow.document.body);
-			editorPart.layout(dim.width, dim.height, 0, 0);
-		}
-
-		disposables.add(addDisposableListener(childWindow, EventType.RESIZE, () => layout()));
-		disposables.add(addDisposableListener(childWindow, 'close', () => disposables.dispose()));
-
-		disposables.add(registerWindow(childWindow));
 	}
 }
 

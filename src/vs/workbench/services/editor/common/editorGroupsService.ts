@@ -433,16 +433,23 @@ export interface IEditorPart {
 	createEditorDropTarget(container: unknown /* HTMLElement */, delegate: IEditorDropTargetDelegate): IDisposable;
 }
 
+export interface IAuxiliaryEditorPart extends IEditorPart {
+
+	/**
+	 * Close this auxiliary editor part and free up associated resources.
+	 */
+	close(): Promise<void>;
+}
+
 export interface IEditorGroupsService extends IEditorPart {
 
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Registers an editor part to the service. The service
-	 * will delegate to the active, focused part for most
-	 * of the service methods.
+	 * Opens a new window with a full editor part instantiated
+	 * in there.
 	 */
-	registerEditorPart(part: IEditorPart): IDisposable;
+	createAuxiliaryEditorPart(): IAuxiliaryEditorPart;
 }
 
 export const enum OpenEditorContext {

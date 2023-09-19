@@ -8,7 +8,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
@@ -1241,9 +1241,12 @@ export class MainEditorPart extends EditorPart {
 	}
 }
 
-export class AuxiliaryEditorPart extends EditorPart {
+export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorPart {
 
 	private static COUNTER = 0;
+
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose = this._onDidClose.event;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -1253,5 +1256,9 @@ export class AuxiliaryEditorPart extends EditorPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super(`workbench.parts.auxiliaryEditor.${AuxiliaryEditorPart.COUNTER++}`, instantiationService, themeService, configurationService, storageService, layoutService);
+	}
+
+	async close(): Promise<void> {
+		this._onDidClose.fire();
 	}
 }
