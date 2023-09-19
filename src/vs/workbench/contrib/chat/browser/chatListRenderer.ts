@@ -31,7 +31,7 @@ import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/ed
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
@@ -996,7 +996,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 	}
 
 	private setText(newText: string): void {
-		const currentText = this.textModel.getLinesContent().join('\n');
+		const currentText = this.textModel.getValue(EndOfLinePreference.LF);
 		if (newText === currentText) {
 			return;
 		}

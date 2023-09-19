@@ -410,7 +410,7 @@ class SCMSyncPaneViewModel {
 	private repositories = new Map<ISCMRepository, IDisposable>();
 	private alwaysShowRepositories = false;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private readonly tree: WorkbenchAsyncDataTree<TreeElement, TreeElement>,

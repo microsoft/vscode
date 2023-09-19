@@ -178,7 +178,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 	}
 
 	private onDidChangeModelContent(): void {
-		if (this.editor.getValue() === '') {
+		if (!this.editor.getModel()?.getValueLength()) {
 			this.editor.addContentWidget(this);
 			this.isVisible = true;
 		} else {
