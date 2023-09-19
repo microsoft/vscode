@@ -31,9 +31,9 @@ declare module 'vscode' {
 
 		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemChanges(historyItemId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
-		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): ProviderResult<{ id: string; ahead: number; behind: number }>;
 
-		// resolveHistoryItemGroup(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup | undefined>;
+		resolveHistoryItemGroupBase(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup | undefined>;
+		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId: string, token: CancellationToken): ProviderResult<{ id: string; ahead: number; behind: number }>;
 	}
 
 	export interface SourceControlHistoryOptions {
