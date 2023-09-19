@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContents } from 'electron';
+import { BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
+import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeWindow, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -102,3 +105,34 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
+
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState = defaultWindowState(), overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+	const themeMainService = accessor.get(IThemeMainService);
+	const productService = accessor.get(IProductService);
+	const configurationService = accessor.get(IConfigurationService);
+
+	return {
+		width: windowState.width,
+		height: windowState.height,
+		x: windowState.x,
+		y: windowState.y,
+		backgroundColor: themeMainService.getBackgroundColor(),
+		minWidth: WindowMinimumSize.WIDTH,
+		minHeight: WindowMinimumSize.HEIGHT,
+		title: productService.nameLong,
+		...overrides,
+		webPreferences: {
+			preload: undefined,
+			enableWebSQL: false,
+			spellcheck: false,
+			zoomFactor: zoomLevelToZoomFactor(configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0),
+			autoplayPolicy: 'user-gesture-required',
+			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
+			// Refs https://github.com/microsoft/vscode/issues/140098
+			enableBlinkFeatures: 'HighlightAPI',
+			...overrides?.webPreferences,
+			sandbox: true
+		},
+		experimentalDarkMode: true
+	};
+}
