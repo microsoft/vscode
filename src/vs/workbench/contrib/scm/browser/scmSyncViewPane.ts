@@ -408,6 +408,8 @@ export class SCMSyncViewPane extends ViewPane {
 class SCMSyncPaneViewModel {
 
 	private repositories = new Map<ISCMRepository, IDisposable>();
+	private historyProviders = new Map<ISCMRepository, IDisposable>();
+
 	private alwaysShowRepositories = false;
 
 	private readonly disposables = new DisposableStore();
@@ -434,10 +436,8 @@ class SCMSyncPaneViewModel {
 
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
 		for (const repository of added) {
-			const repositoryDisposable: IDisposable = combinedDisposable(
-				repository.provider.onDidChangeHistoryProviderActionButton(() => this.refresh(repository)),
-				repository.provider.onDidChangeHistoryProviderCurrentHistoryItemGroup(() => this.refresh(repository))
-			);
+			const repositoryDisposable = repository.provider.onDidChangeHistoryProvider(() => this._onDidChangeHistoryProvider(repository));
+			this._onDidChangeHistoryProvider(repository);
 
 			this.repositories.set(repository, { dispose() { repositoryDisposable.dispose(); } });
 		}
@@ -448,6 +448,19 @@ class SCMSyncPaneViewModel {
 		}
 
 		this.refresh();
+	}
+
+	private _onDidChangeHistoryProvider(repository: ISCMRepository): void {
+		if (repository.provider.historyProvider) {
+			const historyProviderDisposable = combinedDisposable(
+				repository.provider.historyProvider.onDidChangeActionButton(() => this.refresh(repository)),
+				repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.refresh(repository)));
+
+			this.historyProviders.set(repository, historyProviderDisposable);
+		} else {
+			this.historyProviders.get(repository)?.dispose();
+			this.historyProviders.delete(repository);
+		}
 	}
 
 	private async refresh(repository?: ISCMRepository): Promise<void> {
@@ -500,14 +513,14 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 		} else if (isSCMRepository(element)) {
 			const scmProvider = element.provider;
 			const historyProvider = scmProvider.historyProvider;
-			const historyItemGroup = historyProvider?.currentHistoryItemGroup();
+			const historyItemGroup = historyProvider?.currentHistoryItemGroup;
 
 			if (!historyProvider || !historyItemGroup) {
 				return children;
 			}
 
 			// Action Button
-			const actionButton = historyProvider.actionButton();
+			const actionButton = historyProvider.actionButton;
 			if (actionButton) {
 				children.push({
 					type: 'actionButton',
