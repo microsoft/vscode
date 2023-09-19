@@ -491,7 +491,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			return c.groupService.showPanel(true);
+			focusActiveTerminal(instance, c);
 		}
 	});
 
