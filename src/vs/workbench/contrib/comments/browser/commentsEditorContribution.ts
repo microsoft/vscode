@@ -21,6 +21,9 @@ import { CommentController, ID } from 'vs/workbench/contrib/comments/browser/com
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class NextCommentThreadAction extends EditorAction {
 	static ID: string = 'editor.action.nextCommentThread';
@@ -71,14 +74,15 @@ registerEditorAction(NextCommentThreadAction);
 registerEditorAction(PreviousCommentThreadAction);
 
 export class NextCommentingRangeAction extends EditorAction {
+	static ID: string = 'editor.action.goToNextCommentingRange';
 	constructor() {
 		super({
-			id: 'editor.action.goToNextCommentingRange',
+			id: ID,
 			label: nls.localize('goToNextCommentingRange', "Go to Next Commenting Range"),
 			alias: 'Go to Next Commenting Range',
 			precondition: CommentContextKeys.WorkspaceHasCommenting,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
+				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -92,14 +96,15 @@ export class NextCommentingRangeAction extends EditorAction {
 }
 
 export class PreviousCommentingRangeAction extends EditorAction {
+	static ID: 'editor.action.goToPreviousCommentingRange';
 	constructor() {
 		super({
-			id: 'editor.action.goToPreviousCommentingRange',
+			id: ID,
 			label: nls.localize('goToPreviousCommentingRange', "Go to Previous Commenting Range"),
 			alias: 'Go to Next Commenting Range',
 			precondition: CommentContextKeys.WorkspaceHasCommenting,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
+				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -221,8 +226,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
+export const SUBMIT_COMMENT_COMMAND_ID = 'workbench.action.submitComment';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.submitComment',
+	id: SUBMIT_COMMENT_COMMAND_ID,
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	when: ctxCommentEditorFocused,

@@ -58,7 +58,8 @@ export const enum AccessibleViewProviderId {
 	Editor = 'editor',
 	Hover = 'hover',
 	Notification = 'notification',
-	EmptyEditorHint = 'emptyEditorHint'
+	EmptyEditorHint = 'emptyEditorHint',
+	Comments = 'comments'
 }
 
 const baseProperty: object = {
