@@ -35,8 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -417,51 +415,10 @@ class BlurAction extends Action2 {
 	}
 }
 
-class PopEditorPartOutAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.popoutEditor',
-			title: {
-				value: localize('popEditorOut', "Pop Editor Out"),
-				mnemonicTitle: localize({ key: 'miPopEditorOut', comment: ['&& denotes a mnemonic'] }, "&&Pop-out Editor"),
-				original: 'Pop-out Editor'
-			},
-			category: Categories.View,
-			f1: true,
-			icon: Codicon.multipleWindows,
-			menu: [{
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: 1
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-
-		const activeEditor = editorService.activeEditor;
-		if (!activeEditor) {
-			return;
-		}
-
-		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
-
-		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, {
-			pinned: true,
-			viewState: activeEditor.toUntyped({ preserveViewState: editorGroupService.activeGroup.id })?.options?.viewState,
-		});
-		editorGroupService.activeGroup?.closeEditor(activeEditor);
-	}
-}
-
 // --- Actions Registration
 
 registerAction2(NewWindowAction);
 registerAction2(ToggleFullScreenAction);
-registerAction2(PopEditorPartOutAction);
 registerAction2(QuickPickRecentAction);
 registerAction2(OpenRecentAction);
 registerAction2(ReloadWindowAction);

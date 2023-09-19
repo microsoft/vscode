@@ -41,7 +41,7 @@ import {
 	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction,
 	ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction, SplitEditorToAboveGroupAction, SplitEditorToBelowGroupAction,
 	SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction, NavigateForwardInEditsAction,
-	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction
+	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction, ExperimentalMoveEditorIntoNewWindowAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
@@ -67,6 +67,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
 import { ToggleTabsVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
+import product from 'vs/platform/product/common/product';
 
 //#region Editor Registrations
 
@@ -165,12 +166,10 @@ quickAccessRegistry.registerQuickAccessProvider({
 
 //#region Actions & Commands
 
-// Editor Status
 registerAction2(ChangeLanguageAction);
 registerAction2(ChangeEOLAction);
 registerAction2(ChangeEncodingAction);
 
-// Editor Management (new style)
 registerAction2(NavigateForwardAction);
 registerAction2(NavigateBackwardsAction);
 
@@ -293,6 +292,11 @@ registerAction2(QuickAccessPreviousRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessLeastRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessPreviousEditorFromHistoryAction);
 
+if (product.quality !== 'stable') {
+	// TODO@bpasero revisit
+	registerAction2(ExperimentalMoveEditorIntoNewWindowAction);
+}
+
 const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: quickAccessNavigateNextInEditorPickerId,
@@ -315,7 +319,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 registerEditorCommands();
 
-//#endregion Workbench Actions
+//#endregion
 
 //#region Menus
 
