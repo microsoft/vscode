@@ -106,12 +106,22 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 		}));
 	}
 
-	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
-		refId2 = refId2 ?? (await this.repository.getDefaultBranch()).name ?? '';
-		if (refId2 === '') {
+	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<SourceControlHistoryItemGroup | undefined> {
+		// TODO - support for all history item groups
+		if (historyItemGroupId !== this.currentHistoryItemGroup?.id) {
 			return undefined;
 		}
 
+		if (this.currentHistoryItemGroup?.upstream) {
+			return this.currentHistoryItemGroup.upstream;
+		}
+
+		// Default branch
+		const defaultBranch = await this.repository.getDefaultBranch();
+		return defaultBranch.name ? { id: `refs/heads/${defaultBranch.name}`, label: defaultBranch.name } : undefined;
+	}
+
+	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const ancestor = await this.repository.getMergeBase(refId1, refId2);
 		if (ancestor === '') {
 			return undefined;
