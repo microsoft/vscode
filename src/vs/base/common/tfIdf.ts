@@ -29,6 +29,17 @@ export interface TfIdfDocument {
 
 export interface TfIdfScore {
 	readonly key: string;
+	/**
+	 * An unbounded number.
+	 */
+	readonly score: number;
+}
+
+export interface NormalizedTfIdfScore {
+	readonly key: string;
+	/**
+	 * A number between 0 and 1.
+	 */
 	readonly score: number;
 }
 
@@ -203,4 +214,28 @@ export class TfIdfCalculator {
 		}
 		return embedding;
 	}
+}
+
+/**
+ * Normalize the scores to be between 0 and 1 and sort them decending.
+ * @param scores array of scores from {@link TfIdfCalculator.calculateScores}
+ * @returns normalized scores
+ */
+export function normalizeTfIdfScores(scores: TfIdfScore[]): NormalizedTfIdfScore[] {
+
+	// copy of scores
+	const result = scores.slice(0) as { score: number }[];
+
+	// sort descending
+	result.sort((a, b) => b.score - a.score);
+
+	// normalize
+	const max = result[0]?.score ?? 0;
+	if (max > 0) {
+		for (const score of result) {
+			score.score /= max;
+		}
+	}
+
+	return result as TfIdfScore[];
 }
