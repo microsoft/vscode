@@ -215,7 +215,7 @@ suite('FilteredEditorGroupModel', () => {
 		assert.strictEqual(stickyFilteredEditorGroup.count, 2);
 		assert.strictEqual(unstickyFilteredEditorGroup.count, 0);
 
-		model.stick(input1);
+		model.unstick(input1);
 
 		assert.strictEqual(stickyFilteredEditorGroup.count, 1);
 		assert.strictEqual(unstickyFilteredEditorGroup.count, 1);
@@ -318,12 +318,12 @@ suite('FilteredEditorGroupModel', () => {
 		const input1 = input();
 		const input2 = input();
 
-		model.openEditor(input1, { pinned: true, sticky: true });
+		model.openEditor(input1, { pinned: true, sticky: true, active: true });
 
 		assert.strictEqual(stickyFilteredEditorGroup.activeEditor, input1);
 		assert.strictEqual(unstickyFilteredEditorGroup.activeEditor, null);
 
-		model.openEditor(input2, { pinned: true, sticky: false });
+		model.openEditor(input2, { pinned: true, sticky: false, active: true });
 
 		assert.strictEqual(stickyFilteredEditorGroup.activeEditor, null);
 		assert.strictEqual(unstickyFilteredEditorGroup.activeEditor, input2);
@@ -412,11 +412,11 @@ suite('FilteredEditorGroupModel', () => {
 		const input1 = input();
 		const input2 = input();
 
-		model.openEditor(input1, { pinned: true, sticky: true });
+		model.openEditor(input1, { pinned: true, sticky: true, active: true });
 
 		assert.strictEqual(stickyFilteredEditorGroup.isActive(input1), true);
 
-		model.openEditor(input2, { pinned: true, sticky: false });
+		model.openEditor(input2, { pinned: true, sticky: false, active: true });
 
 		assert.strictEqual(stickyFilteredEditorGroup.isActive(input1), false);
 		assert.strictEqual(unstickyFilteredEditorGroup.isActive(input2), true);
@@ -436,8 +436,8 @@ suite('FilteredEditorGroupModel', () => {
 		const input1 = input();
 		const input2 = input();
 
-		model.openEditor(input1, { pinned: true, sticky: true });
-		model.openEditor(input2, { pinned: true, sticky: true });
+		model.openEditor(input1, { pinned: true, sticky: true, active: true });
+		model.openEditor(input2, { pinned: true, sticky: true, active: true });
 
 		// all sticky editors
 		assert.strictEqual(stickyFilteredEditorGroup.getEditors(EditorsOrder.SEQUENTIAL).length, 2);
@@ -452,6 +452,9 @@ suite('FilteredEditorGroupModel', () => {
 		assert.strictEqual(stickyFilteredEditorGroup.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: false }).length, 2);
 		assert.strictEqual(unstickyFilteredEditorGroup.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).length, 0);
 		assert.strictEqual(unstickyFilteredEditorGroup.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: false }).length, 0);
+
+		assert.strictEqual(stickyFilteredEditorGroup.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0], input2);
+		assert.strictEqual(stickyFilteredEditorGroup.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1], input1);
 
 		model.unstick(input1);
 
