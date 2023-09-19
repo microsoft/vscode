@@ -5,8 +5,8 @@
 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import 'vs/css!./media/review';
-import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -25,100 +25,90 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
-export class NextCommentThreadAction extends EditorAction {
-	static ID: string = 'editor.action.nextCommentThread';
-	constructor() {
-		super({
-			id: ID,
-			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
-			alias: 'Go to Next Comment Thread',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Alt | KeyCode.F9,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.nextCommentThread();
-	}
-}
+export const NEXT_COMMENT_THREAD_COMMAND_ID = 'workbench.action.nextCommentThread';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: NEXT_COMMENT_THREAD_COMMAND_ID,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
 
-export class PreviousCommentThreadAction extends EditorAction {
-	static ID: string = 'editor.action.previousCommentThread';
-	constructor() {
-		super({
-			id: ID,
-			label: nls.localize('previousCommentThreadAction', "Go to Previous Comment Thread"),
-			alias: 'Go to Previous Comment Thread',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.nextCommentThread();
+	},
+	weight: KeybindingWeight.EditorContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyMod.Alt | KeyCode.F9,
+});
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.previousCommentThread();
-	}
-}
+export const PREVIOUS_COMMENT_THREAD_COMMAND_ID = 'workbench.action.previousCommentThread';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: PREVIOUS_COMMENT_THREAD_COMMAND_ID,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.previousCommentThread();
+	},
+	weight: KeybindingWeight.EditorContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
+});
+
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
-registerEditorAction(NextCommentThreadAction);
-registerEditorAction(PreviousCommentThreadAction);
 
-export class NextCommentingRangeAction extends EditorAction {
-	static ID: string = 'editor.action.goToNextCommentingRange';
-	constructor() {
-		super({
-			id: ID,
-			label: nls.localize('goToNextCommentingRange', "Go to Next Commenting Range"),
-			alias: 'Go to Next Commenting Range',
-			precondition: CommentContextKeys.WorkspaceHasCommenting,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.nextCommentingRange();
-	}
-}
+export const NEXT_COMMENT_RANGE_COMMAND_ID = 'workbench.action.nextCommentRange';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: NEXT_COMMENT_RANGE_COMMAND_ID,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
 
-export class PreviousCommentingRangeAction extends EditorAction {
-	static ID: 'editor.action.goToPreviousCommentingRange';
-	constructor() {
-		super({
-			id: ID,
-			label: nls.localize('goToPreviousCommentingRange', "Go to Previous Commenting Range"),
-			alias: 'Go to Next Commenting Range',
-			precondition: CommentContextKeys.WorkspaceHasCommenting,
-			kbOpts: {
-				kbExpr: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.nextCommentingRange();
+	},
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
+	weight: KeybindingWeight.EditorContrib
+});
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.previousCommentingRange();
-	}
-}
+export const PREVIOUS_COMMENT_RANGE_COMMAND_ID = 'workbench.action.previousCommentRange';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: PREVIOUS_COMMENT_RANGE_COMMAND_ID,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
 
-registerEditorAction(NextCommentingRangeAction);
-registerEditorAction(PreviousCommentingRangeAction);
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.previousCommentingRange();
+	},
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
+	weight: KeybindingWeight.EditorContrib
+});
 
 const TOGGLE_COMMENTING_COMMAND = 'workbench.action.toggleCommenting';
 CommandsRegistry.registerCommand({

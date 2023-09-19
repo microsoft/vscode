@@ -18,7 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ADD_COMMENT_COMMAND, NextCommentingRangeAction, PreviousCommentingRangeAction, SUBMIT_COMMENT_COMMAND_ID } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
+import { ADD_COMMENT_COMMAND, NEXT_COMMENT_RANGE_COMMAND_ID, PREVIOUS_COMMENT_RANGE_COMMAND_ID, SUBMIT_COMMENT_COMMAND_ID } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -116,8 +116,8 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 		const content: string[] = [];
 		content.push(CommentAccessibilityHelpNLS.escape);
 		content.push(this._descriptionForCommand(ADD_COMMENT_COMMAND, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
-		content.push(this._descriptionForCommand(NextCommentingRangeAction.ID, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
-		content.push(this._descriptionForCommand(PreviousCommentingRangeAction.ID, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
+		content.push(this._descriptionForCommand(NEXT_COMMENT_RANGE_COMMAND_ID, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
+		content.push(this._descriptionForCommand(PREVIOUS_COMMENT_RANGE_COMMAND_ID, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
 		content.push(this._descriptionForCommand(SUBMIT_COMMENT_COMMAND_ID, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.submitCommentNoKb));
 		return content.join('\n\n');
 	}
