@@ -34,7 +34,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
-import { GHOST_TEXT_DESCRIPTION } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 
 const $ = dom.$;
 
@@ -75,6 +74,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
+		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.update()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
 				this.update();
@@ -102,14 +102,19 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 			return false;
 		}
 
-		const hasGhostText = this.editor.getLineDecorations(0)?.find((d) => d.options.description === GHOST_TEXT_DESCRIPTION);
-		if (hasGhostText) {
+		const model = this.editor.getModel();
+		const languageId = model?.getLanguageId();
+		if (!model || languageId === OUTPUT_MODE_ID || languageId === LOG_MODE_ID || languageId === SEARCH_RESULT_LANGUAGE_ID) {
 			return false;
 		}
 
-		const model = this.editor.getModel();
-		const languageId = model?.getLanguageId();
-		if (languageId === OUTPUT_MODE_ID || languageId === LOG_MODE_ID || languageId === SEARCH_RESULT_LANGUAGE_ID) {
+		const conflictingDecoration = this.editor.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		);
+		if (conflictingDecoration) {
 			return false;
 		}
 
