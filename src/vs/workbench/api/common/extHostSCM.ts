@@ -956,53 +956,25 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-
-		if (!historyProvider) {
-			return undefined;
-		}
-
-		const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2, token);
-		if (!ancestor) {
-			return undefined;
-		}
-
-		return ancestor;
+		return await historyProvider?.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2, token) ?? undefined;
 	}
 
 	async $provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		const historyItems = await historyProvider?.provideHistoryItems(historyItemGroupId, options, token);
 
-		if (!historyProvider) {
-			return undefined;
-		}
-
-		const historyItems = await historyProvider.provideHistoryItems(historyItemGroupId, options, token);
-		if (!historyItems) {
-			return undefined;
-		}
-
-		return historyItems.map(item => ({
+		return historyItems?.map(item => ({
 			id: item.id,
 			parentIds: item.parentIds,
 			label: item.label,
 			description: item.description,
 			icon: getHistoryItemIconDto(item),
 			timestamp: item.timestamp,
-		}));
+		})) ?? undefined;
 	}
 
 	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
-
-		if (!historyProvider) {
-			return undefined;
-		}
-
-		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItemId, token);
-		if (!historyItemChanges) {
-			return undefined;
-		}
-
-		return historyItemChanges;
+		return await historyProvider?.provideHistoryItemChanges(historyItemId, token) ?? undefined;
 	}
 }
