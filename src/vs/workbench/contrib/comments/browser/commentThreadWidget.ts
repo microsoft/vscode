@@ -119,7 +119,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}));
 		this._register(tracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this._register(tracker.onDidBlur(() => this._focusedContextKey.reset()));
-
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Comments)) {
+				this._setAriaLabel();
+			}
+		}));
 		this._body = this._scopedInstantiationService.createInstance(
 			CommentThreadBody,
 			this._owner,

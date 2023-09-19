@@ -67,12 +67,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
 
 
-namespace CommentAccessibilityHelpNLS {
+export namespace CommentAccessibilityHelpNLS {
 	export const escape = nls.localize('escape', "Dismiss the comment widget via Escape.");
-	export const next = nls.localize('next', "Navigate to the next commenting range via ({0}).");
-	export const nextNoKb = nls.localize('nextNoKb', "Run the command: Go to Next Commenting Range, which is currently not triggerable via keybinding.");
-	export const previous = nls.localize('previous', "Navigate to the previous comment range via ({0}).");
-	export const previousNoKb = nls.localize('previousNoKb', "Run the command: Go to Previous Commenting Range, which is currently not triggerable via keybinding.");
+	export const nextRange = nls.localize('next', "Navigate to the next commenting range via ({0}).");
+	export const nextRangeNoKb = nls.localize('nextNoKb', "Run the command: Go to Next Commenting Range, which is currently not triggerable via keybinding.");
+	export const previousRange = nls.localize('previous', "Navigate to the previous comment range via ({0}).");
+	export const previousRangeNoKb = nls.localize('previousNoKb', "Run the command: Go to Previous Commenting Range, which is currently not triggerable via keybinding.");
+	export const nextCommentThreadKb = nls.localize('nextCommentThreadKb', "Navigate to the next comment thread via ({0}).");
+	export const nextCommentThreadNoKb = nls.localize('nextCommentThreadNoKb', "Run the command: Go to Next Comment Thread, which is currently not triggerable via keybinding.");
+	export const previousCommentThreadKb = nls.localize('previousCommentThreadKb', "Navigate to the previous comment thread via ({0}).");
+	export const previousCommentThreadNoKb = nls.localize('previousCommentThreadNoKb', "Run the command: Go to Previous Comment Thread, which is currently not triggerable via keybinding.");
 	export const addComment = nls.localize('addComment', "Add a comment via ({0}).");
 	export const addCommentNoKb = nls.localize('addCommentNoKb', "Add a comment via the command: Add Comment on Current Selection, which is currently not triggerable via keybinding.");
 	export const submitComment = nls.localize('submitComment', "Submit the comment via ({0}).");
@@ -112,8 +116,8 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 		const content: string[] = [];
 		content.push(CommentAccessibilityHelpNLS.escape);
 		content.push(this._descriptionForCommand(ADD_COMMENT_COMMAND, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
-		content.push(this._descriptionForCommand(NextCommentingRangeAction.ID, CommentAccessibilityHelpNLS.next, CommentAccessibilityHelpNLS.nextNoKb));
-		content.push(this._descriptionForCommand(PreviousCommentingRangeAction.ID, CommentAccessibilityHelpNLS.previous, CommentAccessibilityHelpNLS.previousNoKb));
+		content.push(this._descriptionForCommand(NextCommentingRangeAction.ID, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
+		content.push(this._descriptionForCommand(PreviousCommentingRangeAction.ID, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
 		content.push(this._descriptionForCommand(SUBMIT_COMMENT_COMMAND_ID, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.submitCommentNoKb));
 		return content.join('\n\n');
 	}
