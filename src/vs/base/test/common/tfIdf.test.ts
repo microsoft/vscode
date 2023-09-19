@@ -163,6 +163,19 @@ suite('TF-IDF Calculator', function () {
 		}
 	});
 
+	test('Should weigh exact match higher than camelCase match', () => {
+		for (const docs of permutate([
+			makeDocument('/A', 'catDog'),
+			makeDocument('/B', 'cat cat cat fish'),
+			makeDocument('/C', 'dog dog cat rat'),
+			makeDocument('/D', 'pig'),
+		])) {
+			const tfidf = new TfIdfCalculator().updateDocuments(docs);
+			const scores = tfidf.calculateScores('catDog', CancellationToken.None);
+			assertScoreOrdersEqual(scores, ['/A', '/C', '/B']);
+		}
+	});
+
 	test('Should not match document after delete', () => {
 		const docA = makeDocument('/A', 'cat dog cat');
 		const docB = makeDocument('/B', 'cat fish');
@@ -183,6 +196,18 @@ suite('TF-IDF Calculator', function () {
 		tfidf.deleteDocument(docB.key);
 		scores = tfidf.calculateScores('cat', CancellationToken.None);
 		assertScoreOrdersEqual(scores, []);
+	});
+
+	test('Should find stemmed words', () => {
+		for (const docs of permutate([
+			makeDocument('/A', 'cats'),
+			makeDocument('/B', 'dogs cat'),
+			makeDocument('/D', 'pig'),
+		])) {
+			const tfidf = new TfIdfCalculator().updateDocuments(docs);
+			const scores = tfidf.calculateScores('cats', CancellationToken.None);
+			assertScoreOrdersEqual(scores, ['/A', '/B']);
+		}
 	});
 });
 
