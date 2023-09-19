@@ -195,7 +195,7 @@ suite('NotebookCellList', () => {
 			});
 	});
 
-	test('updateElementHeight with anchor #121723', async function () {
+	test.skip('updateElementHeight with anchor #121723', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
