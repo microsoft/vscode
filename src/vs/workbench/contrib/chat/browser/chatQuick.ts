@@ -157,14 +157,9 @@ class QuickChat extends Disposable {
 	focus(): void {
 		if (this.widget) {
 			this.widget.focusInput();
-			const value = this.widget.inputEditor.getValue();
-			if (value) {
-				this.widget.inputEditor.setSelection({
-					startLineNumber: 1,
-					startColumn: 1,
-					endLineNumber: 1,
-					endColumn: value.length + 1
-				});
+			const model = this.widget.inputEditor.getModel();
+			if (model && model.getValueLength()) {
+				this.widget.inputEditor.setSelection(model.getFullModelRange());
 			}
 		}
 	}
