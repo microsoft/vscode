@@ -378,7 +378,7 @@ export class OpenEditorsView extends ViewPane {
 			if (!preserveActivateGroup) {
 				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/microsoft/vscode/issues/6672
 			}
-			const targetGroup = options.sideBySide ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
+			const targetGroup = options.sideBySide ? this.editorGroupService.sideGroup : element.group;
 			targetGroup.openEditor(element.editor, options);
 		}
 	}
