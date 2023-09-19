@@ -842,7 +842,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
-			groupView = this.getGroup(group);
+			groupView = this.accessor.getGroup(group);
 		} else {
 			groupView = group;
 		}
@@ -857,7 +857,7 @@ export class EditorPart extends Part implements IEditorPart {
 	createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
 		assertType(container instanceof HTMLElement);
 
-		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
+		return this.instantiationService.createInstance(EditorDropTarget, this.accessor, container, delegate);
 	}
 
 	//#region Part
