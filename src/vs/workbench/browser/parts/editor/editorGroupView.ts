@@ -10,7 +10,7 @@ import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEd
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,7 +18,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
-import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
@@ -577,7 +577,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// (including being visible in side by side / diff editors) and as such we
 		// only dispose when they are not opened elsewhere.
 		for (const editor of editorsToClose) {
-			if (this.canDispose(editor)) {
+			if (this.instantiationService.invokeFunction(this.canDispose, editor)) {
 				editor.dispose();
 			}
 		}
@@ -599,8 +599,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidCloseEditor.fire({ groupId: this.id, editor, context, index: editorIndex, sticky });
 	}
 
-	private canDispose(editor: EditorInput): boolean {
-		for (const groupView of this.accessor.groups) {
+	private canDispose(accessor: ServicesAccessor, editor: EditorInput): boolean {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		for (const groupView of editorGroupService.groups) {
 			if (groupView instanceof EditorGroupView && groupView.model.contains(editor, {
 				strictEquals: true,						// only if this input is not shared across editor groups
 				supportSideBySide: SideBySideEditor.ANY // include any side of an opened side by side editor
@@ -609,7 +611,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		return false;
+		return true;
 	}
 
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {

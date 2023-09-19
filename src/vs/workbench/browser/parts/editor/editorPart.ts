@@ -8,7 +8,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
@@ -20,14 +20,12 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorDropTarget, IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
+import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, assertType } from 'vs/base/common/types';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
@@ -80,7 +78,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor, IEditorDropService {
+export class EditorPart extends Part implements IEditorGroupsAccessor {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -140,13 +138,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
+		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
 	}
@@ -174,8 +173,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions });
 	}
-
-	//#region IEditorGroupsService
 
 	private enforcedPartOptions: IEditorPartOptions[] = [];
 
@@ -854,15 +851,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
-	//#endregion
+	createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
+		assertType(container instanceof HTMLElement);
 
-	//#region IEditorDropService
-
-	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
 		return this.instantiationService.createInstance(EditorDropTarget, this, container, delegate);
 	}
-
-	//#endregion
 
 	//#region Part
 
@@ -1235,16 +1228,30 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	//#endregion
 }
 
-class EditorDropService implements IEditorDropService {
+export class MainEditorPart extends EditorPart {
 
-	declare readonly _serviceBrand: undefined;
-
-	constructor(@IEditorGroupsService private readonly editorPart: EditorPart) { }
-
-	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable {
-		return this.editorPart.createEditorDropTarget(container, delegate);
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	) {
+		super(Parts.EDITOR_PART, instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 }
 
-registerSingleton(IEditorGroupsService, EditorPart, InstantiationType.Eager);
-registerSingleton(IEditorDropService, EditorDropService, InstantiationType.Delayed);
+export class AuxiliaryEditorPart extends EditorPart {
+
+	private static COUNTER = 0;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	) {
+		super(`workbench.parts.auxiliaryEditor.${AuxiliaryEditorPart.COUNTER++}`, instantiationService, themeService, configurationService, storageService, layoutService);
+	}
+}

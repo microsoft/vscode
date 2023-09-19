@@ -52,7 +52,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
@@ -92,7 +92,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -611,7 +611,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getWindowBorderWidth(): number { return 0; }
 	getWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
-	getPart(part: Parts): Part { throw new Error('Method not implemented.'); }
 	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
 	getContainer(_part: Parts): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
@@ -814,6 +813,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	constructor(public groups: TestEditorGroupView[] = []) { }
 
+	registerEditorPart(part: any): IDisposable { return Disposable.None; }
+
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
 	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
@@ -857,6 +858,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
+	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
 
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
@@ -1703,7 +1705,7 @@ export class TestSingletonFileEditorInput extends TestFileEditorInput {
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Singleton; }
 }
 
-export class TestEditorPart extends EditorPart {
+export class TestEditorPart extends MainEditorPart implements IEditorGroupsService {
 
 	testSaveState(): void {
 		return super.saveState();
@@ -1719,6 +1721,10 @@ export class TestEditorPart extends EditorPart {
 		for (const key of Object.keys(profileMemento)) {
 			delete profileMemento[key];
 		}
+	}
+
+	registerEditorPart(part: IEditorPart): IDisposable {
+		return Disposable.None;
 	}
 }
 

@@ -156,11 +156,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getContainer(part: Parts): HTMLElement | undefined;
 
 	/**
-	 * Get the part component by id.
-	 */
-	getPart(part: Parts): Part;
-
-	/**
 	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;

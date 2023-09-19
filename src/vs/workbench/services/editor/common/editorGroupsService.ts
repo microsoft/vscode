@@ -163,9 +163,15 @@ export interface IEditorSideGroup {
 	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
 }
 
-export interface IEditorGroupsService {
+export interface IEditorDropTargetDelegate {
 
-	readonly _serviceBrand: undefined;
+	/**
+	 * A helper to figure out if the drop target contains the provided group.
+	 */
+	containsGroup?(groupView: IEditorGroup): boolean;
+}
+
+export interface IEditorPart {
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -419,6 +425,24 @@ export interface IEditorGroupsService {
 	 * Enforce editor part options temporarily.
 	 */
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
+
+	/**
+	 * Allows to register a drag and drop target for editors
+	 * on the provided `container`.
+	 */
+	createEditorDropTarget(container: unknown /* HTMLElement */, delegate: IEditorDropTargetDelegate): IDisposable;
+}
+
+export interface IEditorGroupsService extends IEditorPart {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Registers an editor part to the service. The service
+	 * will delegate to the active, focused part for most
+	 * of the service methods.
+	 */
+	registerEditorPart(part: IEditorPart): IDisposable;
 }
 
 export const enum OpenEditorContext {

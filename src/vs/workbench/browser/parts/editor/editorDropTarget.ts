@@ -23,7 +23,7 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, extractTreeDropD
 import { fillActiveEditorViewState, IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BACKGROUND, EDITOR_DROP_INTO_PROMPT_BORDER, EDITOR_DROP_INTO_PROMPT_FOREGROUND } from 'vs/workbench/common/theme';
-import { GroupDirection, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IEditorDropTargetDelegate, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
@@ -567,14 +567,6 @@ class DropOverlay extends Themable {
 
 		this._disposed = true;
 	}
-}
-
-export interface IEditorDropTargetDelegate {
-
-	/**
-	 * A helper to figure out if the drop target contains the provided group.
-	 */
-	containsGroup?(groupView: IEditorGroupView): boolean;
 }
 
 export class EditorDropTarget extends Themable {

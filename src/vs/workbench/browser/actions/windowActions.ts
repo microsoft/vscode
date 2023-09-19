@@ -39,7 +39,7 @@ import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { FileAccess } from 'vs/base/common/network';
 import { assertIsDefined } from 'vs/base/common/types';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -563,8 +563,10 @@ class PopEditorPartOutAction extends Action2 {
 		partContainer.classList.add('part', 'editor');
 		workbenchContainer.appendChild(partContainer);
 
-		const editorPart = disposables.add(instantiationService.createInstance(EditorPart));
+		const editorPart = disposables.add(instantiationService.createInstance(AuxiliaryEditorPart));
 		editorPart.create(partContainer, { restorePreviousState: false });
+
+		disposables.add(editorGroupService.registerEditorPart(editorPart));
 
 		await editorPart.activeGroup.openEditor(activeEditor, { pinned: true });
 		editorGroupService.activeGroup?.closeEditor(activeEditor);
