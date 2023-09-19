@@ -62,12 +62,12 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 
 		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(scopedContextKeyService);
 		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(scopedContextKeyService);
-		this._commentEditorEmpty.set(!this.getValue());
+		this._commentEditorEmpty.set(!this.getModel()?.getValueLength());
 		this._parentThread = parentThread;
 
 		this._register(this.onDidFocusEditorWidget(_ => this._commentEditorFocused.set(true)));
 
-		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getValue())));
+		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getModel()?.getValueLength())));
 		this._register(this.onDidBlurEditorWidget(_ => this._commentEditorFocused.reset()));
 	}
 
