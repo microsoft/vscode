@@ -23,9 +23,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export class NextCommentThreadAction extends EditorAction {
+	static ID: string = 'editor.action.nextCommentThread';
 	constructor() {
 		super({
-			id: 'editor.action.nextCommentThreadAction',
+			id: ID,
 			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
 			alias: 'Go to Next Comment Thread',
 			precondition: undefined,
@@ -44,9 +45,10 @@ export class NextCommentThreadAction extends EditorAction {
 }
 
 export class PreviousCommentThreadAction extends EditorAction {
+	static ID: string = 'editor.action.previousCommentThread';
 	constructor() {
 		super({
-			id: 'editor.action.previousCommentThreadAction',
+			id: ID,
 			label: nls.localize('previousCommentThreadAction', "Go to Previous Comment Thread"),
 			alias: 'Go to Previous Comment Thread',
 			precondition: undefined,
@@ -132,7 +134,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
+export const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: ADD_COMMENT_COMMAND,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {

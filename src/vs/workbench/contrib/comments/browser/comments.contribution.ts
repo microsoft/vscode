@@ -6,11 +6,10 @@
 import * as nls from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
-// import * as strings from 'vs/base/common/strings';
+import * as strings from 'vs/base/common/strings';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -19,6 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { ADD_COMMENT_COMMAND, NextCommentThreadAction, PreviousCommentThreadAction } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -67,6 +67,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
 
 
+namespace CommentAccessibilityHelpNLS {
+	export const escape = nls.localize('escape', "Dismiss the comment widget via Escape.");
+	export const next = nls.localize('next', "Navigate to the next comment thread via ({0}).");
+	export const nextNoKb = nls.localize('nextNoKb', "Navigate to the next comment thread via ({0}).");
+	export const previous = nls.localize('previous', "Navigate to the previous comment thread via ({0}).");
+	export const previousNoKb = nls.localize('previousNoKb', "Navigate to the previous comment thread via ({0}).");
+	export const addComment = nls.localize('addComment', "Add a comment via ({0}).");
+	export const addCommentNoKb = nls.localize('addCommentNoKb', "Add a comment via ({0}).");
+	export const submitComment = nls.localize('submitComment', "Submit the comment via({0}).");
+	export const submitCommentNoKb = nls.localize('submitCommentNoKb', "Submit the comment via ({0}).");
+}
+
 export class CommentsAccessibilityHelpContribution extends Disposable {
 	static ID: 'commentsAccessibilityHelpContribution';
 	constructor() {
@@ -84,20 +96,26 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 	private _element: HTMLElement | undefined;
 	constructor(
-		// @IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 
 	}
-	// private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-	// 	const kb = this._keybindingService.lookupKeybinding(commandId);
-	// 	if (kb) {
-	// 		return strings.format(msg, kb.getAriaLabel());
-	// 	}
-	// 	return strings.format(noKbMsg, commandId);
-	// }
+	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
+		const kb = this._keybindingService.lookupKeybinding(commandId);
+		if (kb) {
+			return strings.format(msg, kb.getAriaLabel());
+		}
+		return strings.format(noKbMsg, commandId);
+	}
 	provideContent(): string {
 		this._element = document.activeElement as HTMLElement;
-		return 'Comment help info';
+		const content: string[] = [];
+		content.push(CommentAccessibilityHelpNLS.escape);
+		content.push(this._descriptionForCommand(ADD_COMMENT_COMMAND, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
+		content.push(this._descriptionForCommand(NextCommentThreadAction.ID, CommentAccessibilityHelpNLS.next, CommentAccessibilityHelpNLS.nextNoKb));
+		content.push(this._descriptionForCommand(PreviousCommentThreadAction.ID, CommentAccessibilityHelpNLS.previous, CommentAccessibilityHelpNLS.previousNoKb));
+		content.push(this._descriptionForCommand('workbench.action.submitComment', CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.submitCommentNoKb));
+		return content.join('\n\n');
 	}
 	onClose(): void {
 		this._element?.focus();
