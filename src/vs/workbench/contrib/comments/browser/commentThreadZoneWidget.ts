@@ -153,7 +153,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}));
 		this._applyTheme(this.themeService.getColorTheme());
-
 	}
 
 	public get onDidClose(): Event<ReviewZoneWidget | undefined> {
@@ -217,6 +216,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
+
 		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
 			CommentThreadWidget,
 			container,

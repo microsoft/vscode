@@ -9,6 +9,17 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+// import * as strings from 'vs/base/common/strings';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
@@ -54,3 +65,41 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
+
+
+export class CommentsAccessibilityHelpContribution extends Disposable {
+	static ID: 'commentsAccessibilityHelpContribution';
+	constructor() {
+		super();
+		this._register(AccessibilityHelpAction.addImplementation(110, 'comments', accessor => {
+			const instantiationService = accessor.get(IInstantiationService);
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			accessibleViewService.show(instantiationService.createInstance(CommentsAccessibilityHelpProvider));
+			return true;
+		}, ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused)));
+	}
+}
+export class CommentsAccessibilityHelpProvider implements IAccessibleContentProvider {
+	verbositySettingKey: AccessibilityVerbositySettingId = AccessibilityVerbositySettingId.Comments;
+	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
+	private _element: HTMLElement | undefined;
+	constructor(
+		// @IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
+
+	}
+	// private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
+	// 	const kb = this._keybindingService.lookupKeybinding(commandId);
+	// 	if (kb) {
+	// 		return strings.format(msg, kb.getAriaLabel());
+	// 	}
+	// 	return strings.format(noKbMsg, commandId);
+	// }
+	provideContent(): string {
+		this._element = document.activeElement as HTMLElement;
+		return 'Comment help info';
+	}
+	onClose(): void {
+		this._element?.focus();
+	}
+}

@@ -28,4 +28,9 @@ export namespace CommentContextKeys {
 	 * The comment controller id associated with a comment thread.
 	 */
 	export const commentControllerContext = new RawContextKey<string>('commentController', undefined, { type: 'string', description: nls.localize('commentController', "The comment controller id associated with a comment thread") });
+
+	/**
+	 * The comment widget is focused.
+	 */
+	export const commentFocused = new RawContextKey<boolean>('commentFocused', false, { type: 'boolean', description: nls.localize('commentFocused', "Set when the comment is focused") });
 }
