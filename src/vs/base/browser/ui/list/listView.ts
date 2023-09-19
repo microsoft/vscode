@@ -498,7 +498,7 @@ export class ListView<T> implements IListView<T> {
 		this.scrollableElement.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
-	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void {
+	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null, renderTopOverride?: number | undefined): void {
 		if (index < 0 || index >= this.items.length) {
 			return;
 		}
@@ -538,8 +538,8 @@ export class ListView<T> implements IListView<T> {
 
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
-
-		this.render(lastRenderRange, Math.max(0, this.lastRenderTop + heightDiff), this.lastRenderHeight, undefined, undefined, true);
+		const newRenderTop = renderTopOverride ?? Math.max(0, this.lastRenderTop + heightDiff);
+		this.render(lastRenderRange, newRenderTop, this.lastRenderHeight, undefined, undefined, true);
 		this.setScrollTop(this.lastRenderTop);
 
 		this.eventuallyUpdateScrollDimensions();

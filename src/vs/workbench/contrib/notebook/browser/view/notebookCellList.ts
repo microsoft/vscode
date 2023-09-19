@@ -1202,6 +1202,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return this.view.updateElementHeight(index, size, anchorElementIndex);
 		}
 
+		const newElementBottom = this.view.elementTop(index) + size;
+		if (newElementBottom < this.view.getScrollTop()) {
+			return this.view.updateElementHeight(index, size, null, newElementBottom - 46);
+		}
+
 		const focused = this.getFocus();
 		if (!focused.length) {
 			return this.view.updateElementHeight(index, size, null);
@@ -1213,14 +1218,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return this.view.updateElementHeight(index, size, focus);
 		}
 
-		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
-		// then we should make sure that the `element`'s visual view position doesn't change.
+		// the `element` is in the viewport, it's very often that the height update is triggered by user interaction (collapse, run cell)
+		// then we should make sure that the `element`'s visual view position doesn't change as long as it will remain within the viewport after changing the size.
+		return this.view.updateElementHeight(index, size, index);
 
-		if (this.view.elementTop(index) >= this.view.getScrollTop()) {
-			return this.view.updateElementHeight(index, size, index);
-		}
-
-		this.view.updateElementHeight(index, size, focus);
 	}
 
 	// override
