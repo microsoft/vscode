@@ -100,7 +100,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-
 	private onTitleLabelClick(e: MouseEvent): void {
 		EventHelper.stop(e, false);
 
