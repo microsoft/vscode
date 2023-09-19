@@ -33,6 +33,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 				this._tryRunTasks();
 			}
 		}));
+		if (this._taskService.isReconnected) {
+			this._tryRunTasks();
+		}
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(async trusted => {
 			if (trusted) {
 				await this._tryRunTasks();
