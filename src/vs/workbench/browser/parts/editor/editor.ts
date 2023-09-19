@@ -83,9 +83,7 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 
 export interface IEditorGroupsAccessor {
 
-	readonly label: string;
-
-	readonly groups: IEditorGroupView[];
+	readonly groups: readonly IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
 	readonly partOptions: IEditorPartOptions;
@@ -94,7 +92,7 @@ export interface IEditorGroupsAccessor {
 	readonly onDidVisibilityChange: Event<boolean>;
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
-	getGroups(order: GroupsOrder): IEditorGroupView[];
+	getGroups(order: GroupsOrder): readonly IEditorGroupView[];
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;

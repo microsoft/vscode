@@ -10,7 +10,7 @@ import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEd
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,7 +18,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
-import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICloseEditorsFilter, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPanes } from 'vs/workbench/browser/parts/editor/editorPanes';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
@@ -58,16 +58,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region factory
 
-	static createNew(accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, null, index);
+	static createNew(accessor: IEditorGroupsAccessor, index: number, groupsLabel: string, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, null, accessor, index, groupsLabel);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroupModel, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, serialized, index);
+	static createFromSerialized(serialized: ISerializedEditorGroupModel, accessor: IEditorGroupsAccessor, index: number, groupsLabel: string, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, serialized, accessor, index, groupsLabel);
 	}
 
-	static createCopy(copyFrom: IEditorGroupView, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, copyFrom, index);
+	static createCopy(copyFrom: IEditorGroupView, accessor: IEditorGroupsAccessor, index: number, groupsLabel: string, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, copyFrom, accessor, index, groupsLabel);
 	}
 
 	//#endregion
@@ -133,9 +133,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	readonly whenRestored = this.whenRestoredPromise.p;
 
 	constructor(
-		private accessor: IEditorGroupsAccessor,
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
+		private accessor: IEditorGroupsAccessor,
 		private _index: number,
+		private readonly groupsLabel: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -577,7 +578,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// (including being visible in side by side / diff editors) and as such we
 		// only dispose when they are not opened elsewhere.
 		for (const editor of editorsToClose) {
-			if (this.instantiationService.invokeFunction(this.canDispose, editor)) {
+			if (this.canDispose(editor)) {
 				editor.dispose();
 			}
 		}
@@ -599,10 +600,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidCloseEditor.fire({ groupId: this.id, editor, context, index: editorIndex, sticky });
 	}
 
-	private canDispose(accessor: ServicesAccessor, editor: EditorInput): boolean {
-		const editorGroupService = accessor.get(IEditorGroupsService); // TODO@bpasero this is a bit backwards
-
-		for (const groupView of editorGroupService.groups) {
+	private canDispose(editor: EditorInput): boolean {
+		for (const groupView of this.accessor.groups) {
 			if (groupView instanceof EditorGroupView && groupView.model.contains(editor, {
 				strictEquals: true,						// only if this input is not shared across editor groups
 				supportSideBySide: SideBySideEditor.ANY // include any side of an opened side by side editor
@@ -740,8 +739,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get label(): string {
-		if (this.accessor.label) {
-			return localize('groupLabelLong', "{0}: Group {1}", this.accessor.label, this._index + 1);
+		if (this.groupsLabel) {
+			return localize('groupLabelLong', "{0}: Group {1}", this.groupsLabel, this._index + 1);
 		}
 
 		return localize('groupLabel', "Group {0}", this._index + 1);

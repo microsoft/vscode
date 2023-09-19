@@ -9,7 +9,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
@@ -79,7 +79,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorGroupsAccessor {
+export class EditorPart extends Part implements IEditorPart {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -139,6 +139,7 @@ export class EditorPart extends Part implements IEditorGroupsAccessor {
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
+		private readonly accessor: IEditorGroupsAccessor,
 		id: string,
 		readonly label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -209,7 +210,7 @@ export class EditorPart extends Part implements IEditorGroupsAccessor {
 		}
 	};
 
-	get groups(): IEditorGroupView[] {
+	get groups(): readonly IEditorGroupView[] {
 		return Array.from(this.groupViews.values());
 	}
 
@@ -234,7 +235,7 @@ export class EditorPart extends Part implements IEditorGroupsAccessor {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
-	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
+	getGroups(order = GroupsOrder.CREATION_TIME): readonly IEditorGroupView[] {
 		switch (order) {
 			case GroupsOrder.CREATION_TIME:
 				return this.groups;
@@ -572,11 +573,11 @@ export class EditorPart extends Part implements IEditorGroupsAccessor {
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this, this.count, this.instantiationService);
+			groupView = EditorGroupView.createCopy(from, this.accessor, this.count, this.label, this.instantiationService);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this, this.count, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this.accessor, this.count, this.label, this.instantiationService);
 		} else {
-			groupView = EditorGroupView.createNew(this, this.count, this.instantiationService);
+			groupView = EditorGroupView.createNew(this.accessor, this.count, this.label, this.instantiationService);
 		}
 
 		// Keep in map
@@ -1075,7 +1076,7 @@ export class EditorPart extends Part implements IEditorGroupsAccessor {
 		return true; // success
 	}
 
-	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: readonly IEditorGroupView[]): void {
 
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];
@@ -1233,13 +1234,14 @@ export class EditorPart extends Part implements IEditorGroupsAccessor {
 export class MainEditorPart extends EditorPart {
 
 	constructor(
+		accessor: IEditorGroupsAccessor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
+		super(accessor, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 }
 
@@ -1251,6 +1253,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	readonly onDidClose = this._onDidClose.event;
 
 	constructor(
+		accessor: IEditorGroupsAccessor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -1258,7 +1261,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(`workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
+		super(accessor, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 
 	async close(): Promise<void> {

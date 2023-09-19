@@ -9,16 +9,16 @@ import { IDimension, getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, IEditorGroupsAccessor } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChildWindowService } from 'vs/workbench/services/childWindow/browser/childWindowService';
 
-export class EditorParts extends Disposable implements IEditorGroupsService {
+export class EditorParts extends Disposable implements IEditorGroupsService, IEditorGroupsAccessor {
 
 	declare readonly _serviceBrand: undefined;
 
-	private mainPart = this._register(this.instantiationService.createInstance(MainEditorPart));
+	protected readonly mainPart = this._register(this.createMainEditorPart());
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -27,6 +27,10 @@ export class EditorParts extends Disposable implements IEditorGroupsService {
 		super();
 
 		this._register(this.registerEditorPart(this.mainPart));
+	}
+
+	protected createMainEditorPart(): MainEditorPart {
+		return this.instantiationService.createInstance(MainEditorPart, this);
 	}
 
 	//#region Auxiliary Editor Parts
@@ -39,7 +43,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService {
 		partContainer.classList.add('part', 'editor');
 		childWindow.container.appendChild(partContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this));
 		editorPart.create(partContainer, { restorePreviousState: false });
 
 		disposables.add(this.registerEditorPart(editorPart));
@@ -60,7 +64,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService {
 	private registerEditorPart(part: EditorPart): IDisposable {
 		this.parts.add(part);
 
-		const disposables = new DisposableStore();
+		const disposables = this._register(new DisposableStore());
 		disposables.add(toDisposable(() => this.parts.delete(part)));
 
 		this.registerEditorPartListeners(part, disposables);
@@ -197,6 +201,10 @@ export class EditorParts extends Disposable implements IEditorGroupsService {
 		return this.activePart.arrangeGroups(arrangement);
 	}
 
+	restoreGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+		return this.getPart(group).restoreGroup(group);
+	}
+
 	applyLayout(layout: EditorGroupLayout): void {
 		return this.activePart.applyLayout(layout);
 	}
@@ -259,7 +267,9 @@ export class EditorParts extends Disposable implements IEditorGroupsService {
 
 	//#endregion
 
-	//#region TO BE INVESTIGATED
+	//#region TODO@bpasero TO BE INVESTIGATED
+
+	get onDidVisibilityChange() { return this.mainPart.onDidVisibilityChange; }
 
 	get contentDimension() { return this.mainPart.contentDimension; }
 	get partOptions() { return this.mainPart.partOptions; }

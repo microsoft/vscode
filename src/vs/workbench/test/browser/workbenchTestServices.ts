@@ -166,6 +166,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1736,7 +1737,19 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 }
 
 export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
-	const part = disposables.add(instantiationService.createInstance(TestEditorPart));
+
+	class TestEditorParts extends EditorParts {
+
+		testMainPart!: TestEditorPart;
+
+		protected override createMainEditorPart(): MainEditorPart {
+			this.testMainPart = instantiationService.createInstance(TestEditorPart, this);
+
+			return this.testMainPart;
+		}
+	}
+
+	const part = disposables.add(instantiationService.createInstance(TestEditorParts)).testMainPart;
 	part.create(document.createElement('div'));
 	part.layout(1080, 800, 0, 0);
 
