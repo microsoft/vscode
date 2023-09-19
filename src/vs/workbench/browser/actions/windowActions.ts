@@ -449,7 +449,10 @@ class PopEditorPartOutAction extends Action2 {
 
 		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
 
-		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, { pinned: true });
+		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, {
+			pinned: true,
+			viewState: activeEditor.toUntyped({ preserveViewState: editorGroupService.activeGroup.id })?.options?.viewState,
+		});
 		editorGroupService.activeGroup?.closeEditor(activeEditor);
 	}
 }
