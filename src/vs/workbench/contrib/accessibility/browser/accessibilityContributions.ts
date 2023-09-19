@@ -96,7 +96,7 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
-		if (options.get(EditorOption.stickyScroll)) {
+		if (options.get(EditorOption.stickyScroll).enabled) {
 			content.push(this._descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb));
 		}
 

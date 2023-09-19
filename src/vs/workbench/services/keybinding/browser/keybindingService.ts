@@ -18,7 +18,7 @@ import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from 'vs/base/common/keybindings';
 import { IMMUTABLE_CODE_TO_KEY_CODE, KeyCode, KeyCodeUtils, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
@@ -237,28 +237,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateKeybindingsJsonSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateKeybindingsJsonSchema()));
 
-		// for standard keybindings
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			this.isComposingGlobalContextKey.set(e.isComposing);
-			const keyEvent = new StandardKeyboardEvent(e);
-			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
-			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
-			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
-			}
-			this.isComposingGlobalContextKey.set(false);
-		}));
-
-		// for single modifier chord keybindings (e.g. shift shift)
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			this.isComposingGlobalContextKey.set(e.isComposing);
-			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
-			}
-			this.isComposingGlobalContextKey.set(false);
+		this._register(this._registerKeyListeners(window));
+		this._register(dom.onDidCreateWindow(({ window, disposableStore }) => {
+			disposableStore.add(this._registerKeyListeners(window));
 		}));
 
 		this._register(browser.onDidChangeFullscreen(() => {
@@ -278,6 +259,36 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this._cachedResolver = null;
 			this._onDidUpdateKeybindings.fire();
 		}));
+	}
+
+	private _registerKeyListeners(window: Window): IDisposable {
+		const disposables = new DisposableStore();
+
+		// for standard keybindings
+		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			this.isComposingGlobalContextKey.set(e.isComposing);
+			const keyEvent = new StandardKeyboardEvent(e);
+			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
+			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
+			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+			this.isComposingGlobalContextKey.set(false);
+		}));
+
+		// for single modifier chord keybindings (e.g. shift shift)
+		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			this.isComposingGlobalContextKey.set(e.isComposing);
+			const keyEvent = new StandardKeyboardEvent(e);
+			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+			this.isComposingGlobalContextKey.set(false);
+		}));
+
+		return disposables;
 	}
 
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {

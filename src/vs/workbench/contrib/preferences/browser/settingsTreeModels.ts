@@ -11,7 +11,7 @@ import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configurat
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -831,12 +831,12 @@ function isObjectSetting({
 	}
 
 	// Flatten anyof schemas
-	const flatSchemas = arrays.flatten(schemas.map((schema): IJSONSchema[] => {
+	const flatSchemas = schemas.map((schema): IJSONSchema[] => {
 		if (Array.isArray(schema.anyOf)) {
 			return schema.anyOf;
 		}
 		return [schema];
-	}));
+	}).flat();
 
 	return flatSchemas.every(isObjectRenderableSchema);
 }
@@ -855,7 +855,7 @@ export const enum SearchResultIdx {
 
 export class SearchResultModel extends SettingsTreeModel {
 	private rawSearchResults: ISearchResult[] | null = null;
-	private cachedUniqueSearchResults: ISearchResult[] | null = null;
+	private cachedUniqueSearchResults: ISearchResult | null = null;
 	private newExtensionSearchResults: ISearchResult | null = null;
 	private searchResultCount: number | null = null;
 
@@ -874,29 +874,86 @@ export class SearchResultModel extends SettingsTreeModel {
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 
-	getUniqueResults(): ISearchResult[] {
+	private compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
+		const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
+		const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
+		if (aOrMax < bOrMax) {
+			return -1;
+		} else if (aOrMax > bOrMax) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
+	private sortResults(filterMatches: ISettingMatch[]): ISettingMatch[] {
+		filterMatches.sort((a, b) => {
+			if (a.matchType !== b.matchType) {
+				// Sort by match type if the match types are not the same.
+				// The priority of the match type is given by the SettingMatchType enum.
+				return b.matchType - a.matchType;
+			} else if (a.matchType === SettingMatchType.RemoteMatch) {
+				// The match types are the same and are RemoteMatch.
+				// Sort by score.
+				return b.score - a.score;
+			} else {
+				// The match types are the same.
+				if (a.setting.extensionInfo && b.setting.extensionInfo
+					&& a.setting.extensionInfo.id === b.setting.extensionInfo.id) {
+					// These settings belong to the same extension.
+					if (a.setting.categoryLabel !== b.setting.categoryLabel
+						&& (a.setting.categoryOrder !== undefined || b.setting.categoryOrder !== undefined)
+						&& a.setting.categoryOrder !== b.setting.categoryOrder) {
+						// These two settings don't belong to the same category and have different category orders.
+						return this.compareTwoNullableNumbers(a.setting.categoryOrder, b.setting.categoryOrder);
+					} else if (a.setting.categoryLabel === b.setting.categoryLabel
+						&& (a.setting.order !== undefined || b.setting.order !== undefined)
+						&& a.setting.order !== b.setting.order) {
+						// These two settings belong to the same category, but have different orders.
+						return this.compareTwoNullableNumbers(a.setting.order, b.setting.order);
+					}
+				}
+				// In the worst case, go back to lexicographical order.
+				return b.score - a.score;
+			}
+		});
+		return filterMatches;
+	}
+
+	getUniqueResults(): ISearchResult | null {
 		if (this.cachedUniqueSearchResults) {
 			return this.cachedUniqueSearchResults;
 		}
 
 		if (!this.rawSearchResults) {
-			return [];
+			return null;
 		}
+
+		let combinedFilterMatches: ISettingMatch[] = [];
 
 		const localMatchKeys = new Set();
 		const localResult = this.rawSearchResults[SearchResultIdx.Local];
-		localResult?.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+		if (localResult) {
+			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+			combinedFilterMatches = localResult.filterMatches;
+		}
 
 		const remoteResult = this.rawSearchResults[SearchResultIdx.Remote];
 		if (remoteResult) {
 			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
-		}
+			combinedFilterMatches = combinedFilterMatches.concat(remoteResult.filterMatches);
 
-		if (remoteResult) {
 			this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
 		}
 
-		this.cachedUniqueSearchResults = [localResult, remoteResult];
+		// Combine and sort results.
+		combinedFilterMatches = this.sortResults(combinedFilterMatches);
+
+		this.cachedUniqueSearchResults = {
+			filterMatches: combinedFilterMatches,
+			exactMatch: localResult?.exactMatch || remoteResult?.exactMatch
+		};
+
 		return this.cachedUniqueSearchResults;
 	}
 
@@ -956,14 +1013,7 @@ export class SearchResultModel extends SettingsTreeModel {
 	}
 
 	private getFlatSettings(): ISetting[] {
-		const flatSettings: ISetting[] = [];
-		arrays.coalesce(this.getUniqueResults())
-			.forEach(r => {
-				flatSettings.push(
-					...r.filterMatches.map(m => m.setting));
-			});
-
-		return flatSettings;
+		return this.getUniqueResults()?.filterMatches.map(m => m.setting) ?? [];
 	}
 }
 

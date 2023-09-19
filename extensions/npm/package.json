@@ -4,6 +4,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.1",
+  "private": true,
   "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
@@ -20,7 +21,7 @@
     "watch": "npx gulp watch-extension:npm"
   },
   "dependencies": {
-    "find-up": "^6.3.0",
+    "find-up": "^5.0.0",
     "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^3.2.0",
     "minimatch": "^5.1.6",

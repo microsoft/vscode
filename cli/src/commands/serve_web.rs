@@ -120,6 +120,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 			}
 			None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port),
 		};
+		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
 		let mut listening = format!("Web UI available at http://{}", addr);
 		if let Some(ct) = args.connection_token {
@@ -127,7 +128,7 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 		}
 		ctx.log.result(listening);
 
-		Server::bind(&addr)
+		builder
 			.serve(make_service_fn(|_| make_svc()))
 			.with_graceful_shutdown(async {
 				let _ = shutdown.wait().await;

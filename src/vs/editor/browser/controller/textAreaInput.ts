@@ -110,6 +110,8 @@ export interface ICompleteTextAreaWrapper extends ITextAreaWrapper {
 	readonly onBlur: Event<FocusEvent>;
 	readonly onSyntheticTap: Event<void>;
 
+	readonly ownerDocument: Document;
+
 	setIgnoreSelectionChangeTime(reason: string): void;
 	getIgnoreSelectionChangeTime(): number;
 	resetSelectionChangeTime(): void;
@@ -494,7 +496,7 @@ export class TextAreaInput extends Disposable {
 		// `selectionchange` events often come multiple times for a single logical change
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
-		return dom.addDisposableListener(document, 'selectionchange', (e) => {
+		return dom.addDisposableListener(this._textArea.ownerDocument, 'selectionchange', (e) => {//todo
 			inputLatency.onSelectionChange();
 
 			if (!this._hasFocus) {
@@ -701,6 +703,10 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 	public readonly onFocus = this._register(new DomEmitter(this._actual, 'focus')).event;
 	public readonly onBlur = this._register(new DomEmitter(this._actual, 'blur')).event;
 
+	public get ownerDocument(): Document {
+		return this._actual.ownerDocument;
+	}
+
 	private _onSyntheticTap = this._register(new Emitter<void>());
 	public readonly onSyntheticTap: Event<void> = this._onSyntheticTap.event;
 
@@ -725,7 +731,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		if (shadowRoot) {
 			return shadowRoot.activeElement === this._actual;
 		} else if (dom.isInDOM(this._actual)) {
-			return document.activeElement === this._actual;
+			return this._actual.ownerDocument.activeElement === this._actual;
 		} else {
 			return false;
 		}
@@ -775,7 +781,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		if (shadowRoot) {
 			activeElement = shadowRoot.activeElement;
 		} else {
-			activeElement = document.activeElement;
+			activeElement = textArea.ownerDocument.activeElement;
 		}
 
 		const currentIsFocused = (activeElement === textArea);
