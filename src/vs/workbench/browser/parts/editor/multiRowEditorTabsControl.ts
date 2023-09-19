@@ -31,6 +31,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new StickyEditorGroupModel(this.model)));
 		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new UnstickyEditorGroupModel(this.model)));
+
+		this.handlePinnedTabsSeparateRowToolbars();
 	}
 
 	private handlePinnedTabsSeparateRowToolbars(): void {
