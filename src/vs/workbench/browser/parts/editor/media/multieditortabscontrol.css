@@ -58,6 +58,10 @@
 	height: 1px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element {
 	flex: 1;
 }
@@ -443,4 +447,8 @@
 	position: absolute;
 	bottom: 0;
 	right: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.second-tabbar-visible .tabs-and-actions-container:first-child .editor-actions{
+	display: none;
 }

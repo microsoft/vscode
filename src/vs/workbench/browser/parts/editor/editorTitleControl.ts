@@ -16,6 +16,7 @@ import { IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MultiRowEditorControl } from 'vs/workbench/browser/parts/editor/multiRowEditorTabsControl';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 export interface IEditorTitleControlDimensions {
 
@@ -44,6 +45,7 @@ export class EditorTitleControl extends Themable {
 		private parent: HTMLElement,
 		private accessor: IEditorGroupsAccessor,
 		private group: IEditorGroupView,
+		private model: IReadonlyEditorGroupModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -56,14 +58,13 @@ export class EditorTitleControl extends Themable {
 	private createEditorTabsControl(): IEditorTabsControl {
 		let control: IEditorTabsControl;
 		if (this.accessor.partOptions.showTabs) {
-			if (this.accessor.partOptions.pinnedTabsSeparateRow) {
-				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.accessor, this.group);
-			}
-			else {
-				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, this.group);
+			if (this.accessor.partOptions.pinnedTabsOnSeparateRow) {
+				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.accessor, this.group, this.model);
+			} else {
+				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, this.model);
 			}
 		} else {
-			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.group, this.group);
+			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.group, this.model);
 		}
 
 		return this.editorTabsControlDisposable.add(control);
@@ -168,7 +169,7 @@ export class EditorTitleControl extends Themable {
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||
-			(newOptions.showTabs && oldOptions.pinnedTabsSeparateRow !== newOptions.pinnedTabsSeparateRow)
+			(newOptions.showTabs && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
 		) {
 			// Clear old
 			this.editorTabsControlDisposable.clear();

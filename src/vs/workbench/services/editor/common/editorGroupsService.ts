@@ -427,7 +427,7 @@ export const enum OpenEditorContext {
 	COPY_EDITOR = 3
 }
 
-export interface IReadonlyEditorGroup {
+export interface IEditorGroup {
 
 	/**
 	 * An event which fires whenever the underlying group model changes.
@@ -584,6 +584,24 @@ export interface IReadonlyEditorGroup {
 	isLast(editor: EditorInput): boolean;
 
 	/**
+	 * Open an editor in this group.
+	 *
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor.
+	 */
+	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
+
+	/**
+	 * Opens editors in this group.
+	 *
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor. Since
+	 * a group can only ever have one active editor, even if many editors are
+	 * opened, the result will only be one editor.
+	 */
+	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | undefined>;
+
+	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
 	isPinned(editorOrIndex: EditorInput | number): boolean;
@@ -605,27 +623,6 @@ export interface IReadonlyEditorGroup {
 	 * @param options fine tune how to match editors
 	 */
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
-}
-
-export interface IMutableEditorGroup {
-
-	/**
-	 * Open an editor in this group.
-	 *
-	 * @returns a promise that resolves around an IEditor instance unless
-	 * the call failed, or the editor was not opened as active editor.
-	 */
-	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
-
-	/**
-	 * Opens editors in this group.
-	 *
-	 * @returns a promise that resolves around an IEditor instance unless
-	 * the call failed, or the editor was not opened as active editor. Since
-	 * a group can only ever have one active editor, even if many editors are
-	 * opened, the result will only be one editor.
-	 */
-	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.
@@ -738,8 +735,6 @@ export interface IMutableEditorGroup {
 	 */
 	focus(): void;
 }
-
-export interface IEditorGroup extends IMutableEditorGroup, IReadonlyEditorGroup { }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {
 	const group = obj as IEditorGroup | undefined;

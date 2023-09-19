@@ -17,8 +17,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IReadonlyEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 //#region Editor Pane Registry
 
@@ -258,7 +258,7 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 
 //#region ARIA
 
-export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IReadonlyEditorGroup | undefined, groupCount: number | undefined): string {
+export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number | undefined): string {
 	let ariaLabel = input.getAriaLabel();
 	if (group && !group.isPinned(input)) {
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);

@@ -11,8 +11,9 @@ import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiE
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/services/editor/common/filteredEditorGroup';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroup';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 export class MultiRowEditorControl extends Disposable implements IEditorTabsControl {
 
@@ -23,24 +24,13 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		private parent: HTMLElement,
 		private accessor: IEditorGroupsAccessor,
 		private group: IEditorGroupView,
+		private model: IReadonlyEditorGroupModel,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
 
-		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new StickyEditorGroupModel(this.group)));
-		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new UnstickyEditorGroupModel(this.group)));
-
-		this.handlePinnedTabsSeparateRowToolbars();
-	}
-
-	showEditorActionsToolbar(): void {
-		this.stickyEditorTabsControl.showEditorActionsToolbar();
-		this.unstickyEditorTabsControl.showEditorActionsToolbar();
-	}
-
-	hideEditorActionsToolbar(): void {
-		this.stickyEditorTabsControl.hideEditorActionsToolbar();
-		this.unstickyEditorTabsControl.hideEditorActionsToolbar();
+		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new StickyEditorGroupModel(this.model)));
+		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new UnstickyEditorGroupModel(this.model)));
 	}
 
 	private handlePinnedTabsSeparateRowToolbars(): void {
@@ -50,20 +40,18 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		}
 		// Ensure action toolbar is only visible once
 		if (this.group.count === this.group.stickyCount) {
-			this.stickyEditorTabsControl.showEditorActionsToolbar();
-			this.unstickyEditorTabsControl.hideEditorActionsToolbar();
+			this.parent.classList.toggle('second-tabbar-visible', false);
 		} else {
-			this.stickyEditorTabsControl.hideEditorActionsToolbar();
-			this.unstickyEditorTabsControl.showEditorActionsToolbar();
+			this.parent.classList.toggle('second-tabbar-visible', true);
 		}
 	}
 
 	private getEditorTabsController(editor: EditorInput): IEditorTabsControl {
-		return this.group.isSticky(editor) ? this.stickyEditorTabsControl : this.unstickyEditorTabsControl;
+		return this.model.isSticky(editor) ? this.stickyEditorTabsControl : this.unstickyEditorTabsControl;
 	}
 
 	openEditor(editor: EditorInput): boolean {
-		const [editorTabController, otherTabController] = this.group.isSticky(editor) ? [this.stickyEditorTabsControl, this.unstickyEditorTabsControl] : [this.unstickyEditorTabsControl, this.stickyEditorTabsControl];
+		const [editorTabController, otherTabController] = this.model.isSticky(editor) ? [this.stickyEditorTabsControl, this.unstickyEditorTabsControl] : [this.unstickyEditorTabsControl, this.stickyEditorTabsControl];
 		const didChange = editorTabController.openEditor(editor);
 		if (didChange) {
 			// HACK: To render all editor tabs on startup, otherwise only one row gets rendered
@@ -73,8 +61,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	openEditors(editors: EditorInput[]): boolean {
-		const stickyEditors = editors.filter(e => this.group.isSticky(e));
-		const unstickyEditors = editors.filter(e => !this.group.isSticky(e));
+		const stickyEditors = editors.filter(e => this.model.isSticky(e));
+		const unstickyEditors = editors.filter(e => !this.model.isSticky(e));
 
 		const didChangeOpenEditorsSticky = this.stickyEditorTabsControl.openEditors(stickyEditors);
 		const didChangeOpenEditorsUnSticky = this.unstickyEditorTabsControl.openEditors(unstickyEditors);
@@ -90,13 +78,11 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		// Has to be called on both tab bars
 		this.stickyEditorTabsControl.closeEditor(editor);
 		this.unstickyEditorTabsControl.closeEditor(editor);
-
-		this.handleClosedEditors();
 	}
 
 	closeEditors(editors: EditorInput[]): void {
-		const stickyEditors = editors.filter(e => this.group.isSticky(e));
-		const unstickyEditors = editors.filter(e => !this.group.isSticky(e));
+		const stickyEditors = editors.filter(e => this.model.isSticky(e));
+		const unstickyEditors = editors.filter(e => !this.model.isSticky(e));
 
 		this.stickyEditorTabsControl.closeEditors(stickyEditors);
 		this.unstickyEditorTabsControl.closeEditors(unstickyEditors);
@@ -111,7 +97,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange?: boolean): void {
 		if (stickyStateChange) {
 			// If sticky state changes, move editor between tab bars
-			if (this.group.isSticky(editor)) {
+			if (this.model.isSticky(editor)) {
 				this.stickyEditorTabsControl.openEditor(editor);
 				this.unstickyEditorTabsControl.closeEditor(editor);
 			} else {
@@ -121,10 +107,10 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 			this.handlePinnedTabsSeparateRowToolbars();
 
 		} else {
-			if (this.group.isSticky(editor)) {
+			if (this.model.isSticky(editor)) {
 				this.stickyEditorTabsControl.moveEditor(editor, fromIndex, targetIndex, false);
 			} else {
-				this.unstickyEditorTabsControl.moveEditor(editor, fromIndex - this.group.stickyCount, targetIndex - this.group.stickyCount, false);
+				this.unstickyEditorTabsControl.moveEditor(editor, fromIndex - this.model.stickyCount, targetIndex - this.model.stickyCount, false);
 			}
 		}
 	}

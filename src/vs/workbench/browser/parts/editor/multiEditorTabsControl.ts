@@ -6,7 +6,7 @@
 import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -31,7 +31,7 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService, IReadonlyEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
@@ -53,7 +53,8 @@ import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndServ
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/services/editor/common/filteredEditorGroup';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroup';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -131,13 +132,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private lastMouseWheelEventTime = 0;
 	private isMouseOverTabs = false;
 
-	private visible: boolean = false;
-
 	constructor(
 		parent: HTMLElement,
 		accessor: IEditorGroupsAccessor,
 		groupViewer: IEditorGroupView,
-		tabsModel: IReadonlyEditorGroup,
+		tabsModel: IReadonlyEditorGroupModel,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -198,7 +197,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
 
-		this.setVisibility(this.tabsModel.count > 0);
+		this.setVisibility();
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -219,23 +218,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return tabsScrollbar;
 	}
 
-	private setVisibility(visible: boolean): void {
-		this.visible = visible;
+	private get visible(): boolean {
+		return this.tabsModel.count > 0;
+	}
+
+	private setVisibility(): void {
 		const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
-		tabsAndActionsContainer.style.display = visible ? 'flex' : 'none';
-	}
-
-	override showEditorActionsToolbar(): void {
-		this.setEditorActionsToolbarVisibility(true);
-	}
-
-	override hideEditorActionsToolbar(): void {
-		this.setEditorActionsToolbarVisibility(false);
-	}
-
-	private setEditorActionsToolbarVisibility(visible: boolean): void {
-		const editorToolbarContainer = assertIsDefined(this.editorToolbarContainer);
-		editorToolbarContainer.style.display = visible ? 'flex' : 'none';
+		tabsAndActionsContainer.classList.toggle('empty', !this.visible);
 	}
 
 	private updateTabsScrollbarSizing(): void {
@@ -373,7 +362,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 					if (Array.isArray(data)) {
 						const localDraggedEditor = data[0].identifier;
-						if (this.tabsModel.id === localDraggedEditor.groupId && this.tabsModel.getIndexOfEditor(localDraggedEditor.editor) === this.tabsModel.count - 1) {
+						if (this.tabsModel.id === localDraggedEditor.groupId && this.tabsModel.indexOf(localDraggedEditor.editor) === this.tabsModel.count - 1) {
 							if (e.dataTransfer) {
 								e.dataTransfer.dropEffect = 'none';
 							}
@@ -514,10 +503,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private handleOpenedEditors(): boolean {
-
-		if (!this.visible && this.tabsModel.count > 0) {
-			this.setVisibility(true);
-		}
+		this.setVisibility();
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
@@ -555,8 +541,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private didActiveEditorChange(): boolean {
 		if (
-			!this.activeTabLabel?.editor && this.groupViewer.activeEditor || 							// active editor changed from null => editor
-			this.activeTabLabel?.editor && !this.groupViewer.activeEditor || 							// active editor changed from editor => null
+			!this.activeTabLabel?.editor && this.tabsModel.activeEditor || 							// active editor changed from null => editor
+			this.activeTabLabel?.editor && !this.tabsModel.activeEditor || 							// active editor changed from editor => null
 			(!this.activeTabLabel?.editor || !this.tabsModel.isActive(this.activeTabLabel.editor))	// active editor changed from editorA => editorB
 		) {
 			return true;
@@ -605,7 +591,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private handleClosedEditors(): void {
 
 		// There are tabs to show
-		if (this.tabsModel.editors.length > 0) {
+		if (this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).length > 0) {
 
 			// Remove tabs that got closed
 			const tabsContainer = assertIsDefined(this.tabsContainer);
@@ -627,9 +613,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// No tabs to show
 		else {
-			if (this.visible) {
-				this.setVisibility(false);
-			}
+			this.setVisibility();
 
 			if (this.tabsContainer) {
 				clearNode(this.tabsContainer);
@@ -776,7 +760,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private forEachTab(fn: (editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void, fromTabIndex?: number, toTabIndex?: number): void {
-		this.tabsModel.editors.forEach((editor: EditorInput, tabIndex: number) => {
+		this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).forEach((editor: EditorInput, tabIndex: number) => {
 			if (typeof fromTabIndex === 'number' && fromTabIndex > tabIndex) {
 				return; // do nothing if we are not yet at `fromIndex`
 			}
@@ -790,7 +774,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private withTab(editor: EditorInput, fn: (editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
-		this.doWithTab(this.tabsModel.getIndexOfEditor(editor), editor, fn);
+		this.doWithTab(this.tabsModel.indexOf(editor), editor, fn);
 	}
 
 	private doWithTab(tabIndex: number, editor: EditorInput, fn: (editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
@@ -992,8 +976,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor && this.tabsModel.isPinned(editor)) {
 					if (this.accessor.partOptions.doubleClickTabToToggleEditorGroupSizes) {
-						const group = assertIsDefined(this.accessor.getGroup(this.tabsModel.id));
-						this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, group);
+						this.accessor.arrangeGroups(GroupsArrangement.TOGGLE, this.groupViewer);
 					}
 				} else {
 					this.groupViewer.pinEditor(editor);
@@ -1164,15 +1147,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Build labels and descriptions for each editor
 		const labels: IEditorInputLabel[] = [];
 		let activeEditorTabIndex = -1;
-		for (let i = 0; i < this.tabsModel.editors.length; i++) {
-			const editor = this.tabsModel.editors[i];
+		for (let i = 0; i < this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).length; i++) {
+			const editor = this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL)[i];
 			labels.push({
 				editor,
 				name: editor.getName(),
 				description: editor.getDescription(verbosity),
 				forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
 				title: editor.getTitle(Verbosity.LONG),
-				ariaLabel: computeEditorAriaLabel(editor, i, this.tabsModel, this.editorGroupService.count)
+				ariaLabel: computeEditorAriaLabel(editor, i, this.groupViewer, this.editorGroupService.count)
 			});
 
 			if (editor === this.tabsModel.activeEditor) {
@@ -1572,8 +1555,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		if (!this.visible) {
 			height = 0;
-		}
-		else if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
+		} else if (this.accessor.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) {
 			// Wrap: we need to ask `offsetHeight` to get
 			// the real height of the title area with wrapping.
 			height = this.tabsAndActionsContainer.offsetHeight;
@@ -1830,7 +1812,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Figure out if active tab is positioned static which has an
 		// impact on whether to reveal the tab or not later
-		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && activeTabIndex && this.tabsModel.isSticky(activeTabIndex);
+		let activeTabPositionStatic = this.accessor.partOptions.pinnedTabSizing !== 'normal' && typeof activeTabIndex === 'number' && this.tabsModel.isSticky(activeTabIndex);
 
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
@@ -1929,7 +1911,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getTabAndIndex(editor: EditorInput): [HTMLElement, number /* index */] | undefined {
-		const tabIndex = this.tabsModel.getIndexOfEditor(editor);
+		const tabIndex = this.tabsModel.indexOf(editor);
 		const tab = this.getTabAtIndex(tabIndex);
 		if (tab) {
 			return [tab, tabIndex];

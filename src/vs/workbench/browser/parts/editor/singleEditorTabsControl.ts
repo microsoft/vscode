@@ -100,18 +100,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	override showEditorActionsToolbar(): void {
-		this.setEditorActionsToolbarVisibility(true);
-	}
-
-	override hideEditorActionsToolbar(): void {
-		this.setEditorActionsToolbarVisibility(false);
-	}
-
-	private setEditorActionsToolbarVisibility(visible: boolean): void {
-		const actionsContainer = assertIsDefined(this.actionsContainer);
-		actionsContainer.style.display = visible ? 'flex' : 'none';
-	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
 		EventHelper.stop(e, false);

@@ -38,7 +38,7 @@ import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
-import { IReadonlyEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 export interface IToolbarActions {
 	readonly primary: IAction[];
@@ -73,8 +73,6 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 
 export interface IEditorTabsControl extends IDisposable {
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
-	hideEditorActionsToolbar(): void;
-	showEditorActionsToolbar(): void;
 	openEditor(editor: EditorInput): boolean;
 	openEditors(editors: EditorInput[]): boolean;
 	beforeCloseEditor(editor: EditorInput): void;
@@ -125,7 +123,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		private parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected groupViewer: IEditorGroupView,
-		protected tabsModel: IReadonlyEditorGroup,
+		protected tabsModel: IReadonlyEditorGroupModel,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -413,10 +411,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			this.updateTabHeight();
 		}
 	}
-
-	abstract hideEditorActionsToolbar(): void;
-
-	abstract showEditorActionsToolbar(): void;
 
 	abstract openEditor(editor: EditorInput): boolean;
 

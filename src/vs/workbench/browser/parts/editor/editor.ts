@@ -31,7 +31,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
-	pinnedTabsSeparateRow: false,
+	pinnedTabsOnSeparateRow: false,
 	tabHeight: 'normal',
 	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',

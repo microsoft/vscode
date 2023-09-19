@@ -15,7 +15,7 @@ import { IInstantiationService, IConstructorSignature, ServicesAccessor, Branded
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup, IReadonlyEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { FileType, IFileReadLimits, IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/window/common/window';
@@ -27,6 +27,7 @@ import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'v
 import { IAction, toAction } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -1098,7 +1099,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
-	pinnedTabsSeparateRow?: boolean;
+	pinnedTabsOnSeparateRow?: boolean;
 	tabHeight?: 'normal' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
@@ -1351,7 +1352,7 @@ export enum EditorCloseMethod {
 	MOUSE
 }
 
-export function preventEditorClose(group: IReadonlyEditorGroup, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
+export function preventEditorClose(group: IEditorGroup | IReadonlyEditorGroupModel, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
 	if (!group.isSticky(editor)) {
 		return false; // only interested in sticky editors
 	}

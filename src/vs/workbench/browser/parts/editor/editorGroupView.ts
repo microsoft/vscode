@@ -198,7 +198,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.accessor, this));
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.accessor, this, this.model));
 
 			// Editor container
 			this.editorContainer = document.createElement('div');
@@ -688,7 +688,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control Switch between showing tabs <=> not showing tabs
 		if (
 			event.oldPartOptions.showTabs !== event.newPartOptions.showTabs ||
-			event.oldPartOptions.pinnedTabsSeparateRow !== event.newPartOptions.pinnedTabsSeparateRow
+			event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow
 		) {
 
 			// Re-layout
