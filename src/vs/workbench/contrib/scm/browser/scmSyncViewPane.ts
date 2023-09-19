@@ -384,6 +384,11 @@ export class SCMSyncViewPane extends ViewPane {
 		this._viewModel = this.instantiationService.createInstance(SCMSyncPaneViewModel, this._tree);
 	}
 
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this._tree.layout(height, width);
+	}
+
 	private async onDidOpen(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
 			return;
@@ -464,7 +469,6 @@ class SCMSyncPaneViewModel {
 			// Multiple repositories or always show repositories
 			await this.tree.setInput([...this.repositories.keys()], { expanded });
 		}
-		this.tree.layout();
 	}
 }
 

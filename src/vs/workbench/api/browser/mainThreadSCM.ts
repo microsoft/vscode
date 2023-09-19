@@ -196,6 +196,18 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			this._quickDiff.dispose();
 			this._quickDiff = undefined;
 		}
+
+		if (features.hasHistoryProvider && !this._historyProvider) {
+			this._historyProvider = {
+				actionButton: () => this._historyProviderActionButton ?? undefined,
+				currentHistoryItemGroup: () => this._historyProviderCurrentHistoryItemGroup ?? undefined,
+				provideHistoryItems: (historyItemGroupId, options) => this.provideHistoryItems(historyItemGroupId, options),
+				provideHistoryItemChanges: (historyItemId: string) => this.provideHistoryItemChanges(historyItemId),
+				resolveHistoryItemGroupCommonAncestor: (historyItemGroupId1, historyItemGroupId2) => this.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2),
+			};
+		} else if (features.hasHistoryProvider === false && this._historyProvider) {
+			this._historyProvider = undefined;
+		}
 	}
 
 	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][]): void {
@@ -303,16 +315,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 		const result = await this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None);
 		return result && URI.revive(result);
-	}
-
-	$registerHistoryProvider(): void {
-		this._historyProvider = {
-			actionButton: () => this._historyProviderActionButton ?? undefined,
-			currentHistoryItemGroup: () => this._historyProviderCurrentHistoryItemGroup ?? undefined,
-			provideHistoryItems: (historyItemGroupId, options) => this.provideHistoryItems(historyItemGroupId, options),
-			provideHistoryItemChanges: (historyItemId: string) => this.provideHistoryItemChanges(historyItemId),
-			resolveHistoryItemGroupCommonAncestor: (historyItemGroupId1, historyItemGroupId2) => this.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2),
-		};
 	}
 
 	$onDidChangeHistoryProviderActionButton(actionButton?: SCMActionButtonDto | null): void {
@@ -549,17 +551,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		} else {
 			repository.input.validateInput = async () => undefined;
 		}
-	}
-
-	$registerHistoryProvider(sourceControlHandle: number): void {
-		const repository = this._repositories.get(sourceControlHandle);
-
-		if (!repository) {
-			return;
-		}
-
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$registerHistoryProvider();
 	}
 
 	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null | undefined): void {

@@ -23,7 +23,12 @@ export interface ISCMHistoryOptions {
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
 	readonly label: string;
-	readonly upstream?: ISCMHistoryItemGroup;
+	readonly upstream?: ISCMRemoteHistoryItemGroup;
+}
+
+export interface ISCMRemoteHistoryItemGroup {
+	readonly id: string;
+	readonly label: string;
 }
 
 export interface ISCMHistoryItem {

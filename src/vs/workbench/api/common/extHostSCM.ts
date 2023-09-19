@@ -548,34 +548,32 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._historyProvider = historyProvider;
 		this._historyProviderDisposable.value = new DisposableStore();
 
-		if (!historyProvider) {
-			return;
+		this.#proxy.$updateSourceControl(this.handle, { hasHistoryProvider: !!historyProvider });
+
+		if (historyProvider) {
+			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
+				if (historyItemGroupEquals(this._historyProviderCurrentHistoryItemGroup, historyProvider?.currentHistoryItemGroup)) {
+					return;
+				}
+
+				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
+				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
+			}));
+
+			this._historyProviderDisposable.value.add(historyProvider.onDidChangeActionButton(() => {
+				checkProposedApiEnabled(this._extension, 'scmActionButton');
+
+				this._historyProviderActionButtonDisposable.value = new DisposableStore();
+				const internal = historyProvider.actionButton !== undefined ?
+					{
+						command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderActionButtonDisposable.value),
+						description: historyProvider.actionButton.description,
+						enabled: historyProvider.actionButton.enabled
+					} : undefined;
+
+				this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
+			}));
 		}
-
-		this.#proxy.$registerHistoryProvider(this.handle);
-
-		this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
-			if (historyItemGroupEquals(this._historyProviderCurrentHistoryItemGroup, historyProvider?.currentHistoryItemGroup)) {
-				return;
-			}
-
-			this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
-			this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
-		}));
-
-		this._historyProviderDisposable.value.add(historyProvider.onDidChangeActionButton(() => {
-			checkProposedApiEnabled(this._extension, 'scmActionButton');
-
-			this._historyProviderActionButtonDisposable.value = new DisposableStore();
-			const internal = historyProvider.actionButton !== undefined ?
-				{
-					command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderActionButtonDisposable.value),
-					description: historyProvider.actionButton.description,
-					enabled: historyProvider.actionButton.enabled
-				} : undefined;
-
-			this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
-		}));
 	}
 
 	private _commitTemplate: string | undefined = undefined;
