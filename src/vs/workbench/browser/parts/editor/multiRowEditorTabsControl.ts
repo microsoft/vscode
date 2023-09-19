@@ -78,6 +78,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		// Has to be called on both tab bars
 		this.stickyEditorTabsControl.closeEditor(editor);
 		this.unstickyEditorTabsControl.closeEditor(editor);
+
+		this.handleClosedEditors();
 	}
 
 	closeEditors(editors: EditorInput[]): void {
@@ -104,6 +106,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 				this.stickyEditorTabsControl.closeEditor(editor);
 				this.unstickyEditorTabsControl.openEditor(editor);
 			}
+
 			this.handlePinnedTabsSeparateRowToolbars();
 
 		} else {

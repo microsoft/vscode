@@ -812,7 +812,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabActionsContainer.classList.add('tab-actions');
 		tabContainer.appendChild(tabActionsContainer);
 
-		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.tabsModel.id, editorIndex: this.getEditorIndex(tabIndex) });
+		const currentMultiEditorTabsControl = this;
+		const tabActionRunner = new EditorCommandsContextActionRunner({
+			groupId: this.tabsModel.id,
+			get editorIndex() {
+				return currentMultiEditorTabsControl.getEditorIndex(tabIndex);
+			},
+		});
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
 		const tabActionListener = tabActionBar.onWillRun(e => {
