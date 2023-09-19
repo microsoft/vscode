@@ -422,7 +422,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'warnonly'
 		},
 		[TerminalSettingId.EnvironmentChangesRelaunch]: {
-			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
+			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extensions want to contribute to their environment and have not been interacted with yet."),
 			type: 'boolean',
 			default: true
 		},

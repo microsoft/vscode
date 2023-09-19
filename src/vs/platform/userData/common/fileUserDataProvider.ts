@@ -12,6 +12,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { isObject } from 'vs/base/common/types';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ResourceSet } from 'vs/base/common/map';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 /**
  * This is a wrapper on top of the local filesystem provider which will
@@ -31,15 +34,31 @@ export class FileUserDataProvider extends Disposable implements
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private readonly watchResources = TernarySearchTree.forUris<URI>(() => !(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive));
+	private readonly atomicWritesResources: ResourceSet;
 
 	constructor(
 		private readonly fileSystemScheme: string,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability & (IFileSystemProviderWithFileReadStreamCapability | IFileSystemProviderWithFileAtomicReadCapability | IFileSystemProviderWithFileFolderCopyCapability),
 		private readonly userDataScheme: string,
+		private readonly userDataProfilesService: IUserDataProfilesService,
+		uriIdentityService: IUriIdentityService,
 		private readonly logService: ILogService,
 	) {
 		super();
+		this.atomicWritesResources = new ResourceSet((uri) => uriIdentityService.extUri.getComparisonKey(this.toFileSystemResource(uri)));
+		this.updateAtomicWritesResources();
+		this._register(userDataProfilesService.onDidChangeProfiles(() => this.updateAtomicWritesResources()));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
+	}
+
+	private updateAtomicWritesResources(): void {
+		this.atomicWritesResources.clear();
+		for (const profile of this.userDataProfilesService.profiles) {
+			this.atomicWritesResources.add(profile.settingsResource);
+			this.atomicWritesResources.add(profile.keybindingsResource);
+			this.atomicWritesResources.add(profile.tasksResource);
+			this.atomicWritesResources.add(profile.extensionsResource);
+		}
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -86,7 +105,7 @@ export class FileUserDataProvider extends Disposable implements
 	}
 
 	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		if (!isObject(opts.atomic) && hasFileAtomicWriteCapability(this.fileSystemProvider)) {
+		if (this.atomicWritesResources.has(resource) && !isObject(opts.atomic) && hasFileAtomicWriteCapability(this.fileSystemProvider)) {
 			opts = { ...opts, atomic: { postfix: '.vsctmp' } };
 		}
 		return this.fileSystemProvider.writeFile(this.toFileSystemResource(resource), content, opts);

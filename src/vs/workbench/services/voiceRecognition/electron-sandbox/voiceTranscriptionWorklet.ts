@@ -13,6 +13,7 @@ declare class AudioWorkletProcessor {
 interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
 	processorOptions: {
 		readonly bufferTimespan: number;
+		readonly vadThreshold: number;
 	};
 }
 
@@ -76,15 +77,49 @@ class VoiceTranscriptionWorklet extends AudioWorkletProcessor {
 		this.buffer.push(inputChannelData.slice(0));
 
 		if (Date.now() - this.startTime > this.options.processorOptions.bufferTimespan && this.sharedProcessConnection) {
-			const buffer = this.buffer;
+			const buffer = this.joinFloat32Arrays(this.buffer);
 			this.buffer = [];
 
-			this.sharedProcessConnection.postMessage(buffer);
+			// Send buffer to shared process for transcription.
+			// Send an empty buffer if it appears to be silence
+			// so that we can still trigger the transcription
+			// service and let it know about this.
+
+			this.sharedProcessConnection.postMessage(this.appearsToBeSilence(buffer) ? new Float32Array(0) : buffer);
 
 			this.startTime = Date.now();
 		}
 
 		return !this.stopped;
+	}
+
+	private appearsToBeSilence(data: Float32Array): boolean {
+
+		// This is the most simple Voice Activity Detection (VAD)
+		// and it is based on the Root Mean Square (RMS) of the signal
+		// with a certain threshold. Good for testing but probably
+		// not suitable for shipping to stable (TODO@bpasero).
+
+		let sum = 0;
+		for (let i = 0; i < data.length; i++) {
+			sum += data[i] * data[i];
+		}
+
+		const rms = Math.sqrt(sum / data.length);
+
+		return rms < this.options.processorOptions.vadThreshold;
+	}
+
+	private joinFloat32Arrays(float32Arrays: Float32Array[]): Float32Array {
+		const result = new Float32Array(float32Arrays.reduce((prev, curr) => prev + curr.length, 0));
+
+		let offset = 0;
+		for (const float32Array of float32Arrays) {
+			result.set(float32Array, offset);
+			offset += float32Array.length;
+		}
+
+		return result;
 	}
 }
 

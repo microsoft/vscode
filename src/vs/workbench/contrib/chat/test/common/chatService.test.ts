@@ -20,6 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
+import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChat, IChatProgress, IChatProvider, IChatRequest, IChatResponse, IPersistedChatState, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
@@ -81,6 +82,7 @@ suite('Chat', () => {
 		instantiationService.stub(IChatContributionService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 	});
 
 	test('retrieveSession', async () => {

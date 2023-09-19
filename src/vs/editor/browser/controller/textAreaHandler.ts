@@ -391,7 +391,7 @@ export class TextAreaHandler extends ViewPart {
 				const distanceToModelLineStart = startModelPosition.column - 1 - visibleBeforeCharCount;
 				const hiddenLineTextBefore = lineTextBeforeSelection.substring(0, lineTextBeforeSelection.length - visibleBeforeCharCount);
 				const { tabSize } = this._context.viewModel.model.getOptions();
-				const widthOfHiddenTextBefore = measureText(hiddenLineTextBefore, this._fontInfo, tabSize);
+				const widthOfHiddenTextBefore = measureText(this.textArea.domNode.ownerDocument, hiddenLineTextBefore, this._fontInfo, tabSize);
 
 				return { distanceToModelLineStart, widthOfHiddenTextBefore };
 			})();
@@ -927,7 +927,7 @@ interface IRenderData {
 	strikethrough?: boolean;
 }
 
-function measureText(text: string, fontInfo: FontInfo, tabSize: number): number {
+function measureText(document: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
 	if (text.length === 0) {
 		return 0;
 	}

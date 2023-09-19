@@ -153,14 +153,12 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'terminal/context',
 		id: MenuId.TerminalInstanceContext,
-		description: localize('menus.terminalContext', "The terminal context menu"),
-		proposed: 'terminalContextMenu'
+		description: localize('menus.terminalContext', "The terminal context menu")
 	},
 	{
 		key: 'terminal/title/context',
 		id: MenuId.TerminalTabContext,
-		description: localize('menus.terminalTabContext', "The terminal tabs context menu"),
-		proposed: 'terminalContextMenu'
+		description: localize('menus.terminalTabContext', "The terminal tabs context menu")
 	},
 	{
 		key: 'view/title',

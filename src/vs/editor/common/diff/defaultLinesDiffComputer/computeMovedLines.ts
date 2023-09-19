@@ -196,6 +196,9 @@ function computeUnchangedMoves(
 		for (extendToTop = 0; extendToTop < linesAbove; extendToTop++) {
 			const origLine = move.original.startLineNumber - extendToTop - 1;
 			const modLine = move.modified.startLineNumber - extendToTop - 1;
+			if (origLine > originalLines.length || modLine > modifiedLines.length) {
+				break;
+			}
 			if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
 				break;
 			}
@@ -213,6 +216,9 @@ function computeUnchangedMoves(
 		for (extendToBottom = 0; extendToBottom < linesBelow; extendToBottom++) {
 			const origLine = move.original.endLineNumberExclusive + extendToBottom;
 			const modLine = move.modified.endLineNumberExclusive + extendToBottom;
+			if (origLine > originalLines.length || modLine > modifiedLines.length) {
+				break;
+			}
 			if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
 				break;
 			}

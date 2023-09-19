@@ -103,6 +103,12 @@ export class OffsetRange {
 		return undefined;
 	}
 
+	public intersectsOrTouches(other: OffsetRange): boolean {
+		const start = Math.max(this.start, other.start);
+		const end = Math.min(this.endExclusive, other.endExclusive);
+		return start <= end;
+	}
+
 	public slice<T>(arr: T[]): T[] {
 		return arr.slice(this.start, this.endExclusive);
 	}
