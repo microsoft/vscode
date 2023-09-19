@@ -491,7 +491,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			c.service.focusActiveInstance();
+			focusActiveInstance(instance, c);
 		}
 	});
 
