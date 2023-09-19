@@ -1311,8 +1311,14 @@ export class Repository {
 	}
 
 	async diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
-		const range = `${ref1}...${ref2}`;
-		return await this.diffFilesShortStat(false, range);
+		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
+
+		const result = await this.exec(args);
+		if (result.exitCode) {
+			return '';
+		}
+
+		return result.stdout.trim();
 	}
 
 	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
@@ -1394,25 +1400,6 @@ export class Repository {
 		}
 
 		return result;
-	}
-
-	private async diffFilesShortStat(cached: boolean, ref?: string): Promise<string> {
-		const args = ['diff', '--shortstat'];
-
-		if (cached) {
-			args.push('--cached');
-		}
-
-		if (ref) {
-			args.push(ref);
-		}
-
-		const gitResult = await this.exec(args);
-		if (gitResult.exitCode) {
-			return '';
-		}
-
-		return gitResult.stdout.trim();
 	}
 
 	async getMergeBase(ref1: string, ref2: string): Promise<string> {
