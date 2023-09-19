@@ -3,13 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { ISCMActionButtonDescriptor, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
-
-export const ISCMHistoryService = createDecorator<ISCMHistoryService>('scmHistory');
+import { ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProvider {
 	actionButton: () => ISCMActionButtonDescriptor | undefined;
@@ -22,12 +18,6 @@ export interface ISCMHistoryProvider {
 export interface ISCMHistoryOptions {
 	readonly cursor?: string;
 	readonly limit?: number | { id?: string };
-}
-
-export interface ISCMHistoryProviderChangeEvent {
-	readonly added: Iterable<ISCMHistoryItemGroup>;
-	readonly removed: Iterable<ISCMHistoryItemGroup>;
-	readonly modified: Iterable<ISCMHistoryItemGroup>;
 }
 
 export interface ISCMHistoryItemGroup {
@@ -50,11 +40,4 @@ export interface ISCMHistoryItemChange {
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
 	readonly renameUri?: URI;
-}
-
-export interface ISCMHistoryService {
-	readonly _serviceBrand: undefined;
-
-	readonly onDidChangeHistoryItemGroups: Event<ISCMRepository>;
-	getHistoryItemGroups(repository: ISCMRepository): Iterable<ISCMHistoryItemGroup>;
 }

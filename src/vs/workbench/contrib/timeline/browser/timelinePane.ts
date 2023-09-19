@@ -1197,8 +1197,6 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 				: { markdown: item.tooltip, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.tooltip) }
 			: undefined;
 
-		console.log(item.label);
-
 		template.iconLabel.setLabel(item.label, item.description, {
 			title: tooltip,
 			matches: createMatches(node.filterData)

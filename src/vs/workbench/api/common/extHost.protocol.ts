@@ -1348,12 +1348,10 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 }
 
 export interface SCMProviderFeatures {
-	hasHistoryProvider?: boolean;
 	hasQuickDiffProvider?: boolean;
 	quickDiffLabel?: string;
 	count?: number;
 	commitTemplate?: string;
-	historyItemGroup?: SCMHistoryItemGroupDto;
 	acceptInputCommand?: languages.Command;
 	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
@@ -1391,12 +1389,6 @@ export type SCMRawResourceSplices = [
 	number, /*handle*/
 	SCMRawResourceSplice[]
 ];
-
-export interface SCMHistoryProviderChangeEventDto {
-	readonly added: Iterable<SCMHistoryItemGroupDto>;
-	readonly removed: Iterable<SCMHistoryItemGroupDto>;
-	readonly modified: Iterable<SCMHistoryItemGroupDto>;
-}
 
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
@@ -1440,9 +1432,8 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 
 	$registerHistoryProvider(sourceControlHandle: number): void;
-	$onDidChangeHistoryProvider(sourceControlHandle: number, data: SCMHistoryProviderChangeEventDto): void;
-	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
 	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
+	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {

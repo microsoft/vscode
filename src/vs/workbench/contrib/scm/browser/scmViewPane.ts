@@ -932,7 +932,7 @@ interface IGroupItem {
 	dispose(): void;
 }
 
-export interface IRepositoryItem {
+interface IRepositoryItem {
 	readonly element: ISCMRepository;
 	readonly groupItems: IGroupItem[];
 	dispose(): void;
@@ -942,7 +942,7 @@ interface ITreeViewState {
 	readonly collapsed: string[];
 }
 
-export function isRepositoryItem(item: IRepositoryItem | IGroupItem): item is IRepositoryItem {
+function isRepositoryItem(item: IRepositoryItem | IGroupItem): item is IRepositoryItem {
 	return Array.isArray((item as IRepositoryItem).groupItems);
 }
 

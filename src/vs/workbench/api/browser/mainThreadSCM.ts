@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMHistoryProviderChangeEventDto, SCMActionButtonDto, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMActionButtonDto, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
@@ -16,7 +16,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryOptions, ISCMHistoryProvider, ISCMHistoryProviderChangeEvent } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 
 function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (!historyItem.icon) {
@@ -144,14 +144,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
 
-	private readonly _onDidChangeHistoryItemGroup = new Emitter<void>();
-	readonly onDidChangeHistoryItemGroup: Event<void> = this._onDidChangeHistoryItemGroup.event;
-
 	private readonly _onDidChangeStatusBarCommands = new Emitter<readonly Command[]>();
 	get onDidChangeStatusBarCommands(): Event<readonly Command[]> { return this._onDidChangeStatusBarCommands.event; }
-
-	private readonly _onDidChangeHistoryProvider = new Emitter<ISCMHistoryProviderChangeEvent>();
-	get onDidChangeHistoryProvider(): Event<ISCMHistoryProviderChangeEvent> { return this._onDidChangeHistoryProvider.event; }
 
 	private readonly _onDidChangeHistoryProviderActionButton = new Emitter<void>();
 	readonly onDidChangeHistoryProviderActionButton: Event<void> = this._onDidChangeHistoryProviderActionButton.event;
@@ -319,10 +313,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			provideHistoryItemChanges: (historyItemId: string) => this.provideHistoryItemChanges(historyItemId),
 			resolveHistoryItemGroupCommonAncestor: (historyItemGroupId1, historyItemGroupId2) => this.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2),
 		};
-	}
-
-	$onDidChangeHistoryProvider(data: SCMHistoryProviderChangeEventDto): void {
-		this._onDidChangeHistoryProvider.fire(data);
 	}
 
 	$onDidChangeHistoryProviderActionButton(actionButton?: SCMActionButtonDto | null): void {
@@ -570,17 +560,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$registerHistoryProvider();
-	}
-
-	$onDidChangeHistoryProvider(sourceControlHandle: number, data: SCMHistoryProviderChangeEventDto): void {
-		const repository = this._repositories.get(sourceControlHandle);
-
-		if (!repository) {
-			return;
-		}
-
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$onDidChangeHistoryProvider(data);
 	}
 
 	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null | undefined): void {
