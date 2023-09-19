@@ -1052,7 +1052,7 @@ export class IssueReporter extends Disposable {
 			}, extension.name);
 		};
 
-		const extensionsSelector = this.getElementById('extension-selector')! as HTMLSelectElement;
+		const extensionsSelector = this.getElementById<HTMLSelectElement>('extension-selector');
 		if (extensionsSelector) {
 			const { selectedExtension } = this.issueReporterModel.getData();
 			reset(extensionsSelector, this.makeOption('', localize('selectExtension', "Select extension"), true), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
