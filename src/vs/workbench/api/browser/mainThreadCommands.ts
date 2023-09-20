@@ -10,6 +10,7 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol';
+import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
 
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
@@ -35,7 +36,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	private async _generateCommandsDocumentation(): Promise<void> {
-		const result = await this._proxy.$getContributedCommandHandlerDescriptions();
+		const result: Record<string, string | ICommandHandlerDescription | ILocalizedString> = await this._proxy.$getContributedCommandHandlerDescriptions();
 
 		// add local commands
 		const commands = CommandsRegistry.getCommands();
@@ -98,9 +99,12 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 
 // --- command doc
 
-function _generateMarkdown(description: string | Dto<ICommandHandlerDescription> | ICommandHandlerDescription): string {
+function _generateMarkdown(description: string | ILocalizedString | Dto<ICommandHandlerDescription> | ICommandHandlerDescription): string {
 	if (typeof description === 'string') {
 		return description;
+	} else if (isLocalizedString(description)) {
+		// Our docs website is in English, so keep the original here.
+		return description.original;
 	} else {
 		const parts = [description.description];
 		parts.push('\n\n');

@@ -25,7 +25,7 @@ import { dirname } from 'vs/base/common/resources';
 
 // platform
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandHandlerDescription, ICommandService, isCommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
@@ -42,6 +42,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
 
 // workbench
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
@@ -906,13 +907,18 @@ class KeybindingsJsonSchema {
 		this.commandsEnumDescriptions.length = 0;
 
 		const knownCommands = new Set<string>();
-		const addKnownCommand = (commandId: string, description?: string | undefined) => {
+		const addKnownCommand = (commandId: string, description?: ILocalizedString | ICommandHandlerDescription | undefined) => {
 			if (!/^_/.test(commandId)) {
 				if (!knownCommands.has(commandId)) {
 					knownCommands.add(commandId);
 
 					this.commandsEnum.push(commandId);
-					this.commandsEnumDescriptions.push(description);
+
+					this.commandsEnumDescriptions.push(
+						isLocalizedString(description)
+							? description.value
+							: description?.description
+					);
 
 					// Also add the negative form for keybinding removal
 					this.removalCommandsEnum.push(`-${commandId}`);
@@ -924,9 +930,9 @@ class KeybindingsJsonSchema {
 		for (const [commandId, command] of allCommands) {
 			const commandDescription = command.description;
 
-			addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
+			addKnownCommand(commandId, commandDescription);
 
-			if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+			if (!isCommandHandlerDescription(commandDescription) || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
 				continue;
 			}
 

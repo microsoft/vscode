@@ -8,9 +8,9 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
+import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -435,6 +435,7 @@ export class MenuItemAction implements IAction {
 	readonly id: string;
 	readonly label: string;
 	readonly tooltip: string;
+	readonly description?: ILocalizedString | undefined;
 	readonly class: string | undefined;
 	readonly enabled: boolean;
 	readonly checked?: boolean;
@@ -452,6 +453,10 @@ export class MenuItemAction implements IAction {
 		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
+
+		if (item.description) {
+			this.description = isLocalizedString(item.description) ? item.description : { value: item.description.description, original: item.description.description };
+		}
 
 		let icon: ThemeIcon | undefined;
 
@@ -513,12 +518,6 @@ interface IAction2CommonOptions extends ICommandAction {
 	 * One keybinding.
 	 */
 	keybinding?: OneOrN<Omit<IKeybindingRule, 'id'>>;
-
-	/**
-	 * Metadata about this command, used for API commands or when
-	 * showing keybindings that have no other UX.
-	 */
-	description?: ICommandHandlerDescription;
 }
 
 interface IBaseAction2Options extends IAction2CommonOptions {
@@ -570,13 +569,13 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
-	const { f1, menu, keybinding, description, ...command } = action.desc;
+	const { f1, menu, keybinding, ...command } = action.desc;
 
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: description,
+		description: command.description,
 	}));
 
 	// menu

@@ -23,6 +23,10 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 			title: { original: 'Configure Display Language', value: ConfigureDisplayLanguageAction.LABEL },
 			menu: {
 				id: MenuId.CommandPalette
+			},
+			description: {
+				value: localize('configureLocaleDescription', "Changes the locale of VS Code based on installed language packs. Common languages include French, Chinese, Spanish, Japanese, German, Korean, and more."),
+				original: 'Changes the locale of VS Code based on installed language packs. Common languages include French, Chinese, Spanish, Japanese, German, Korean, and more.'
 			}
 		});
 	}

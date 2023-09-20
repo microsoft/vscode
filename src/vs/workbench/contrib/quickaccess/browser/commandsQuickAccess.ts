@@ -238,7 +238,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			globalCommandPicks.push({
 				commandId: action.item.id,
 				commandAlias,
-				label: stripIcons(label)
+				label: stripIcons(label),
+				commandDescription: action.description,
 			});
 		}
 
