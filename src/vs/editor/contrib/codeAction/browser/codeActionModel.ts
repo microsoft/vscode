@@ -177,9 +177,9 @@ export class CodeActionModel extends Disposable {
 		this.setState(CodeActionsState.Empty, true);
 	}
 
-	private _shouldHighlightQuickfixes(): boolean {
+	private _showInlineQuickfxies(): boolean {
 		const model = this._editor?.getModel();
-		return this._configurationService ? this._configurationService.getValue('editor.codeActionWidget.highlightQuickfixes', { resource: model?.uri }) : false;
+		return this._configurationService ? this._configurationService.getValue('editor.codeActionWidget.showInlineQuickfixes', { resource: model?.uri }) : false;
 	}
 
 	private _update(): void {
@@ -208,7 +208,7 @@ export class CodeActionModel extends Disposable {
 				const startPosition = trigger.selection.getStartPosition();
 
 				const actions = createCancelablePromise(async token => {
-					if (this._shouldHighlightQuickfixes()) {
+					if (this._showInlineQuickfxies()) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 
 						// Search for quickfixes in the curret code action set.

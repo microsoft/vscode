@@ -37,10 +37,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.codeActionWidget.highlightQuickfixes': {
+		'editor.codeActionWidget.showInlineQuickfixes': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('highlightQuickfixes', "Enable/disable highlighting quickfixes in the same line when using the quickfix hotkey."),
+			description: nls.localize('showInlineQuickfixes', "Enable/disable showing nearest quickfix within a line when not currently on a diagnostic."),
 			default: false,
 		},
 	}
