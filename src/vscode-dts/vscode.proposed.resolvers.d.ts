@@ -172,7 +172,7 @@ declare module 'vscode' {
 		 * @returns A promise that gives access to the spawned {@link RemoteServerConnector}. It also provides a stream to which standard
 		 * log messages are written.
 		 */
-		spawnRemoteServerConnector(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<RemoteServerConnector>;
+		spawnRemoteServerConnector?(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<RemoteServerConnector>;
 
 		/**
 		 * Downloads the CLI executable of the desired platform and quality and pipes it to the
@@ -183,7 +183,7 @@ declare module 'vscode' {
 		 * @param options Additional options for the spawned process.
 		 * @returns A promise that resolves when the process exits with a {@link ProcessExit} object.
 		 */
-		dowloadCliExecutable(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
+		dowloadCliExecutable?(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
 
 		/**
 		 * Gets the environment where the exec server is running.
@@ -252,7 +252,8 @@ declare module 'vscode' {
 
 	export interface CliBuild {
 		readonly quality: string;
-		readonly buildTarget: string; // 'LinuxAlpineX64' | 'LinuxX64' | 'LinuxARM64' | 'LinuxARM32' | 'DarwinX64' | 'DarwinARM64' | 'WindowsX64' | 'WindowsX86' | 'WindowsARM64';
+		/** 'LinuxAlpineX64' | 'LinuxX64' | 'LinuxARM64' | 'LinuxARM32' | 'DarwinX64' | 'DarwinARM64' | 'WindowsX64' | 'WindowsX86' | 'WindowsARM64' */
+		readonly buildTarget: string;
 		readonly commit: string;
 	}
 
