@@ -40,7 +40,7 @@ export class CommandCenterControl {
 
 		const titleToolbar = instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.CommandCenter, {
 			contextMenu: MenuId.TitleBarContext,
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: {
 				primaryGroup: () => true,
 			},

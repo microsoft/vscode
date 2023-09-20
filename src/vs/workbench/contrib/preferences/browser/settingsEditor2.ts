@@ -1800,7 +1800,8 @@ class SyncControls extends Disposable {
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -1811,10 +1812,14 @@ class SyncControls extends Disposable {
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;
-		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Settings Sync");
+		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Backup and Sync Settings");
 		DOM.hide(this.turnOnSyncButton.element);
 
 		this._register(this.turnOnSyncButton.onDidClick(async () => {
+			telemetryService.publicLog2<{}, {
+				owner: 'sandy081';
+				comment: 'This event tracks whenever settings sync is turned on from settings editor.';
+			}>('sync/turnOnSyncFromSettings');
 			await this.commandService.executeCommand('workbench.userDataSync.actions.turnOn');
 		}));
 

@@ -33,8 +33,8 @@
 			"modifiedRange": "[156,163)",
 			"innerChanges": [
 				{
-					"originalRange": "[159,1 -> 159,1]",
-					"modifiedRange": "[156,1 -> 163,1]"
+					"originalRange": "[159,1 -> 159,1 EOL]",
+					"modifiedRange": "[156,1 -> 163,1 EOL]"
 				}
 			]
 		},
