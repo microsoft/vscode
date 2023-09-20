@@ -488,7 +488,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 
 		const lastLine = this._commentEditorModel.getLineCount();
-		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
+		const lastColumn = this._commentEditorModel.getLineLength(lastLine) + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
 		const commentThread = this.commentThread;

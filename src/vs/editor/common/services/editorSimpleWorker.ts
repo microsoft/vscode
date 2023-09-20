@@ -574,7 +574,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return result;
 	}
 
-	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): Promise<TextEdit[]> {
+	public computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;

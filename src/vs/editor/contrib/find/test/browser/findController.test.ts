@@ -20,6 +20,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class TestFindController extends CommonFindController {
@@ -33,9 +34,10 @@ class TestFindController extends CommonFindController {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@INotificationService notificationService: INotificationService
 	) {
-		super(editor, contextKeyService, storageService, clipboardService);
+		super(editor, contextKeyService, storageService, clipboardService, notificationService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 		this.hasFocus = false;

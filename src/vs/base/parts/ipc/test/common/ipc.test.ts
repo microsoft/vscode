@@ -113,7 +113,7 @@ interface ITestService {
 
 class TestService implements ITestService {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	private readonly _onPong = new Emitter<string>();
 	readonly onPong = this._onPong.event;

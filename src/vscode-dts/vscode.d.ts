@@ -2475,6 +2475,24 @@ declare module 'vscode' {
 		static readonly SourceFixAll: CodeActionKind;
 
 		/**
+		 * Base kind for all code actions applying to the enitre notebook's scope. CodeActionKinds using
+		 * this should always begin with `notebook.`
+		 *
+		 * This requires that new CodeActions be created for it and contributed via extensions.
+		 * Pre-existing kinds can not just have the new `notebook.` prefix added to them, as the functionality
+		 * is unique to the full-notebook scope.
+		 *
+		 * Notebook CodeActionKinds can be initialized as either of the following (both resulting in `notebook.source.xyz`):
+		 * - `const newKind =  CodeActionKind.Notebook.append(CodeActionKind.Source.append('xyz').value)`
+		 * - `const newKind =  CodeActionKind.Notebook.append('source.xyz')`
+		 *
+		 * Example Kinds/Actions:
+		 * - `notebook.source.organizeImports` (might move all imports to a new top cell)
+		 * - `notebook.source.normalizeVariableNames` (might rename all variables to a standardized casing format)
+		 */
+		static readonly Notebook: CodeActionKind;
+
+		/**
 		 * Private constructor, use statix `CodeActionKind.XYZ` to derive from an existing code action kind.
 		 *
 		 * @param value The value of the kind, such as `refactor.extract.function`.
@@ -6199,6 +6217,46 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Enumeration of commonly encountered syntax token types.
+	 */
+	export enum SyntaxTokenType {
+		/**
+		 * Everything except tokens that are part of comments, string literals and regular expressions.
+		 */
+		Other = 0,
+		/**
+		 * A comment.
+		 */
+		Comment = 1,
+		/**
+		 * A string literal.
+		 */
+		String = 2,
+		/**
+		 * A regular expression.
+		 */
+		RegEx = 3
+	}
+
+	/**
+	 * Describes pairs of strings where the close string will be automatically inserted when typing the opening string.
+	 */
+	export interface AutoClosingPair {
+		/**
+		 * The string that will trigger the automatic insertion of the closing string.
+		 */
+		open: string;
+		/**
+		 * The closing string that will be automatically inserted when typing the opening string.
+		 */
+		close: string;
+		/**
+		 * A set of tokens where the pair should not be auto closed.
+		 */
+		notIn?: SyntaxTokenType[];
+	}
+
+	/**
 	 * The language configuration interfaces defines the contract between extensions
 	 * and various editor features, like automatic bracket insertion, automatic indentation etc.
 	 */
@@ -6228,6 +6286,10 @@ declare module 'vscode' {
 		 * The language's rules to be evaluated when pressing Enter.
 		 */
 		onEnterRules?: OnEnterRule[];
+		/**
+		 * The language's auto closing pairs.
+		 */
+		autoClosingPairs?: AutoClosingPair[];
 
 		/**
 		 * **Deprecated** Do not use.
