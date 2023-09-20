@@ -449,7 +449,7 @@
 	right: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container .editor-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions {
 	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;
 }
