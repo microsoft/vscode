@@ -317,9 +317,8 @@ export class ActionList<T> extends Disposable {
 
 		const focusIndex = focused[0];
 		const element = this._list.element(focusIndex);
-		if (this._delegate.onFocus) {
-			this._delegate.onFocus(element.item);
-		}
+		this._delegate.onFocus?.(element.item);
+
 	}
 
 

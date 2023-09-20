@@ -37,10 +37,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.codeActionWidget.showInlineQuickfixes': {
+		'editor.codeActionWidget.includeNearbyQuickfixes': {
 			type: 'boolean',
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			description: nls.localize('showInlineQuickfixes', "Enable/disable showing nearest quickfix within a line when not currently on a diagnostic."),
+			description: nls.localize('includeNearbyQuickfixes', "Enable/disable showing nearest quickfix within a line when not currently on a diagnostic."),
 			default: false,
 		},
 	}

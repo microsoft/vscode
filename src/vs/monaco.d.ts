@@ -878,10 +878,6 @@ declare namespace monaco {
 		 */
 		getPosition(): Position;
 		/**
-		 * Create a position using startLineNumber and startColumn as the start position.
-		 */
-		setPositionFromStart(startLineNumber: number, startColumn: number): Position;
-		/**
 		 * Get the position at the start of the selection.
 		*/
 		getSelectionStart(): Position;
@@ -889,10 +885,6 @@ declare namespace monaco {
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
-		/**
-		 * Create a `Selection` from one positions (not IPosition) to mimic Position.
-		 */
-		toPositions(start: Position): Selection;
 		/**
 		 * Create a `Selection` from one or two positions
 		 */
