@@ -225,7 +225,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private updateTabsVisibility(): void {
 		const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
 		tabsAndActionsContainer.classList.toggle('empty', !this.visible);
-		if (!this.visible) {
+		if (!this.visible && this.dimensions) {
 			this.dimensions.used = undefined;
 		}
 	}
