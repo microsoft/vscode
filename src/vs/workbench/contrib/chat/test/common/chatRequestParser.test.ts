@@ -3,17 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
 import { mockObject } from 'vs/base/test/common/mock';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Range } from 'vs/editor/common/core/range';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentService, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestTextPart } from '../../common/chatRequestParser';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -37,14 +33,14 @@ suite('ChatRequestParser', () => {
 	test('plain text', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = await parser.parseChatRequest('1', 'test');
-		assert.deepStrictEqual(result, [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')]);
+		await assertSnapshot(result);
 	});
 
 	test('plain text with newlines', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'line 1\nline 2\r\nline 3';
 		const result = await parser.parseChatRequest('1', text);
-		assert.deepStrictEqual(result, [new ChatRequestTextPart(new OffsetRange(0, 21), new Range(1, 1, 3, 7), text)]);
+		await assertSnapshot(result);
 	});
 
 	test('slash command', async () => {
@@ -55,10 +51,6 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix this';
 		const result = await parser.parseChatRequest('1', text);
-		// assert.deepStrictEqual(result, [
-		// 	new ChatRequestSlashCommandPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), { command: 'fix' }),
-		// 	new ChatRequestTextPart(new OffsetRange(4, 9), new Range(1, 5, 1, 10), ' this'),
-		// ]);
 		await assertSnapshot(result);
 	});
 
@@ -70,9 +62,6 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/explain this';
 		const result = await parser.parseChatRequest('1', text);
-		// assert.deepStrictEqual(result, [
-		// 	new ChatRequestTextPart(new OffsetRange(0, 13), new Range(1, 1, 1, 14), text),
-		// ]);
 		await assertSnapshot(result);
 	});
 
@@ -84,10 +73,6 @@ suite('ChatRequestParser', () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix /fix';
 		const result = await parser.parseChatRequest('1', text);
-		// assert.deepStrictEqual(result, [
-		// 	new ChatRequestSlashCommandPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), { command: 'fix' }),
-		// 	new ChatRequestTextPart(new OffsetRange(4, 9), new Range(1, 5, 1, 10), ' /fix'),
-		// ]);
 		await assertSnapshot(result);
 	});
 
