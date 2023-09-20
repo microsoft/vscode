@@ -27,7 +27,7 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestVariablePart } from 'vs/workbench/contrib/chat/common/chatModel';
-import { parseChatRequest } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -127,7 +127,7 @@ class InputEditorDecorations extends Disposable {
 			return;
 		}
 
-		const parsedRequest = await this.instantiationService.invokeFunction(parseChatRequest, viewModel.sessionId, inputValue);
+		const parsedRequest = await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(viewModel.sessionId, inputValue);
 
 		let placeholderDecoration: IDecorationOptions[] | undefined;
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
@@ -181,41 +181,14 @@ class InputEditorDecorations extends Disposable {
 		// TODO@roblourens The way these numbers are computed aren't totally correct...
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
-			textDecorations.push(
-				{
-					range: {
-						startLineNumber: 1,
-						endLineNumber: 1,
-						startColumn: agentPart.range.start + 1,
-						endColumn: agentPart.range.endExclusive + 1
-					}
-				}
-			);
+			textDecorations.push({ range: agentPart.editorRange });
 			if (agentSubcommandPart) {
-				textDecorations.push(
-					{
-						range: {
-							startLineNumber: 1,
-							endLineNumber: 1,
-							startColumn: agentSubcommandPart.range.start + 1,
-							endColumn: agentSubcommandPart.range.endExclusive + 1
-						}
-					}
-				);
+				textDecorations.push({ range: agentSubcommandPart.editorRange });
 			}
 		}
 
 		if (slashCommandPart) {
-			textDecorations.push(
-				{
-					range: {
-						startLineNumber: 1,
-						endLineNumber: 1,
-						startColumn: slashCommandPart.range.start + 1,
-						endColumn: slashCommandPart.range.endExclusive + 1
-					}
-				}
-			);
+			textDecorations.push({ range: slashCommandPart.editorRange });
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
@@ -223,14 +196,7 @@ class InputEditorDecorations extends Disposable {
 		const varDecorations: IDecorationOptions[] = [];
 		const variableParts = parsedRequest.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
 		for (const variable of variableParts) {
-			varDecorations.push({
-				range: {
-					startLineNumber: 1,
-					endLineNumber: 1,
-					startColumn: variable.range.start + 1,
-					endColumn: variable.range.endExclusive + 1
-				}
-			});
+			varDecorations.push({ range: variable.editorRange });
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);

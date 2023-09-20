@@ -10,10 +10,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IRange } from 'vs/editor/common/core/range';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 
 // Include
 // - Range
@@ -22,38 +22,39 @@ import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashComman
 
 export interface IParsedChatRequestPart {
 	readonly range: OffsetRange;
+	readonly editorRange: IRange;
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly message: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
 }
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
  */
 export class ChatRequestVariablePart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly variableName: string, readonly variableArg: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string) { }
 }
 
 /**
  * An invocation of an agent that can be resolved by the agent service
  */
 export class ChatRequestAgentPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly agent: IChatAgentData) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 }
 
 /**
  * An invocation of an agent's subcommand
  */
 export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly command: IChatAgentCommand) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: IChatAgentCommand) { }
 }
 
 /**
  * An invocation of a standalone slash command
  */
 export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly slashCommand: ISlashCommand) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
 }
 
 /**
@@ -62,6 +63,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ParsedChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	constructor(
 		readonly range: OffsetRange,
+		readonly editorRange: IRange,
 		readonly kind: string, // eg 'file'
 		readonly data: any // eg URI, how does this get typed?
 	) { }
