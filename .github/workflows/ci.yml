@@ -15,7 +15,7 @@ on: workflow_dispatch
 jobs:
   windows:
     name: Windows
-    runs-on: windows-2022
+    runs-on: windows-latest
     timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"

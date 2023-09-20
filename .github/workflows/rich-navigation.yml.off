@@ -9,7 +9,7 @@ on:
 
 jobs:
   richnav:
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v3
 

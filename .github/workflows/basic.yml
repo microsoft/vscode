@@ -14,7 +14,7 @@ jobs:
   main:
     if: github.ref != 'refs/heads/main'
     name: Compilation, Unit and Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

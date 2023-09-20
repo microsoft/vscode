@@ -4,7 +4,7 @@ on: [pull_request]
 jobs:
   main:
     name: Prevent yarn.lock changes in PRs
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: octokit/request-action@v2.x
         id: get_permissions

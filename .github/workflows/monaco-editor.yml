@@ -13,7 +13,7 @@ on:
 jobs:
   main:
     name: Monaco Editor checks
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

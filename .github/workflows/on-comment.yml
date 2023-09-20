@@ -6,7 +6,7 @@ on:
 # also make changes in ./on-label.yml
 jobs:
   main:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout Actions
         uses: actions/checkout@v4

@@ -5,7 +5,7 @@ on:
 
 jobs:
   main:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     if: ${{ ! contains(github.event.issue.labels.*.name, 'triage-needed') }}
     steps:
       - name: Checkout Actions

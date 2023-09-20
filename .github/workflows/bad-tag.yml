@@ -4,7 +4,7 @@ on:
 
 jobs:
   main:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     if: github.event.ref == '1.999.0'
     steps:
       - name: Checkout Actions
