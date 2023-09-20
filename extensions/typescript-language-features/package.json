@@ -153,47 +153,47 @@
           "properties": {
             "classIncorrectlyImplementsInterface": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.classIncorrectlyImplementsInterface%"
             },
             "classDoesntImplementInheritedAbstractMember": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.classDoesntImplementInheritedAbstractMember%"
             },
             "missingFunctionDeclaration": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.missingFunctionDeclaration%"
             },
             "inferAndAddTypes": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.inferAndAddTypes%"
             },
             "addNameToNamelessParameter": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.addNameToNamelessParameter%"
             },
             "extractConstant": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.extractConstant%"
             },
             "extractFunction": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.extractFunction%"
             },
             "extractType": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.extractType%"
             },
             "extractInterface": {
               "type": "boolean",
-              "default": true,
+              "default": false,
               "description": "%typescript.experimental.aiCodeActions.extractInterface%"
             }
           }
