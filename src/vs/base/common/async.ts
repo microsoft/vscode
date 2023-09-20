@@ -510,7 +510,9 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 export function disposableTimeout(handler: () => void, timeout = 0, store?: DisposableStore): IDisposable {
 	const timer = setTimeout(() => {
 		handler();
-		disposable.dispose();
+		if (store) {
+			disposable.dispose();
+		}
 	}, timeout);
 	const disposable = toDisposable(() => {
 		clearTimeout(timer);

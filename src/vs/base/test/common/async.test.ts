@@ -811,11 +811,13 @@ suite('Async', () => {
 	suite('disposableTimeout', () => {
 		test('handler only success', async () => {
 			let cb = false;
-			async.disposableTimeout(() => cb = true);
+			const t = async.disposableTimeout(() => cb = true);
 
 			await async.timeout(0);
 
 			assert.strictEqual(cb, true);
+
+			t.dispose();
 		});
 
 		test('handler only cancel', async () => {
