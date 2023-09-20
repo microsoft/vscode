@@ -493,7 +493,6 @@ export class ApplyPreviewEdits extends AbstractInlineChatAction {
 			}, {
 				primary: KeyCode.Escape,
 				weight: KeybindingWeight.EditorContrib,
-				when: CTX_INLINE_CHAT_USER_DID_EDIT,
 			}],
 			menu: {
 				when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChateResponseTypes.OnlyMessages),
