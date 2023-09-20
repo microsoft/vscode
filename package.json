@@ -70,7 +70,7 @@
     "@parcel/watcher": "2.1.0",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
-    "@vscode/proxy-agent": "^0.17.3",
+    "@vscode/proxy-agent": "^0.17.4",
     "@vscode/ripgrep": "^1.15.5",
     "@vscode/spdlog": "^0.13.11",
     "@vscode/sqlite3": "5.1.6-vscode",
