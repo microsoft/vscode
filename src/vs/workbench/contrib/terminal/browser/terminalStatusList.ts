@@ -94,7 +94,7 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 			this._onDidRemoveStatus.fire(existingStatus);
 			this._statuses.delete(existingStatus.id);
 		}
-		if (!this._statuses.has(status.id)) {
+		if (!this._statuses.has(status.id) && (this.primary === undefined || status.icon)) {
 			const oldPrimary = this.primary;
 			this._statuses.set(status.id, status);
 			this._onDidAddStatus.fire(status);
