@@ -1204,7 +1204,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		// If the item is going to shrink itself out of the view, show the final line of the item at the top
 		const newElementBottom = this.view.elementTop(index) + size;
-		const lineHeight = this.notebookOptions.getLayoutConfiguration().outputLineHeight ?? 19;
+		const lineHeight = this.notebookOptions.getLayoutConfiguration().cellStatusBarHeight;
 		const padding = this.notebookOptions.getLayoutConfiguration().cellBottomMargin;
 		const { bottomToolbarGap } = this.notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 		const paddingForLastLine = lineHeight + padding + bottomToolbarGap;

@@ -195,7 +195,7 @@ suite('NotebookCellList', () => {
 			});
 	});
 
-	test.skip('updateElementHeight with anchor #121723', async function () {
+	test('updateElementHeight will shrink it out of view', async function () {
 		await withTestNotebook(
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
@@ -224,27 +224,21 @@ suite('NotebookCellList', () => {
 				assert.deepStrictEqual(cellList.scrollTop, 0);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 210);
 
-				// scroll to 5
-				cellList.scrollTop = 5;
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+				// scroll to near the bottom of the second cell
+				cellList.scrollTop = 140;
+				assert.deepStrictEqual(cellList.scrollTop, 140);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 350);
 
-				cellList.setFocus([1]);
-				cellList.updateElementHeight2(viewModel.cellAt(0)!, 100);
-				assert.deepStrictEqual(cellList.scrollHeight, 400);
+				cellList.updateElementHeight2(viewModel.cellAt(1)!, 50);
+				assert.deepStrictEqual(cellList.scrollHeight, 300);
 
-				// the first cell grows, but it's partially visible, so we won't push down the focused cell
-				assert.deepStrictEqual(cellList.scrollTop, 55);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 265);
+				// the first cell shrinks, but it should stay within the view
+				assert.ok(cellList.scrollTop < 100, `scrollTop should move up to keep item in view, actual: ${cellList.scrollTop}`);
 
-				cellList.updateElementHeight2(viewModel.cellAt(0)!, 50);
-				assert.deepStrictEqual(cellList.scrollTop, 5);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
-
-				// focus won't be visible after cell 0 grow to 250, so let's try to keep the focused cell visible
-				cellList.updateElementHeight2(viewModel.cellAt(0)!, 250);
-				assert.deepStrictEqual(cellList.scrollTop, 250 + 100 - cellList.renderHeight);
-				assert.deepStrictEqual(cellList.getViewScrollBottom(), 250 + 100 - cellList.renderHeight + 210);
+				const currentScrollTop = cellList.scrollTop;
+				cellList.updateElementHeight2(viewModel.cellAt(1)!, 100);
+				assert.deepStrictEqual(cellList.scrollTop, currentScrollTop);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), currentScrollTop + 210);
 			});
 	});
 
