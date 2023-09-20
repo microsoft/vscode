@@ -28,7 +28,7 @@ import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleVi
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 
 export const enum CommentCommandId {
-	Add = 'editor.action.addComment',
+	Add = 'workbench.action.addComment',
 	NextThread = 'editor.action.nextCommentThreadAction',
 	PreviousThread = 'workbench.action.previousCommentThreadAction',
 	NextRange = 'editor.action.nextCommentingRange',
