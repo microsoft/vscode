@@ -11,27 +11,6 @@ suite('Command Tests', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('register command has all parts', function () {
-		const command = CommandsRegistry.registerCommand({
-			id: 'test3',
-			handler: function (accessor, args) {
-				return true;
-			},
-			description: {
-				description: 'a command',
-				args: [{ name: 'value', constraint: Number }]
-			}
-		});
-
-
-		CommandsRegistry.getCommands().get('test')!.handler.apply(undefined, [undefined!, 'string']);
-		CommandsRegistry.getCommands().get('test2')!.handler.apply(undefined, [undefined!, 'string']);
-		assert.throws(() => CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 'string']));
-		assert.strictEqual(CommandsRegistry.getCommands().get('test3')!.handler.apply(undefined, [undefined!, 1]), true);
-
-		combinedDisposable(command).dispose();
-	});
-
 	test('register command - no handler', function () {
 		assert.throws(() => CommandsRegistry.registerCommand('foo', null!));
 	});

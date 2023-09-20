@@ -435,7 +435,7 @@ export class MenuItemAction implements IAction {
 	readonly id: string;
 	readonly label: string;
 	readonly tooltip: string;
-	readonly description?: ILocalizedString | undefined;
+	readonly description?: ILocalizedString;
 	readonly class: string | undefined;
 	readonly enabled: boolean;
 	readonly checked?: boolean;
