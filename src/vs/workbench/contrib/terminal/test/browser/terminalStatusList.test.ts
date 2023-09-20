@@ -99,24 +99,10 @@ suite('Workbench - TerminalStatusList', () => {
 		deepStrictEqual(result, { id: 'test', severity: Severity.Info });
 	});
 
-	test('onDidChangePrimaryStatus not fired if no icon on new status', async () => {
-		let eventFired = false;
-		list.add({ id: 'warning', severity: Severity.Warning, icon: Codicon.warning });
-		store.add(list.onDidChangePrimaryStatus(() => {
-			eventFired = true;
-		}));
-		list.add({ id: 'test', severity: Severity.Info });
-		await new Promise(r => setTimeout(r, 100));
-		strictEqual(eventFired, false);
-	});
-
-	test('onDidChangePrimaryStatus fired if icon on new status', async () => {
-		const result = await new Promise<ITerminalStatus | undefined>(r => {
-			list.add({ id: 'test', severity: Severity.Info });
-			store.add(list.onDidChangePrimaryStatus(r));
-			list.add({ id: 'warning', severity: Severity.Warning, icon: Codicon.warning });
-		});
-		deepStrictEqual(result, { id: 'warning', severity: Severity.Warning, icon: Codicon.warning });
+	test('primary is not updated to status without an icon', async () => {
+		list.add({ id: 'test', severity: Severity.Info, icon: Codicon.check });
+		list.add({ id: 'warning', severity: Severity.Warning });
+		deepStrictEqual(list.primary, { id: 'test', severity: Severity.Info, icon: Codicon.check });
 	});
 
 	test('add', () => {
