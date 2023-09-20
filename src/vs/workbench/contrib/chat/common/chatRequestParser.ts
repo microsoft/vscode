@@ -5,11 +5,10 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Range } from 'vs/editor/common/core/range';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 const variableOrAgentReg = /^@([\w_\-]+)(:\d+)?(?=(\s|$))/i; // An @-variable with an optional numeric : arg (@response:2)
@@ -131,4 +130,41 @@ export class ChatRequestParser {
 
 		return;
 	}
+}
+
+export interface IParsedChatRequestPart {
+	readonly range: OffsetRange;
+	readonly editorRange: IRange;
+}
+
+export class ChatRequestTextPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
+}
+/**
+ * An invocation of a static variable that can be resolved by the variable service
+ */
+
+export class ChatRequestVariablePart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string) { }
+}
+/**
+ * An invocation of an agent that can be resolved by the agent service
+ */
+
+export class ChatRequestAgentPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
+}
+/**
+ * An invocation of an agent's subcommand
+ */
+
+export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: IChatAgentCommand) { }
+}
+/**
+ * An invocation of a standalone slash command
+ */
+
+export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
 }

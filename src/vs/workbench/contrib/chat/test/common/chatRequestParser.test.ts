@@ -13,7 +13,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentService, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestTextPart } from '../../common/chatRequestParser';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -120,6 +120,16 @@ suite('ChatRequestParser', () => {
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = await parser.parseChatRequest('1', '@agent Please do /subCommand thanks');
+		await assertSnapshot(result);
+	});
+
+	test('agent not first', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgent.returns(<IChatAgentData>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = await parser.parseChatRequest('1', 'Hello Mr. @agent /subCommand thanks');
 		await assertSnapshot(result);
 	});
 
