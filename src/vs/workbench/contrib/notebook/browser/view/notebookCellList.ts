@@ -1202,12 +1202,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return this.view.updateElementHeight(index, size, anchorElementIndex);
 		}
 
+		// If the item is going to shrink itself out of the view, show the final line of the item at the top
 		const newElementBottom = this.view.elementTop(index) + size;
-		// TODO: calculate the padding value to expose one line
-		if (newElementBottom - 46 < this.view.getScrollTop()) {
-			// The item is going to shrink itself out of the view
-			// Show the final line of the item at the top
-			this.view.updateElementHeight(index, size, null, newElementBottom - 46);
+		const lineHeight = this.notebookOptions.getLayoutConfiguration().outputLineHeight ?? 19;
+		const padding = this.notebookOptions.getLayoutConfiguration().cellBottomMargin;
+		const { bottomToolbarGap } = this.notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
+		const paddingForLastLine = lineHeight + padding + bottomToolbarGap;
+		if (newElementBottom - paddingForLastLine < this.view.getScrollTop()) {
+			this.view.updateElementHeight(index, size, null, newElementBottom - paddingForLastLine);
 			return;
 		}
 
