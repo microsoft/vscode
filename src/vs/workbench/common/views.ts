@@ -264,7 +264,7 @@ export interface IViewDescriptor {
 
 	readonly id: string;
 
-	readonly name: string;
+	readonly name: ILocalizedString;
 
 	readonly ctorDescriptor: SyncDescriptor<IView>;
 

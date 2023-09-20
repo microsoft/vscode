@@ -899,7 +899,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const actionRunner = new ActionRunner();
 		const descriptor: ITreeViewDescriptor = {
 			id,
-			name,
+			name: { value: name, original: name },
 			ctorDescriptor: new SyncDescriptor(UserDataProfilePreviewViewPane, [userDataProfilesData, primary, secondary, actionRunner]),
 			canToggleVisibility: false,
 			canMoveView: false,

@@ -47,7 +47,7 @@ export class EditSessionsDataViews extends Disposable {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: viewId,
-			name,
+			name: { value: name, original: name },
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			canToggleVisibility: true,
 			canMoveView: false,

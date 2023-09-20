@@ -60,7 +60,7 @@ suite('MainThreadHostTreeView', function () {
 		const viewDescriptor: ITreeViewDescriptor = {
 			id: testTreeViewId,
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			treeView: disposables.add(instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title', 'extension.id')),
 		};
 		ViewsRegistry.registerViews([viewDescriptor], container);

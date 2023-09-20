@@ -100,7 +100,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem<IRemoteSelectItem
 		const options: IRemoteSelectItem[] = [];
 		views.forEach(view => {
 			if (view.group && view.group.startsWith('targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
-				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority], virtualWorkspace: view.virtualWorkspace });
+				options.push({ text: view.name.value, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority], virtualWorkspace: view.virtualWorkspace });
 			}
 		});
 		return options;

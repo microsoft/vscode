@@ -104,7 +104,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private createOpenEditorsViewDescriptor(): IViewDescriptor {
 		return {
 			id: OpenEditorsView.ID,
-			name: OpenEditorsView.NAME,
+			name: { value: OpenEditorsView.NAME, original: OpenEditorsView.ORIGINAL_NAME },
 			ctorDescriptor: new SyncDescriptor(OpenEditorsView),
 			containerIcon: openEditorsViewIcon,
 			order: 0,
@@ -122,7 +122,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private createEmptyViewDescriptor(): IViewDescriptor {
 		return {
 			id: EmptyView.ID,
-			name: EmptyView.NAME,
+			name: { value: EmptyView.NAME, original: EmptyView.ORIGINAL_NAME },
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(EmptyView),
 			order: 1,
@@ -136,7 +136,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: VIEW_ID,
-			name: localize('folders', "Folders"),
+			name: { value: localize('folders', "Folders"), original: 'Folders' },
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
