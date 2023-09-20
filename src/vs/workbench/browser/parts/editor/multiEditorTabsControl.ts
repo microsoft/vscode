@@ -1937,6 +1937,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getEditorIndex(tabIndex: number): number {
+		// Turning the tab index (relative) into an editor index (absolute)
 		return this.groupViewer.getIndexOfEditor(assertIsDefined(this.tabsModel.getEditorByIndex(tabIndex)));
 	}
 
