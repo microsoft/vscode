@@ -129,7 +129,7 @@ export class TreeViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return ((this.treeView.dataProvider === undefined) || !!this.treeView.dataProvider.isTreeEmpty) && (this.treeView.message === undefined);
+		return ((this.treeView.dataProvider === undefined) || !!this.treeView.dataProvider.isTreeEmpty) && ((this.treeView.message === undefined) || (this.treeView.message === ''));
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -950,7 +950,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			if (item) {
 				this.focus(true, item);
 				this.tree.setFocus([item]);
-			} else {
+			} else if (this.tree.getFocus().length === 0) {
 				this.tree.setFocus([]);
 			}
 		}

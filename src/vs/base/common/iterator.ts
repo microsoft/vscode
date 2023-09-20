@@ -30,6 +30,12 @@ export namespace Iterable {
 		return iterable || _empty;
 	}
 
+	export function* reverse<T>(array: Array<T>): Iterable<T> {
+		for (let i = array.length - 1; i >= 0; i--) {
+			yield array[i];
+		}
+	}
+
 	export function isEmpty<T>(iterable: Iterable<T> | undefined | null): boolean {
 		return !iterable || iterable[Symbol.iterator]().next().done === true;
 	}

@@ -19,10 +19,11 @@ import { IFileWatcher, watch } from './watch';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { ActionButtonCommand } from './actionButton';
+import { CommitActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
+import { GitHistoryProvider } from './historyProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -833,8 +834,13 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
-		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
+
+		const historyProvider = new GitHistoryProvider(this);
+		this._sourceControl.historyProvider = historyProvider;
+		this.disposables.push(historyProvider);
+
+		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
 
@@ -921,10 +927,10 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const actionButton = new ActionButtonCommand(this, this.commitCommandCenter);
-		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
-		this._sourceControl.actionButton = actionButton.button;
+		const commitActionButton = new CommitActionButton(this, this.commitCommandCenter);
+		this.disposables.push(commitActionButton);
+		commitActionButton.onDidChange(() => this._sourceControl.actionButton = commitActionButton.button);
+		this._sourceControl.actionButton = commitActionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
@@ -1113,6 +1119,10 @@ export class Repository implements Disposable {
 	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
+	}
+
+	diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
@@ -1421,6 +1431,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Move, () => this.repository.move(from, to));
 	}
 
+	async getDefaultBranch(): Promise<Branch> {
+		return await this.run(Operation.GetBranch, () => this.repository.getDefaultBranch());
+	}
+
 	async getBranch(name: string): Promise<Branch> {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
@@ -1504,6 +1518,10 @@ export class Repository implements Disposable {
 
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
+	}
+
+	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
+		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {

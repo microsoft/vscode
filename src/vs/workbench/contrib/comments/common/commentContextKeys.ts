@@ -8,6 +8,31 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 
 export namespace CommentContextKeys {
+
+	/**
+	 * A context key that is set when the active cursor is in a commenting range.
+	 */
+	export const activeCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorHasCommentingRange', false, {
+		description: nls.localize('hasCommentingRange', "Whether the position at the active cursor has a commenting range"),
+		type: 'boolean'
+	});
+
+	/**
+	 * A context key that is set when the active editor has commenting ranges.
+	 */
+	export const activeEditorHasCommentingRange = new RawContextKey<boolean>('activeEditorHasCommentingRange', false, {
+		description: nls.localize('editorHasCommentingRange', "Whether the active editor has a commenting range"),
+		type: 'boolean'
+	});
+
+	/**
+	 * A context key that is set when the workspace has either comments or commenting ranges.
+	 */
+	export const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
+		description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
+		type: 'boolean'
+	});
+
 	/**
 	 * A context key that is set when the comment thread has no comments.
 	 */

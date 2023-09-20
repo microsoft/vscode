@@ -33,11 +33,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { Emitter } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/editor/common/core/position';
 import { CommentThreadRangeDecorator } from 'vs/workbench/contrib/comments/browser/commentThreadRangeDecorator';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
+import { status } from 'vs/base/browser/ui/aria/aria';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export const ID = 'editor.contrib.review';
 
@@ -240,6 +242,21 @@ class CommentingRangeDecorator {
 		}
 	}
 
+	private areRangesIntersectingOrTouchingByLine(a: Range, b: Range) {
+		// Check if `a` is before `b`
+		if (a.endLineNumber < (b.startLineNumber - 1)) {
+			return false;
+		}
+
+		// Check if `b` is before `a`
+		if ((b.endLineNumber + 1) < a.startLineNumber) {
+			return false;
+		}
+
+		// These ranges must intersect
+		return true;
+	}
+
 	public getMatchedCommentAction(commentRange: Range | undefined): CommentRangeAction[] {
 		if (commentRange === undefined) {
 			const foundInfos = this._infos?.filter(info => info.commentingRanges.fileComments);
@@ -260,7 +277,7 @@ class CommentingRangeDecorator {
 		const foundHoverActions = new Map<string, { range: Range; action: CommentRangeAction }>();
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
-			if (range && ((range.startLineNumber <= commentRange.startLineNumber) || (commentRange.endLineNumber <= range.endLineNumber))) {
+			if (range && this.areRangesIntersectingOrTouchingByLine(range, commentRange)) {
 				// We can have several commenting ranges that match from the same owner because of how
 				// the line hover and selection decoration is done.
 				// The ranges must be merged so that we can see if the new commentRange fits within them.
@@ -286,15 +303,50 @@ class CommentingRangeDecorator {
 		}).map(actions => actions.action);
 	}
 
+	public getNearestCommentingRange(findPosition: Position, reverse?: boolean): Range | undefined {
+		let findPositionContainedWithin: Range | undefined;
+		let decorations: CommentingRangeDecoration[];
+		if (reverse) {
+			decorations = [];
+			for (let i = this.commentingRangeDecorations.length - 1; i >= 0; i--) {
+				decorations.push(this.commentingRangeDecorations[i]);
+			}
+		} else {
+			decorations = this.commentingRangeDecorations;
+		}
+		for (const decoration of decorations) {
+			const range = decoration.getActiveRange();
+			if (!range) {
+				continue;
+			}
+
+			if (findPositionContainedWithin && this.areRangesIntersectingOrTouchingByLine(range, findPositionContainedWithin)) {
+				findPositionContainedWithin = Range.plusRange(findPositionContainedWithin, range);
+				continue;
+			}
+
+			if (range.startLineNumber <= findPosition.lineNumber && findPosition.lineNumber <= range.endLineNumber) {
+				findPositionContainedWithin = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+				continue;
+			}
+
+			if (!reverse && range.endLineNumber < findPosition.lineNumber) {
+				continue;
+			}
+
+			if (reverse && range.startLineNumber > findPosition.lineNumber) {
+				continue;
+			}
+
+			return range;
+		}
+		return decorations[0].getActiveRange() ?? undefined;
+	}
+
 	public dispose(): void {
 		this.commentingRangeDecorations = [];
 	}
 }
-
-export const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorHasCommentingRange', false, {
-	description: nls.localize('hasCommentingRange', "Whether the position at the active cursor has a commenting range"),
-	type: 'boolean'
-});
 
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
@@ -315,6 +367,8 @@ export class CommentController implements IEditorContribution {
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } }; // owner -> threadId -> uniqueIdInThread -> pending comment
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
+	private _activeEditorHasCommentingRange: IContextKey<boolean>;
+	private _hasRespondedToEditorChange: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -333,7 +387,8 @@ export class CommentController implements IEditorContribution {
 		this._pendingNewCommentCache = {};
 		this._pendingEditsCache = {};
 		this._computePromise = null;
-		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
+		this._activeCursorHasCommentingRange = CommentContextKeys.activeCursorHasCommentingRange.bindTo(contextKeyService);
+		this._activeEditorHasCommentingRange = CommentContextKeys.activeEditorHasCommentingRange.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -362,8 +417,8 @@ export class CommentController implements IEditorContribution {
 			}
 			this.beginCompute();
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
-		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginCompute()));
+		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginComputeAndHandleEditorChange()));
+		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginComputeAndHandleEditorChange()));
 
 		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
@@ -543,18 +598,18 @@ export class CommentController implements IEditorContribution {
 		return editor.getContribution<CommentController>(ID);
 	}
 
-	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean): void {
+	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean, focus: boolean): void {
 		const commentThreadWidget = this._commentWidgets.filter(widget => widget.commentThread.threadId === threadId);
 		if (commentThreadWidget.length === 1) {
-			commentThreadWidget[0].reveal(commentUniqueId);
+			commentThreadWidget[0].reveal(commentUniqueId, focus);
 		} else if (fetchOnceIfNotExist) {
 			if (this._computePromise) {
 				this._computePromise.then(_ => {
-					this.revealCommentThread(threadId, commentUniqueId, false);
+					this.revealCommentThread(threadId, commentUniqueId, false, focus);
 				});
 			} else {
 				this.beginCompute().then(_ => {
-					this.revealCommentThread(threadId, commentUniqueId, false);
+					this.revealCommentThread(threadId, commentUniqueId, false, focus);
 				});
 			}
 		}
@@ -654,6 +709,28 @@ export class CommentController implements IEditorContribution {
 		this._findNearestCommentThread(true);
 	}
 
+	private _findNearestCommentingRange(reverse?: boolean): void {
+		if (!this.editor?.hasModel()) {
+			return;
+		}
+
+		const after = this.editor.getSelection().getEndPosition();
+		const range = this._commentingRangeDecorator.getNearestCommentingRange(after, reverse);
+		if (range) {
+			const position = reverse ? range.getEndPosition() : range.getStartPosition();
+			this.editor.setPosition(position);
+			this.editor.revealLineInCenterIfOutsideViewport(position.lineNumber);
+		}
+	}
+
+	public nextCommentingRange(): void {
+		this._findNearestCommentingRange();
+	}
+
+	public previousCommentingRange(): void {
+		this._findNearestCommentingRange(true);
+	}
+
 	public dispose(): void {
 		this.globalToDispose.dispose();
 		this.localToDispose.dispose();
@@ -670,6 +747,8 @@ export class CommentController implements IEditorContribution {
 		if (!this.editor) {
 			return;
 		}
+
+		this._hasRespondedToEditorChange = false;
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
@@ -760,7 +839,21 @@ export class CommentController implements IEditorContribution {
 			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
 
-		this.beginCompute();
+		this.beginComputeAndHandleEditorChange();
+	}
+
+	private beginComputeAndHandleEditorChange(): void {
+		this.beginCompute().then(() => {
+			if (!this._hasRespondedToEditorChange) {
+				if (this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
+					this._hasRespondedToEditorChange = true;
+					this._activeEditorHasCommentingRange.set(true);
+					status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+				} else {
+					this._activeEditorHasCommentingRange.set(false);
+				}
+			}
+		});
 	}
 
 	private async openCommentsView(thread: languages.CommentThread) {
@@ -863,6 +956,9 @@ export class CommentController implements IEditorContribution {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
+			if (!newCommentInfos.length) {
+				throw new Error('There are no commenting ranges at the current position.');
+			}
 			return Promise.resolve();
 		}
 

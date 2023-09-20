@@ -157,9 +157,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._readyToStartExtensionHost = new Barrier();
 		this._readyToRunExtensions = new Barrier();
 		this._eagerExtensionsActivated = new Barrier();
-		this._activationEventsReader = new SyncedActivationEventsReader(this._initData.activationEvents);
-		this._globalRegistry = new ExtensionDescriptionRegistry(this._activationEventsReader, this._initData.allExtensions);
-		const myExtensionsSet = new ExtensionIdentifierSet(this._initData.myExtensions);
+		this._activationEventsReader = new SyncedActivationEventsReader(this._initData.extensions.activationEvents);
+		this._globalRegistry = new ExtensionDescriptionRegistry(this._activationEventsReader, this._initData.extensions.allExtensions);
+		const myExtensionsSet = new ExtensionIdentifierSet(this._initData.extensions.myExtensions);
 		this._myRegistry = new ExtensionDescriptionRegistry(
 			this._activationEventsReader,
 			filterExtensions(this._globalRegistry, myExtensionsSet)

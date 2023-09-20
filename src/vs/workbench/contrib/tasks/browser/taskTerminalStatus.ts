@@ -55,18 +55,18 @@ export class TaskTerminalStatus extends Disposable {
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		problemMatcher.onDidFindFirstMatch(() => {
+		this._register(problemMatcher.onDidFindFirstMatch(() => {
 			this._marker = terminal.registerMarker();
-		});
-		problemMatcher.onDidFindErrors(() => {
+		}));
+		this._register(problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
 				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
-		});
-		problemMatcher.onDidRequestInvalidateLastMarker(() => {
+		}));
+		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
 			this._marker?.dispose();
 			this._marker = undefined;
-		});
+		}));
 
 		this.terminalMap.set(terminal.instanceId, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
