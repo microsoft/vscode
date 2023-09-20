@@ -188,12 +188,6 @@ export interface IInternalEditorTitleControlOptions {
 	 * The caller must ensure to update the title control then.
 	 */
 	skipTitleUpdate?: boolean;
-
-	/**
-	 * Weather to stick the opened editor
-	 * Added to support sticky editor tab bar
-	 */
-	forceSticky?: boolean;
 }
 
 export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {
@@ -222,7 +216,7 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	context?: EditorCloseContext;
 }
 
-export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {
+export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
 
 	/**
 	 * Whether to close the editor at the source or keep it.

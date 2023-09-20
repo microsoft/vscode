@@ -977,17 +977,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : undefined,
 			pinned,
-			sticky: options?.sticky || internalOptions?.forceSticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
+			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			active: this.count === 0 || !options || !options.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};
-
-		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index) && (!internalOptions || !internalOptions.forceSticky)) {
-			// Special case: we are to open an editor sticky but at an index that is not sticky
-			// In that case we prefer to open the editor at the index but not sticky. This enables
-			// to drag a sticky editor to an index that is not sticky to unstick it.
-			openEditorOptions.sticky = false;
-		}
 
 		if (!openEditorOptions.active && !openEditorOptions.pinned && this.model.activeEditor && !this.model.isPinned(this.model.activeEditor)) {
 			// Special case: we are to open an editor inactive and not pinned, but the current active
@@ -1183,7 +1176,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalEditorTitleControlOptions): void {
+	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalMoveCopyOptions): void {
 
 		// Move within same group
 		if (this === target) {
@@ -1224,6 +1217,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Forward to title control
 		this.titleControl.moveEditor(editor, currentIndex, moveToIndex, oldSticky !== this.model.stickyCount);
 		this.titleControl.pinEditor(editor);
+
+		// Support the option to stick the editor even if it is moved.
+		// It is important that we call this method after we have moved
+		// the editor because the result of moving the editor could have
+		// caused a change in sticky state.
+		if (options?.sticky) {
+			this.stickEditor(editor);
+		}
 	}
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
@@ -1234,8 +1235,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// if so
 		const options = fillActiveEditorViewState(this, editor, {
 			...openOptions,
-			pinned: true, 										// always pin moved editor
-			sticky: !keepCopy && this.model.isSticky(editor)	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)
+			pinned: true, 																// always pin moved editor
+			sticky: openOptions?.sticky ?? (!keepCopy && this.model.isSticky(editor))	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)
 		});
 
 		// Indicate will move event
@@ -1254,37 +1255,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy) {
 			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
-	}
-
-	moveEditorToLastStickyPosition(candidate: EditorInput, target: EditorGroupView): void {
-		if (this === target) {
-			this.moveEditorToLastStickyPositionInsideGroup(candidate);
-		} else {
-			this.doMoveOrCopyEditorAcrossGroups(candidate, target, undefined, { keepCopy: false, forceSticky: true });
-		}
-	}
-
-	private moveEditorToLastStickyPositionInsideGroup(candidate: EditorInput): void {
-		const currentIndex = this.model.indexOf(candidate);
-		if (currentIndex === -1 || currentIndex === this.stickyCount - 1) {
-			return; // do nothing if editor unknown in model or is already at the given index
-		}
-
-		// Update model and make sure to continue to use the editor we get from
-		// the model. It is possible that the editor was already opened and we
-		// want to ensure that we use the existing instance in that case.
-		const editor = this.model.getEditorByIndex(currentIndex);
-		if (!editor) {
-			return;
-		}
-
-		const oldSticky = this.model.stickyCount;
-
-		this.model.moveEditorToLastSticky(editor);
-		this.model.pin(editor);
-
-		this.titleControl.moveEditor(editor, currentIndex, this.stickyCount - 1, oldSticky !== this.model.stickyCount);
-		this.titleControl.pinEditor(editor);
 	}
 
 	//#endregion

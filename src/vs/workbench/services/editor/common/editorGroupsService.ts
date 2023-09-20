@@ -629,13 +629,6 @@ export interface IEditorGroup {
 	 */
 	moveEditor(editor: EditorInput, target: IEditorGroup, options?: IEditorOptions): void;
 
-
-	/**
-	 * Move an editor from this group either within this group or to another group.
-	 * The editor will be moved to the last sticky position of the target group.
-	 */
-	moveEditorToLastStickyPosition(editor: EditorInput, target: IEditorGroup): void;
-
 	/**
 	 * Move editors from this group either within this group or to another group.
 	 */

@@ -620,46 +620,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return editor;
 	}
 
-	moveEditorToLastSticky(candidate: EditorInput): EditorInput | undefined {
-		const isSticky = this.isSticky(candidate);
-
-		const index = this.indexOf(candidate);
-		if (index < 0 || isSticky && index === this.sticky) {
-			return;
-		}
-
-		if (!isSticky) {
-			this.sticky++;
-		}
-
-		const editor = this.editors[index];
-
-		// Move
-		this.editors.splice(index, 1);
-		this.editors.splice(this.sticky, 0, editor);
-
-		// Move Event
-		const event: IGroupEditorMoveEvent = {
-			kind: GroupModelChangeKind.EDITOR_MOVE,
-			editor,
-			oldEditorIndex: index,
-			editorIndex: this.sticky
-		};
-		this._onDidModelChange.fire(event);
-
-		// Sticky Event (if sticky changed as part of the move)
-		if (!isSticky) {
-			const event: IGroupEditorChangeEvent = {
-				kind: GroupModelChangeKind.EDITOR_STICKY,
-				editor,
-				editorIndex: this.sticky
-			};
-			this._onDidModelChange.fire(event);
-		}
-
-		return editor;
-	}
-
 	setActive(candidate: EditorInput | undefined): EditorInput | undefined {
 		let result: EditorInput | undefined = undefined;
 

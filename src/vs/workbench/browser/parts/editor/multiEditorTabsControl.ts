@@ -46,7 +46,7 @@ import { coalesce, insert } from 'vs/base/common/arrays';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
@@ -2000,19 +2000,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				const draggedEditor = data[0].identifier;
 				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 				if (sourceGroup) {
+					const options: IEditorOptions = {
+						sticky: this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === groupTargetIndex,
+						index: groupTargetIndex
+					};
 
 					// Move editor to target position and index
 					if (this.isMoveOperation(e, draggedEditor.groupId, draggedEditor.editor)) {
-						if (this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === groupTargetIndex) {
-							sourceGroup.moveEditorToLastStickyPosition(draggedEditor.editor, this.groupViewer);
-						} else {
-							sourceGroup.moveEditor(draggedEditor.editor, this.groupViewer, { index: groupTargetIndex });
-						}
+						sourceGroup.moveEditor(draggedEditor.editor, this.groupViewer, options);
 					}
 
 					// Copy editor to target position and index
 					else {
-						sourceGroup.copyEditor(draggedEditor.editor, this.groupViewer, { index: groupTargetIndex });
+						sourceGroup.copyEditor(draggedEditor.editor, this.groupViewer, options);
 					}
 				}
 

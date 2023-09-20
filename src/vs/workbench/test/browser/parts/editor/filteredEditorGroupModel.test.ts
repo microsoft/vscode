@@ -202,8 +202,8 @@ suite('FilteredEditorGroupModel', () => {
 
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -229,8 +229,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky stickyCount', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -256,8 +256,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky isEmpty', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -283,8 +283,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky editors', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -312,8 +312,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky activeEditor', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -342,8 +342,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky previewEditor', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -361,8 +361,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky isSticky()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -384,8 +384,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky isPinned()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -406,8 +406,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky isActive()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -430,8 +430,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky getEditors()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -482,8 +482,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky getEditorByIndex()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -518,8 +518,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky indexOf()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -555,8 +555,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky isFirst()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -589,8 +589,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky isLast()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -623,8 +623,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky contains()', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		const input1 = input();
 		const input2 = input();
@@ -658,8 +658,8 @@ suite('FilteredEditorGroupModel', () => {
 	test('Sticky/Unsticky group information', async () => {
 		const model = createEditorGroupModel();
 
-		const stickyFilteredEditorGroup = new StickyEditorGroupModel(model);
-		const unstickyFilteredEditorGroup = new UnstickyEditorGroupModel(model);
+		const stickyFilteredEditorGroup = disposables.add(new StickyEditorGroupModel(model));
+		const unstickyFilteredEditorGroup = disposables.add(new UnstickyEditorGroupModel(model));
 
 		// same id
 		assert.strictEqual(stickyFilteredEditorGroup.id, model.id);
