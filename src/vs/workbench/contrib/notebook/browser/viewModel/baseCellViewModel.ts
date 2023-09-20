@@ -386,10 +386,26 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _removeCellDecoration(decorationId: string) {
 		const options = this._resolvedCellDecorations.get(decorationId);
+		this._resolvedCellDecorations.delete(decorationId);
 
 		if (options) {
+			for (const existingOptions of this._resolvedCellDecorations.values()) {
+				// don't remove decorations that are applied from other entries
+				if (options.className === existingOptions.className) {
+					options.className = undefined;
+				}
+				if (options.outputClassName === existingOptions.outputClassName) {
+					options.outputClassName = undefined;
+				}
+				if (options.gutterClassName === existingOptions.gutterClassName) {
+					options.gutterClassName = undefined;
+				}
+				if (options.topClassName === existingOptions.topClassName) {
+					options.topClassName = undefined;
+				}
+			}
+
 			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
-			this._resolvedCellDecorations.delete(decorationId);
 		}
 	}
 
