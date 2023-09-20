@@ -1023,17 +1023,24 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
-		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z'];
+		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.reverse) {
+			args.push('--reverse', '--ancestry-path');
+		}
+
+		if (options?.sortByAuthorDate) {
+			args.push('--author-date-order');
+		}
 
 		if (options?.range) {
 			args.push(options.range);
+		} else {
+			args.push(`-n${options?.maxEntries ?? 32}`);
 		}
 
-		args.push('--');
-
 		if (options?.path) {
-			args.push(options.path);
+			args.push('--', options.path);
 		}
 
 		const result = await this.exec(args);
@@ -1258,7 +1265,7 @@ export class Repository {
 
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
-	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	diffIndexWithHEAD(path?: string | undefined): Promise<Change[]>;
 	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		if (!path) {
 			return await this.diffFiles(true);
@@ -1299,6 +1306,17 @@ export class Repository {
 
 		const args = ['diff', range, '--', sanitizePath(path)];
 		const result = await this.exec(args);
+
+		return result.stdout.trim();
+	}
+
+	async diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
+
+		const result = await this.exec(args);
+		if (result.exitCode) {
+			return '';
+		}
 
 		return result.stdout.trim();
 	}
@@ -2450,6 +2468,15 @@ export class Repository {
 		return Promise.reject<Branch>(new Error('No such branch'));
 	}
 
+	async getDefaultBranch(): Promise<Branch> {
+		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+		if (!result.stdout) {
+			throw new Error('No default branch');
+		}
+
+		return this.getBranch(result.stdout.trim());
+	}
+
 	// TODO: Support core.commentChar
 	stripCommitMessageComments(message: string): string {
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
@@ -2508,6 +2535,13 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
+		const result = await this.exec(['rev-list', '--count', '--left-right', range]);
+		const [ahead, behind] = result.stdout.trim().split('\t');
+
+		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {

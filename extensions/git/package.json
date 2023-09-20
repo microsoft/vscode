@@ -18,6 +18,7 @@
     "editSessionIdentityProvider",
     "quickDiffProvider",
     "scmActionButton",
+    "scmHistoryProvider",
     "scmSelectedProvider",
     "scmValidation",
     "tabInputTextMerge",

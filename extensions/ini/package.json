@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
+  "private": true,
   "publisher": "vscode",
   "license": "MIT",
   "engines": {

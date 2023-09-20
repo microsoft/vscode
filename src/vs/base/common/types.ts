@@ -222,3 +222,8 @@ export type OmitOptional<T> = { [K in keyof T as T[K] extends Required<T>[K] ? K
 export type Mutable<T> = {
 	-readonly [P in keyof T]: T[P]
 };
+
+/**
+ * A single object or an array of the objects.
+ */
+export type SingleOrMany<T> = T | T[];

@@ -294,8 +294,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 						editor.encoding = textFileModel.getEncoding();
 					}
 
-					// contents (only if dirty)
-					if (typeof editor.contents !== 'string' && textFileModel.isDirty()) {
+					// contents (only if dirty and not too large)
+					if (typeof editor.contents !== 'string' && textFileModel.isDirty() && !textFileModel.textEditorModel.isTooLargeForHeapOperation()) {
 						editor.contents = textFileModel.textEditorModel.getValue();
 					}
 				}
