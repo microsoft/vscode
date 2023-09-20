@@ -1206,14 +1206,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Move when index has actually changed
 		if (currentIndex !== moveToIndex) {
-			const oldSticky = this.model.stickyCount;
+			const oldStickyCount = this.model.stickyCount;
 
 			// Update model
 			this.model.moveEditor(editor, moveToIndex);
 			this.model.pin(editor);
 
 			// Forward to title control
-			this.titleControl.moveEditor(editor, currentIndex, moveToIndex, oldSticky !== this.model.stickyCount);
+			this.titleControl.moveEditor(editor, currentIndex, moveToIndex, oldStickyCount !== this.model.stickyCount);
 			this.titleControl.pinEditor(editor);
 		}
 

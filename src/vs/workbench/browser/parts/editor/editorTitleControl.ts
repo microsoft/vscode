@@ -137,7 +137,7 @@ export class EditorTitleControl extends Themable {
 		}
 	}
 
-	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange?: boolean): void {
+	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
 		return this.editorTabsControl.moveEditor(editor, fromIndex, targetIndex, stickyStateChange);
 	}
 

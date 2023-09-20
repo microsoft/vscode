@@ -78,7 +78,7 @@ export interface IEditorTabsControl extends IDisposable {
 	beforeCloseEditor(editor: EditorInput): void;
 	closeEditor(editor: EditorInput): void;
 	closeEditors(editors: EditorInput[]): void;
-	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange?: boolean): void;
+	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void;
 	pinEditor(editor: EditorInput): void;
 	stickEditor(editor: EditorInput): void;
 	unstickEditor(editor: EditorInput): void;

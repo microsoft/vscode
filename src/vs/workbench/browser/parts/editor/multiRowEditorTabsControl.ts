@@ -101,7 +101,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		this.handlePinnedTabsSeparateRowToolbars();
 	}
 
-	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange?: boolean): void {
+	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
 		if (stickyStateChange) {
 			// If sticky state changes, move editor between tab bars
 			if (this.model.isSticky(editor)) {
@@ -116,9 +116,9 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 		} else {
 			if (this.model.isSticky(editor)) {
-				this.stickyEditorTabsControl.moveEditor(editor, fromIndex, targetIndex, false);
+				this.stickyEditorTabsControl.moveEditor(editor, fromIndex, targetIndex, stickyStateChange);
 			} else {
-				this.unstickyEditorTabsControl.moveEditor(editor, fromIndex - this.model.stickyCount, targetIndex - this.model.stickyCount, false);
+				this.unstickyEditorTabsControl.moveEditor(editor, fromIndex - this.model.stickyCount, targetIndex - this.model.stickyCount, stickyStateChange);
 			}
 		}
 	}
