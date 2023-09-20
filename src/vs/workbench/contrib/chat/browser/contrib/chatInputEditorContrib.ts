@@ -26,7 +26,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart } from '../../common/chatRequestParser';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart } from '../../common/chatRequestParser';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -131,9 +131,8 @@ class InputEditorDecorations extends Disposable {
 
 		let placeholderDecoration: IDecorationOptions[] | undefined;
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
-		const someSlashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
-		const agentSubcommandPart = agentPart && someSlashCommandPart;
-		const slashCommandPart = !agentPart && someSlashCommandPart;
+		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
+		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
 
 		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
 		if (onlyAgentAndWhitespace) {
@@ -260,10 +259,6 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/' && model.getValueLength() > 0) {
-					return null;
-				}
-
 				const slashCommands = await widget.getSlashCommands();
 				if (!slashCommands) {
 					return null;
@@ -310,12 +305,13 @@ class AgentCompletions extends Disposable {
 
 				const parsedRequest = await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue());
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
-				if (usedAgent) {
+				if (usedAgent && !Range.containsPosition(usedAgent.editorRange, position)) {
 					// Only one agent allowed
 					return;
 				}
 
-				if (model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column)) !== '@' && model.getValueLength() > 0) {
+				const range = computeCompletionRanges(model, position, /@\w*/g);
+				if (!range) {
 					return null;
 				}
 
@@ -327,7 +323,7 @@ class AgentCompletions extends Disposable {
 							label: withAt,
 							insertText: `${withAt} `,
 							detail: c.metadata.description,
-							range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
 					})
@@ -350,7 +346,7 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				const usedSubcommand = parsedRequest.find(p => p instanceof ChatRequestSlashCommandPart);
+				const usedSubcommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart);
 				if (usedSubcommand) {
 					// Only one allowed
 					return;
@@ -479,6 +475,25 @@ function sortSlashCommandsByYieldTo<T extends {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentCompletions, LifecyclePhase.Eventually);
 
+function computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp): { insert: Range; replace: Range } | undefined {
+	const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
+	if (!varWord && model.getWordUntilPosition(position).word) {
+		// inside a "normal" word
+		return;
+	}
+
+	let insert: Range;
+	let replace: Range;
+	if (!varWord) {
+		insert = replace = Range.fromPositions(position);
+	} else {
+		insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
+		replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
+	}
+
+	return { insert, replace };
+}
+
 class VariableCompletions extends Disposable {
 
 	private static readonly VariableNameDef = /@\w*/g; // MUST be using `g`-flag
@@ -501,19 +516,9 @@ class VariableCompletions extends Disposable {
 					return null;
 				}
 
-				const varWord = getWordAtText(position.column, VariableCompletions.VariableNameDef, model.getLineContent(position.lineNumber), 0);
-				if (!varWord && model.getWordUntilPosition(position).word) {
-					// inside a "normal" word
+				const range = computeCompletionRanges(model, position, VariableCompletions.VariableNameDef);
+				if (!range) {
 					return null;
-				}
-
-				let insert: Range;
-				let replace: Range;
-				if (!varWord) {
-					insert = replace = Range.fromPositions(position);
-				} else {
-					insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
-					replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
 				}
 
 				const history = widget.viewModel!.getItems()
@@ -526,14 +531,14 @@ class VariableCompletions extends Disposable {
 					detail: h.response.asString(),
 					insertText: `@response:${String(i + 1).padStart(String(history.length).length, '0')} `,
 					kind: CompletionItemKind.Text,
-					range: { insert, replace },
+					range,
 				})) : [];
 
 				const variableItems = Array.from(this.chatVariablesService.getVariables()).map(v => {
 					const withAt = `@${v.name}`;
 					return <CompletionItem>{
 						label: withAt,
-						range: { insert, replace },
+						range,
 						insertText: withAt + ' ',
 						detail: v.description,
 						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
