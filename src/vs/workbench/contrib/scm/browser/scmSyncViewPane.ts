@@ -14,9 +14,9 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenEvent, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -25,12 +25,12 @@ import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ActionButtonRenderer } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { getActionViewItemProvider, isSCMActionButton, isSCMRepository, isSCMRepositoryArray } from 'vs/workbench/contrib/scm/browser/util';
-import { ISCMActionButton, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMActionButton, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, SYNC_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { comparePaths } from 'vs/base/common/comparers';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
 import { localize } from 'vs/nls';
@@ -41,6 +41,10 @@ import { basename, dirname } from 'vs/base/common/resources';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Emitter } from 'vs/base/common/event';
 
 type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement;
 
@@ -90,6 +94,15 @@ function getSCMResourceId(element: TreeElement): string {
 		throw new Error('Invalid tree element');
 	}
 }
+
+const enum ViewMode {
+	List = 'list',
+	Tree = 'tree'
+}
+
+const ContextKeys = {
+	ViewMode: new RawContextKey<ViewMode>('scmSyncViewMode', ViewMode.List),
+};
 
 interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
 	readonly description?: string;
@@ -465,6 +478,26 @@ export class SCMSyncViewPane extends ViewPane {
 
 class SCMSyncPaneViewModel {
 
+	private readonly _onDidChangeMode = new Emitter<ViewMode>();
+	readonly onDidChangeMode = this._onDidChangeMode.event;
+
+	private _mode: ViewMode;
+	get mode(): ViewMode { return this._mode; }
+	set mode(mode: ViewMode) {
+		if (this._mode === mode) {
+			return;
+		}
+
+		this._mode = mode;
+
+		this.refresh();
+		this.modeContextKey.set(mode);
+		this._onDidChangeMode.fire(mode);
+
+		this.storageService.store(`scm.syncViewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private modeContextKey: IContextKey<ViewMode>;
 	private repositories = new Map<ISCMRepository, IDisposable>();
 	private historyProviders = new Map<ISCMRepository, IDisposable>();
 
@@ -474,18 +507,24 @@ class SCMSyncPaneViewModel {
 
 	constructor(
 		private readonly tree: WorkbenchAsyncDataTree<TreeElement, TreeElement>,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISCMViewService scmViewService: ISCMViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-
+		@IStorageService private readonly storageService: IStorageService,
 	) {
-		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-		this.onDidChangeConfiguration();
+		configurationService.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this.disposables);
+		this._onDidChangeConfiguration();
 
 		scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this.disposables);
 		this._onDidChangeVisibleRepositories({ added: scmViewService.visibleRepositories, removed: [] });
+
+		this._mode = this.getViewMode();
+
+		this.modeContextKey = ContextKeys.ViewMode.bindTo(contextKeyService);
+		this.modeContextKey.set(this._mode);
 	}
 
-	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+	private _onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
 		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
 			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
 			this.refresh();
@@ -522,6 +561,16 @@ class SCMSyncPaneViewModel {
 			this.historyProviders.get(repository)?.dispose();
 			this.historyProviders.delete(repository);
 		}
+	}
+
+	private getViewMode(): ViewMode {
+		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewMode.List : ViewMode.Tree;
+		const storageMode = this.storageService.get(`scm.syncViewMode`, StorageScope.WORKSPACE) as ViewMode;
+		if (typeof storageMode === 'string') {
+			mode = storageMode;
+		}
+
+		return mode;
 	}
 
 	private async refresh(repository?: ISCMRepository): Promise<void> {
@@ -666,3 +715,50 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 		return children;
 	}
 }
+
+class SetListViewModeAction extends ViewAction<SCMSyncViewPane> {
+
+	constructor() {
+		super({
+			id: 'workbench.scm.sync.action.setListViewMode',
+			title: localize('setListViewMode', "View as List"),
+			viewId: SYNC_VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.listTree,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID), ContextKeys.ViewMode.isEqualTo(ViewMode.Tree))
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMSyncViewPane): Promise<void> {
+		view.viewModel.mode = ViewMode.List;
+	}
+}
+
+class SetTreeViewModeAction extends ViewAction<SCMSyncViewPane>  {
+
+	constructor() {
+		super({
+			id: 'workbench.scm.sync.action.setTreeViewMode',
+			title: localize('setTreeViewMode', "View as Tree"),
+			viewId: SYNC_VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.listFlat,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID), ContextKeys.ViewMode.isEqualTo(ViewMode.List))
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMSyncViewPane): Promise<void> {
+		view.viewModel.mode = ViewMode.Tree;
+	}
+}
+
+registerAction2(SetListViewModeAction);
+registerAction2(SetTreeViewModeAction);
