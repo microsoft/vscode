@@ -2078,7 +2078,7 @@ class SCMInputWidget {
 		this.disposables.add(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputEditor._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const lastLineCol = viewModel.getLineLength(lastLineNumber) + 1;
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
 			firstLineKey.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
