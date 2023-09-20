@@ -5,6 +5,8 @@
 
 import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -21,8 +23,8 @@ class TestTaskService implements Partial<ITaskService> {
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
-	public triggerStateChange(event: ITaskEvent): void {
-		this._onDidStateChange.fire(event);
+	public triggerStateChange(event: Partial<ITaskEvent>): void {
+		this._onDidStateChange.fire(event as ITaskEvent);
 	}
 }
 
@@ -60,6 +62,7 @@ class TestProblemCollector implements Partial<AbstractProblemCollector> {
 }
 
 suite('Task Terminal Status', () => {
+	let store: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let taskService: TestTaskService;
 	let taskTerminalStatus: TaskTerminalStatus;
@@ -68,6 +71,7 @@ suite('Task Terminal Status', () => {
 	let problemCollector: AbstractProblemCollector;
 	let audioCueService: TestAudioCueService;
 	setup(() => {
+		store = new DisposableStore();
 		instantiationService = new TestInstantiationService();
 		taskService = new TestTaskService();
 		audioCueService = new TestAudioCueService();
@@ -75,17 +79,20 @@ suite('Task Terminal Status', () => {
 		testTerminal = instantiationService.createInstance(TestTerminal) as any;
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
 		problemCollector = instantiationService.createInstance(TestProblemCollector) as any;
+		store.add(instantiationService);
+		store.add(taskTerminalStatus);
 	});
 	teardown(() => {
-		instantiationService.dispose();
+		store.clear();
 	});
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Should add failed status when there is an exit code on task end', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
-		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
+		taskService.triggerStateChange({ kind: TaskEventKind.End });
 		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
 	});
 	test('Should add active status when a non-background task is run for a second time in the same terminal', () => {

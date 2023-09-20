@@ -199,7 +199,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 	private provideDecorations(): void {
 
 		// File working copy decorations
-		this.decorationsService.registerDecorationsProvider(new class extends Disposable implements IDecorationsProvider {
+		const provider = this._register(new class extends Disposable implements IDecorationsProvider {
 
 			readonly label = localize('fileWorkingCopyDecorations', "File Working Copy Decorations");
 
@@ -271,6 +271,8 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				return undefined;
 			}
 		}(this.stored));
+
+		this._register(this.decorationsService.registerDecorationsProvider(provider));
 	}
 
 	//#endregin

@@ -105,14 +105,14 @@ class ViewWelcomeController {
 		return visibleItems.map(v => v.descriptor);
 	}
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private id: string,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
-		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.disposables.add(Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables));
 		this.onDidChangeViewWelcomeContent();
 	}
 
@@ -240,7 +240,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
-		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
+		this.viewWelcomeController = this._register(new ViewWelcomeController(this.id, contextKeyService));
 	}
 
 	override get headerVisible(): boolean {

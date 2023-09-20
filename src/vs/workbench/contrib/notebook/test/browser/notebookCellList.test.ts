@@ -5,20 +5,25 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCellList', () => {
-	let disposables: DisposableStore;
+	let testDisposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
-	suiteSetup(() => {
-		disposables = new DisposableStore();
-		instantiationService = setupInstantiationService(disposables);
+	teardown(() => {
+		testDisposables.dispose();
 	});
 
-	suiteTeardown(() => disposables.dispose());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		testDisposables = new DisposableStore();
+		instantiationService = setupInstantiationService(testDisposables);
+	});
 
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {
 		await withTestNotebook(
@@ -29,7 +34,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					cellLineNumberStates: {},
@@ -39,7 +44,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
@@ -76,7 +81,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -86,7 +91,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
@@ -120,7 +125,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -130,7 +135,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				// without paddingBottom, the last 20 px will always be hidden due to `topInsertToolbarHeight`
 				cellList.updateOptions({ paddingBottom: 100 });
 				cellList.attachViewModel(viewModel);
@@ -157,7 +162,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -167,7 +172,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
@@ -199,7 +204,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -209,7 +214,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
@@ -252,7 +257,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -262,7 +267,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
@@ -288,7 +293,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -298,7 +303,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
@@ -321,8 +326,8 @@ suite('NotebookCellList', () => {
 		await withTestNotebook(
 			[
 			],
-			async (editor, viewModel) => {
-				const cellList = createNotebookCellList(instantiationService);
+			async (editor, viewModel, disposables) => {
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell
@@ -337,7 +342,7 @@ suite('NotebookCellList', () => {
 			[
 				['# header a', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, disposables) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false],
 					editorViewStates: [null],
@@ -347,7 +352,7 @@ suite('NotebookCellList', () => {
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = createNotebookCellList(instantiationService, disposables);
 				cellList.attachViewModel(viewModel);
 
 				// render height 210, it can render 3 full cells and 1 partial cell

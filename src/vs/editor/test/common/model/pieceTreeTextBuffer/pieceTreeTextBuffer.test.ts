@@ -14,6 +14,7 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { splitLines } from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
 
@@ -151,13 +152,13 @@ function testLineStarts(str: string, pieceTable: PieceTreeBase) {
 	}
 }
 
-function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeBase {
+function createTextBuffer(val: string[], normalizeEOL: boolean = true): PieceTreeTextBuffer {
 	const bufferBuilder = new PieceTreeTextBufferBuilder();
 	for (const chunk of val) {
 		bufferBuilder.acceptChunk(chunk);
 	}
 	const factory = bufferBuilder.finish(normalizeEOL);
-	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF).textBuffer).getPieceTree();
+	return (<PieceTreeTextBuffer>factory.create(DefaultEndOfLine.LF).textBuffer);
 }
 
 function assertTreeInvariants(T: PieceTreeBase): void {
@@ -212,10 +213,14 @@ function assertValidTree(T: PieceTreeBase): void {
 //#endregion
 
 suite('inserts and deletes', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('basic insert/delete', () => {
-		const pieceTable = createTextBuffer([
+		const pieceTree = createTextBuffer([
 			'This is a document with some text.'
 		]);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(34, 'This is some more text to insert at offset 34.');
 		assert.strictEqual(
@@ -231,8 +236,9 @@ suite('inserts and deletes', () => {
 	});
 
 	test('more inserts', () => {
-		const pt = createTextBuffer(['']);
-
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pt = pieceTree.getPieceTree();
 		pt.insert(0, 'AAA');
 		assert.strictEqual(pt.getLinesRawContent(), 'AAA');
 		pt.insert(0, 'BBB');
@@ -245,7 +251,10 @@ suite('inserts and deletes', () => {
 	});
 
 	test('more deletes', () => {
-		const pt = createTextBuffer(['012345678']);
+		const pieceTree = createTextBuffer(['012345678']);
+		ds.add(pieceTree);
+		const pt = pieceTree.getPieceTree();
+
 		pt.delete(8, 1);
 		assert.strictEqual(pt.getLinesRawContent(), '01234567');
 		pt.delete(0, 1);
@@ -261,7 +270,10 @@ suite('inserts and deletes', () => {
 
 	test('random test 1', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+
 		pieceTable.insert(0, 'ceLPHmFzvCtFeHkCBej ');
 		str = str.substring(0, 0) + 'ceLPHmFzvCtFeHkCBej ' + str.substring(0);
 		assert.strictEqual(pieceTable.getLinesRawContent(), str);
@@ -280,7 +292,9 @@ suite('inserts and deletes', () => {
 
 	test('random test 2', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'VgPG ');
 		str = str.substring(0, 0) + 'VgPG ' + str.substring(0);
 		pieceTable.insert(2, 'DdWF ');
@@ -298,7 +312,9 @@ suite('inserts and deletes', () => {
 
 	test('random test 3', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'gYSz');
 		str = str.substring(0, 0) + 'gYSz' + str.substring(0);
 		pieceTable.insert(1, 'mDQe');
@@ -314,7 +330,9 @@ suite('inserts and deletes', () => {
 
 	test('random delete 1', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, 'vfb');
 		str = str.substring(0, 0) + 'vfb' + str.substring(0);
@@ -347,7 +365,9 @@ suite('inserts and deletes', () => {
 
 	test('random delete 2', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, 'IDT');
 		str = str.substring(0, 0) + 'IDT' + str.substring(0);
@@ -373,7 +393,9 @@ suite('inserts and deletes', () => {
 
 	test('random delete 3', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'PqM');
 		str = str.substring(0, 0) + 'PqM' + str.substring(0);
 		pieceTable.delete(1, 2);
@@ -406,7 +428,9 @@ suite('inserts and deletes', () => {
 
 	test('random insert/delete \\r bug 1', () => {
 		let str = 'a';
-		const pieceTable = createTextBuffer(['a']);
+		const pieceTree = createTextBuffer(['a']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.delete(0, 1);
 		str = str.substring(0, 0) + str.substring(0 + 1);
 		pieceTable.insert(0, '\r\r\n\n');
@@ -432,7 +456,9 @@ suite('inserts and deletes', () => {
 
 	test('random insert/delete \\r bug 2', () => {
 		let str = 'a';
-		const pieceTable = createTextBuffer(['a']);
+		const pieceTree = createTextBuffer(['a']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(1, '\naa\r');
 		str = str.substring(0, 1) + '\naa\r' + str.substring(1);
 		pieceTable.delete(0, 4);
@@ -460,7 +486,9 @@ suite('inserts and deletes', () => {
 
 	test('random insert/delete \\r bug 3', () => {
 		let str = 'a';
-		const pieceTable = createTextBuffer(['a']);
+		const pieceTree = createTextBuffer(['a']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, '\r\na\r');
 		str = str.substring(0, 0) + '\r\na\r' + str.substring(0);
 		pieceTable.delete(2, 3);
@@ -489,7 +517,9 @@ suite('inserts and deletes', () => {
 
 	test('random insert/delete \\r bug 4s', () => {
 		let str = 'a';
-		const pieceTable = createTextBuffer(['a']);
+		const pieceTree = createTextBuffer(['a']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.delete(0, 1);
 		str = str.substring(0, 0) + str.substring(0 + 1);
 		pieceTable.insert(0, '\naaa');
@@ -516,7 +546,9 @@ suite('inserts and deletes', () => {
 	});
 	test('random insert/delete \\r bug 5', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, '\n\n\n\r');
 		str = str.substring(0, 0) + '\n\n\n\r' + str.substring(0);
 		pieceTable.insert(1, '\n\n\n\r');
@@ -544,8 +576,12 @@ suite('inserts and deletes', () => {
 });
 
 suite('prefix sum for line feed', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('basic', () => {
-		const pieceTable = createTextBuffer(['1\n2\n3\n4']);
+		const pieceTree = createTextBuffer(['1\n2\n3\n4']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		assert.strictEqual(pieceTable.getLineCount(), 4);
 		assert.deepStrictEqual(pieceTable.getPositionAt(0), new Position(1, 1));
@@ -567,7 +603,9 @@ suite('prefix sum for line feed', () => {
 	});
 
 	test('append', () => {
-		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTree = createTextBuffer(['a\nb\nc\nde']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(8, 'fh\ni\njk');
 
 		assert.strictEqual(pieceTable.getLineCount(), 6);
@@ -577,7 +615,9 @@ suite('prefix sum for line feed', () => {
 	});
 
 	test('insert', () => {
-		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTree = createTextBuffer(['a\nb\nc\nde']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(7, 'fh\ni\njk');
 
 		assert.strictEqual(pieceTable.getLineCount(), 6);
@@ -600,7 +640,10 @@ suite('prefix sum for line feed', () => {
 	});
 
 	test('delete', () => {
-		const pieceTable = createTextBuffer(['a\nb\nc\ndefh\ni\njk']);
+		const pieceTree = createTextBuffer(['a\nb\nc\ndefh\ni\njk']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+
 		pieceTable.delete(7, 2);
 
 		assert.strictEqual(pieceTable.getLinesRawContent(), 'a\nb\nc\ndh\ni\njk');
@@ -624,7 +667,9 @@ suite('prefix sum for line feed', () => {
 	});
 
 	test('add+delete 1', () => {
-		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTree = createTextBuffer(['a\nb\nc\nde']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(8, 'fh\ni\njk');
 		pieceTable.delete(7, 2);
 
@@ -650,7 +695,9 @@ suite('prefix sum for line feed', () => {
 
 	test('insert random bug 1: prefixSumComputer.removeValues(start, cnt) cnt is 1 based.', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, ' ZX \n Z\nZ\n YZ\nY\nZXX ');
 		str =
 			str.substring(0, 0) +
@@ -667,7 +714,9 @@ suite('prefix sum for line feed', () => {
 
 	test('insert random bug 2: prefixSumComputer initialize does not do deep copy of UInt32Array.', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'ZYZ\nYY XY\nX \nZ Y \nZ ');
 		str =
 			str.substring(0, 0) + 'ZYZ\nYY XY\nX \nZ Y \nZ ' + str.substring(0);
@@ -680,7 +729,9 @@ suite('prefix sum for line feed', () => {
 	});
 
 	test('delete random bug 1: I forgot to update the lineFeedCnt when deletion is on one single piece.', () => {
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'ba\na\nca\nba\ncbab\ncaa ');
 		pieceTable.insert(13, 'cca\naabb\ncac\nccc\nab ');
 		pieceTable.delete(5, 8);
@@ -709,7 +760,9 @@ suite('prefix sum for line feed', () => {
 
 	test('delete random bug rb tree 1', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([str]);
+		const pieceTree = createTextBuffer([str]);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'YXXZ\n\nYY\n');
 		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
 		pieceTable.delete(0, 5);
@@ -724,7 +777,9 @@ suite('prefix sum for line feed', () => {
 
 	test('delete random bug rb tree 2', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([str]);
+		const pieceTree = createTextBuffer([str]);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'YXXZ\n\nYY\n');
 		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
 		pieceTable.insert(0, 'ZXYY\nX\nZ\n');
@@ -744,7 +799,9 @@ suite('prefix sum for line feed', () => {
 
 	test('delete random bug rb tree 3', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([str]);
+		const pieceTree = createTextBuffer([str]);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'YXXZ\n\nYY\n');
 		str = str.substring(0, 0) + 'YXXZ\n\nYY\n' + str.substring(0);
 		pieceTable.delete(7, 2);
@@ -772,9 +829,13 @@ suite('prefix sum for line feed', () => {
 });
 
 suite('offset 2 position', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('random tests bug 1', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'huuyYzUfKOENwGgZLqn ');
 		str = str.substring(0, 0) + 'huuyYzUfKOENwGgZLqn ' + str.substring(0);
 		pieceTable.delete(18, 2);
@@ -796,8 +857,12 @@ suite('offset 2 position', () => {
 });
 
 suite('get text in range', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('getContentInRange', () => {
-		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTree = createTextBuffer(['a\nb\nc\nde']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(8, 'fh\ni\njk');
 		pieceTable.delete(7, 2);
 		// 'a\nb\nc\ndh\ni\njk'
@@ -813,7 +878,9 @@ suite('get text in range', () => {
 
 	test('random test value in range', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([str]);
+		const pieceTree = createTextBuffer([str]);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, 'ZXXY');
 		str = str.substring(0, 0) + 'ZXXY' + str.substring(0);
@@ -831,7 +898,9 @@ suite('get text in range', () => {
 	});
 	test('random test value in range exception', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([str]);
+		const pieceTree = createTextBuffer([str]);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, 'XZ\nZ');
 		str = str.substring(0, 0) + 'XZ\nZ' + str.substring(0);
@@ -850,7 +919,9 @@ suite('get text in range', () => {
 
 	test('random tests bug 1', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'huuyYzUfKOENwGgZLqn ');
 		str = str.substring(0, 0) + 'huuyYzUfKOENwGgZLqn ' + str.substring(0);
 		pieceTable.delete(18, 2);
@@ -871,7 +942,9 @@ suite('get text in range', () => {
 
 	test('random tests bug 2', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'xfouRDZwdAHjVXJAMV\n ');
 		str = str.substring(0, 0) + 'xfouRDZwdAHjVXJAMV\n ' + str.substring(0);
 		pieceTable.insert(16, 'dBGndxpFZBEAIKykYYx ');
@@ -900,7 +973,10 @@ suite('get text in range', () => {
 	});
 
 	test('get line content', () => {
-		const pieceTable = createTextBuffer(['1']);
+		const pieceTree = createTextBuffer(['1']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+
 		assert.strictEqual(pieceTable.getLineRawContent(1), '1');
 		pieceTable.insert(1, '2');
 		assert.strictEqual(pieceTable.getLineRawContent(1), '12');
@@ -908,7 +984,10 @@ suite('get text in range', () => {
 	});
 
 	test('get line content basic', () => {
-		const pieceTable = createTextBuffer(['1\n2\n3\n4']);
+		const pieceTree = createTextBuffer(['1\n2\n3\n4']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+
 		assert.strictEqual(pieceTable.getLineRawContent(1), '1\n');
 		assert.strictEqual(pieceTable.getLineRawContent(2), '2\n');
 		assert.strictEqual(pieceTable.getLineRawContent(3), '3\n');
@@ -917,7 +996,9 @@ suite('get text in range', () => {
 	});
 
 	test('get line content after inserts/deletes', () => {
-		const pieceTable = createTextBuffer(['a\nb\nc\nde']);
+		const pieceTree = createTextBuffer(['a\nb\nc\nde']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(8, 'fh\ni\njk');
 		pieceTable.delete(7, 2);
 		// 'a\nb\nc\ndh\ni\njk'
@@ -933,7 +1014,9 @@ suite('get text in range', () => {
 
 	test('random 1', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, 'J eNnDzQpnlWyjmUu\ny ');
 		str = str.substring(0, 0) + 'J eNnDzQpnlWyjmUu\ny ' + str.substring(0);
@@ -948,7 +1031,9 @@ suite('get text in range', () => {
 
 	test('random 2', () => {
 		let str = '';
-		const pieceTable = createTextBuffer(['']);
+		const pieceTree = createTextBuffer(['']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'DZoQ tglPCRHMltejRI ');
 		str = str.substring(0, 0) + 'DZoQ tglPCRHMltejRI ' + str.substring(0);
 		pieceTable.insert(10, 'JRXiyYqJ qqdcmbfkKX ');
@@ -967,8 +1052,12 @@ suite('get text in range', () => {
 });
 
 suite('CRLF', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('delete CR in CRLF 1', () => {
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'a\r\nb');
 		pieceTable.delete(0, 2);
 
@@ -977,7 +1066,9 @@ suite('CRLF', () => {
 	});
 
 	test('delete CR in CRLF 2', () => {
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, 'a\r\nb');
 		pieceTable.delete(2, 2);
 
@@ -987,7 +1078,9 @@ suite('CRLF', () => {
 
 	test('random bug 1', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.insert(0, '\n\n\r\r');
 		str = str.substring(0, 0) + '\n\n\r\r' + str.substring(0);
 		pieceTable.insert(1, '\r\n\r\n');
@@ -1003,7 +1096,9 @@ suite('CRLF', () => {
 	});
 	test('random bug 2', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\n\r\n\r');
 		str = str.substring(0, 0) + '\n\r\n\r' + str.substring(0);
@@ -1018,7 +1113,9 @@ suite('CRLF', () => {
 	});
 	test('random bug 3', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\n\n\n\r');
 		str = str.substring(0, 0) + '\n\n\n\r' + str.substring(0);
@@ -1039,7 +1136,9 @@ suite('CRLF', () => {
 	});
 	test('random bug 4', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1057,7 +1156,9 @@ suite('CRLF', () => {
 	});
 	test('random bug 5', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1083,7 +1184,9 @@ suite('CRLF', () => {
 	});
 	test('random bug 6', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\n\r\r\n');
 		str = str.substring(0, 0) + '\n\r\r\n' + str.substring(0);
@@ -1107,7 +1210,9 @@ suite('CRLF', () => {
 	});
 	test('random bug 8', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\r\n\n\r');
 		str = str.substring(0, 0) + '\r\n\n\r' + str.substring(0);
@@ -1123,7 +1228,9 @@ suite('CRLF', () => {
 	});
 	test('random bug 7', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\r\r\n\n');
 		str = str.substring(0, 0) + '\r\r\n\n' + str.substring(0);
@@ -1139,7 +1246,9 @@ suite('CRLF', () => {
 
 	test('random bug 10', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, 'qneW');
 		str = str.substring(0, 0) + 'qneW' + str.substring(0);
@@ -1160,7 +1269,9 @@ suite('CRLF', () => {
 
 	test('random bug 9', () => {
 		let str = '';
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, '\n\n\n\n');
 		str = str.substring(0, 0) + '\n\n\n\n' + str.substring(0);
@@ -1181,14 +1292,20 @@ suite('CRLF', () => {
 });
 
 suite('centralized lineStarts with CRLF', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('delete CR in CRLF 1', () => {
-		const pieceTable = createTextBuffer(['a\r\nb'], false);
+		const pieceTree = createTextBuffer(['a\r\nb'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.delete(2, 2);
 		assert.strictEqual(pieceTable.getLineCount(), 2);
 		assertTreeInvariants(pieceTable);
 	});
 	test('delete CR in CRLF 2', () => {
-		const pieceTable = createTextBuffer(['a\r\nb']);
+		const pieceTree = createTextBuffer(['a\r\nb']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.delete(0, 2);
 
 		assert.strictEqual(pieceTable.getLineCount(), 2);
@@ -1197,7 +1314,10 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 1', () => {
 		let str = '\n\n\r\r';
-		const pieceTable = createTextBuffer(['\n\n\r\r'], false);
+		const pieceTree = createTextBuffer(['\n\n\r\r'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+
 		pieceTable.insert(1, '\r\n\r\n');
 		str = str.substring(0, 1) + '\r\n\r\n' + str.substring(1);
 		pieceTable.delete(5, 3);
@@ -1211,7 +1331,9 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 	test('random bug 2', () => {
 		let str = '\n\r\n\r';
-		const pieceTable = createTextBuffer(['\n\r\n\r'], false);
+		const pieceTree = createTextBuffer(['\n\r\n\r'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(2, '\n\r\r\r');
 		str = str.substring(0, 2) + '\n\r\r\r' + str.substring(2);
@@ -1225,7 +1347,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 3', () => {
 		let str = '\n\n\n\r';
-		const pieceTable = createTextBuffer(['\n\n\n\r'], false);
+		const pieceTree = createTextBuffer(['\n\n\n\r'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.delete(2, 2);
 		str = str.substring(0, 2) + str.substring(2 + 2);
@@ -1245,7 +1369,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 4', () => {
 		let str = '\n\n\n\n';
-		const pieceTable = createTextBuffer(['\n\n\n\n'], false);
+		const pieceTree = createTextBuffer(['\n\n\n\n'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.delete(3, 1);
 		str = str.substring(0, 3) + str.substring(3 + 1);
@@ -1262,7 +1388,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 5', () => {
 		let str = '\n\n\n\n';
-		const pieceTable = createTextBuffer(['\n\n\n\n'], false);
+		const pieceTree = createTextBuffer(['\n\n\n\n'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.delete(3, 1);
 		str = str.substring(0, 3) + str.substring(3 + 1);
@@ -1287,7 +1415,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 6', () => {
 		let str = '\n\r\r\n';
-		const pieceTable = createTextBuffer(['\n\r\r\n'], false);
+		const pieceTree = createTextBuffer(['\n\r\r\n'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(4, '\r\n\n\r');
 		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
@@ -1310,7 +1440,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 7', () => {
 		let str = '\r\n\n\r';
-		const pieceTable = createTextBuffer(['\r\n\n\r'], false);
+		const pieceTree = createTextBuffer(['\r\n\n\r'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.delete(1, 0);
 		str = str.substring(0, 1) + str.substring(1 + 0);
@@ -1325,7 +1457,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 8', () => {
 		let str = '\r\r\n\n';
-		const pieceTable = createTextBuffer(['\r\r\n\n'], false);
+		const pieceTree = createTextBuffer(['\r\r\n\n'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(4, '\r\n\n\r');
 		str = str.substring(0, 4) + '\r\n\n\r' + str.substring(4);
@@ -1339,7 +1473,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 9', () => {
 		let str = 'qneW';
-		const pieceTable = createTextBuffer(['qneW'], false);
+		const pieceTree = createTextBuffer(['qneW'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(0, 'YhIl');
 		str = str.substring(0, 0) + 'YhIl' + str.substring(0);
@@ -1358,7 +1494,9 @@ suite('centralized lineStarts with CRLF', () => {
 
 	test('random bug 10', () => {
 		let str = '\n\n\n\n';
-		const pieceTable = createTextBuffer(['\n\n\n\n'], false);
+		const pieceTree = createTextBuffer(['\n\n\n\n'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
 		pieceTable.insert(3, '\n\r\n\r');
 		str = str.substring(0, 3) + '\n\r\n\r' + str.substring(3);
@@ -1376,7 +1514,10 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 1', () => {
-		const pieceTable = createTextBuffer(['\n\r\r\n\n\n\r\n\r'], false);
+		const pieceTree = createTextBuffer(['\n\r\r\n\n\n\r\n\r'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+
 		let str = '\n\r\r\n\n\n\r\n\r';
 		pieceTable.delete(0, 2);
 		str = str.substring(0, 0) + str.substring(0 + 2);
@@ -1391,9 +1532,11 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 2', () => {
-		const pieceTable = createTextBuffer([
+		const pieceTree = createTextBuffer([
 			'\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n'
 		], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = '\n\r\n\n\n\r\n\r\n\r\r\n\n\n\r\r\n\r\n';
 		pieceTable.insert(16, '\r\n\r\r');
 		str = str.substring(0, 16) + '\r\n\r\r' + str.substring(16);
@@ -1412,7 +1555,9 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 3', () => {
-		const pieceTable = createTextBuffer(['\r\n\n\n\n\n\n\r\n'], false);
+		const pieceTree = createTextBuffer(['\r\n\n\n\n\n\n\r\n'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = '\r\n\n\n\n\n\n\r\n';
 		pieceTable.insert(4, '\n\n\r\n\r\r\n\n\r');
 		str = str.substring(0, 4) + '\n\n\r\n\r\r\n\n\r' + str.substring(4);
@@ -1429,7 +1574,9 @@ suite('centralized lineStarts with CRLF', () => {
 	});
 
 	test('random chunk bug 4', () => {
-		const pieceTable = createTextBuffer(['\n\r\n\r'], false);
+		const pieceTree = createTextBuffer(['\n\r\n\r'], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = '\n\r\n\r';
 		pieceTable.insert(4, '\n\n\r\n');
 		str = str.substring(0, 4) + '\n\n\r\n' + str.substring(4);
@@ -1443,8 +1590,12 @@ suite('centralized lineStarts with CRLF', () => {
 });
 
 suite('random is unsupervised', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('splitting large change buffer', function () {
-		const pieceTable = createTextBuffer([''], false);
+		const pieceTree = createTextBuffer([''], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = '';
 
 		pieceTable.insert(0, 'WUZ\nXVZY\n');
@@ -1478,8 +1629,9 @@ suite('random is unsupervised', () => {
 	test('random insert delete', function () {
 		this.timeout(500000);
 		let str = '';
-		const pieceTable = createTextBuffer([str], false);
-
+		const pieceTree = createTextBuffer([str], false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		// let output = '';
 		for (let i = 0; i < 1000; i++) {
 			if (Math.random() < 0.6) {
@@ -1520,7 +1672,9 @@ suite('random is unsupervised', () => {
 			chunks.push(randomStr(1000));
 		}
 
-		const pieceTable = createTextBuffer(chunks, false);
+		const pieceTree = createTextBuffer(chunks, false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = chunks.join('');
 
 		for (let i = 0; i < 1000; i++) {
@@ -1553,7 +1707,9 @@ suite('random is unsupervised', () => {
 		const chunks: string[] = [];
 		chunks.push(randomStr(1000));
 
-		const pieceTable = createTextBuffer(chunks, false);
+		const pieceTree = createTextBuffer(chunks, false);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = chunks.join('');
 
 		for (let i = 0; i < 50; i++) {
@@ -1584,39 +1740,53 @@ suite('random is unsupervised', () => {
 });
 
 suite('buffer api', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('equal', () => {
 		const a = createTextBuffer(['abc']);
 		const b = createTextBuffer(['ab', 'c']);
 		const c = createTextBuffer(['abd']);
 		const d = createTextBuffer(['abcd']);
+		ds.add(a);
+		ds.add(b);
+		ds.add(c);
+		ds.add(d);
 
-		assert(a.equal(b));
-		assert(!a.equal(c));
-		assert(!a.equal(d));
+		assert(a.getPieceTree().equal(b.getPieceTree()));
+		assert(!a.getPieceTree().equal(c.getPieceTree()));
+		assert(!a.getPieceTree().equal(d.getPieceTree()));
 	});
 
 	test('equal with more chunks', () => {
 		const a = createTextBuffer(['ab', 'cd', 'e']);
 		const b = createTextBuffer(['ab', 'c', 'de']);
-		assert(a.equal(b));
+		ds.add(a);
+		ds.add(b);
+		assert(a.getPieceTree().equal(b.getPieceTree()));
 	});
 
 	test('equal 2, empty buffer', () => {
 		const a = createTextBuffer(['']);
 		const b = createTextBuffer(['']);
+		ds.add(a);
+		ds.add(b);
 
-		assert(a.equal(b));
+		assert(a.getPieceTree().equal(b.getPieceTree()));
 	});
 
 	test('equal 3, empty buffer', () => {
 		const a = createTextBuffer(['a']);
 		const b = createTextBuffer(['']);
+		ds.add(a);
+		ds.add(b);
 
-		assert(!a.equal(b));
+		assert(!a.getPieceTree().equal(b.getPieceTree()));
 	});
 
 	test('getLineCharCode - issue #45735', () => {
-		const pieceTable = createTextBuffer(['LINE1\nline2']);
+		const pieceTree = createTextBuffer(['LINE1\nline2']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		assert.strictEqual(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
 		assert.strictEqual(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
 		assert.strictEqual(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
@@ -1632,7 +1802,9 @@ suite('buffer api', () => {
 
 
 	test('getLineCharCode - issue #47733', () => {
-		const pieceTable = createTextBuffer(['', 'LINE1\n', 'line2']);
+		const pieceTree = createTextBuffer(['', 'LINE1\n', 'line2']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		assert.strictEqual(pieceTable.getLineCharCode(1, 0), 'L'.charCodeAt(0), 'L');
 		assert.strictEqual(pieceTable.getLineCharCode(1, 1), 'I'.charCodeAt(0), 'I');
 		assert.strictEqual(pieceTable.getLineCharCode(1, 2), 'N'.charCodeAt(0), 'N');
@@ -1648,8 +1820,12 @@ suite('buffer api', () => {
 });
 
 suite('search offset cache', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('render white space exception', () => {
-		const pieceTable = createTextBuffer(['class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}']);
+		const pieceTree = createTextBuffer(['class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = 'class Name{\n\t\n\t\t\tget() {\n\n\t\t\t}\n\t\t}';
 
 		pieceTable.insert(12, 's');
@@ -1705,7 +1881,9 @@ suite('search offset cache', () => {
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized', () => {
-		const pieceTable = createTextBuffer(['abc']);
+		const pieceTree = createTextBuffer(['abc']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = 'abc';
 
 		pieceTable.insert(3, 'def\nabc');
@@ -1717,7 +1895,9 @@ suite('search offset cache', () => {
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized 2', () => {
-		const pieceTable = createTextBuffer(['abc\n']);
+		const pieceTree = createTextBuffer(['abc\n']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = 'abc\n';
 
 		pieceTable.insert(4, 'def\nabc');
@@ -1729,7 +1909,9 @@ suite('search offset cache', () => {
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized 3', () => {
-		const pieceTable = createTextBuffer(['abc\n']);
+		const pieceTree = createTextBuffer(['abc\n']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = 'abc\n';
 
 		pieceTable.insert(2, 'def\nabc');
@@ -1741,7 +1923,9 @@ suite('search offset cache', () => {
 	});
 
 	test('Line breaks replacement is not necessary when EOL is normalized 4', () => {
-		const pieceTable = createTextBuffer(['abc\n']);
+		const pieceTree = createTextBuffer(['abc\n']);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 		let str = 'abc\n';
 
 		pieceTable.insert(3, 'def\nabc');
@@ -1766,6 +1950,8 @@ function getValueInSnapshot(snapshot: ITextSnapshot) {
 	return ret;
 }
 suite('snapshot', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('bug #45564, piece tree pieces should be immutable', () => {
 		const model = createTextModel('\n');
 		model.applyEdits([
@@ -1863,9 +2049,13 @@ suite('snapshot', () => {
 });
 
 suite('chunk based search', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('#45892. For some cases, the buffer is empty but we still try to search', () => {
 		const pieceTree = createTextBuffer(['']);
-		pieceTree.delete(0, 1);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+		pieceTable.delete(0, 1);
 		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
 		assert.strictEqual(ret.length, 0);
 	});
@@ -1881,11 +2071,14 @@ suite('chunk based search', () => {
 				'* [ ] task 3'
 			].join('\n')
 		]);
-		pieceTree.delete(0, 62);
-		pieceTree.delete(16, 1);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
 
-		pieceTree.insert(16, ' ');
-		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
+		pieceTable.delete(0, 62);
+		pieceTable.delete(16, 1);
+
+		pieceTable.insert(16, ' ');
+		const ret = pieceTable.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
 		assert.strictEqual(ret.length, 3);
 
 		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));
@@ -1900,13 +2093,16 @@ suite('chunk based search', () => {
 				'dbcabc'
 			].join('\n')
 		]);
-		pieceTree.delete(4, 1);
-		let ret = pieceTree.findMatchesLineByLine(new Range(2, 3, 2, 6), new SearchData(/a/gi, null, 'a'), true, 1000);
+		ds.add(pieceTree);
+		const pieceTable = pieceTree.getPieceTree();
+
+		pieceTable.delete(4, 1);
+		let ret = pieceTable.findMatchesLineByLine(new Range(2, 3, 2, 6), new SearchData(/a/gi, null, 'a'), true, 1000);
 		assert.strictEqual(ret.length, 1);
 		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));
 
-		pieceTree.delete(4, 1);
-		ret = pieceTree.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
+		pieceTable.delete(4, 1);
+		ret = pieceTable.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
 		assert.strictEqual(ret.length, 1);
 		assert.deepStrictEqual(ret[0].range, new Range(2, 2, 2, 3));
 	});

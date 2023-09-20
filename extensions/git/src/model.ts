@@ -495,7 +495,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this.logger.trace(`Opening repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
-			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root})`);
+			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root}`);
 			return;
 		}
 

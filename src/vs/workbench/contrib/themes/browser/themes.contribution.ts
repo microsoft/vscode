@@ -328,6 +328,7 @@ class InstalledThemesPicker {
 				quickpick.placeholder = this.placeholderMessage;
 				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 				quickpick.canSelectMany = false;
+				quickpick.matchOnDescription = true;
 				quickpick.onDidAccept(async _ => {
 					isCompleted = true;
 					const theme = quickpick.selectedItems[0];
@@ -545,7 +546,13 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 }
 
 function toEntry(theme: IWorkbenchTheme): ThemeItem {
-	const item: ThemeItem = { id: theme.id, theme: theme, label: theme.label, description: theme.description };
+	const settingId = theme.settingsId ?? undefined;
+	const item: ThemeItem = {
+		id: theme.id,
+		theme: theme,
+		label: theme.label,
+		description: theme.description || (theme.label === settingId ? undefined : settingId),
+	};
 	if (theme.extensionData) {
 		item.buttons = [configureButton];
 	}
@@ -716,13 +723,13 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 	title: localize('themes', "Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
-	order: 6
+	order: 7
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
-	order: 6
+	order: 7
 });
 
 MenuRegistry.appendMenuItem(ThemesSubMenu, {

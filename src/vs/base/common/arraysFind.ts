@@ -5,7 +5,7 @@
 
 import { Comparator } from './arrays';
 
-export function findLast<T>(array: readonly T[], predicate: (item: T) => boolean): T | undefined {
+export function findLast<T>(array: readonly T[], predicate: (item: T) => boolean, fromIdx?: number): T | undefined {
 	const idx = findLastIdx(array, predicate);
 	if (idx === -1) {
 		return undefined;
@@ -13,8 +13,8 @@ export function findLast<T>(array: readonly T[], predicate: (item: T) => boolean
 	return array[idx];
 }
 
-export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => boolean): number {
-	for (let i = array.length - 1; i >= 0; i--) {
+export function findLastIdx<T>(array: readonly T[], predicate: (item: T) => boolean, fromIndex = array.length - 1): number {
+	for (let i = fromIndex; i >= 0; i--) {
 		const element = array[i];
 
 		if (predicate(element)) {

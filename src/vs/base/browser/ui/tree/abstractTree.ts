@@ -1027,7 +1027,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	private readonly _onDidChangeOpenState = new Emitter<boolean>();
 	readonly onDidChangeOpenState = this._onDidChangeOpenState.event;
 
-	private enabledDisposables = new DisposableStore();
+	private readonly enabledDisposables = new DisposableStore();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -1085,8 +1085,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		this._history = this.widget.getHistory();
 		this.widget = undefined;
 
-		this.enabledDisposables.dispose();
-		this.enabledDisposables = new DisposableStore();
+		this.enabledDisposables.clear();
 
 		this.previousPattern = this.pattern;
 		this.onDidChangeValue('');

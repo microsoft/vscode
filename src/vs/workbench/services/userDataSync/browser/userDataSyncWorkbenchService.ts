@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResource, IResourcePreview, USER_DATA_SYNC_SCHEME, } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, IUserDataSyncStoreManagementService, SyncStatus, IUserDataSyncEnablementService, IUserDataSyncResource, IResourcePreview, USER_DATA_SYNC_SCHEME, USER_DATA_SYNC_LOG_ID, } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE, SYNC_CONFLICTS_VIEW_ID, CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS, IUserDataSyncConflictsView } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -38,6 +38,7 @@ import { isDiffEditorInput } from 'vs/workbench/common/editor';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { IFileService } from 'vs/platform/files/common/files';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -113,6 +114,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
@@ -175,15 +177,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
 
-		this._register(
+		this._register(Event.filter(
 			Event.any(
-				Event.filter(
-					Event.any(
-						this.authenticationService.onDidRegisterAuthenticationProvider,
-						this.authenticationService.onDidUnregisterAuthenticationProvider,
-					), info => this.isSupportedAuthenticationProviderId(info.id)),
-				Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive))
-				(() => this.update()));
+				this.authenticationService.onDidRegisterAuthenticationProvider,
+				this.authenticationService.onDidUnregisterAuthenticationProvider,
+			), info => this.isSupportedAuthenticationProviderId(info.id))(() => this.update()));
+
+		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive)(() => this.update('token failure')));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
@@ -205,7 +205,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}));
 	}
 
-	private async update(): Promise<void> {
+	private async update(reason?: string): Promise<void> {
+
+		if (reason) {
+			this.logService.info(`Settings Sync: Updating due to ${reason}`);
+		}
 
 		this.updateAuthenticationProviders();
 		await this.updateCurrentAccount();
@@ -446,10 +450,42 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
+	async getAllLogResources(): Promise<URI[]> {
+		const logsFolders: URI[] = [];
+		const stat = await this.fileService.resolve(this.uriIdentityService.extUri.dirname(this.environmentService.logsHome));
+		if (stat.children) {
+			logsFolders.push(...stat.children
+				.filter(stat => stat.isDirectory && /^\d{8}T\d{6}$/.test(stat.name))
+				.sort()
+				.reverse()
+				.map(d => d.resource));
+		}
+		const result: URI[] = [];
+		for (const logFolder of logsFolders) {
+			const folderStat = await this.fileService.resolve(logFolder);
+			const childStat = folderStat.children?.find(stat => this.uriIdentityService.extUri.basename(stat.resource).startsWith(`${USER_DATA_SYNC_LOG_ID}.`));
+			if (childStat) {
+				result.push(childStat.resource);
+			}
+		}
+		return result;
+	}
+
 	async showSyncActivity(): Promise<void> {
 		this.activityViewsEnablementContext.set(true);
 		await this.waitForActiveSyncViews();
 		await this.viewsService.openViewContainer(SYNC_VIEW_CONTAINER_ID);
+	}
+
+	async downloadSyncActivity(location: URI): Promise<void> {
+		await Promise.all([
+			this.userDataSyncService.saveRemoteActivityData(this.uriIdentityService.extUri.joinPath(location, 'remoteActivity.json')),
+			(async () => {
+				const logResources = await this.getAllLogResources();
+				await Promise.all(logResources.map(async logResource => this.fileService.copy(logResource, this.uriIdentityService.extUri.joinPath(location, 'logs', `${this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(logResource))}.log`))));
+			})(),
+			this.fileService.copy(this.environmentService.userDataSyncHome, this.uriIdentityService.extUri.joinPath(location, 'localActivity')),
+		]);
 	}
 
 	private async waitForActiveSyncViews(): Promise<void> {
@@ -611,20 +647,20 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private async onDidAuthFailure(): Promise<void> {
 		this.telemetryService.publicLog2<{}, { owner: 'sandy081'; comment: 'Report when there are successive auth failures during settings sync' }>('sync/successiveAuthFailures');
 		this.currentSessionId = undefined;
-		await this.update();
+		await this.update('auth failure');
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
 		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
-		this.update();
+		this.update('change in sessions');
 	}
 
 	private onDidChangeStorage(): void {
 		if (this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
 			this._cachedCurrentSessionId = null;
-			this.update();
+			this.update('change in storage');
 		}
 	}
 

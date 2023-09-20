@@ -39,7 +39,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private readonly _resolveCodeLensesScheduler: RunOnceScheduler;
 
 	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
-	private _oldCodeLensModels = new DisposableStore();
+	private readonly _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
 	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
 
@@ -134,7 +134,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		if (!this._editor.getOption(EditorOption.codeLens)) {
+		if (!this._editor.getOption(EditorOption.codeLens) || model.isTooLargeForTokenization()) {
 			return;
 		}
 
