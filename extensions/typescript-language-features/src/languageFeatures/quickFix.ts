@@ -371,6 +371,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				};
 			}
 			if (expand && message !== undefined) {
+				codeAction.command.title = 'Copilot: ' + codeAction.command.title;
 				codeAction.command = {
 					command: CompositeCommand.ID,
 					title: '',

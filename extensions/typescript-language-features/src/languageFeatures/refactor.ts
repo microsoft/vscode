@@ -386,6 +386,9 @@ class InlinedCodeAction extends vscode.CodeAction {
 		if (response.body.renameLocation) {
 			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
 			if (this.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
+				if (this.copilotRename && this.command) {
+					this.command.title = 'Copilot: ' + this.command.title;
+				}
 				this.command = {
 					command: CompositeCommand.ID,
 					title: '',
