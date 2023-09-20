@@ -252,21 +252,8 @@ declare module 'vscode' {
 
 	export interface CliBuild {
 		readonly quality: string;
-		readonly buildTarget: BuildTarget;
+		readonly buildTarget: string; // 'LinuxAlpineX64' | 'LinuxX64' | 'LinuxARM64' | 'LinuxARM32' | 'DarwinX64' | 'DarwinARM64' | 'WindowsX64' | 'WindowsX86' | 'WindowsARM64';
 		readonly commit: string;
-	}
-
-	export const enum BuildTarget {
-		LinuxAlpineX64 = 'LinuxAlpineX64',
-		LinuxAlpineARM64 = 'LinuxAlpineARM64',
-		LinuxX64 = 'LinuxX64',
-		LinuxARM64 = 'LinuxARM64',
-		LinuxARM32 = 'LinuxARM32',
-		DarwinX64 = 'DarwinX64',
-		DarwinARM64 = 'DarwinARM64',
-		WindowsX64 = 'WindowsX64',
-		WindowsX86 = 'WindowsX86',
-		WindowsARM64 = 'WindowsARM64',
 	}
 
 	export interface ExecEnvironment {
@@ -280,8 +267,6 @@ declare module 'vscode' {
 	export interface RemoteFileSystem {
 		stat(path: string): Thenable<FileStat>;
 	}
-
-	export type DuplexStream = ReadStream & WriteStream;
 
 	export interface RemoteAuthorityResolver {
 		/**
