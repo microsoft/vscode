@@ -70,7 +70,9 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		let result: ITerminalStatus | undefined;
 		for (const s of this._statuses.values()) {
 			if (!result || s.severity >= result.severity) {
-				result = s;
+				if (s.icon || !result?.icon) {
+					result = s;
+				}
 			}
 		}
 		return result;
@@ -99,7 +101,7 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 			this._statuses.set(status.id, status);
 			this._onDidAddStatus.fire(status);
 			const newPrimary = this.primary;
-			if (oldPrimary !== newPrimary && this.primary?.icon) {
+			if (oldPrimary !== newPrimary) {
 				this._onDidChangePrimaryStatus.fire(newPrimary);
 			}
 		}
