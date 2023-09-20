@@ -36,6 +36,10 @@ import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs
 import { localize } from 'vs/nls';
 import { Iterable } from 'vs/base/common/iterator';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { basename, dirname } from 'vs/base/common/resources';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement;
 
@@ -261,8 +265,49 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 
 class SCMSyncViewPaneAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
+	constructor(
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	) { }
+
 	getAriaLabel(element: TreeElement): string {
-		// TODO - add aria labels
+		if (isSCMRepository(element)) {
+			let folderName = '';
+			if (element.provider.rootUri) {
+				const folder = this.workspaceContextService.getWorkspaceFolder(element.provider.rootUri);
+
+				if (folder?.uri.toString() === element.provider.rootUri.toString()) {
+					folderName = folder.name;
+				} else {
+					folderName = basename(element.provider.rootUri);
+				}
+			}
+			return `${folderName} ${element.provider.label}`;
+		} else if (isSCMHistoryItemGroupTreeElement(element)) {
+			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
+		} else if (isSCMActionButton(element)) {
+			return element.button?.command.title ?? '';
+		} else if (isSCMHistoryItemTreeElement(element)) {
+			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
+		} else if (isSCMHistoryItemChangeTreeElement(element)) {
+			const result: string[] = [];
+
+			result.push(basename(element.uri));
+
+			// TODO - add decoration
+			// if (element.decorations.tooltip) {
+			// 	result.push(element.decorations.tooltip);
+			// }
+
+			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
+
+			if (path) {
+				result.push(path);
+			}
+
+			return result.join(', ');
+		}
+
 		return '';
 	}
 	getWidgetAriaLabel(): string {
@@ -373,9 +418,9 @@ export class SCMSyncViewPane extends ViewPane {
 			this.instantiationService.createInstance(SCMSyncDataSource),
 			{
 				horizontalScrolling: false,
-				accessibilityProvider: new SCMSyncViewPaneAccessibilityProvider(),
-				identityProvider: new SCMSyncViewPaneTreeIdentityProvider(),
-				sorter: new SCMSyncViewPaneTreeSorter(),
+				accessibilityProvider: this.instantiationService.createInstance(SCMSyncViewPaneAccessibilityProvider),
+				identityProvider: this.instantiationService.createInstance(SCMSyncViewPaneTreeIdentityProvider),
+				sorter: this.instantiationService.createInstance(SCMSyncViewPaneTreeSorter),
 			}) as WorkbenchAsyncDataTree<TreeElement, TreeElement>;
 
 		this._register(this._tree);
