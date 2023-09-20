@@ -538,7 +538,7 @@ export class ListView<T> implements IListView<T> {
 
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
-		const newRenderTop = renderTopOverride ?? Math.max(0, this.lastRenderTop + heightDiff);
+		const newRenderTop = Math.max(0, renderTopOverride ?? this.lastRenderTop + heightDiff);
 		this.render(lastRenderRange, newRenderTop, this.lastRenderHeight, undefined, undefined, true);
 		this.setScrollTop(this.lastRenderTop);
 
