@@ -66,7 +66,7 @@ export const enum KeybindingWeight {
 
 export interface ICommandAndKeybindingRule extends IKeybindingRule {
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription;
+	description?: ICommandHandlerDescription | null;
 }
 
 export interface IKeybindingsRegistry {
