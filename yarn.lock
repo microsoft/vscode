@@ -1304,10 +1304,10 @@
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/proxy-agent@^0.17.2":
-  version "0.17.2"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.17.2.tgz#0e0dac24478e2d71a4fd1b2bb5f84dc61add79e2"
-  integrity sha512-aKRo1YfUCsgEjHvr2HXfM6dwHhieyO6G+WHly7jewyyTJ1nANWEocS3JRnRbC4KjlajKhSUEOx838cdnY/vRtA==
+"@vscode/proxy-agent@^0.17.3":
+  version "0.17.3"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.17.3.tgz#ae46cb64d58a1a2ba063321eb4e3339eaba703b8"
+  integrity sha512-l+00ALcWQyDsW3kd22uOeAn84KHFkixnk/STiBFRxltbTiaiJsHCCpjlmX+x/RK+B97FcRLlg+MRRb7jtWAnng==
   dependencies:
     "@tootallnate/once" "^3.0.0"
     agent-base "^7.0.1"
@@ -10008,10 +10008,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.3.0-dev.20230911:
-  version "5.3.0-dev.20230911"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.0-dev.20230911.tgz#7f60e82ee86e381655ddc63141408eb90b6ca31d"
-  integrity sha512-2iI2l7OuGvU668gBje+JQKE8bsf7SH8w8ScwUkENHCcrbaDpXa/Oqfuwq5gdFM7SfVfp5p6c8kHZRMvL+kabJg==
+typescript@^5.3.0-dev.20230919:
+  version "5.3.0-dev.20230919"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.0-dev.20230919.tgz#ee93ccb19d16a89b562bcd851d31e20e545b2ed0"
+  integrity sha512-FU6DZhzId38aY/dX2gHp7phaYkbNJkCx8G//VVs0nVzZv0qjWGggLkMXoMipphO8Hv0TvZu30Zwdt6nzFIbcBQ==
 
 typical@^4.0.0:
   version "4.0.0"

@@ -10,6 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
@@ -232,16 +233,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get username(): string {
-		return this.session.responderUsername;
+		return this.agent?.metadata.fullName ?? this.session.responderUsername;
 	}
 
 	public get avatarIconUri(): URI | undefined {
-		return this.session.responderAvatarIconUri;
+		return this.agent?.metadata.icon ?? this.session.responderAvatarIconUri;
 	}
 
 	constructor(
 		_response: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[],
 		public readonly session: ChatModel,
+		public readonly agent: IChatAgentData | undefined,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
@@ -309,10 +311,18 @@ export interface ISerializableChatsData {
 	[sessionId: string]: ISerializableChatData;
 }
 
+export interface ISerializableChatAgentData {
+	id: string;
+	description: string;
+	fullName?: string;
+	icon?: UriComponents;
+}
+
 export interface ISerializableChatRequestData {
 	providerRequestId: string | undefined;
 	message: string;
 	response: (IMarkdownString | IChatResponseProgressFileTreeData)[] | undefined;
+	agent?: ISerializableChatAgentData;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
 	followups: IChatFollowup[] | undefined;
 	isCanceled: boolean | undefined;
@@ -455,7 +465,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	constructor(
 		public readonly providerId: string,
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -484,7 +495,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return requests.map((raw: ISerializableChatRequestData) => {
 			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+				const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
+				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -531,13 +543,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: string | IChatReplyFollowup): ChatRequestModel {
+	addRequest(message: string | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
 
 		const request = new ChatRequestModel(this, message);
-		request.response = new ChatResponseModel(new MarkdownString(''), this);
+		request.response = new ChatResponseModel(new MarkdownString(''), this, chatAgent);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -550,7 +562,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel(new MarkdownString(''), this);
+			request.response = new ChatResponseModel(new MarkdownString(''), this, undefined);
 		}
 
 		if (request.response.isComplete) {
@@ -593,7 +605,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel(new MarkdownString(''), this);
+			request.response = new ChatResponseModel(new MarkdownString(''), this, undefined);
 		}
 
 		request.response.setErrorDetails(rawResponse.errorDetails);
@@ -642,7 +654,13 @@ export class ChatModel extends Disposable implements IChatModel {
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
-					vote: r.response?.vote
+					vote: r.response?.vote,
+					agent: r.response?.agent ? {
+						id: r.response.agent.id,
+						description: r.response.agent.metadata.description,
+						fullName: r.response.agent.metadata.fullName,
+						icon: r.response.agent.metadata.icon
+					} : undefined,
 				};
 			}),
 			providerId: this.providerId,

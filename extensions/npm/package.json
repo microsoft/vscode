@@ -4,6 +4,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.1",
+  "private": true,
   "license": "MIT",
   "engines": {
     "vscode": "0.10.x"

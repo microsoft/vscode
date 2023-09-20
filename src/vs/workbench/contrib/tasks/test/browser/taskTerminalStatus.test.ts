@@ -5,6 +5,8 @@
 
 import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -60,6 +62,7 @@ class TestProblemCollector implements Partial<AbstractProblemCollector> {
 }
 
 suite('Task Terminal Status', () => {
+	let store: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let taskService: TestTaskService;
 	let taskTerminalStatus: TaskTerminalStatus;
@@ -68,6 +71,7 @@ suite('Task Terminal Status', () => {
 	let problemCollector: AbstractProblemCollector;
 	let audioCueService: TestAudioCueService;
 	setup(() => {
+		store = new DisposableStore();
 		instantiationService = new TestInstantiationService();
 		taskService = new TestTaskService();
 		audioCueService = new TestAudioCueService();
@@ -75,10 +79,13 @@ suite('Task Terminal Status', () => {
 		testTerminal = instantiationService.createInstance(TestTerminal) as any;
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
 		problemCollector = instantiationService.createInstance(TestProblemCollector) as any;
+		store.add(instantiationService);
+		store.add(taskTerminalStatus);
 	});
 	teardown(() => {
-		instantiationService.dispose();
+		store.clear();
 	});
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Should add failed status when there is an exit code on task end', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
 		taskService.triggerStateChange({ kind: TaskEventKind.ProcessStarted });

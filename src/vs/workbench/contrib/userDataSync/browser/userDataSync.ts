@@ -727,20 +727,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userDataSync.actions.turnOn',
-					title: { value: localize('global activity turn on sync', "Turn on Settings Sync..."), original: 'Turn on Settings Sync...' },
+					title: { value: localize('global activity turn on sync', "Backup and Sync Settings..."), original: 'Backup and Sync Settings...' },
 					category: { value: SYNC_TITLE, original: `Settings Sync` },
 					f1: true,
 					precondition: when,
 					menu: [{
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 1
 					}, {
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.MenubarPreferencesMenu,
 						when,
-						order: 2
+						order: 1
 					}, {
 						group: '1_settings',
 						id: MenuId.AccountsContext,
@@ -764,7 +764,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -811,7 +811,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -851,12 +851,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					f1: true,
 					precondition: CONTEXT_HAS_CONFLICTS,
 					menu: [{
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
 					}, {
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.MenubarPreferencesMenu,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
@@ -881,13 +881,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '1_profiles',
+							group: '3_settings_sync',
 							when,
 							order: 2
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '1_profiles',
+							group: '3_settings_sync',
 							when,
 							order: 2,
 						},

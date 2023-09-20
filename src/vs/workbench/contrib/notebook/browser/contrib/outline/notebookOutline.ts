@@ -211,7 +211,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	private _outlineProvider: NotebookCellOutlineProvider | undefined;
-	private _localDisposables = new DisposableStore();
+	private readonly _localDisposables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: INotebookEditorPane,
