@@ -33,6 +33,10 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Color } from 'vs/base/common/color';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 
 interface IActionShowOptions {
@@ -41,7 +45,7 @@ interface IActionShowOptions {
 }
 
 
-const DECORATION_CLASS_NAME = 'linked-editing-decoration';
+const DECORATION_CLASS_NAME = 'quickfix-edit-highlight';
 
 export class CodeActionController extends Disposable implements IEditorContribution {
 
@@ -77,7 +81,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		super();
 
 		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService, _configurationService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._lightBulbWidget = new Lazy(() => {
@@ -237,10 +241,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	private static readonly DECORATION = ModelDecorationOptions.register({
-		description: 'linked-editing',
+		description: 'quickfix-highlight',
 		className: DECORATION_CLASS_NAME
 	});
-
 
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
 
@@ -359,3 +362,18 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return resultActions;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const addBackgroundColorRule = (selector: string, color: Color | undefined): void => {
+		if (color) {
+			collector.addRule(`.monaco-editor ${selector} { background-color: ${color}; }`);
+		}
+	};
+
+	addBackgroundColorRule('.quickfix-edit-highlight', theme.getColor(editorFindMatchHighlight));
+	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
+
+	if (findMatchHighlightBorder) {
+		collector.addRule(`.monaco-editor .quickfix-edit-highlight { border: 1px ${isHighContrast(theme.type) ? 'dotted' : 'solid'} ${findMatchHighlightBorder}; box-sizing: border-box; }`);
+	}
+});

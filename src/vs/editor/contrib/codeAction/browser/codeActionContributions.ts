@@ -33,3 +33,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 	}
 });
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	...editorConfigurationBaseNode,
+	properties: {
+		'editor.codeActionWidget.highlightQuickfixes': {
+			type: 'boolean',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			description: nls.localize('highlightQuickfixes', "Enable/disable highlighting quickfixes in the same line when using the quickfix hotkey."),
+			default: false,
+		},
+	}
+});
