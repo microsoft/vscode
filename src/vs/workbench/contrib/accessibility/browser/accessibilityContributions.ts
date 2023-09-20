@@ -40,7 +40,7 @@ import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/comments.contribution';
-import { CommentCommandId } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';

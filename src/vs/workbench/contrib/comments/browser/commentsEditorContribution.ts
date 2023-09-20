@@ -24,22 +24,9 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
-
-export const enum CommentCommandId {
-	Add = 'workbench.action.addComment',
-	NextThread = 'editor.action.nextCommentThreadAction',
-	PreviousThread = 'editor.action.previousCommentThreadAction',
-	NextRange = 'editor.action.nextCommentingRange',
-	PreviousRange = 'editor.action.previousCommentingRange',
-	ToggleCommenting = 'workbench.action.toggleCommenting',
-	Submit = 'editor.action.submitComment',
-	Hide = 'workbench.action.hideComment',
-	CollapseAll = 'workbench.action.collapseAllComments',
-	ExpandAll = 'workbench.action.expandAllComments',
-	ExpandUnresolved = 'workbench.action.expandUnresolvedComments'
-}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CommentCommandId.NextThread,
