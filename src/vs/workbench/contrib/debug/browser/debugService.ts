@@ -70,7 +70,7 @@ export class DebugService implements IDebugService {
 	private taskRunner: DebugTaskRunner;
 	private configurationManager: ConfigurationManager;
 	private adapterManager: AdapterManager;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private debugType!: IContextKey<string>;
 	private debugState!: IContextKey<string>;
 	private inDebugMode!: IContextKey<boolean>;

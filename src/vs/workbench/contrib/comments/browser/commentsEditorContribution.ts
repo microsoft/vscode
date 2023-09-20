@@ -12,14 +12,15 @@ import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICommentService, WorkspaceHasCommenting } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ActiveCursorHasCommentingRange, CommentController, ID } from 'vs/workbench/contrib/comments/browser/commentsController';
+import { CommentController, ID } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export class NextCommentThreadAction extends EditorAction {
 	constructor() {
@@ -73,7 +74,7 @@ export class NextCommentingRangeAction extends EditorAction {
 			id: 'editor.action.goToNextCommentingRange',
 			label: nls.localize('goToNextCommentingRange', "Go to Next Commenting Range"),
 			alias: 'Go to Next Commenting Range',
-			precondition: WorkspaceHasCommenting,
+			precondition: CommentContextKeys.WorkspaceHasCommenting,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
@@ -94,7 +95,7 @@ export class PreviousCommentingRangeAction extends EditorAction {
 			id: 'editor.action.goToPreviousCommentingRange',
 			label: nls.localize('goToPreviousCommentingRange', "Go to Previous Commenting Range"),
 			alias: 'Go to Next Commenting Range',
-			precondition: WorkspaceHasCommenting,
+			precondition: CommentContextKeys.WorkspaceHasCommenting,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
@@ -128,7 +129,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: nls.localize('comments.toggleCommenting', "Toggle Editor Commenting"),
 		category: 'Comments',
 	},
-	when: WorkspaceHasCommenting
+	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
 const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
@@ -164,7 +165,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: nls.localize('comments.addCommand', "Add Comment on Current Selection"),
 		category: 'Comments'
 	},
-	when: ActiveCursorHasCommentingRange
+	when: CommentContextKeys.activeCursorHasCommentingRange
 });
 
 const COLLAPSE_ALL_COMMENT_COMMAND = 'workbench.action.collapseAllComments';
@@ -181,7 +182,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: nls.localize('comments.collapseAll', "Collapse All Comments"),
 		category: 'Comments'
 	},
-	when: WorkspaceHasCommenting
+	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
 const EXPAND_ALL_COMMENT_COMMAND = 'workbench.action.expandAllComments';
@@ -198,7 +199,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: nls.localize('comments.expandAll', "Expand All Comments"),
 		category: 'Comments'
 	},
-	when: WorkspaceHasCommenting
+	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
 const EXPAND_UNRESOLVED_COMMENT_COMMAND = 'workbench.action.expandUnresolvedComments';
@@ -215,7 +216,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: nls.localize('comments.expandUnresolved', "Expand Unresolved Comments"),
 		category: 'Comments'
 	},
-	when: WorkspaceHasCommenting
+	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
