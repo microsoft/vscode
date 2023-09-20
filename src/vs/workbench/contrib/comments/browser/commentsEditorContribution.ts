@@ -29,7 +29,7 @@ registerEditorContribution(ID, CommentController, EditorContributionInstantiatio
 
 export const enum CommentCommandId {
 	Add = 'editor.action.addComment',
-	NextThread = 'workbench.action.nextCommentThreadAction',
+	NextThread = 'editor.action.nextCommentThreadAction',
 	PreviousThread = 'workbench.action.previousCommentThreadAction',
 	NextRange = 'editor.action.nextCommentingRange',
 	PreviousRange = 'editor.action.previousCommentingRange',
