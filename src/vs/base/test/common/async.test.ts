@@ -12,6 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Async', () => {
 
@@ -804,6 +805,63 @@ suite('Async', () => {
 
 			assert.ok(pendingCancelled);
 			ctsTimeout.cancel();
+		});
+	});
+
+	suite('disposableTimeout', () => {
+		test('handler only success', async () => {
+			let cb = false;
+			async.disposableTimeout(() => cb = true);
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, true);
+		});
+
+		test('handler only cancel', async () => {
+			let cb = false;
+			const t = async.disposableTimeout(() => cb = true);
+			t.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
+		});
+
+		test('store managed success', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			async.disposableTimeout(() => cb = true, 0, s);
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, true);
+
+			s.dispose();
+		});
+
+		test('store managed cancel via disposable', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			const t = async.disposableTimeout(() => cb = true, 0, s);
+			t.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
+
+			s.dispose();
+		});
+
+		test('store managed cancel via store', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			async.disposableTimeout(() => cb = true, 0, s);
+			s.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
 		});
 	});
 
