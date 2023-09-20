@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon } from 'vscode';
+import { Disposable, Event, EventEmitter, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, l10n } from 'vscode';
 import { Repository } from './repository';
 import { IDisposable } from './util';
 import { toGitUri } from './uri';
@@ -133,7 +133,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
 		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
-		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: 'Changes', description: diffShortStat };
+		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), description: diffShortStat };
 	}
 
 	dispose(): void {
