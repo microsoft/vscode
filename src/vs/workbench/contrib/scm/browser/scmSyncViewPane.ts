@@ -40,6 +40,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { basename, dirname } from 'vs/base/common/resources';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { stripIcons } from 'vs/base/common/iconLabels';
+import { FileKind } from 'vs/platform/files/common/files';
 
 type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement;
 
@@ -63,7 +64,7 @@ function toDiffEditorArguments(uri: URI, originalUri: URI, modifiedUri: URI): un
 	const originalShortRef = originalQuery.ref.substring(0, 8).concat(originalQuery.ref.endsWith('^') ? '^' : '');
 	const modifiedShortRef = modifiedQuery.ref.substring(0, 8).concat(modifiedQuery.ref.endsWith('^') ? '^' : '');
 
-	return [originalUri, modifiedUri, `${basename} (${originalShortRef}) ↔ ${basename} (${modifiedShortRef})`];
+	return [originalUri, modifiedUri, `${basename} (${originalShortRef}) ↔ ${basename} (${modifiedShortRef})`, null];
 }
 
 function getSCMResourceId(element: TreeElement): string {
@@ -173,8 +174,8 @@ interface HistoryItemTemplate {
 	readonly iconContainer: HTMLElement;
 	// readonly avatarImg: HTMLImageElement;
 	readonly iconLabel: IconLabel;
-	readonly timestampContainer: HTMLElement;
-	readonly timestamp: HTMLSpanElement;
+	// readonly timestampContainer: HTMLElement;
+	// readonly timestamp: HTMLSpanElement;
 	readonly disposables: IDisposable;
 }
 
@@ -193,10 +194,10 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemTreeElement, vo
 		const iconContainer = prepend(iconLabel.element, $('.icon-container'));
 		// const avatarImg = append(iconContainer, $('img.avatar')) as HTMLImageElement;
 
-		const timestampContainer = append(iconLabel.element, $('.timestamp-container'));
-		const timestamp = append(timestampContainer, $('span.timestamp'));
+		// const timestampContainer = append(iconLabel.element, $('.timestamp-container'));
+		// const timestamp = append(timestampContainer, $('span.timestamp'));
 
-		return { iconContainer, iconLabel, timestampContainer, timestamp, disposables: new DisposableStore() };
+		return { iconContainer, iconLabel, disposables: new DisposableStore() };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -254,6 +255,7 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 	renderElement(node: ITreeNode<SCMHistoryItemChangeTreeElement, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
 		templateData.fileLabel.setFile(node.element.uri, {
 			fileDecorations: { colors: false, badges: true },
+			fileKind: FileKind.FILE,
 			hidePath: false,
 		});
 	}
@@ -372,6 +374,7 @@ class SCMSyncViewPaneTreeSorter implements ITreeSorter<TreeElement> {
 export class SCMSyncViewPane extends ViewPane {
 
 	private listLabels!: ResourceLabels;
+	private treeContainer!: HTMLElement;
 	private _tree!: WorkbenchAsyncDataTree<TreeElement, TreeElement>;
 
 	private _viewModel!: SCMSyncPaneViewModel;
@@ -398,7 +401,7 @@ export class SCMSyncViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		const treeContainer = append(container, $('.scm-view.scm-sync-view.file-icon-themable-tree'));
+		this.treeContainer = append(container, $('.scm-view.scm-sync-view'));
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
@@ -406,7 +409,7 @@ export class SCMSyncViewPane extends ViewPane {
 		this._tree = this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'SCM Sync View',
-			treeContainer,
+			this.treeContainer,
 			new ListDelegate(),
 			[
 				this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
@@ -427,6 +430,12 @@ export class SCMSyncViewPane extends ViewPane {
 		this._register(this._tree.onDidOpen(this.onDidOpen, this));
 
 		this._viewModel = this.instantiationService.createInstance(SCMSyncPaneViewModel, this._tree);
+
+		this.treeContainer.classList.add('file-icon-themable-tree');
+		this.treeContainer.classList.add('show-file-icons');
+
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -439,9 +448,13 @@ export class SCMSyncViewPane extends ViewPane {
 			return;
 		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
-				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri));
+				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
 			}
 		}
+	}
+
+	private updateIndentStyles(theme: any): void {
+		this.treeContainer.classList.toggle('align-icons-and-twisties', theme.hasFileIcons || (theme.hasFileIcons && !theme.hasFolderIcons));
 	}
 
 	override dispose(): void {
@@ -590,8 +603,8 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			if (historyItemGroupBase) {
 				children.push({
 					id: historyItemGroupBase.id,
-					label: localize('incoming', "$(cloud-download) Incoming Changes"),
-					description: historyItemGroupBase.label,
+					label: `$(cloud-download) ${historyItemGroupBase.label}`,
+					description: localize('incoming', "Incoming Changes"),
 					ancestor: ancestor?.id,
 					count: ancestor?.behind ?? 0,
 					repository: element,
@@ -603,8 +616,8 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			if (historyItemGroup) {
 				children.push({
 					id: historyItemGroup.id,
-					label: localize('outgoing', "$(cloud-upload) Outgoing Changes"),
-					description: historyItemGroup.label,
+					label: `$(cloud-upload) ${historyItemGroup.label}`,
+					description: localize('outgoing', "Outgoing Changes"),
 					ancestor: ancestor?.id,
 					count: ancestor?.ahead ?? 0,
 					repository: element,

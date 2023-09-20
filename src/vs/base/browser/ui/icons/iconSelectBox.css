@@ -9,6 +9,7 @@
 
 .icon-select-box .icon-select-icons-container {
 	height: 100%;
+	outline: 0 !important;
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container {
@@ -30,4 +31,8 @@
 	height: 24px;
 	padding: 10px;
 	opacity: .8;
+}
+
+.icon-select-box .icon-select-id-container .icon-select-id-label .highlight {
+	color: var(--vscode-list-highlightForeground);
 }

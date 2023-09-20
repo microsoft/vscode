@@ -132,6 +132,10 @@
 .scm-view .monaco-list-row .history-item-group .monaco-icon-label > .monaco-icon-label-container {
 	display: flex;
 }
+.scm-view .monaco-list-row .history-item-group .monaco-icon-label > .monaco-icon-label-container .monaco-icon-description-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
 
 .scm-sync-view .monaco-list-row .monaco-icon-label .icon-container
 .scm-sync-view .monaco-list-row .monaco-icon-label .icon-container {
