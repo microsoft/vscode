@@ -222,7 +222,7 @@ export class CodeActionModel extends Disposable {
 							const allMarkers = this._markerService.read({ resource: model.uri });
 
 							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
-							if (allMarkers.length > 0 && (!foundQuickfix || codeActionSet.validActions.length === 0)) {
+							if (allMarkers.length > 0) {
 								const currPosition: Position = trigger.selection.getPosition();
 								let trackedPosition: Position = currPosition;
 								let distance = Number.MAX_VALUE;
