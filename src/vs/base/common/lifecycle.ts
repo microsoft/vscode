@@ -446,11 +446,17 @@ export class DisposableStore implements IDisposable {
 		o.dispose();
 	}
 
+	/**
+	 * Deletes the value from the store, but does not dispose it.
+	 */
 	public deleteAndLeak<T extends IDisposable>(o: T): void {
 		if (!o) {
 			return;
 		}
-		this._toDispose.delete(o);
+		if (this._toDispose.has(o)) {
+			this._toDispose.delete(o);
+			setParentOfDisposable(o, null);
+		}
 	}
 }
 
