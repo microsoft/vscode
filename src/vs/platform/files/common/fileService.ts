@@ -492,16 +492,11 @@ export class FileService extends Disposable implements IFileService {
 	async readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		const provider = await this.withReadProvider(resource);
 
-		let readFileOptions = options;
-		if (hasFileAtomicReadCapability(provider) && provider.enforceAtomicReadFile?.(resource)) {
-			readFileOptions = { ...options, atomic: true };
+		if (options?.atomic) {
+			return this.doReadFileAtomic(provider, resource, options, token);
 		}
 
-		if (readFileOptions?.atomic) {
-			return this.doReadFileAtomic(provider, resource, readFileOptions, token);
-		}
-
-		return this.doReadFile(provider, resource, readFileOptions, token);
+		return this.doReadFile(provider, resource, options, token);
 	}
 
 	private async doReadFileAtomic(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
@@ -552,8 +547,13 @@ export class FileService extends Disposable implements IFileService {
 		// cancellation of the read operation.
 		const cancellableSource = new CancellationTokenSource(token);
 
+		let readFileOptions = options;
+		if (hasFileAtomicReadCapability(provider) && provider.enforceAtomicReadFile?.(resource)) {
+			readFileOptions = { ...options, atomic: true };
+		}
+
 		// validate read operation
-		const statPromise = this.validateReadFile(resource, options).then(stat => stat, error => {
+		const statPromise = this.validateReadFile(resource, readFileOptions).then(stat => stat, error => {
 			cancellableSource.dispose(true);
 
 			throw error;
@@ -566,27 +566,27 @@ export class FileService extends Disposable implements IFileService {
 			// due to the likelihood of hitting a NOT_MODIFIED_SINCE result.
 			// otherwise, we let it run in parallel to the file reading for
 			// optimal startup performance.
-			if (typeof options?.etag === 'string' && options.etag !== ETAG_DISABLED) {
+			if (typeof readFileOptions?.etag === 'string' && readFileOptions.etag !== ETAG_DISABLED) {
 				await statPromise;
 			}
 
 			// read unbuffered
 			if (
-				(options?.atomic && hasFileAtomicReadCapability(provider)) ||								// atomic reads are always unbuffered
+				(readFileOptions?.atomic && hasFileAtomicReadCapability(provider)) ||								// atomic reads are always unbuffered
 				!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) ||	// provider has no buffered capability
-				(hasReadWriteCapability(provider) && options?.preferUnbuffered)								// unbuffered read is preferred
+				(hasReadWriteCapability(provider) && readFileOptions?.preferUnbuffered)								// unbuffered read is preferred
 			) {
-				fileStream = this.readFileUnbuffered(provider, resource, options);
+				fileStream = this.readFileUnbuffered(provider, resource, readFileOptions);
 			}
 
 			// read streamed (always prefer over primitive buffered read)
 			else if (hasFileReadStreamCapability(provider)) {
-				fileStream = this.readFileStreamed(provider, resource, cancellableSource.token, options);
+				fileStream = this.readFileStreamed(provider, resource, cancellableSource.token, readFileOptions);
 			}
 
 			// read buffered
 			else {
-				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, options);
+				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, readFileOptions);
 			}
 
 			fileStream.on('end', () => cancellableSource.dispose());
@@ -609,7 +609,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Re-throw errors as file operation errors but preserve
 			// specific errors (such as not modified since)
-			throw this.restoreReadError(error, resource, options);
+			throw this.restoreReadError(error, resource, readFileOptions);
 		}
 	}
 
