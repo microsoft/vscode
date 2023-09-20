@@ -469,3 +469,11 @@
 	border-radius: 4px;
 	width: auto;
 }
+
+.interactive-item-container .chat-resource-widget {
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 3px;
+	white-space: nowrap;
+	padding: 1px;
+}

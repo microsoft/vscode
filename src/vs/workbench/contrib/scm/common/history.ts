@@ -3,16 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProvider {
-	actionButton: () => ISCMActionButtonDescriptor | undefined;
-	currentHistoryItemGroup: () => ISCMHistoryItemGroup | undefined;
+
+	readonly onDidChangeActionButton: Event<void>;
+	readonly onDidChangeCurrentHistoryItemGroup: Event<void>;
+
+	get actionButton(): ISCMActionButtonDescriptor | undefined;
+	set actionButton(button: ISCMActionButtonDescriptor | undefined);
+
+	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
+	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
+
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
+	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
 
 export interface ISCMHistoryOptions {

@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -436,7 +436,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private async _sendRequestAsync(model: ChatModel, provider: IChatProvider, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<void> {
 		const resolvedAgent = typeof message === 'string' ? this.resolveAgent(message) : undefined;
-		const request = model.addRequest(message, resolvedAgent);
+		let request: ChatRequestModel;
 
 		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
 
@@ -492,6 +492,7 @@ export class ChatService extends Disposable implements IChatService {
 				let slashCommandFollowups: IChatFollowup[] | void = [];
 
 				if (typeof message === 'string' && resolvedAgent) {
+					request = model.addRequest(message);
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
 						if (typeof request.message !== 'string' || !request.response) {
@@ -510,6 +511,7 @@ export class ChatService extends Disposable implements IChatService {
 					slashCommandFollowups = agentResult?.followUp;
 					rawResponse = { session: model.session! };
 				} else if ((typeof resolvedCommand === 'string' && typeof message === 'string' && this.chatSlashCommandService.hasCommand(resolvedCommand))) {
+					request = model.addRequest(message);
 					// contributed slash commands
 					// TODO: spell this out in the UI
 					const history: IChatMessage[] = [];
@@ -531,19 +533,20 @@ export class ChatService extends Disposable implements IChatService {
 					rawResponse = { session: model.session! };
 
 				} else {
-					const request: IChatRequest = {
+					const requestProps: IChatRequest = {
 						session: model.session!,
 						message: resolvedCommand,
 						variables: {}
 					};
 
-					if (typeof request.message === 'string') {
-						const varResult = await this.chatVariablesService.resolveVariables(request.message, model, token);
-						request.variables = varResult.variables;
-						request.message = varResult.prompt;
+					if (typeof requestProps.message === 'string') {
+						const varResult = await this.chatVariablesService.resolveVariables(requestProps.message, model, token);
+						requestProps.variables = varResult.variables;
+						requestProps.message = varResult.prompt;
 					}
+					request = model.addRequest(requestProps.message);
 
-					rawResponse = await provider.provideReply(request, progressCallback, token);
+					rawResponse = await provider.provideReply(requestProps, progressCallback, token);
 				}
 
 				if (token.isCancellationRequested) {
