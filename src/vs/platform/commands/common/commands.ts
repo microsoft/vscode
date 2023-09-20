@@ -9,7 +9,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
-import { ILocalizedString } from 'vs/platform/action/common/action';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
@@ -35,7 +34,7 @@ export interface ICommandHandler {
 export interface ICommand {
 	id: string;
 	handler: ICommandHandler;
-	description?: ILocalizedString | ICommandHandlerDescription;
+	description?: ICommandHandlerDescription;
 }
 
 export interface ICommandHandlerDescription {
@@ -48,13 +47,6 @@ export interface ICommandHandlerDescription {
 		readonly schema?: IJSONSchema;
 	}>;
 	readonly returns?: string;
-}
-
-export function isCommandHandlerDescription(thing: any): thing is ICommandHandlerDescription {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.description === 'string'
-		&& Array.isArray(thing.args);
 }
 
 export interface ICommandRegistry {
@@ -87,7 +79,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		}
 
 		// add argument validation if rich command metadata is provided
-		if (isCommandHandlerDescription(idOrCommand.description)) {
+		if (idOrCommand.description) {
 			const constraints: Array<TypeConstraint | undefined> = [];
 			for (const arg of idOrCommand.description.args) {
 				constraints.push(arg.constraint);

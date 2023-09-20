@@ -575,7 +575,9 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	disposables.add(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: command.description,
+		description: isLocalizedString(command.description)
+			? { description: command.description.value, args: [] }
+			: command.description
 	}));
 
 	// menu
