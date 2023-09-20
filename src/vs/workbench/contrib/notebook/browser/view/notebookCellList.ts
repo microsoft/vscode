@@ -1209,7 +1209,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const { bottomToolbarGap } = this.notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 		const paddingForLastLine = lineHeight + padding + bottomToolbarGap;
 		if (newElementBottom - paddingForLastLine < this.view.getScrollTop()) {
-			this.view.updateElementHeight(index, size, null, newElementBottom - paddingForLastLine);
+			const scrollTopOverride = Math.max(0, newElementBottom - paddingForLastLine);
+			this.view.updateElementHeight(index, size, null, scrollTopOverride);
 			return;
 		}
 
