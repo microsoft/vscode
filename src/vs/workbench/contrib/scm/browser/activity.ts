@@ -33,7 +33,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	private focusDisposable: IDisposable = Disposable.None;
 	private focusedRepository: ISCMRepository | undefined = undefined;
 	private readonly badgeDisposable = new MutableDisposable<IDisposable>();
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
 
 	constructor(
@@ -207,7 +207,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.focusDisposable.dispose();
 		this.statusBarDisposable.dispose();
 		this.badgeDisposable.dispose();
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		dispose(this.repositoryDisposables.values());
 		this.repositoryDisposables.clear();
 	}
@@ -217,7 +217,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 
 	private activeResourceHasChangesContextKey: IContextKey<boolean>;
 	private activeResourceRepositoryContextKey: IContextKey<string | undefined>;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private repositoryDisposables = new Set<IDisposable>();
 
 	constructor(
@@ -281,7 +281,7 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.disposables.dispose();
 		dispose(this.repositoryDisposables.values());
 		this.repositoryDisposables.clear();
 	}

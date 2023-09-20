@@ -798,7 +798,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private readonly _onDidRemoveConnection = new Emitter<Connection<TContext>>();
 	readonly onDidRemoveConnection: Event<Connection<TContext>> = this._onDidRemoveConnection.event;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	get connections(): Connection<TContext>[] {
 		const result: Connection<TContext>[] = [];

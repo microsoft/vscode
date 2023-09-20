@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread } from 'vs/editor/common/languages';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -17,15 +16,11 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
-
-export const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
-	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
-	type: 'boolean'
-});
 
 interface IResourceCommentThreadEvent {
 	resource: URI;
@@ -174,7 +169,7 @@ export class CommentService extends Disposable implements ICommentService {
 		super();
 		this._handleConfiguration();
 		this._handleZenMode();
-		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
+		this._workspaceHasCommenting = CommentContextKeys.WorkspaceHasCommenting.bindTo(contextKeyService);
 		const storageListener = this._register(new DisposableStore());
 
 		storageListener.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, CONTINUE_ON_COMMENTS, storageListener)((v) => {
@@ -370,6 +365,13 @@ export class CommentService extends Disposable implements ICommentService {
 		for (const control of this._commentControls.values()) {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
 				.then(documentComments => {
+					// Check that there aren't any continue on comments in the provided comments
+					// This can happen because continue on comments are stored separately from local un-submitted comments.
+					for (const documentCommentThread of documentComments.threads) {
+						if (documentCommentThread.comments?.length === 0 && documentCommentThread.range) {
+							this.removeContinueOnComment({ range: documentCommentThread.range, uri: resource, owner: documentComments.owner });
+						}
+					}
 					const pendingComments = this._continueOnComments.get(documentComments.owner);
 					documentComments.pendingCommentThreads = pendingComments?.filter(pendingComment => pendingComment.uri.toString() === resource.toString());
 					return documentComments;
@@ -428,7 +430,7 @@ export class CommentService extends Disposable implements ICommentService {
 				changedOwners.add(pendingComment.owner);
 			} else {
 				const commentsForOwner = this._continueOnComments.get(pendingComment.owner)!;
-				if (commentsForOwner.every(comment => (comment.uri.toString() !== pendingComment.uri.toString()) || !Range.equalsRange(comment.range, pendingComment.range) || (comment.body !== pendingComment.body))) {
+				if (commentsForOwner.every(comment => (comment.uri.toString() !== pendingComment.uri.toString()) || !Range.equalsRange(comment.range, pendingComment.range))) {
 					commentsForOwner.push(pendingComment);
 					changedOwners.add(pendingComment.owner);
 				}
