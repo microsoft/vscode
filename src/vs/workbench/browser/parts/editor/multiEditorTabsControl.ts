@@ -1973,6 +1973,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabsContainer.classList.remove('scroll');
 
 		const groupTargetIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.groupViewer.stickyCount : targetTabIndex;
+		const options: IEditorOptions = {
+			sticky: this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === groupTargetIndex,
+			index: groupTargetIndex
+		};
 
 		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
@@ -2000,10 +2004,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				const draggedEditor = data[0].identifier;
 				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 				if (sourceGroup) {
-					const options: IEditorOptions = {
-						sticky: this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === groupTargetIndex,
-						index: groupTargetIndex
-					};
 
 					// Move editor to target position and index
 					if (this.isMoveOperation(e, draggedEditor.groupId, draggedEditor.editor)) {
@@ -2030,7 +2030,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
 					if (dataTransferItem) {
 						const treeDropData = await extractTreeDropData(dataTransferItem);
-						editors.push(...treeDropData.map(editor => ({ ...editor, options: { ...editor.options, pinned: true, index: this.tabsModel.count } }))); // todo
+						editors.push(...treeDropData.map(editor => ({ ...editor, options: { ...editor.options, pinned: true, index: groupTargetIndex } })));
 					}
 				}
 
@@ -2043,12 +2043,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-			dropHandler.handleDrop(e, () => this.groupViewer, () => {
-				if (this.tabsModel instanceof StickyEditorGroupModel) {
-					this.groupViewer.stickEditor();
-				}
-				this.groupViewer.focus();
-			}, groupTargetIndex);
+			dropHandler.handleDrop(e, () => this.groupViewer, () => this.groupViewer.focus(), options);
 		}
 	}
 
