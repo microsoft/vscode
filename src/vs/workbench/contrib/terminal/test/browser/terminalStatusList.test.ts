@@ -37,19 +37,19 @@ suite('Workbench - TerminalStatusList', () => {
 		strictEqual(list.primary?.id, undefined);
 		list.add({ id: 'info1', severity: Severity.Info });
 		strictEqual(list.primary?.id, 'info1');
-		list.add({ id: 'warning1', severity: Severity.Warning, icon: Codicon.warning });
+		list.add({ id: 'warning1', severity: Severity.Warning });
 		strictEqual(list.primary?.id, 'warning1');
 		list.add({ id: 'info2', severity: Severity.Info });
 		strictEqual(list.primary?.id, 'warning1');
-		list.add({ id: 'warning2', severity: Severity.Warning, icon: Codicon.warning });
+		list.add({ id: 'warning2', severity: Severity.Warning });
 		strictEqual(list.primary?.id, 'warning2');
 		list.add({ id: 'info3', severity: Severity.Info });
 		strictEqual(list.primary?.id, 'warning2');
-		list.add({ id: 'error1', severity: Severity.Error, icon: Codicon.error });
+		list.add({ id: 'error1', severity: Severity.Error });
 		strictEqual(list.primary?.id, 'error1');
-		list.add({ id: 'warning3', severity: Severity.Warning, icon: Codicon.warning });
+		list.add({ id: 'warning3', severity: Severity.Warning });
 		strictEqual(list.primary?.id, 'error1');
-		list.add({ id: 'error2', severity: Severity.Error, icon: Codicon.error });
+		list.add({ id: 'error2', severity: Severity.Error });
 		strictEqual(list.primary?.id, 'error2');
 		list.remove('error1');
 		strictEqual(list.primary?.id, 'error2');
@@ -60,8 +60,8 @@ suite('Workbench - TerminalStatusList', () => {
 	test('statuses', () => {
 		strictEqual(list.statuses.length, 0);
 		list.add({ id: 'info', severity: Severity.Info });
-		list.add({ id: 'warning', severity: Severity.Warning, icon: Codicon.warning });
-		list.add({ id: 'error', severity: Severity.Error, icon: Codicon.error });
+		list.add({ id: 'warning', severity: Severity.Warning });
+		list.add({ id: 'error', severity: Severity.Error });
 		strictEqual(list.statuses.length, 3);
 		statusesEqual(list, [
 			['info', Severity.Info],
@@ -111,12 +111,12 @@ suite('Workbench - TerminalStatusList', () => {
 		statusesEqual(list, [
 			['info', Severity.Info]
 		]);
-		list.add({ id: 'warning', severity: Severity.Warning, icon: Codicon.warning });
+		list.add({ id: 'warning', severity: Severity.Warning });
 		statusesEqual(list, [
 			['info', Severity.Info],
 			['warning', Severity.Warning]
 		]);
-		list.add({ id: 'error', severity: Severity.Error, icon: Codicon.error });
+		list.add({ id: 'error', severity: Severity.Error });
 		statusesEqual(list, [
 			['info', Severity.Info],
 			['warning', Severity.Warning],
@@ -154,8 +154,8 @@ suite('Workbench - TerminalStatusList', () => {
 
 	test('remove', () => {
 		list.add({ id: 'info', severity: Severity.Info });
-		list.add({ id: 'warning', severity: Severity.Warning, icon: Codicon.warning });
-		list.add({ id: 'error', severity: Severity.Error, icon: Codicon.error });
+		list.add({ id: 'warning', severity: Severity.Warning });
+		list.add({ id: 'error', severity: Severity.Error });
 		statusesEqual(list, [
 			['info', Severity.Info],
 			['warning', Severity.Warning],
