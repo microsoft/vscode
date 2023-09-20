@@ -99,15 +99,6 @@ suite('Workbench - TerminalStatusList', () => {
 		deepStrictEqual(result, { id: 'test', severity: Severity.Info });
 	});
 
-	// test('onDidChangePrimaryStatus not fired if no icon on new status', async () => {
-	// 	const result = await new Promise<ITerminalStatus | undefined>(r => {
-	// 		list.add({ id: 'warning', severity: Severity.Warning, icon: Codicon.warning });
-	// 		store.add(list.onDidChangePrimaryStatus(r));
-	// 		list.add({ id: 'test', severity: Severity.Info });
-	// 	});
-	// 	deepStrictEqual(result, undefined);
-	// });
-
 	test('onDidChangePrimaryStatus fired if icon on new status', async () => {
 		const result = await new Promise<ITerminalStatus | undefined>(r => {
 			list.add({ id: 'test', severity: Severity.Info });
