@@ -7,10 +7,7 @@ import { ISettingsEditorModel, ISetting, ISettingsGroup, ISearchResult, IGroupFi
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
+import { IMatch, matchesContiguousSubString, matchesWords } from 'vs/base/common/filters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
@@ -138,20 +135,15 @@ export class LocalSearchProvider implements ISearchProvider {
 }
 
 export class SettingMatches {
-
-	private readonly descriptionMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-	private readonly keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-	private readonly valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-
 	readonly matches: IRange[];
 	matchType: SettingMatchType = SettingMatchType.None;
 
 	constructor(
 		searchString: string,
 		setting: ISetting,
-		private requireFullQueryMatch: boolean,
+		requireFullQueryMatch: boolean,
 		private searchDescription: boolean,
-		private valuesMatcher: (filter: string, setting: ISetting) => IRange[],
+		valuesMatcher: (filter: string, setting: ISetting) => IRange[],
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
@@ -159,114 +151,102 @@ export class SettingMatches {
 
 	private _findMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
 		const result = this._doFindMatchesInSetting(searchString, setting);
-		if (setting.overrides && setting.overrides.length) {
-			for (const subSetting of setting.overrides) {
-				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher, this.configurationService);
-				const words = searchString.split(' ');
-				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
-				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
-				const subSettingKeyRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.keyMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.valueMatchingWords]);
-				const subSettingValueRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.valueMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.keyMatchingWords]);
-				result.push(...descriptionRanges, ...keyRanges, ...subSettingKeyRanges, ...subSettingValueRanges);
-				result.push(...subSettingMatches.matches);
-				this.refreshMatchType(keyRanges.length + subSettingKeyRanges.length);
-				this.matchType |= subSettingMatches.matchType;
-			}
-		}
 		return result;
+	}
+
+	private _keyToLabel(settingId: string): string {
+		const label = settingId
+			.replace(/[-._]/g, ' ')
+			.replace(/([a-z]+)([A-Z])/g, '$1 $2')
+			.replace(/([A-Za-z]+)(\d+)/g, '$1 $2')
+			.replace(/(\d+)([A-Za-z]+)/g, '$1 $2')
+			.toLowerCase();
+		return label;
 	}
 
 	private _doFindMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
-		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const schema: IJSONSchema = registry[setting.key];
+		const descriptionMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+		const keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+		const valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 
-		const words = searchString.split(' ');
-		const settingKeyAsWords: string = setting.key.split('.').join(' ');
+		const words = new Set<string>(searchString.split(' '));
+		const settingKeyAsWords: string = this._keyToLabel(setting.key);
 
 		const settingValue = this.configurationService.getValue(setting.key);
 
-		for (const word of words) {
-			// Whole word match attempts also take place within this loop.
-			if (this.searchDescription) {
+		if (this.searchDescription) {
+			for (const word of words) {
+				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
 					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
-					if (descriptionMatches) {
-						this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+					if (descriptionMatches?.length) {
+						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
-					this.checkForWholeWordMatchType(word, setting.description[lineIndex]);
 				}
 			}
-
-			const keyMatches = or(matchesWords, matchesCamelCase)(word, settingKeyAsWords);
-			if (keyMatches) {
-				this.keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
-			}
-			this.checkForWholeWordMatchType(word, settingKeyAsWords);
-
-			const valueMatches = typeof settingValue === 'string' ? matchesContiguousSubString(word, settingValue) : null;
-			if (valueMatches) {
-				this.valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
-			} else if (schema && schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
-				this.valueMatchingWords.set(word, []);
-			}
-			if (typeof settingValue === 'string') {
-				this.checkForWholeWordMatchType(word, settingValue);
+			if (descriptionMatchingWords.size !== words.size) {
+				// Clear out the match for now. We want to require all words to match in the description.
+				descriptionMatchingWords.clear();
 			}
 		}
 
-		const descriptionRanges: IRange[] = [];
-		if (this.searchDescription) {
-			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-				const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
-				descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
-			}
-			if (descriptionRanges.length === 0) {
-				descriptionRanges.push(...this.getRangesForWords(words, this.descriptionMatchingWords, [this.keyMatchingWords, this.valueMatchingWords]));
-			}
-		}
-
-		const keyMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.key);
-		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, this.keyMatchingWords, [this.descriptionMatchingWords, this.valueMatchingWords]);
-
-		let valueRanges: IRange[] = [];
-		if (typeof settingValue === 'string' && settingValue) {
-			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, settingValue);
-			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
-		} else {
-			valueRanges = this.valuesMatcher(searchString, setting);
-		}
-
-		this.refreshMatchType(keyRanges.length);
-		return [...descriptionRanges, ...keyRanges, ...valueRanges];
-	}
-
-	private checkForWholeWordMatchType(singleWordQuery: string, lineToSearch: string) {
-		// Trim excess ending characters off the query.
-		singleWordQuery = singleWordQuery.toLowerCase().replace(/[\s-\._]+$/, '');
-		lineToSearch = lineToSearch.toLowerCase();
-		const singleWordRegex = new RegExp(`\\b${strings.escapeRegExpCharacters(singleWordQuery)}\\b`);
-		if (singleWordRegex.test(lineToSearch)) {
-			this.matchType |= SettingMatchType.WholeWordMatch;
-		}
-	}
-
-	private refreshMatchType(keyRangesLength: number) {
-		if (keyRangesLength) {
-			this.matchType |= SettingMatchType.KeyMatch;
-		}
-	}
-
-	private getRangesForWords(words: string[], from: Map<string, IRange[]>, others: Map<string, IRange[]>[]): IRange[] {
-		const result: IRange[] = [];
 		for (const word of words) {
-			const ranges = from.get(word);
-			if (ranges) {
-				result.push(...ranges);
-			} else if (this.requireFullQueryMatch && others.every(o => !o.has(word))) {
-				return [];
+			// Check if the key contains the word.
+			const keyMatches = matchesWords(word, settingKeyAsWords, true);
+			if (keyMatches?.length) {
+				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
 			}
 		}
-		return result;
+		// For now, only allow a match if all words match in the key.
+		if (keyMatchingWords.size === words.size) {
+			this.matchType |= SettingMatchType.KeyMatchesAllWords;
+		} else {
+			keyMatchingWords.clear();
+		}
+
+		// Check if the value contains all the words.
+		if (setting.enum?.length) {
+			for (const option of setting.enum) {
+				if (typeof option !== 'string') {
+					continue;
+				}
+				valueMatchingWords.clear();
+				for (const word of words) {
+					const valueMatches = matchesContiguousSubString(word, option);
+					if (valueMatches?.length) {
+						valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+					}
+				}
+				if (valueMatchingWords.size === words.size) {
+					this.matchType |= SettingMatchType.DescriptionOrValueMatch;
+					break;
+				} else {
+					// Clear out the match for now. We want to require all words to match in the value.
+					valueMatchingWords.clear();
+				}
+			}
+		} else if (typeof settingValue === 'string') {
+			for (const word of words) {
+				const valueMatches = matchesContiguousSubString(word, settingValue);
+				if (valueMatches?.length) {
+					valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+				}
+			}
+			if (valueMatchingWords.size === words.size) {
+				this.matchType |= SettingMatchType.DescriptionOrValueMatch;
+			} else {
+				// Clear out the match for now. We want to require all words to match in the value.
+				valueMatchingWords.clear();
+			}
+		}
+
+		const descriptionRanges = descriptionMatchingWords.size ?
+			Array.from(descriptionMatchingWords.values()).flat() : [];
+		const keyRanges = keyMatchingWords.size ?
+			Array.from(keyMatchingWords.values()).flat() : [];
+		const valueRanges = valueMatchingWords.size ?
+			Array.from(valueMatchingWords.values()).flat() : [];
+		return [...descriptionRanges, ...keyRanges, ...valueRanges];
 	}
 
 	private toKeyRange(setting: ISetting, match: IMatch): IRange {
