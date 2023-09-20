@@ -483,9 +483,10 @@ export class ApplyPreviewEdits extends AbstractInlineChatAction {
 	constructor() {
 		super({
 			id: ACTION_ACCEPT_CHANGES,
-			title: localize('apply1', 'Accept Changes'),
+			title: { value: localize('apply1', 'Accept Changes'), original: 'Accept Changes' },
 			shortTitle: localize('apply2', 'Accept'),
 			icon: Codicon.check,
+			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ContextKeyExpr.or(CTX_INLINE_CHAT_DOCUMENT_CHANGED.toNegated(), CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview))),
 			keybinding: [{
 				weight: KeybindingWeight.EditorContrib + 10,
