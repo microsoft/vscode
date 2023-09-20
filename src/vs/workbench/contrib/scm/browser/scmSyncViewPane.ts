@@ -36,6 +36,10 @@ import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs
 import { localize } from 'vs/nls';
 import { Iterable } from 'vs/base/common/iterator';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { basename, dirname } from 'vs/base/common/resources';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement;
 
@@ -261,8 +265,49 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 
 class SCMSyncViewPaneAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
+	constructor(
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	) { }
+
 	getAriaLabel(element: TreeElement): string {
-		// TODO - add aria labels
+		if (isSCMRepository(element)) {
+			let folderName = '';
+			if (element.provider.rootUri) {
+				const folder = this.workspaceContextService.getWorkspaceFolder(element.provider.rootUri);
+
+				if (folder?.uri.toString() === element.provider.rootUri.toString()) {
+					folderName = folder.name;
+				} else {
+					folderName = basename(element.provider.rootUri);
+				}
+			}
+			return `${folderName} ${element.provider.label}`;
+		} else if (isSCMHistoryItemGroupTreeElement(element)) {
+			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
+		} else if (isSCMActionButton(element)) {
+			return element.button?.command.title ?? '';
+		} else if (isSCMHistoryItemTreeElement(element)) {
+			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
+		} else if (isSCMHistoryItemChangeTreeElement(element)) {
+			const result: string[] = [];
+
+			result.push(basename(element.uri));
+
+			// TODO - add decoration
+			// if (element.decorations.tooltip) {
+			// 	result.push(element.decorations.tooltip);
+			// }
+
+			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
+
+			if (path) {
+				result.push(path);
+			}
+
+			return result.join(', ');
+		}
+
 		return '';
 	}
 	getWidgetAriaLabel(): string {
@@ -373,9 +418,9 @@ export class SCMSyncViewPane extends ViewPane {
 			this.instantiationService.createInstance(SCMSyncDataSource),
 			{
 				horizontalScrolling: false,
-				accessibilityProvider: new SCMSyncViewPaneAccessibilityProvider(),
-				identityProvider: new SCMSyncViewPaneTreeIdentityProvider(),
-				sorter: new SCMSyncViewPaneTreeSorter(),
+				accessibilityProvider: this.instantiationService.createInstance(SCMSyncViewPaneAccessibilityProvider),
+				identityProvider: this.instantiationService.createInstance(SCMSyncViewPaneTreeIdentityProvider),
+				sorter: this.instantiationService.createInstance(SCMSyncViewPaneTreeSorter),
 			}) as WorkbenchAsyncDataTree<TreeElement, TreeElement>;
 
 		this._register(this._tree);
@@ -408,6 +453,8 @@ export class SCMSyncViewPane extends ViewPane {
 class SCMSyncPaneViewModel {
 
 	private repositories = new Map<ISCMRepository, IDisposable>();
+	private historyProviders = new Map<ISCMRepository, IDisposable>();
+
 	private alwaysShowRepositories = false;
 
 	private readonly disposables = new DisposableStore();
@@ -434,20 +481,34 @@ class SCMSyncPaneViewModel {
 
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
 		for (const repository of added) {
-			const repositoryDisposable: IDisposable = combinedDisposable(
-				repository.provider.onDidChangeHistoryProviderActionButton(() => this.refresh(repository)),
-				repository.provider.onDidChangeHistoryProviderCurrentHistoryItemGroup(() => this.refresh(repository))
-			);
+			const repositoryDisposable = repository.provider.onDidChangeHistoryProvider(() => this._onDidChangeHistoryProvider(repository));
+			this._onDidChangeHistoryProvider(repository);
 
-			this.repositories.set(repository, { dispose() { repositoryDisposable.dispose(); } });
+			this.repositories.set(repository, repositoryDisposable);
 		}
 
 		for (const repository of removed) {
+			this.historyProviders.get(repository)?.dispose();
+			this.historyProviders.delete(repository);
+
 			this.repositories.get(repository)?.dispose();
 			this.repositories.delete(repository);
 		}
 
 		this.refresh();
+	}
+
+	private _onDidChangeHistoryProvider(repository: ISCMRepository): void {
+		if (repository.provider.historyProvider) {
+			const historyProviderDisposable = combinedDisposable(
+				repository.provider.historyProvider.onDidChangeActionButton(() => this.refresh(repository)),
+				repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.refresh(repository)));
+
+			this.historyProviders.set(repository, historyProviderDisposable);
+		} else {
+			this.historyProviders.get(repository)?.dispose();
+			this.historyProviders.delete(repository);
+		}
 	}
 
 	private async refresh(repository?: ISCMRepository): Promise<void> {
@@ -500,14 +561,14 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 		} else if (isSCMRepository(element)) {
 			const scmProvider = element.provider;
 			const historyProvider = scmProvider.historyProvider;
-			const historyItemGroup = historyProvider?.currentHistoryItemGroup();
+			const historyItemGroup = historyProvider?.currentHistoryItemGroup;
 
 			if (!historyProvider || !historyItemGroup) {
 				return children;
 			}
 
 			// Action Button
-			const actionButton = historyProvider.actionButton();
+			const actionButton = historyProvider.actionButton;
 			if (actionButton) {
 				children.push({
 					type: 'actionButton',
