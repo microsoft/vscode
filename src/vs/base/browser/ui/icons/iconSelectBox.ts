@@ -46,7 +46,7 @@ export class IconSelectBox extends Disposable {
 	private scrollableElement: DomScrollableElement | undefined;
 	private iconIdElement: HighlightedLabel | undefined;
 	private readonly iconContainerWidth = 36;
-	private readonly iconContainerHeight = 32;
+	private readonly iconContainerHeight = 36;
 
 	constructor(
 		private readonly options: IIconSelectBoxOptions,
