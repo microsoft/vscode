@@ -1195,28 +1195,27 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return; // do nothing if we move into same group without index
 		}
 
-		const currentIndex = this.model.indexOf(candidate);
-		if (currentIndex === -1 || currentIndex === moveToIndex) {
-			return; // do nothing if editor unknown in model or is already at the given index
-		}
-
 		// Update model and make sure to continue to use the editor we get from
 		// the model. It is possible that the editor was already opened and we
 		// want to ensure that we use the existing instance in that case.
+		const currentIndex = this.model.indexOf(candidate);
 		const editor = this.model.getEditorByIndex(currentIndex);
 		if (!editor) {
 			return;
 		}
 
-		const oldSticky = this.model.stickyCount;
+		// Move when index has actually changed
+		if (currentIndex !== moveToIndex) {
+			const oldSticky = this.model.stickyCount;
 
-		// Update model
-		this.model.moveEditor(editor, moveToIndex);
-		this.model.pin(editor);
+			// Update model
+			this.model.moveEditor(editor, moveToIndex);
+			this.model.pin(editor);
 
-		// Forward to title control
-		this.titleControl.moveEditor(editor, currentIndex, moveToIndex, oldSticky !== this.model.stickyCount);
-		this.titleControl.pinEditor(editor);
+			// Forward to title control
+			this.titleControl.moveEditor(editor, currentIndex, moveToIndex, oldSticky !== this.model.stickyCount);
+			this.titleControl.pinEditor(editor);
+		}
 
 		// Support the option to stick the editor even if it is moved.
 		// It is important that we call this method after we have moved
