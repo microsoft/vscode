@@ -223,8 +223,7 @@ export class IconSelectBox extends Disposable {
 	focusNextRow(): void {
 		let nextRowIndex = this.focusedItemIndex + this.numberOfElementsPerRow;
 		if (nextRowIndex >= this.renderedIcons.length) {
-			nextRowIndex = (nextRowIndex % this.numberOfElementsPerRow) + 1;
-			nextRowIndex = nextRowIndex === this.numberOfElementsPerRow ? 0 : nextRowIndex;
+			nextRowIndex = (nextRowIndex + 1) % this.numberOfElementsPerRow;
 		}
 		this.focusIcon(nextRowIndex);
 	}
