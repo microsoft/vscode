@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
@@ -20,7 +20,6 @@ export interface IChatRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly message: string | IChatReplyFollowup;
-	// readonly message: IParsedChatRequestPart[] | IChatReplyFollowup;
 	readonly response: IChatResponseModel | undefined;
 }
 
@@ -81,7 +80,6 @@ export class ChatRequestModel implements IChatRequestModel {
 	constructor(
 		public readonly session: ChatModel,
 		public readonly message: string | IChatReplyFollowup,
-		// public readonly message: IParsedChatRequestPart[] | IChatReplyFollowup,
 		private _providerRequestId?: string) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -468,7 +466,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		public readonly providerId: string,
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		@ILogService private readonly logService: ILogService,
-		// @IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -494,15 +492,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
-		return [];
-		// return requests.map((raw: ISerializableChatRequestData) => {
-		// 	const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
-		// 	if (raw.response || raw.responseErrorDetails) {
-		// 		const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
-		// 		request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
-		// 	}
-		// 	return request;
-		// });
+		return requests.map((raw: ISerializableChatRequestData) => {
+			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
+			if (raw.response || raw.responseErrorDetails) {
+				const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
+				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+			}
+			return request;
+		});
 	}
 
 	startReinitialize(): void {
@@ -547,7 +544,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	addRequest(message: string | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
-		// addRequest(message: IParsedChatRequestPart[] | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
