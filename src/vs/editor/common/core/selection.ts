@@ -145,7 +145,6 @@ export class Selection extends Range {
 		return new Selection(this.endLineNumber, this.endColumn, startLineNumber, startColumn);
 	}
 
-
 	// ----
 
 	/**
