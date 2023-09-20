@@ -44,7 +44,7 @@ export class EditorTitleControl extends Themable {
 	constructor(
 		private parent: HTMLElement,
 		private accessor: IEditorGroupsAccessor,
-		private group: IEditorGroupView,
+		private groupViewer: IEditorGroupView,
 		private model: IReadonlyEditorGroupModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
@@ -59,12 +59,12 @@ export class EditorTitleControl extends Themable {
 		let control: IEditorTabsControl;
 		if (this.accessor.partOptions.showTabs) {
 			if (this.accessor.partOptions.pinnedTabsOnSeparateRow) {
-				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.accessor, this.group, this.model);
+				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.accessor, this.groupViewer, this.model);
 			} else {
-				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, this.model);
+				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.groupViewer, this.model);
 			}
 		} else {
-			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.group, this.model);
+			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.groupViewer, this.model);
 		}
 
 		return this.editorTabsControlDisposable.add(control);
@@ -80,7 +80,7 @@ export class EditorTitleControl extends Themable {
 		breadcrumbsContainer.classList.add('breadcrumbs-below-tabs');
 		this.parent.appendChild(breadcrumbsContainer);
 
-		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.group, {
+		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupViewer, {
 			showFileIcons: true,
 			showSymbolIcons: true,
 			showDecorationColors: false,
@@ -92,7 +92,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleBreadcrumbsEnablementChange(): void {
-		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
+		this.groupViewer.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	openEditor(editor: EditorInput): void {
@@ -132,7 +132,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleClosedEditors(): void {
-		if (!this.group.activeEditor) {
+		if (!this.groupViewer.activeEditor) {
 			this.breadcrumbsControl?.update();
 		}
 	}

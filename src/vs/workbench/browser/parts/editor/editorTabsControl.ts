@@ -331,7 +331,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return false;
 	}
 
-	protected onContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
+	protected onTabContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
@@ -365,7 +365,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			menuId: MenuId.EditorTitleContext,
 			menuActionOptions: { shouldForwardArgs: true, arg: this.resourceContext.get() },
 			contextKeyService: this.contextKeyService,
-			getActionsContext: () => ({ groupId: this.tabsModel.id, editorIndex: this.groupViewer.getIndexOfEditor(editor) }),
+			getActionsContext: () => ({ groupId: this.groupViewer.id, editorIndex: this.groupViewer.getIndexOfEditor(editor) }),
 			getKeyBinding: action => this.getKeybinding(action),
 			onHide: () => {
 

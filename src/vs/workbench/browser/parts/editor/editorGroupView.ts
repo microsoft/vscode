@@ -685,10 +685,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control
 		this.titleControl.updateOptions(event.oldPartOptions, event.newPartOptions);
 
-		// Title control Switch between showing tabs <=> not showing tabs
+		// Title control Switch between singleEditorTabs, multiEditorTabs and multiRowEditorTabs
 		if (
 			event.oldPartOptions.showTabs !== event.newPartOptions.showTabs ||
-			event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow
+			(event.oldPartOptions.showTabs && event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow)
 		) {
 
 			// Re-layout
@@ -977,12 +977,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const openEditorOptions: IEditorOpenOptions = {
 			index: options ? options.index : undefined,
 			pinned,
-			sticky: options?.sticky || internalOptions?.forceOpenWithSticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
+			sticky: options?.sticky || internalOptions?.forceSticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			active: this.count === 0 || !options || !options.inactive,
 			supportSideBySide: internalOptions?.supportSideBySide
 		};
 
-		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index) && (!internalOptions || !internalOptions.forceOpenWithSticky)) {
+		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index) && (!internalOptions || !internalOptions.forceSticky)) {
 			// Special case: we are to open an editor sticky but at an index that is not sticky
 			// In that case we prefer to open the editor at the index but not sticky. This enables
 			// to drag a sticky editor to an index that is not sticky to unstick it.
@@ -1260,7 +1260,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this === target) {
 			this.moveEditorToLastStickyPositionInsideGroup(candidate);
 		} else {
-			this.doMoveOrCopyEditorAcrossGroups(candidate, target, undefined, { keepCopy: false, forceOpenWithSticky: true });
+			this.doMoveOrCopyEditorAcrossGroups(candidate, target, undefined, { keepCopy: false, forceSticky: true });
 		}
 	}
 

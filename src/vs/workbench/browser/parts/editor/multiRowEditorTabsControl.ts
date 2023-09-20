@@ -23,28 +23,31 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	constructor(
 		private parent: HTMLElement,
 		private accessor: IEditorGroupsAccessor,
-		private group: IEditorGroupView,
+		private groupViewer: IEditorGroupView,
 		private model: IReadonlyEditorGroupModel,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
 
-		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new StickyEditorGroupModel(this.model)));
-		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group, new UnstickyEditorGroupModel(this.model)));
+		const stickyModel = this._register(new StickyEditorGroupModel(this.model));
+		const unstickyModel = this._register(new UnstickyEditorGroupModel(this.model));
+
+		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.groupViewer, stickyModel));
+		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.groupViewer, unstickyModel));
 
 		this.handlePinnedTabsSeparateRowToolbars();
 	}
 
 	private handlePinnedTabsSeparateRowToolbars(): void {
-		if (this.group.count === 0) {
+		if (this.groupViewer.count === 0) {
 			// Do nothing as no tab bar is visible
 			return;
 		}
 		// Ensure action toolbar is only visible once
-		if (this.group.count === this.group.stickyCount) {
-			this.parent.classList.toggle('second-tabbar-visible', false);
+		if (this.groupViewer.count === this.groupViewer.stickyCount) {
+			this.parent.classList.toggle('two-tab-bars', false);
 		} else {
-			this.parent.classList.toggle('second-tabbar-visible', true);
+			this.parent.classList.toggle('two-tab-bars', true);
 		}
 	}
 
@@ -77,7 +80,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	closeEditor(editor: EditorInput): void {
-		// Has to be called on both tab bars
+		// Has to be called on both tab bars as the editor could be either sticky or not
 		this.stickyEditorTabsControl.closeEditor(editor);
 		this.unstickyEditorTabsControl.closeEditor(editor);
 

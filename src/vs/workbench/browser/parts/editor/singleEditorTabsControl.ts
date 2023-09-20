@@ -32,7 +32,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
 
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
-	private actionsContainer: HTMLDivElement | undefined;
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	protected override create(parent: HTMLElement): void {
@@ -68,12 +67,12 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
 		// Right Actions Container
-		this.actionsContainer = document.createElement('div');
-		this.actionsContainer.classList.add('title-actions');
-		titleContainer.appendChild(this.actionsContainer);
+		const actionsContainer = document.createElement('div');
+		actionsContainer.classList.add('title-actions');
+		titleContainer.appendChild(actionsContainer);
 
 		// Editor actions toolbar
-		this.createEditorActionsToolBar(this.actionsContainer);
+		this.createEditorActionsToolBar(actionsContainer);
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
@@ -94,7 +93,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		for (const event of [EventType.CONTEXT_MENU, TouchEventType.Contextmenu]) {
 			this._register(addDisposableListener(titleContainer, event, e => {
 				if (this.tabsModel.activeEditor) {
-					this.onContextMenu(this.tabsModel.activeEditor, e, titleContainer);
+					this.onTabContextMenu(this.tabsModel.activeEditor, e, titleContainer);
 				}
 			}));
 		}

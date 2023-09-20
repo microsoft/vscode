@@ -193,7 +193,7 @@ export interface IInternalEditorTitleControlOptions {
 	 * Weather to stick the opened editor
 	 * Added to support sticky editor tab bar
 	 */
-	forceOpenWithSticky?: boolean;
+	forceSticky?: boolean;
 }
 
 export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {

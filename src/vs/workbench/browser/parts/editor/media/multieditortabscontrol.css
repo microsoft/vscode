@@ -46,6 +46,10 @@
 	position: relative; /* position tabs border bottom or editor actions (when tabs wrap) relative to this container */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom::after {
 	content: '';
 	position: absolute;
@@ -56,10 +60,6 @@
 	background-color: var(--tabs-border-bottom-color);
 	width: 100%;
 	height: 1px;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.empty {
-	display: none;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element {
@@ -449,6 +449,7 @@
 	right: 0;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.second-tabbar-visible .tabs-and-actions-container:first-child .editor-actions{
+.monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container .editor-actions {
+	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;
 }

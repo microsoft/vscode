@@ -5,16 +5,27 @@
 
 import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
+import { firstOrDefault } from 'vs/base/common/arrays';
 import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export abstract class FilteredEditorGroupModel implements IReadonlyEditorGroupModel {
+abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyEditorGroupModel {
+
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>());
+	readonly onDidModelChange = this._onDidModelChange.event;
 
 	constructor(
 		protected readonly model: IReadonlyEditorGroupModel
-	) { }
+	) {
+		super();
 
-	onDidModelChange: Event<IGroupModelChangeEvent> = this.model.onDidModelChange;
+		this._register(this.model.onDidModelChange(e => {
+			if (e.editor && this.contains(e.editor)) {
+				this._onDidModelChange.fire(e);
+			}
+		}));
+	}
 
 	get id(): number { return this.model.id; }
 	get isLocked(): boolean { return this.model.isLocked; }
@@ -29,14 +40,21 @@ export abstract class FilteredEditorGroupModel implements IReadonlyEditorGroupMo
 	isSticky(editorOrIndex: number | EditorInput): boolean { return this.model.isSticky(editorOrIndex); }
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
 		const editors = this.model.getEditors(order, options);
 		return editors.filter(e => this.contains(e));
 	}
 
 	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions | undefined): [EditorInput, number] | undefined {
 		const result = this.model.findEditor(candidate, options);
-		return !result || !this.contains(result[0]) ? undefined : result;
+		if (!result) {
+			return undefined;
+		}
+		const editor = firstOrDefault(result, undefined);
+		if (!editor || typeof editor === 'number') {
+			return undefined;
+		}
+		return this.contains(editor) ? result : undefined;
 	}
 
 	abstract isFirst(editor: EditorInput): boolean;
@@ -53,7 +71,7 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 	get activeEditor(): EditorInput | null { return this.model.activeEditor && this.model.isSticky(this.model.activeEditor) ? this.model.activeEditor : null; }
 	get previewEditor(): EditorInput | null { return this.model.previewEditor && this.model.isSticky(this.model.previewEditor) ? this.model.previewEditor : null; }
 
-	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
+	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
 		if (options?.excludeSticky) {
 			return [];
 		}
@@ -81,9 +99,6 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean {
-		if (!(candidate instanceof EditorInput)) {
-			throw new Error('IUntypedEditorInput can\'t be handled by StickyEditorGroupModel');
-		}
 		return this.model.contains(candidate, options) && this.model.indexOf(candidate) < this.model.stickyCount;
 	}
 }
@@ -99,7 +114,7 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 		return false;
 	}
 
-	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
+	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
 		return this.model.getEditors(order, { ...options, excludeSticky: true });
 	}
 
@@ -120,9 +135,6 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean {
-		if (!(candidate instanceof EditorInput)) {
-			throw new Error('IUntypedEditorInput can\'t be handled by UnstickyEditorGroupModel');
-		}
 		return this.model.contains(candidate, options) && this.model.indexOf(candidate) >= this.model.stickyCount;
 	}
 }
