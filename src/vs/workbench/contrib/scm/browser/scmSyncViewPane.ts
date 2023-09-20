@@ -439,10 +439,13 @@ class SCMSyncPaneViewModel {
 			const repositoryDisposable = repository.provider.onDidChangeHistoryProvider(() => this._onDidChangeHistoryProvider(repository));
 			this._onDidChangeHistoryProvider(repository);
 
-			this.repositories.set(repository, { dispose() { repositoryDisposable.dispose(); } });
+			this.repositories.set(repository, repositoryDisposable);
 		}
 
 		for (const repository of removed) {
+			this.historyProviders.get(repository)?.dispose();
+			this.historyProviders.delete(repository);
+
 			this.repositories.get(repository)?.dispose();
 			this.repositories.delete(repository);
 		}
