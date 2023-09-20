@@ -164,15 +164,15 @@ declare module 'vscode' {
 		spawn(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedCommand>;
 
 		/**
-		 * Spawns an exec server. It is assumed the command starts a Code CLI. Additional
-		 * arguments will be passed to the exec server.
+		 * Spawns an connector that allows to start a remote server. It is assumed the command starts a Code CLI. Additional
+		 * arguments will be passed to the connector.
 		 * @param command The command to execute. It is assumed the command spawns a Code CLI executable.
-		 * @param args The arguments to pass to the exec server
+		 * @param args The arguments to pass to the connector
 		 * @param options Additional options for the spawned process.
-		 * @returns A promise that gives access to the spawned {@link ExecServer}. It also provides a stream to which standard
+		 * @returns A promise that gives access to the spawned {@link RemoteServerConnector}. It also provides a stream to which standard
 		 * log messages are written.
 		 */
-		spawnExecServer(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedExecServer>;
+		spawnRemoteServerConnector(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<RemoteServerConnector>;
 
 		/**
 		 * Downloads the CLI executable of the desired platform and quality and pipes it to the
@@ -184,13 +184,6 @@ declare module 'vscode' {
 		 * @returns A promise that resolves when the process exits with a {@link ProcessExit} object.
 		 */
 		dowloadCliExecutable(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
-
-		/**
-		 * Starts a code server, returning a stream that can be used to communicate with it.
-		 * @param params The parameters for the code server.
-		 * @returns A promise that resolves to a {@link ManagedMessagePassing} object that can be used with a
-		 */
-		serve(params: ServeParams): Thenable<ManagedMessagePassing>;
 
 		/**
 		 * Gets the environment where the exec server is running.
@@ -218,10 +211,15 @@ declare module 'vscode' {
 		readonly onExit: Thenable<ProcessEnv>;
 	}
 
-	export interface SpawnedExecServer {
+	export interface RemoteServerConnector {
 		readonly logs: ReadStream;
 		readonly onExit: Thenable<ProcessExit>;
-		readonly execServer: ExecServer;
+		/**
+		 * Connect to a new code server, returning a stream that can be used to communicate with it.
+		 * @param params The parameters for the code server.
+		 * @returns A promise that resolves to a {@link ManagedMessagePassing} object that can be used with a resolver
+		 */
+		connect(params: ServeParams): Thenable<ManagedMessagePassing>;
 	}
 
 	export interface ProcessExit {
