@@ -208,7 +208,7 @@ export class CodeActionModel extends Disposable {
 				const startPosition = trigger.selection.getStartPosition();
 
 				const actions = createCancelablePromise(async token => {
-					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke) {
+					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 
 						if (token.isCancellationRequested) {
@@ -249,7 +249,7 @@ export class CodeActionModel extends Disposable {
 										triggerAction: trigger.trigger.triggerAction,
 										filter: { include: CodeActionKind.QuickFix },
 										autoApply: trigger.trigger.autoApply,
-										context: { notAvailableMessage: '', position: trackedPosition }
+										context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
 									};
 
 									const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
