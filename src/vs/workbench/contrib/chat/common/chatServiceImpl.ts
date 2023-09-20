@@ -436,10 +436,14 @@ export class ChatService extends Disposable implements IChatService {
 
 	private async _sendRequestAsync(model: ChatModel, provider: IChatProvider, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<void> {
 		const resolvedAgent = typeof message === 'string' ? this.resolveAgent(message) : undefined;
+		// const parsedRequest = typeof message === 'string' ?
+		// 	await this.instantiationService.invokeFunction(parseChatRequest, sessionId, message) :
+		// 	message; // Handle the followup type along with the response
+
+		// const resolvedAgent = Array.isArray(parsedRequest) ? parsedRequest.find(r => r instanceof ChatRequestAgentPart) : undefined;
 		let request: ChatRequestModel;
-
+		// const resolvedCommand = Array.isArray(message) ? await this.handleSlashCommand(model.sessionId, message) : message;
 		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
-
 
 		let gotProgress = false;
 		const requestType = typeof message === 'string' ?
@@ -633,7 +637,7 @@ export class ChatService extends Disposable implements IChatService {
 		return agents.find(a => prompt.match(new RegExp(`@${a.id}($|\\s)`)));
 	}
 
-	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
+	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[]> {
 		const model = this._sessionModels.get(sessionId);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,6 +15,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -26,6 +26,8 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
+import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestVariablePart } from 'vs/workbench/contrib/chat/common/chatModel';
+import { parseChatRequest } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -42,11 +44,10 @@ class InputEditorDecorations extends Disposable {
 
 	constructor(
 		private readonly widget: IChatWidget,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
@@ -94,7 +95,11 @@ class InputEditorDecorations extends Disposable {
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
 		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
-		const agents = this.chatAgentService.getAgents();
+
+		const viewModel = this.widget.viewModel;
+		if (!viewModel) {
+			return;
+		}
 
 		if (!inputValue) {
 			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
@@ -122,39 +127,26 @@ class InputEditorDecorations extends Disposable {
 			return;
 		}
 
-		// TODO@roblourens need some kind of parser for queries
+		const parsedRequest = await this.instantiationService.invokeFunction(parseChatRequest, viewModel.sessionId, inputValue);
 
 		let placeholderDecoration: IDecorationOptions[] | undefined;
-		const usedAgent = inputValue && agents.find(a => inputValue.startsWith(`@${a.id} `));
+		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const agentSubcommandPart = agentPart && parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+		const slashCommandPart = !agentPart && parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
 
-		let usedSubcommand: string | undefined;
-		let subCommandPosition: number | undefined;
-		if (usedAgent) {
-			const subCommandReg = /\/(\w+)(\s|$)/g;
-			let subCommandMatch: RegExpExecArray | null;
-			while (subCommandMatch = subCommandReg.exec(inputValue)) {
-				const maybeCommand = subCommandMatch[1];
-				usedSubcommand = usedAgent.metadata.subCommands.find(agentCommand => maybeCommand === agentCommand.name)?.name;
-				if (usedSubcommand) {
-					subCommandPosition = subCommandMatch.index;
-					break;
-				}
-			}
-		}
-
-		if (usedAgent && inputValue === `@${usedAgent.id} `) {
+		if (agentPart && inputValue.trim() === `@${agentPart.agent.id}`) {
 			// Agent reference with no other text - show the placeholder
-			if (usedAgent.metadata.description) {
+			if (agentPart.agent.metadata.description) {
 				placeholderDecoration = [{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: usedAgent.id.length,
+						startColumn: inputValue.length,
 						endColumn: 1000
 					},
 					renderOptions: {
 						after: {
-							contentText: usedAgent.metadata.description,
+							contentText: agentPart.agent.metadata.description,
 							color: this.getPlaceholderColor(),
 						}
 					}
@@ -162,22 +154,21 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
-		const command = !usedAgent && inputValue && slashCommands?.find(c => inputValue.startsWith(`/${c.command} `));
-		if (command && inputValue === `/${command.command} `) {
+		if (slashCommandPart && inputValue.trim() === `/${slashCommandPart.slashCommand}`) {
 			// Command reference with no other text - show the placeholder
-			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(command.command);
-			const shouldRenderFollowupPlaceholder = command.followupPlaceholder && isFollowupSlashCommand;
-			if (shouldRenderFollowupPlaceholder || command.detail) {
+			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(slashCommandPart.slashCommand.command);
+			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && slashCommandPart.slashCommand.followupPlaceholder;
+			if (shouldRenderFollowupPlaceholder || slashCommandPart.slashCommand.detail) {
 				placeholderDecoration = [{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: command ? command.command.length : 1,
+						startColumn: slashCommandPart ? inputValue.length : 1,
 						endColumn: 1000
 					},
 					renderOptions: {
 						after: {
-							contentText: shouldRenderFollowupPlaceholder ? command.followupPlaceholder : command.detail,
+							contentText: shouldRenderFollowupPlaceholder ? slashCommandPart.slashCommand.followupPlaceholder : slashCommandPart.slashCommand.detail,
 							color: this.getPlaceholderColor(),
 						}
 					}
@@ -189,39 +180,39 @@ class InputEditorDecorations extends Disposable {
 
 		// TODO@roblourens The way these numbers are computed aren't totally correct...
 		const textDecorations: IDecorationOptions[] | undefined = [];
-		if (usedAgent) {
+		if (agentPart) {
 			textDecorations.push(
 				{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: 1,
-						endColumn: usedAgent.id.length + 2
+						startColumn: agentPart.range.start + 1,
+						endColumn: agentPart.range.endExclusive + 1
 					}
 				}
 			);
-			if (usedSubcommand) {
+			if (agentSubcommandPart) {
 				textDecorations.push(
 					{
 						range: {
 							startLineNumber: 1,
 							endLineNumber: 1,
-							startColumn: subCommandPosition! + 1,
-							endColumn: subCommandPosition! + usedSubcommand.length + 2
+							startColumn: agentSubcommandPart.range.start + 1,
+							endColumn: agentSubcommandPart.range.endExclusive + 1
 						}
 					}
 				);
 			}
 		}
 
-		if (command) {
+		if (slashCommandPart) {
 			textDecorations.push(
 				{
 					range: {
 						startLineNumber: 1,
 						endLineNumber: 1,
-						startColumn: 1,
-						endColumn: command.command.length + 2
+						startColumn: slashCommandPart.range.start + 1,
+						endColumn: slashCommandPart.range.endExclusive + 1
 					}
 				}
 			);
@@ -229,22 +220,17 @@ class InputEditorDecorations extends Disposable {
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 
-		const variables = this.chatVariablesService.getVariables();
-		const variableReg = /(^|\s)@(\w+)(:\d+)?(?=(\s|$))/ig;
-		let match: RegExpMatchArray | null;
 		const varDecorations: IDecorationOptions[] = [];
-		while (match = variableReg.exec(inputValue)) {
-			const varName = match[2];
-			if (Iterable.find(variables, v => v.name === varName)) {
-				varDecorations.push({
-					range: {
-						startLineNumber: 1,
-						endLineNumber: 1,
-						startColumn: match.index! + match[1].length + 1,
-						endColumn: match.index! + match[0].length + 1
-					}
-				});
-			}
+		const variableParts = parsedRequest.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
+		for (const variable of variableParts) {
+			varDecorations.push({
+				range: {
+					startLineNumber: 1,
+					endLineNumber: 1,
+					startColumn: variable.range.start + 1,
+					endColumn: variable.range.endExclusive + 1
+				}
+			});
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);

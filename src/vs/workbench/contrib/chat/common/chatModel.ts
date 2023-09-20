@@ -9,9 +9,64 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/commo
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+
+// Include
+// - Range
+// - Or offset
+// - Or raw text to compute the offset easily
+
+export interface IParsedChatRequestPart {
+	readonly range: OffsetRange;
+}
+
+export class ChatRequestTextPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly message: string) { }
+}
+
+/**
+ * An invocation of a static variable that can be resolved by the variable service
+ */
+export class ChatRequestVariablePart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly variableName: string, readonly variableArg: string) { }
+}
+
+/**
+ * An invocation of an agent that can be resolved by the agent service
+ */
+export class ChatRequestAgentPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly agent: IChatAgentData) { }
+}
+
+/**
+ * An invocation of an agent's subcommand
+ */
+export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly command: IChatAgentCommand) { }
+}
+
+/**
+ * An invocation of a standalone slash command
+ */
+export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly slashCommand: ISlashCommand) { }
+}
+
+/**
+ * An invocation of a static variable that can be resolved by the variable service
+ */
+export class ParsedChatRequestDynamicReferencePart implements IParsedChatRequestPart {
+	constructor(
+		readonly range: OffsetRange,
+		readonly kind: string, // eg 'file'
+		readonly data: any // eg URI, how does this get typed?
+	) { }
+}
+
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -20,6 +75,7 @@ export interface IChatRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly message: string | IChatReplyFollowup;
+	// readonly message: IParsedChatRequestPart[] | IChatReplyFollowup;
 	readonly response: IChatResponseModel | undefined;
 }
 
@@ -80,6 +136,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	constructor(
 		public readonly session: ChatModel,
 		public readonly message: string | IChatReplyFollowup,
+		// public readonly message: IParsedChatRequestPart[] | IChatReplyFollowup,
 		private _providerRequestId?: string) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -466,7 +523,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		public readonly providerId: string,
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		@ILogService private readonly logService: ILogService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		// @IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -492,14 +549,15 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
-		return requests.map((raw: ISerializableChatRequestData) => {
-			const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
-			if (raw.response || raw.responseErrorDetails) {
-				const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
-				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
-			}
-			return request;
-		});
+		return [];
+		// return requests.map((raw: ISerializableChatRequestData) => {
+		// 	const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
+		// 	if (raw.response || raw.responseErrorDetails) {
+		// 		const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
+		// 		request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+		// 	}
+		// 	return request;
+		// });
 	}
 
 	startReinitialize(): void {
@@ -544,6 +602,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	addRequest(message: string | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
+		// addRequest(message: IParsedChatRequestPart[] | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
