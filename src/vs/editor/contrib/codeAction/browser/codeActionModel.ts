@@ -199,7 +199,7 @@ export class CodeActionModel extends Disposable {
 			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, async trigger => {
+			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
 				if (!trigger) {
 					this.setState(CodeActionsState.Empty);
 					return;
