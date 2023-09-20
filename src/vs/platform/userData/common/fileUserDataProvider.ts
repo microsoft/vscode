@@ -142,7 +142,7 @@ export class FileUserDataProvider extends Disposable implements
 		if (hasFileCloneCapability(this.fileSystemProvider)) {
 			return this.fileSystemProvider.cloneFile(this.toFileSystemResource(from), this.toFileSystemResource(to));
 		}
-		throw new Error('copy not supported');
+		throw new Error('clone not supported');
 	}
 
 	private handleFileChanges(changes: readonly IFileChange[]): void {
