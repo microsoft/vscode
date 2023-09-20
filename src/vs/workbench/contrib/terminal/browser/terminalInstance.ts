@@ -10,14 +10,14 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AutoOpenBarrier, Promises, timeout } from 'vs/base/common/async';
+import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon, getAllCodicons } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
-import { Disposable, IDisposable, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { OS, OperatingSystem, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -87,6 +87,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { generateUuid } from 'vs/base/common/uuid';
 
 const enum Constants {
 	/**
@@ -121,10 +122,51 @@ const shellIntegrationSupportedShellTypes = [
 	WindowsShellType.PowerShell
 ];
 
+/**
+ * A wrapper around a {@link DisposableMap} that allows tracking transient disposables and then
+ * freeing their memory when they are no longer needed. This can be thought of as an alternative to
+ * a `IDisposable[]` for short lived disposables that allows declaring, initializing and registering
+ * the disposable in a single line.
+ *
+ * Some other benefits:
+ *
+ * - Disposable tracking is integrated thanks to using {@link DisposableMap} internally.
+ * - This is lighter weight and more concise than several {@link MutableDisposable}s.
+ *
+ * @example
+ * class Foo {
+ *   private _transientDisposables = this._register(new TransientDisposableStore());
+ *
+ *   constructor() {
+ *     // Cancel the callback if Foo is disposed
+ *     this._transientDisposables.addTimeout(() => { ... }, 1000);
+ *   }
+ * }
+ */
+class TransientDisposableStore implements IDisposable {
+	private _map = new DisposableMap<string>();
+
+	addTimeout(handler: () => void, timeout = 0) {
+		const idx = generateUuid();
+		this._map.set(idx, disposableTimeout(() => {
+			handler();
+			this._map.deleteAndDispose(idx);
+		}, timeout));
+	}
+
+	// More functions can be added as needed
+
+	dispose() {
+		this._map.dispose();
+	}
+}
+
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
 	private static _instanceIdCounter = 1;
+
+	private readonly _transientDisposables = this._register(new TransientDisposableStore());
 
 	private readonly _scopedInstantiationService: IInstantiationService;
 
@@ -759,7 +801,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._lineDataEventAddon = lineDataEventAddon;
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
-		setTimeout(() => {
+		this._transientDisposables.addTimeout(() => {
 			this._register(xterm.raw.onBell(() => {
 				if (this._configHelper.config.enableBell) {
 					this.statusList.add({
