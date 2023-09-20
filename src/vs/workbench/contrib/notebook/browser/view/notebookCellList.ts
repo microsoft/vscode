@@ -1203,8 +1203,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const newElementBottom = this.view.elementTop(index) + size;
-		if (newElementBottom < this.view.getScrollTop()) {
-			return this.view.updateElementHeight(index, size, null, newElementBottom - 46);
+		// TODO: calculate the padding value to expose one line
+		if (newElementBottom - 46 < this.view.getScrollTop()) {
+			// The item is going to shrink itself out of the view
+			// Show the final line of the item at the top
+			this.view.updateElementHeight(index, size, null, newElementBottom - 46);
+			return;
 		}
 
 		const focused = this.getFocus();
