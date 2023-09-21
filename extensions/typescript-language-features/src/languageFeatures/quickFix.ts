@@ -341,7 +341,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				expand = { kind: 'code-action', action };
 			}
 			else if (action.fixName === fixNames.inferFromUsage && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.inferAndAddTypes')) {
-				const inferFromBody = new VsCodeCodeAction(action, 'Copilot: Infer and add types', vscode.CodeActionKind.QuickFix);
+				const inferFromBody = new VsCodeCodeAction(action, 'Infer types using Copilot', vscode.CodeActionKind.QuickFix);
 				inferFromBody.edit = new vscode.WorkspaceEdit();
 				inferFromBody.diagnostics = [diagnostic];
 				inferFromBody.command = {
@@ -388,7 +388,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				}],
 			};
 		}
-		actions.unshift(codeAction);
+		actions.push(codeAction);
 		return actions;
 	}
 
