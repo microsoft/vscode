@@ -10878,10 +10878,10 @@ yargs@^7.1.0:
     y18n "^3.2.1"
     yargs-parser "5.0.0-security.0"
 
-yaserver@^0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/yaserver/-/yaserver-0.2.0.tgz#56393027dc13f3c1bb89d20e0bd17269aa927802"
-  integrity sha512-onsELrl7Y42M4P3T9R0N/ZJNJRu4cGwzhDyOWIFRMJvPUIrGKInYGh+DJBefrbr1qoyDu7DSCLl9BL5hSSVfDA==
+yaserver@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/yaserver/-/yaserver-0.4.0.tgz#71b5fc53fb14c0f241d2dcfb3910707feeb619da"
+  integrity sha512-98Vj4sgqB1fLcpf2wK7h3dFCaabISHU9CXZHaAx3QLkvTTCD31MzMcNbw5V5jZFBK7ffkFqfWig6B20KQt4wtA==
 
 yauzl@^2.10.0, yauzl@^2.4.2, yauzl@^2.9.2:
   version "2.10.0"
