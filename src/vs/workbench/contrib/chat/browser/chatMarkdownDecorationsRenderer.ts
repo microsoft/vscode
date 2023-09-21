@@ -4,27 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 
-const variableRefUrlPrefix = 'http://vscodeVar_';
+const variableRefUrl = 'http://_vscodeDecoration_';
 
-export function fixVariableReferences(markdown: IMarkdownString): IMarkdownString {
-	const fixedMarkdownSource = markdown.value.replace(/\]\(values:(.*)/g, `](${variableRefUrlPrefix}_$1`);
-	return new MarkdownString(fixedMarkdownSource, { isTrusted: markdown.isTrusted, supportThemeIcons: markdown.supportThemeIcons, supportHtml: markdown.supportHtml });
+export function convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
+	let result = '';
+	for (const part of parsedRequest.parts) {
+		if (part instanceof ChatRequestTextPart) {
+			result += part.text;
+		} else {
+			result += `[${part.text}](${variableRefUrl})`;
+		}
+	}
+
+	return result;
 }
 
 export function walkTreeAndAnnotateResourceLinks(element: HTMLElement): void {
 	element.querySelectorAll('a').forEach(a => {
 		const href = a.getAttribute('data-href');
 		if (href) {
-			if (href.startsWith(variableRefUrlPrefix)) {
+			if (href.startsWith(variableRefUrl)) {
 				a.parentElement!.replaceChild(
 					renderResourceWidget(a.textContent!),
 					a);
 			}
 		}
-
-		walkTreeAndAnnotateResourceLinks(a as HTMLElement);
 	});
 }
 
