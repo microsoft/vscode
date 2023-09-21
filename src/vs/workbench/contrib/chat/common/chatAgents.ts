@@ -98,6 +98,7 @@ export interface IChatAgentService {
 	registerAgent(data: IChatAgentData, callback: IChatAgentCallback): IDisposable;
 	invokeAgent(id: string, prompt: string, progress: IProgress<IChatAgentFragment>, history: IChatMessage[], token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void>;
 	getAgents(): Array<IChatAgentData>;
+	getAgent(id: string): IChatAgentData | undefined;
 	hasAgent(id: string): boolean;
 }
 
@@ -159,6 +160,11 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	hasAgent(id: string): boolean {
 		return this._agents.has(id);
+	}
+
+	getAgent(id: string): IChatAgentData | undefined {
+		const data = this._agents.get(id);
+		return data?.data;
 	}
 
 	async invokeAgent(id: string, prompt: string, progress: IProgress<IChatAgentFragment>, history: IChatMessage[], token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> {
