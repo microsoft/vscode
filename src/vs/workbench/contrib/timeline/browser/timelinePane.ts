@@ -820,7 +820,21 @@ export class TimelinePane extends ViewPane {
 				this.setLoadingUriMessage();
 			} else {
 				this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
-				this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
+				const scmProviderCount = this.contextKeyService.getContextKeyValue<number>('scm.providerCount');
+				if (this.timelineService.getSources().filter(({ id }) => !this.excludedSources.has(id)).length === 0) {
+					this.message = localize('timeline.noTimelineSourcesEnabled', "All timeline sources have been filtered out.");
+				} else {
+					if (this.configurationService.getValue('workbench.localHistory.enabled') && !this.excludedSources.has('timeline.localHistory')) {
+						this.message = localize('timeline.noLocalHistoryYet', "Local History will track recent changes as you save them unless the file has been excluded or is too large.");
+					} else if (this.excludedSources.size > 0) {
+						this.message = localize('timeline.noTimelineInfoFromEnabledSources', "No filtered timeline information was provided.");
+					} else {
+						this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
+					}
+				}
+				if (!scmProviderCount || scmProviderCount === 0) {
+					this.message += ' ' + localize('timeline.noSCM', "Source Control has not been configured.");
+				}
 			}
 		} else {
 			this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));

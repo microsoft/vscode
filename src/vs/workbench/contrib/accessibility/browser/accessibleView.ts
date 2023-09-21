@@ -101,6 +101,7 @@ export interface IAccessibleViewOptions {
 	 */
 	language?: string;
 	type: AccessibleViewType;
+	positionBottom?: boolean;
 }
 
 export class AccessibleView extends Disposable {
@@ -412,6 +413,14 @@ export class AccessibleView extends Disposable {
 			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
+			if (this._currentProvider?.options.positionBottom) {
+				const lastLine = this.editorWidget.getModel()?.getLineCount();
+				const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
+				if (position) {
+					this._editorWidget.setPosition(position);
+					this._editorWidget.revealLine(position.lineNumber);
+				}
+			}
 		});
 		this._updateToolbar(provider.actions, provider.options.type);
 

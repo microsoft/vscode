@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
+import { ReadableStreamEvents, newWriteableStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, createFileSystemProviderError } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, createFileSystemProviderError, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileReadStreamCapability } from 'vs/platform/files/common/files';
 
 class File implements IStat {
 
-	type: FileType.File;
-	ctime: number;
+	readonly type: FileType.File;
+	readonly ctime: number;
 	mtime: number;
 	size: number;
 
@@ -30,13 +32,13 @@ class File implements IStat {
 
 class Directory implements IStat {
 
-	type: FileType.Directory;
-	ctime: number;
+	readonly type: FileType.Directory;
+	readonly ctime: number;
 	mtime: number;
 	size: number;
 
 	name: string;
-	entries: Map<string, File | Directory>;
+	readonly entries: Map<string, File | Directory>;
 
 	constructor(name: string) {
 		this.type = FileType.Directory;
@@ -50,8 +52,16 @@ class Directory implements IStat {
 
 type Entry = File | Directory;
 
-export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
+export class InMemoryFileSystemProvider extends Disposable implements
+	IFileSystemProviderWithFileReadWriteCapability,
+	IFileSystemProviderWithOpenReadWriteCloseCapability,
+	IFileSystemProviderWithFileReadStreamCapability,
+	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileAtomicWriteCapability,
+	IFileSystemProviderWithFileAtomicDeleteCapability {
 
+	private memoryFdCounter = 0;
+	private readonly fdMemory = new Map<number, Uint8Array>();
 	private _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
@@ -92,6 +102,15 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 		throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
 	}
 
+	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
+		const data = this._lookupAsFile(resource, false).data;
+
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+		stream.end(data);
+
+		return stream;
+	}
+
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		const basename = resources.basename(resource);
 		const parent = this._lookupParentDirectory(resource);
@@ -115,6 +134,44 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 		entry.data = content;
 
 		this._fireSoon({ type: FileChangeType.UPDATED, resource });
+	}
+
+	// file open/read/write/close
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+		const data = this._lookupAsFile(resource, false).data;
+		if (data) {
+			const fd = this.memoryFdCounter++;
+			this.fdMemory.set(fd, data);
+			return Promise.resolve(fd);
+		}
+		throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+	}
+
+	close(fd: number): Promise<void> {
+		this.fdMemory.delete(fd);
+		return Promise.resolve();
+	}
+
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		const memory = this.fdMemory.get(fd);
+		if (!memory) {
+			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
+		}
+
+		const toWrite = VSBuffer.wrap(memory).slice(pos, pos + length);
+		data.set(toWrite.buffer, offset);
+		return Promise.resolve(toWrite.byteLength);
+	}
+
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
+		const memory = this.fdMemory.get(fd);
+		if (!memory) {
+			throw createFileSystemProviderError(`No file with that descriptor open`, FileSystemProviderErrorCode.Unavailable);
+		}
+
+		const toWrite = VSBuffer.wrap(data).slice(offset, offset + length);
+		memory.set(toWrite.buffer, pos);
+		return Promise.resolve(toWrite.byteLength);
 	}
 
 	// --- manage files/folders
@@ -240,5 +297,11 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 			this._onDidChangeFile.fire(this._bufferedChanges);
 			this._bufferedChanges.length = 0;
 		}, 5);
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.fdMemory.clear();
 	}
 }

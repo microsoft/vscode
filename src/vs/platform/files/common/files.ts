@@ -657,6 +657,7 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
 	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array>;
+	enforceAtomicReadFile?(resource: URI): boolean;
 }
 
 export function hasFileAtomicReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicReadCapability {
@@ -669,6 +670,7 @@ export function hasFileAtomicReadCapability(provider: IFileSystemProvider): prov
 
 export interface IFileSystemProviderWithFileAtomicWriteCapability extends IFileSystemProvider {
 	writeFile(resource: URI, contents: Uint8Array, opts?: IFileAtomicWriteOptions): Promise<void>;
+	enforceAtomicWriteFile?(resource: URI): IFileAtomicOptions | false;
 }
 
 export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicWriteCapability {
@@ -681,6 +683,7 @@ export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): pro
 
 export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFileSystemProvider {
 	delete(resource: URI, opts: IFileAtomicDeleteOptions): Promise<void>;
+	enforceAtomicDelete?(resource: URI): IFileAtomicOptions | false;
 }
 
 export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {

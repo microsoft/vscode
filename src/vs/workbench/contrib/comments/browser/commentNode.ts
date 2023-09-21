@@ -48,6 +48,7 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { FileAccess } from 'vs/base/common/network';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -109,7 +110,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IAccessibilityService private accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -156,6 +158,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		if (pendingEdit) {
 			this.switchToEditMode();
 		}
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.toggleToolbarHidden(true);
+		}));
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
@@ -246,8 +251,17 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._isPendingLabel.innerText = '';
 		}
 
-		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions.hidden'));
+		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions'));
+		this.toggleToolbarHidden(true);
 		this.createActionsToolbar();
+	}
+
+	private toggleToolbarHidden(hidden: boolean) {
+		if (hidden && !this.accessibilityService.isScreenReaderOptimized()) {
+			this._actionsToolbarContainer.classList.add('hidden');
+		} else {
+			this._actionsToolbarContainer.classList.remove('hidden');
+		}
 	}
 
 	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -353,7 +367,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	async submitComment(): Promise<void> {
 		if (this._commentEditor && this._commentFormActions) {
-			this._commentFormActions.triggerDefaultAction();
+			await this._commentFormActions.triggerDefaultAction();
+			this.pendingEdit = undefined;
 		}
 	}
 
@@ -474,7 +489,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 
 		const lastLine = this._commentEditorModel.getLineCount();
-		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
+		const lastColumn = this._commentEditorModel.getLineLength(lastLine) + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
 		const commentThread = this.commentThread;
@@ -617,7 +632,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	setFocus(focused: boolean, visible: boolean = false) {
 		if (focused) {
 			this._domNode.focus();
-			this._actionsToolbarContainer.classList.remove('hidden');
+			this.toggleToolbarHidden(false);
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
 			if (this.comment.mode === languages.CommentMode.Editing) {
@@ -625,7 +640,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		} else {
 			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
-				this._actionsToolbarContainer.classList.add('hidden');
+				this.toggleToolbarHidden(true);
 				this._domNode.tabIndex = -1;
 			}
 			this._actionsToolbarContainer.classList.remove('tabfocused');
@@ -634,12 +649,12 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private registerActionBarListeners(actionsContainer: HTMLElement): void {
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
-			actionsContainer.classList.remove('hidden');
+			this.toggleToolbarHidden(false);
 			actionsContainer.classList.add('mouseover');
 		}));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
 			if (actionsContainer.classList.contains('mouseover') && !actionsContainer.classList.contains('tabfocused')) {
-				actionsContainer.classList.add('hidden');
+				this.toggleToolbarHidden(true);
 			}
 			actionsContainer.classList.remove('mouseover');
 		}));

@@ -9,12 +9,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MultiRowEditorControl } from 'vs/workbench/browser/parts/editor/multiRowEditorTabsControl';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 export interface IEditorTitleControlDimensions {
 
@@ -32,7 +34,7 @@ export interface IEditorTitleControlDimensions {
 
 export class EditorTitleControl extends Themable {
 
-	private editorTabsControl: EditorTabsControl;
+	private editorTabsControl: IEditorTabsControl;
 	private editorTabsControlDisposable = this._register(new DisposableStore());
 
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
@@ -42,7 +44,8 @@ export class EditorTitleControl extends Themable {
 	constructor(
 		private parent: HTMLElement,
 		private accessor: IEditorGroupsAccessor,
-		private group: IEditorGroupView,
+		private groupViewer: IEditorGroupView,
+		private model: IReadonlyEditorGroupModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -52,12 +55,16 @@ export class EditorTitleControl extends Themable {
 		this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
 	}
 
-	private createEditorTabsControl(): EditorTabsControl {
-		let control: EditorTabsControl;
+	private createEditorTabsControl(): IEditorTabsControl {
+		let control: IEditorTabsControl;
 		if (this.accessor.partOptions.showTabs) {
-			control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.group);
+			if (this.accessor.partOptions.pinnedTabsOnSeparateRow) {
+				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.accessor, this.groupViewer, this.model);
+			} else {
+				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.groupViewer, this.model);
+			}
 		} else {
-			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.group);
+			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.groupViewer, this.model);
 		}
 
 		return this.editorTabsControlDisposable.add(control);
@@ -73,7 +80,7 @@ export class EditorTitleControl extends Themable {
 		breadcrumbsContainer.classList.add('breadcrumbs-below-tabs');
 		this.parent.appendChild(breadcrumbsContainer);
 
-		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.group, {
+		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupViewer, {
 			showFileIcons: true,
 			showSymbolIcons: true,
 			showDecorationColors: false,
@@ -85,7 +92,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleBreadcrumbsEnablementChange(): void {
-		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
+		this.groupViewer.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	openEditor(editor: EditorInput): void {
@@ -125,13 +132,13 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleClosedEditors(): void {
-		if (!this.group.activeEditor) {
+		if (!this.groupViewer.activeEditor) {
 			this.breadcrumbsControl?.update();
 		}
 	}
 
-	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void {
-		return this.editorTabsControl.moveEditor(editor, fromIndex, targetIndex);
+	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
+		return this.editorTabsControl.moveEditor(editor, fromIndex, targetIndex, stickyStateChange);
 	}
 
 	pinEditor(editor: EditorInput): void {
@@ -159,10 +166,11 @@ export class EditorTitleControl extends Themable {
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
-
 		// Update editor tabs control if options changed
-		if (oldOptions.showTabs !== newOptions.showTabs) {
-
+		if (
+			oldOptions.showTabs !== newOptions.showTabs ||
+			(newOptions.showTabs && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
+		) {
 			// Clear old
 			this.editorTabsControlDisposable.clear();
 			this.breadcrumbsControlDisposables.clear();
@@ -174,7 +182,9 @@ export class EditorTitleControl extends Themable {
 		}
 
 		// Forward into editor tabs control
-		this.editorTabsControl.updateOptions(oldOptions, newOptions);
+		else {
+			this.editorTabsControl.updateOptions(oldOptions, newOptions);
+		}
 	}
 
 	layout(dimensions: IEditorTitleControlDimensions): Dimension {

@@ -53,7 +53,7 @@ export interface IExtensionHostManager {
 	 * Returns `null` if no resolver for `remoteAuthority` is found.
 	 */
 	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
-	start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void>;
+	start(extensionRegistryVersionId: number, allExtensions: readonly IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
@@ -436,12 +436,12 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return proxy.getCanonicalURI(remoteAuthority, uri);
 	}
 
-	public async start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
+	public async start(extensionRegistryVersionId: number, allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
 		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
-		const deltaExtensions = this._extensionHost.extensions.set(allExtensions, myExtensions);
+		const deltaExtensions = this._extensionHost.extensions!.set(extensionRegistryVersionId, allExtensions, myExtensions);
 		return proxy.startExtensionHost(deltaExtensions);
 	}
 
@@ -457,17 +457,21 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
 
-	public async deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+	public async deltaExtensions(incomingExtensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
-		this._extensionHost.extensions.delta(extensionsDelta);
-		return proxy.deltaExtensions(extensionsDelta);
+		const outgoingExtensionsDelta = this._extensionHost.extensions!.delta(incomingExtensionsDelta);
+		if (!outgoingExtensionsDelta) {
+			// The extension host already has this version of the extensions.
+			return;
+		}
+		return proxy.deltaExtensions(outgoingExtensionsDelta);
 	}
 
 	public containsExtension(extensionId: ExtensionIdentifier): boolean {
-		return this._extensionHost.extensions.containsExtension(extensionId);
+		return this._extensionHost.extensions?.containsExtension(extensionId) ?? false;
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
@@ -529,7 +533,7 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 			return this._actual;
 		}
 		const actual = this._createActual(reason);
-		await actual.start([], []);
+		await actual.start(this._lazyStartExtensions!.versionId, this._lazyStartExtensions!.allExtensions, this._lazyStartExtensions!.myExtensions);
 		return actual;
 	}
 
@@ -550,13 +554,12 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 		this._lazyStartExtensions!.delta(extensionsDelta);
 		if (extensionsDelta.myToAdd.length > 0) {
 			const actual = this._createActual(`contains ${extensionsDelta.myToAdd.length} new extension(s) (installed or enabled): ${extensionsDelta.myToAdd.map(extId => extId.value)}`);
-			const { toAdd, myToAdd } = this._lazyStartExtensions!.toDelta();
-			actual.start(toAdd, myToAdd);
+			await actual.start(this._lazyStartExtensions!.versionId, this._lazyStartExtensions!.allExtensions, this._lazyStartExtensions!.myExtensions);
 			return;
 		}
 	}
 	public containsExtension(extensionId: ExtensionIdentifier): boolean {
-		return this._extensionHost.extensions.containsExtension(extensionId);
+		return this._extensionHost.extensions?.containsExtension(extensionId) ?? false;
 	}
 	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
 		await this._startCalled.wait();
@@ -615,17 +618,16 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 		}
 		throw new Error(`Cannot resolve canonical URI`);
 	}
-	public async start(allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
+	public async start(extensionRegistryVersionId: number, allExtensions: IExtensionDescription[], myExtensions: ExtensionIdentifier[]): Promise<void> {
 		if (myExtensions.length > 0) {
 			// there are actual extensions, so let's launch the extension host
 			const actual = this._createActual(`contains ${myExtensions.length} extension(s): ${myExtensions.map(extId => extId.value)}.`);
-			const result = actual.start(allExtensions, myExtensions);
+			const result = actual.start(extensionRegistryVersionId, allExtensions, myExtensions);
 			this._startCalled.open();
 			return result;
 		}
 		// there are no actual extensions running, store extensions in `this._lazyStartExtensions`
-		this._lazyStartExtensions = new ExtensionHostExtensions();
-		this._lazyStartExtensions.set(allExtensions, myExtensions);
+		this._lazyStartExtensions = new ExtensionHostExtensions(extensionRegistryVersionId, allExtensions, myExtensions);
 		this._startCalled.open();
 	}
 	public async extensionTestsExecute(): Promise<number> {

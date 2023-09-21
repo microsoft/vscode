@@ -200,7 +200,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	display(lineHeight: number) {
-		const headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
 		this._body.display();

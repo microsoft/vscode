@@ -91,6 +91,8 @@ suite('TextAreaInput', () => {
 			private _state: IRecordedTextareaState;
 			private _currDispatchingEvent: IRecordedEvent | null;
 
+			public ownerDocument = document;
+
 			constructor() {
 				super();
 				this._state = {
