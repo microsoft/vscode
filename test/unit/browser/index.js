@@ -132,13 +132,15 @@ async function runTestsInBrowser(testModules, browserType) {
 	const page = await context.newPage();
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
 	if (argv.build) {
-		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-			target.search = `?build=true&ci=true`;
-		} else {
-			target.search = `?build=true`;
-		}
-	} else if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-		target.search = `?ci=true`;
+		target.searchParams.set('build', 'true');
+	}
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		target.searchParams.set('ci', 'true');
+	}
+
+	// see comment on warmupExposedMethods in renderer.html for what's going on
+	if (browserType === 'webkit') {
+		target.searchParams.set('ioWarmup', __dirname);
 	}
 
 	const emitter = new events.EventEmitter();
