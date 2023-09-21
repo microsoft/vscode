@@ -261,8 +261,7 @@ export class CodeActionModel extends Disposable {
 										// Already filtered through to only get quickfixes, so no need to filter again.
 										currentActions.push(...actionsAtMarker.validActions);
 									}
-									const newCodeActionSet: CodeActionSet = { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
-									return newCodeActionSet;
+									return { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
 								}
 							}
 						}
