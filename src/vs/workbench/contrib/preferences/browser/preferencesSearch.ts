@@ -204,6 +204,12 @@ export class SettingMatches {
 			keyMatchingWords.clear();
 		}
 
+		// Also check if the user tried searching by id.
+		const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
+		if (keyIdMatches?.length) {
+			keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
+		}
+
 		// Check if the value contains all the words.
 		if (setting.enum?.length) {
 			// Search all string values of enums.
