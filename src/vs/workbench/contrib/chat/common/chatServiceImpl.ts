@@ -440,7 +440,6 @@ export class ChatService extends Disposable implements IChatService {
 
 		const resolvedCommand = typeof message === 'string' && message.startsWith('/') ? await this.handleSlashCommand(model.sessionId, message) : message;
 
-
 		let gotProgress = false;
 		const requestType = typeof message === 'string' ?
 			(message.startsWith('/') ? 'slashCommand' : 'string') :
@@ -453,6 +452,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				gotProgress = true;
+
 				if ('content' in progress) {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
 				} else if ('placeholder' in progress) {
@@ -460,6 +460,8 @@ export class ChatService extends Disposable implements IChatService {
 				} else if (isCompleteInteractiveProgressTreeData(progress)) {
 					// This isn't exposed in API
 					this.trace('sendRequest', `Provider returned tree data for session ${model.sessionId}, ${progress.treeData.label}`);
+				} else if ('documents' in progress) {
+					this.trace('sendRequest', `Provider returned documents for session ${model.sessionId}:\n ${JSON.stringify(progress.documents, null, '\t')}`);
 				} else {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}

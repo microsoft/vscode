@@ -11,7 +11,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -32,11 +32,13 @@ export type ResponsePart =
 		resolvedContent?: Promise<
 			string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }
 		>;
-	};
+	}
+	| IUsedContext;
 
 export interface IResponse {
 	readonly value: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
 	onDidChangeValue: Event<void>;
+	usedContext: IUsedContext | undefined;
 	updateContent(responsePart: ResponsePart, quiet?: boolean): void;
 	asString(): string;
 }
@@ -114,6 +116,11 @@ export class Response implements IResponse {
 		return this._onDidChangeValue.event;
 	}
 
+	private _usedContext: IUsedContext | undefined;
+	public get usedContext(): IUsedContext | undefined {
+		return this._usedContext;
+	}
+
 	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
 	private _responseParts: InternalResponsePart[];
 	// responseData externally presents the response parts with consolidated contiguous strings (including strings which were previously resolving)
@@ -179,6 +186,8 @@ export class Response implements IResponse {
 		} else if (isCompleteInteractiveProgressTreeData(responsePart)) {
 			this._responseParts.push(responsePart);
 			this._updateRepr(quiet);
+		} else if ('documents' in responsePart) {
+			this._usedContext = responsePart;
 		}
 	}
 
@@ -590,6 +599,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.updateContent(progress.content, quiet);
 		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress)) {
 			request.response.updateContent(progress, quiet);
+		} else if ('documents' in progress) {
+			request.response.updateContent(progress);
 		} else {
 			request.setProviderRequestId(progress.requestId);
 			request.response.setProviderResponseId(progress.requestId);
