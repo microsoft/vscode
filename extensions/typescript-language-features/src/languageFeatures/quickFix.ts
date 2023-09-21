@@ -321,29 +321,22 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		action: Proto.CodeFixAction
 	): VsCodeCodeAction[] {
 		const actions: VsCodeCodeAction[] = [];
-		const codeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
-		codeAction.edit = getEditForCodeAction(this.client, action);
-		codeAction.diagnostics = [diagnostic];
-		codeAction.command = {
-			command: ApplyCodeActionCommand.ID,
-			arguments: [<ApplyCodeActionCommand_args>{ action: action, diagnostic, document }],
-			title: ''
-		};
-		actions.push(codeAction);
-
+		let message: string | undefined;
+		let expand: Expand | undefined;
+		let title = action.description;
 		if (vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions')) {
-			let message: string | undefined;
-			let expand: Expand | undefined;
-
 			if (action.fixName === fixNames.classIncorrectlyImplementsInterface && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.classIncorrectlyImplementsInterface')) {
+				title += ' with Copilot';
 				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
 				expand = { kind: 'code-action', action };
 			}
 			else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.classDoesntImplementInheritedAbstractMember')) {
+				title += ' with Copilot';
 				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
 				expand = { kind: 'code-action', action };
 			}
 			else if (action.fixName === fixNames.fixMissingFunctionDeclaration && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.missingFunctionDeclaration')) {
+				title += `Implement missing function declaration '${document.getText(diagnostic.range)}' using Copilot`;
 				message = `Provide a reasonable implementation of the function ${document.getText(diagnostic.range)} given its type and the context it's called in.`;
 				expand = { kind: 'code-action', action };
 			}
@@ -364,29 +357,38 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			}
 			else if (action.fixName === fixNames.addNameToNamelessParameter && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.addNameToNamelessParameter')) {
 				const newText = action.changes.map(change => change.textChanges.map(textChange => textChange.newText).join('')).join('');
+				title = 'Add meaningful parameter name with Copilot';
 				message = `Rename the parameter ${newText} with a more meaningful name.`;
 				expand = {
 					kind: 'navtree-function',
 					pos: diagnostic.range.start
 				};
 			}
-			if (expand && message !== undefined) {
-				codeAction.command.title = 'Copilot: ' + codeAction.command.title;
-				codeAction.command = {
-					command: CompositeCommand.ID,
-					title: '',
-					arguments: [codeAction.command, {
-						command: EditorChatFollowUp.ID,
-						title: '',
-						arguments: [<EditorChatFollowUp.Args>{
-							message,
-							expand,
-							document
-						}],
-					}],
-				};
-			}
 		}
+		const codeAction = new VsCodeCodeAction(action, title, vscode.CodeActionKind.QuickFix);
+		codeAction.edit = getEditForCodeAction(this.client, action);
+		codeAction.diagnostics = [diagnostic];
+		codeAction.command = {
+			command: ApplyCodeActionCommand.ID,
+			arguments: [<ApplyCodeActionCommand_args>{ action: action, diagnostic, document }],
+			title: ''
+		};
+		if (expand && message !== undefined) {
+			codeAction.command = {
+				command: CompositeCommand.ID,
+				title: '',
+				arguments: [codeAction.command, {
+					command: EditorChatFollowUp.ID,
+					title: '',
+					arguments: [<EditorChatFollowUp.Args>{
+						message,
+						expand,
+						document
+					}],
+				}],
+			};
+		}
+		actions.unshift(codeAction);
 		return actions;
 	}
 

@@ -347,14 +347,15 @@ class InlinedCodeAction extends vscode.CodeAction {
 		public readonly range: vscode.Range,
 		public readonly copilotRename?: (info: Proto.RefactorEditInfo) => vscode.Command,
 	) {
-		super(action.description, InlinedCodeAction.getKind(action));
+		const title = copilotRename ? action.description + ' and suggest a name with Copilot.' : action.description;
+		super(title, InlinedCodeAction.getKind(action));
 
 		if (action.notApplicableReason) {
 			this.disabled = { reason: action.notApplicableReason };
 		}
 
 		this.command = {
-			title: action.description,
+			title,
 			command: DidApplyRefactoringCommand.ID,
 			arguments: [<DidApplyRefactoringCommand.Args>{ action: action.name }],
 		};
