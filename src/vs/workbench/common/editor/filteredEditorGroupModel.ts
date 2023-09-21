@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Emitter } from 'vs/base/common/event';
 import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
@@ -30,17 +30,15 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 		}));
 	}
 
-	get id(): number { return this.model.id; }
+	get id(): GroupIdentifier { return this.model.id; }
 	get isLocked(): boolean { return this.model.isLocked; }
 	get stickyCount(): number { return this.model.stickyCount; }
 
-	abstract get activeEditor(): EditorInput | null;
-	abstract get previewEditor(): EditorInput | null;
-	abstract get count(): number;
-	abstract get isEmpty(): boolean;
+	get activeEditor(): EditorInput | null { return this.model.activeEditor && this.filter(this.model.activeEditor) ? this.model.activeEditor : null; }
+	get previewEditor(): EditorInput | null { return this.model.previewEditor && this.filter(this.model.previewEditor) ? this.model.previewEditor : null; }
 
-	isPinned(editorOrIndex: number | EditorInput): boolean { return this.model.isPinned(editorOrIndex); }
-	isSticky(editorOrIndex: number | EditorInput): boolean { return this.model.isSticky(editorOrIndex); }
+	isPinned(editorOrIndex: EditorInput | number): boolean { return this.model.isPinned(editorOrIndex); }
+	isSticky(editorOrIndex: EditorInput | number): boolean { return this.model.isSticky(editorOrIndex); }
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
@@ -48,7 +46,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 		return editors.filter(e => this.filter(e));
 	}
 
-	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions | undefined): [EditorInput, number] | undefined {
+	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number] | undefined {
 		const result = this.model.findEditor(candidate, options);
 		if (!result) {
 			return undefined;
@@ -56,21 +54,19 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 		return this.filter(result[1]) ? result : undefined;
 	}
 
+	abstract get count(): number;
+
 	abstract isFirst(editor: EditorInput): boolean;
 	abstract isLast(editor: EditorInput): boolean;
 	abstract getEditorByIndex(index: number): EditorInput | undefined;
-	abstract indexOf(editor: EditorInput): number;
-	abstract contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean;
+	abstract indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number;
+	abstract contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
 
 	abstract filter(editorOrIndex: EditorInput | number): boolean;
 }
 
 export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 	get count(): number { return this.model.stickyCount; }
-	override get stickyCount(): number { return this.count; }
-	get isEmpty(): boolean { return this.model.stickyCount === 0; }
-	get activeEditor(): EditorInput | null { return this.model.activeEditor && this.model.isSticky(this.model.activeEditor) ? this.model.activeEditor : null; }
-	get previewEditor(): EditorInput | null { return this.model.previewEditor && this.model.isSticky(this.model.previewEditor) ? this.model.previewEditor : null; }
 
 	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
 		if (options?.excludeSticky) {
@@ -98,16 +94,16 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 		return index < this.count ? this.model.getEditorByIndex(index) : undefined;
 	}
 
-	indexOf(editor: EditorInput): number {
-		const editorIndex = this.model.indexOf(editor);
+	indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number {
+		const editorIndex = this.model.indexOf(editor, editors, options);
 		if (editorIndex < 0 || editorIndex >= this.model.stickyCount) {
 			return -1;
 		}
 		return editorIndex;
 	}
 
-	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean {
-		const editorIndex = this.model.indexOf(candidate);
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
+		const editorIndex = this.model.indexOf(candidate, undefined, options);
 		return editorIndex >= 0 && editorIndex < this.model.stickyCount;
 	}
 
@@ -119,9 +115,6 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 	get count(): number { return this.model.count - this.model.stickyCount; }
 	override get stickyCount(): number { return 0; }
-	get isEmpty(): boolean { return this.model.stickyCount === this.model.count; }
-	get activeEditor(): EditorInput | null { return this.model.activeEditor && !this.model.isSticky(this.model.activeEditor) ? this.model.activeEditor : null; }
-	get previewEditor(): EditorInput | null { return this.model.previewEditor && !this.model.isSticky(this.model.previewEditor) ? this.model.previewEditor : null; }
 
 	override isSticky(editorOrIndex: number | EditorInput): boolean {
 		return false;
@@ -146,16 +139,16 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 		return index >= 0 ? this.model.getEditorByIndex(index + this.model.stickyCount) : undefined;
 	}
 
-	indexOf(editor: EditorInput): number {
-		const editorIndex = this.model.indexOf(editor);
+	indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number {
+		const editorIndex = this.model.indexOf(editor, editors, options);
 		if (editorIndex < this.model.stickyCount || editorIndex >= this.model.count) {
 			return -1;
 		}
 		return editorIndex - this.model.stickyCount;
 	}
 
-	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean {
-		const editorIndex = this.model.indexOf(candidate);
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
+		const editorIndex = this.model.indexOf(candidate, undefined, options);
 		return editorIndex >= this.model.stickyCount && editorIndex < this.model.count;
 	}
 
