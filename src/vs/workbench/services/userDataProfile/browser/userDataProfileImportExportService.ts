@@ -365,7 +365,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		profileIconElement.role = 'button';
 		profileIconElement.ariaLabel = localize('select icon', "Icon: {0}", icon.id);
 		const iconSelectBox = disposables.add(this.instantiationService.createInstance(WorkbenchIconSelectBox, { icons: ICONS, inputBoxStyles: defaultInputBoxStyles }));
-		const dimension = new DOM.Dimension(496, 300);
+		const dimension = new DOM.Dimension(496, 260);
 		iconSelectBox.layout(dimension);
 		let hoverWidget: IHoverWidget | undefined;
 
@@ -381,6 +381,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			profileIconElement.focus();
 		}));
 		const showIconSelectBox = () => {
+			iconSelectBox.clearInput();
 			hoverWidget = this.hoverService.showHover({
 				content: iconSelectBox.domNode,
 				target: profileIconElement,
