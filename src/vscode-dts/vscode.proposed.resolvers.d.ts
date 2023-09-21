@@ -228,8 +228,8 @@ declare module 'vscode' {
 	}
 
 	export interface ReadStream {
-		readonly onDidReceiveData: Event<Uint8Array>;
-		readonly onEnd: Thenable<void>;
+		readonly onDidReceiveMessage: Event<Uint8Array>;
+		readonly onDidEnd: Thenable<void>;
 	}
 
 	export interface WriteStream {
