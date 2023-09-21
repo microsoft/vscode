@@ -498,7 +498,7 @@ export class ListView<T> implements IListView<T> {
 		this.scrollableElement.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
-	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null, renderTopOverride?: number | undefined): void {
+	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null, keepInViewPadding?: number | undefined): void {
 		if (index < 0 || index >= this.items.length) {
 			return;
 		}
@@ -521,24 +521,26 @@ export class ListView<T> implements IListView<T> {
 
 		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 
-		let heightDiff = 0;
-
+		let renderTopOverride = undefined;
+		const heightDiff = size - originalSize;
 		if (index < lastRenderRange.start) {
 			// do not scroll the viewport if resized element is out of viewport
-			heightDiff = size - originalSize;
-		} else {
-			if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
-				// anchor in viewport
-				// resized element in viewport and above the anchor
-				heightDiff = size - originalSize;
-			} else {
-				heightDiff = 0;
+			renderTopOverride = this.lastRenderTop + heightDiff;
+		} else if (keepInViewPadding) {
+			const elementBottom = this.elementTop(index) + size;
+			if (elementBottom - keepInViewPadding < this.lastRenderTop) {
+				// keep the element in view with provided padding
+				renderTopOverride = elementBottom - keepInViewPadding;
 			}
+		} else if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
+			// anchor in viewport
+			// resized element in viewport and above the anchor
+			renderTopOverride = this.lastRenderTop + heightDiff;
 		}
 
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
-		const newRenderTop = Math.max(0, renderTopOverride ?? this.lastRenderTop + heightDiff);
+		const newRenderTop = Math.max(0, renderTopOverride ?? this.lastRenderTop);
 		this.render(lastRenderRange, newRenderTop, this.lastRenderHeight, undefined, undefined, true);
 		this.setScrollTop(this.lastRenderTop);
 

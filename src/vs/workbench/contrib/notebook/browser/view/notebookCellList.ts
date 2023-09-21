@@ -1202,31 +1202,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return this.view.updateElementHeight(index, size, anchorElementIndex);
 		}
 
-		// If the item is going to shrink itself out of the view, show the final line of the item at the top
-		const newElementBottom = this.view.elementTop(index) + size;
+		// Provide padding to ensure that at least one line of a shrinking item will stay in view
 		const lineHeight = this.notebookOptions.getLayoutConfiguration().cellStatusBarHeight;
 		const padding = this.notebookOptions.getLayoutConfiguration().cellBottomMargin;
 		const { bottomToolbarGap } = this.notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 		const paddingForLastLine = lineHeight + padding + bottomToolbarGap;
-		if (newElementBottom - paddingForLastLine < this.view.getScrollTop()) {
-			this.view.updateElementHeight(index, size, null, newElementBottom - paddingForLastLine);
-			return;
-		}
 
-		const focused = this.getFocus();
-		if (!focused.length) {
-			return this.view.updateElementHeight(index, size, null);
-		}
-
-		const focus = focused[0];
-
-		if (focus <= index) {
-			return this.view.updateElementHeight(index, size, focus);
-		}
 
 		// the `element` is in the viewport, it's very often that the height update is triggered by user interaction (collapse, run cell)
 		// then we should make sure that the `element`'s visual view position doesn't change as long as it will remain within the viewport after changing the size.
-		return this.view.updateElementHeight(index, size, index);
+		return this.view.updateElementHeight(index, size, null, paddingForLastLine);
 
 	}
 
