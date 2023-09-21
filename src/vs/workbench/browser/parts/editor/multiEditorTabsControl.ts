@@ -1148,22 +1148,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Build labels and descriptions for each editor
 		const labels: IEditorInputLabel[] = [];
 		let activeEditorTabIndex = -1;
-		const editors = this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL);
-		for (let i = 0; i < this.tabsModel.count; i++) {
-			const editor = editors[i];
+		this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).forEach((editor: EditorInput, tabIndex: number) => {
 			labels.push({
 				editor,
 				name: editor.getName(),
 				description: editor.getDescription(verbosity),
 				forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
 				title: editor.getTitle(Verbosity.LONG),
-				ariaLabel: computeEditorAriaLabel(editor, i, this.groupViewer, this.editorGroupService.count)
+				ariaLabel: computeEditorAriaLabel(editor, tabIndex, this.groupViewer, this.editorGroupService.count)
 			});
 
 			if (editor === this.tabsModel.activeEditor) {
-				activeEditorTabIndex = i;
+				activeEditorTabIndex = tabIndex;
 			}
-		}
+		});
 
 		// Shorten labels as needed
 		if (shortenDuplicates) {
