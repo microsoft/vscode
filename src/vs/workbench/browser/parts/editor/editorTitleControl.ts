@@ -179,8 +179,10 @@ export class EditorTitleControl extends Themable {
 			// Create new
 			this.editorTabsControl = this.createEditorTabsControl();
 			this.breadcrumbsControlFactory = this.createBreadcrumbsControl();
-		} else {
-			// Forward into editor tabs control
+		}
+
+		// Forward into editor tabs control
+		else {
 			this.editorTabsControl.updateOptions(oldOptions, newOptions);
 		}
 	}

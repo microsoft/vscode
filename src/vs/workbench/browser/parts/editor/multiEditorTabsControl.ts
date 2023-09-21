@@ -197,7 +197,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
 
-		this.updateTabsVisibility();
+		// Set tabs control visibility
+		this.updateTabsControlVisibility();
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -216,18 +217,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}));
 
 		return tabsScrollbar;
-	}
-
-	private get visible(): boolean {
-		return this.tabsModel.count > 0;
-	}
-
-	private updateTabsVisibility(): void {
-		const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
-		tabsAndActionsContainer.classList.toggle('empty', !this.visible);
-		if (!this.visible && this.dimensions) {
-			this.dimensions.used = undefined;
-		}
 	}
 
 	private updateTabsScrollbarSizing(): void {
@@ -506,7 +495,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private handleOpenedEditors(): boolean {
-		this.updateTabsVisibility();
+
+		// Set tabs control visibility
+		this.updateTabsControlVisibility();
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
@@ -616,8 +607,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// No tabs to show
 		else {
-			this.updateTabsVisibility();
-
 			if (this.tabsContainer) {
 				clearNode(this.tabsContainer);
 			}
@@ -629,6 +618,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.tabActionBars = [];
 
 			this.clearEditorActionsToolbar();
+			this.updateTabsControlVisibility();
 		}
 	}
 
@@ -1544,6 +1534,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	getHeight(): number {
+
 		// Return quickly if our used dimensions are known
 		if (this.dimensions.used) {
 			return this.dimensions.used.height;
@@ -1608,10 +1599,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayout(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
-		// Only layout when there is an active editor
-		// The active editor might be located in a different tab row
+
+		// Layout tabs
 		if (dimensions.container !== Dimension.None && dimensions.available !== Dimension.None) {
-			// Tabs
 			this.doLayoutTabs(dimensions, options);
 		}
 
@@ -1916,6 +1906,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
+	private updateTabsControlVisibility(): void {
+		const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
+		tabsAndActionsContainer.classList.toggle('empty', !this.visible);
+
+		// Reset dimensions if hidden
+		if (!this.visible && this.dimensions) {
+			this.dimensions.used = undefined;
+		}
+	}
+
+	private get visible(): boolean {
+		return this.tabsModel.count > 0;
+	}
+
 	private getTabAndIndex(editor: EditorInput): [HTMLElement, number /* index */] | undefined {
 		const tabIndex = this.tabsModel.indexOf(editor);
 		const tab = this.getTabAtIndex(tabIndex);
@@ -1972,10 +1976,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.updateDropFeedback(tabsContainer, false);
 		tabsContainer.classList.remove('scroll');
 
-		const groupTargetIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.groupViewer.stickyCount : targetTabIndex;
+		const targetEditorIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.groupViewer.stickyCount : targetTabIndex;
 		const options: IEditorOptions = {
-			sticky: this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === groupTargetIndex,
-			index: groupTargetIndex
+			sticky: this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === targetEditorIndex,
+			index: targetEditorIndex
 		};
 
 		// Check for group transfer
@@ -1984,7 +1988,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (Array.isArray(data)) {
 				const sourceGroup = this.accessor.getGroup(data[0].identifier);
 				if (sourceGroup) {
-					const mergeGroupOptions: IMergeGroupOptions = { index: groupTargetIndex };
+					const mergeGroupOptions: IMergeGroupOptions = { index: targetEditorIndex };
 					if (!this.isMoveOperation(e, sourceGroup.id)) {
 						mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
 					}
@@ -2030,7 +2034,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
 					if (dataTransferItem) {
 						const treeDropData = await extractTreeDropData(dataTransferItem);
-						editors.push(...treeDropData.map(editor => ({ ...editor, options: { ...editor.options, pinned: true, index: groupTargetIndex } })));
+						editors.push(...treeDropData.map(editor => ({ ...editor, options: { ...editor.options, pinned: true, index: targetEditorIndex } })));
 					}
 				}
 

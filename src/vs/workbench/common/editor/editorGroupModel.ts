@@ -164,13 +164,16 @@ interface IEditorCloseResult {
 }
 
 export interface IReadonlyEditorGroupModel {
+
 	readonly onDidModelChange: Event<IGroupModelChangeEvent>;
+
 	readonly id: GroupIdentifier;
 	readonly count: number;
 	readonly stickyCount: number;
 	readonly isLocked: boolean;
 	readonly activeEditor: EditorInput | null;
 	readonly previewEditor: EditorInput | null;
+
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
 	getEditorByIndex(index: number): EditorInput | undefined;
 	indexOf(candidate: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number;

@@ -39,7 +39,7 @@
 	##########################################################################################
 */
 
-/* Title Container */
+/* Tabs and Actions Container */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container {
 	display: flex;
@@ -450,6 +450,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-actions {
+
 	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;
 }
