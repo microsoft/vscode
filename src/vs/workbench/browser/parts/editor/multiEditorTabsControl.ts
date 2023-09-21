@@ -585,7 +585,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private handleClosedEditors(): void {
 
 		// There are tabs to show
-		if (this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).length > 0) {
+		if (this.tabsModel.count) {
 
 			// Remove tabs that got closed
 			const tabsContainer = assertIsDefined(this.tabsContainer);
@@ -1148,8 +1148,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Build labels and descriptions for each editor
 		const labels: IEditorInputLabel[] = [];
 		let activeEditorTabIndex = -1;
-		for (let i = 0; i < this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).length; i++) {
-			const editor = this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL)[i];
+		const editors = this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL);
+		for (let i = 0; i < this.tabsModel.count; i++) {
+			const editor = editors[i];
 			labels.push({
 				editor,
 				name: editor.getName(),
@@ -2049,10 +2050,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput) {
-		if (sourceEditor && this.tabsModel.contains(sourceEditor)) {
-			return true;
-		}
-
 		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
 			return true; // Singleton editors cannot be split
 		}

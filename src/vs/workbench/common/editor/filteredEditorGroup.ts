@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Emitter } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
@@ -21,9 +21,14 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 		super();
 
 		this._register(this.model.onDidModelChange(e => {
-			if (e.editor && this.contains(e.editor)) {
-				this._onDidModelChange.fire(e);
+			// Only Editor Events should be filtered
+			if (e.kind !== GroupModelChangeKind.GROUP_ACTIVE && e.kind !== GroupModelChangeKind.GROUP_INDEX && e.kind !== GroupModelChangeKind.GROUP_LOCKED) {
+				const editor = e.editor ?? (e.editorIndex !== undefined ? this.model.getEditorByIndex(e.editorIndex) : undefined);
+				if (!editor || !this.contains(editor)) {
+					return;
+				}
 			}
+			this._onDidModelChange.fire(e);
 		}));
 	}
 
