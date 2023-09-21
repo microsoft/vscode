@@ -100,6 +100,10 @@ export const ListDragOverReactions = {
 	accept(): IListDragOverReaction { return { accept: true }; },
 };
 
+/**
+ * Warning: Once passed to a list, that list takes up
+ * the responsibility of disposing it.
+ */
 export interface IListDragAndDrop<T> extends IDisposable {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;

@@ -81,7 +81,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
-		const dnd = instantiationService.createInstance(TerminalTabsDragAndDrop);
 		super('TerminalTabsList', container,
 			{
 				getHeight: () => TerminalTabsListSizes.TabHeight,
@@ -99,7 +98,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				paddingBottom: TerminalTabsListSizes.TabHeight,
-				dnd,
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
 				openOnSingleClick: true
 			},
 			contextKeyService,
@@ -107,7 +106,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			_configurationService,
 			instantiationService,
 		);
-		this.disposables.add(dnd);
 
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
@@ -739,8 +737,6 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		instance.focus();
 		await instance.sendPath(resource, false);
 	}
-
-	dispose(): void { }
 }
 
 class TabDecorationsProvider extends Disposable implements IDecorationsProvider {
