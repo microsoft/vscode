@@ -170,8 +170,8 @@ export class SettingMatches {
 		const valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
 
 		const words = new Set<string>(searchString.split(' '));
-		const settingKeyAsWords: string = this._keyToLabel(setting.key);
 
+		// Description search
 		if (this.searchDescription) {
 			for (const word of words) {
 				// Search the description lines.
@@ -188,6 +188,8 @@ export class SettingMatches {
 			}
 		}
 
+		// Key search
+		const settingKeyAsWords: string = this._keyToLabel(setting.key);
 		for (const word of words) {
 			// Check if the key contains the word.
 			const keyMatches = matchesWords(word, settingKeyAsWords, true);
@@ -204,6 +206,7 @@ export class SettingMatches {
 
 		// Check if the value contains all the words.
 		if (setting.enum?.length) {
+			// Search all string values of enums.
 			for (const option of setting.enum) {
 				if (typeof option !== 'string') {
 					continue;
@@ -224,6 +227,7 @@ export class SettingMatches {
 				}
 			}
 		} else {
+			// Search single string value.
 			const settingValue = this.configurationService.getValue(setting.key);
 			if (typeof settingValue === 'string') {
 				for (const word of words) {
