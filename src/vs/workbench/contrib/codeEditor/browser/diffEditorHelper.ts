@@ -107,7 +107,7 @@ function createScreenReaderHelp(): IDisposable {
 			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
 			provideContent: () => [
 				localize('msg1', "You are in a diff editor."),
-				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
+				localize('msg2', "View the next {0} or previous {1} diff in diff review mode that is optimized for screen readers.", next, previous),
 				localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
 			].join('\n\n'),
 			onClose: () => {
