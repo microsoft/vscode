@@ -34,7 +34,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -486,7 +486,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions);
 	}
 
-	openEditor(editor: EditorInput): boolean {
+	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): boolean {
+		// TODO figure out index and pass focus
 		return this.handleOpenedEditors();
 	}
 
@@ -936,6 +937,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Navigate in editors
 			else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(kb => event.equals(kb))) {
+				// TODO: operate over entire group, not filtered tabs
 				let tabTargetIndex: number;
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
 					tabTargetIndex = tabIndex - 1;
@@ -950,8 +952,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				const target = this.tabsModel.getEditorByIndex(tabTargetIndex);
 				if (target) {
 					handled = true;
-					this.groupViewer.openEditor(target, { preserveFocus: true });
-					(<HTMLElement>tabsContainer.childNodes[tabTargetIndex]).focus();
+					this.groupViewer.openEditor(target, { preserveFocus: true }, { focusTabControl: true });
 				}
 			}
 
