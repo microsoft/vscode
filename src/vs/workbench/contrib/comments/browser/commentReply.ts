@@ -28,7 +28,7 @@ import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentSe
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { SimpleCommentEditor } from './simpleCommentEditor';
+import { STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
 
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
@@ -45,6 +45,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private _commentFormActions!: CommentFormActions;
 	private _commentEditorActions!: CommentFormActions;
 	private _reviewThreadReplyButton!: HTMLElement;
+	private _editorHeight = STARTING_EDITOR_HEIGHT;
 
 	constructor(
 		readonly owner: string,
@@ -86,10 +87,15 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		const model = this.modelService.createModel(this._pendingComment || '', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 		this._register(model);
 		this.commentEditor.setModel(model);
+		this.calculateEditorHeight();
 
-		this._register((this.commentEditor.getModel()!.onDidChangeContent(() => {
+		this._register((model.onDidChangeContent(() => {
 			this.setCommentEditorDecorations();
 			this.commentEditorIsEmpty?.set(!this.commentEditor.getValue());
+			if (this.calculateEditorHeight()) {
+				this.commentEditor.layout({ height: this._editorHeight, width: this.commentEditor.getLayoutInfo().width });
+				this.commentEditor.render(true);
+			}
 		})));
 
 		this.createTextModelListener(this.commentEditor, this.form);
@@ -108,6 +114,15 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.createCommentWidgetFormActions(this._formActions, model);
 		this._editorActions = dom.append(formActions, dom.$('.editor-actions'));
 		this.createCommentWidgetEditorActions(this._editorActions, model);
+	}
+
+	private calculateEditorHeight(): boolean {
+		const newEditorHeight = calculateEditorHeight(this.commentEditor, this._editorHeight);
+		if (newEditorHeight !== this._editorHeight) {
+			this._editorHeight = newEditorHeight;
+			return true;
+		}
+		return false;
 	}
 
 	public updateCommentThread(commentThread: languages.CommentThread<IRange | ICellRange>) {
@@ -137,7 +152,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	public layout(widthInPixel: number) {
-		this.commentEditor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
+		this.commentEditor.layout({ height: this._editorHeight, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
 	public focusIfNeeded() {
