@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -31,6 +31,9 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
+	pinnedTabsOnSeparateRow: false,
+	tabHeight: 'normal',
+	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
 	showIcons: true,
@@ -95,7 +98,7 @@ export interface IEditorGroupsAccessor {
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -116,7 +119,7 @@ export interface IEditorGroupTitleHeight {
 	/**
 	 * The height offset to e.g. use when drawing drop overlays.
 	 * This number may be smaller than `height` if the title control
-	 * decides to have an `offset` that is within the title area
+	 * decides to have an `offset` that is within the title control
 	 * (e.g. when breadcrumbs are enabled).
 	 */
 	offset: number;
@@ -213,7 +216,7 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	context?: EditorCloseContext;
 }
 
-export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {
+export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
 
 	/**
 	 * Whether to close the editor at the source or keep it.

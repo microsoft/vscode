@@ -161,6 +161,7 @@ impl StoredCredential {
 
 struct StorageWithLastRead {
 	storage: Box<dyn StorageImplementation>,
+	fallback_storage: Option<FileStorage>,
 	last_read: Cell<Result<Option<StoredCredential>, WrappedError>>,
 }
 
@@ -392,14 +393,18 @@ impl Auth {
 		let mut keyring_storage = ThreadKeyringStorage::default();
 		let mut file_storage = FileStorage(PersistedState::new(self.file_storage_path.clone()));
 
-		let keyring_storage_result = match std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN") {
-			Ok(_) => Err(wrap("", "user prefers file storage").into()),
-			_ => keyring_storage.read(),
+		let native_storage_result = if std::env::var("VSCODE_CLI_USE_FILE_KEYCHAIN").is_ok()
+			|| self.file_storage_path.exists()
+		{
+			Err(wrap("", "user prefers file storage").into())
+		} else {
+			keyring_storage.read()
 		};
 
-		let mut storage = match keyring_storage_result {
+		let mut storage = match native_storage_result {
 			Ok(v) => StorageWithLastRead {
 				last_read: Cell::new(Ok(v)),
+				fallback_storage: Some(file_storage),
 				storage: Box::new(keyring_storage),
 			},
 			Err(e) => {
@@ -410,6 +415,7 @@ impl Auth {
 							.read()
 							.map_err(|e| wrap(e, "could not read from file storage")),
 					),
+					fallback_storage: None,
 					storage: Box::new(file_storage),
 				}
 			}
@@ -531,7 +537,18 @@ impl Auth {
 					"Failed to update keyring with new credentials: {}",
 					e
 				);
+
+				if let Some(fb) = storage.fallback_storage.take() {
+					storage.storage = Box::new(fb);
+					match storage.storage.store(creds.clone()) {
+						Err(e) => {
+							warning!(self.log, "Also failed to update fallback storage: {}", e)
+						}
+						Ok(_) => debug!(self.log, "Updated fallback storage successfully"),
+					}
+				}
 			}
+
 			storage.last_read.set(Ok(Some(creds)));
 		})
 	}

@@ -107,6 +107,6 @@ export class SetMap<K, V> {
 		if (!values) {
 			return new Set<V>();
 		}
-		return new Set(values);
+		return values;
 	}
 }

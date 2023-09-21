@@ -9,6 +9,11 @@ declare module 'vscode' {
 		command: string;
 		detail?: string;
 		refer?: boolean;
+		/**
+		 * Whether the command should execute as soon
+		 * as it is entered. Defaults to `false`.
+		 */
+		executeImmediately?: boolean;
 		// kind: CompletionItemKind;
 	}
 
@@ -22,12 +27,11 @@ declare module 'vscode' {
 
 	// todo@API make classes
 	export interface InteractiveEditorRequest {
-		session: InteractiveEditorSession;
 		prompt: string;
-
 		selection: Selection;
 		wholeRange: Range;
 		attempt: number;
+		live: boolean;
 	}
 
 	// todo@API make classes
@@ -47,25 +51,26 @@ declare module 'vscode' {
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
-		Undone = 2
+		Undone = 2,
+		Accepted = 3
 	}
 
 	export interface TextDocumentContext {
 		document: TextDocument;
 		selection: Selection;
-		action?: string;
+	}
+
+	export interface InteractiveEditorSessionProviderMetadata {
+		label: string;
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
+
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
 
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		releaseInteractiveEditorSession?(session: S): any;
-
-		// todo@API use enum instead of boolean
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
@@ -111,26 +116,45 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveProgressContent {
-		content: string;
+		content: string | MarkdownString;
 	}
 
 	export interface InteractiveProgressId {
 		responseId: string;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
+	export interface InteractiveProgressTask {
+		placeholder: string;
+		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
+	}
+
+	export interface FileTreeData {
+		label: string;
+		uri: Uri;
+		children?: FileTreeData[];
+	}
+
+	export interface InteractiveProgressFileTree {
+		treeData: FileTreeData;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
 		args?: any[];
 		title: string; // supports codicon strings
+		when?: string;
 	}
 
 	export interface InteractiveSessionSlashCommand {
 		command: string;
-		shouldRepopulate?: boolean;
 		kind: CompletionItemKind;
 		detail?: string;
+		shouldRepopulate?: boolean;
+		followupPlaceholder?: string;
+		executeImmediately?: boolean;
+		yieldTo?: ReadonlyArray<{ readonly command: string }>;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
@@ -181,7 +205,7 @@ declare module 'vscode' {
 
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
-		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
+		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider, metadata?: InteractiveEditorSessionProviderMetadata): Disposable;
 
 		export function transferChatSession(session: InteractiveSession, toWorkspace: Uri): void;
 	}

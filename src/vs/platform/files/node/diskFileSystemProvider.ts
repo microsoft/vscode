@@ -640,8 +640,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// Validate the move operation can perform
 			await this.validateMoveCopy(from, to, 'move', opts.overwrite);
 
-			// Move
-			await Promises.move(fromFilePath, toFilePath);
+			// Rename
+			await Promises.rename(fromFilePath, toFilePath);
 		} catch (error) {
 
 			// Rewrite some typical errors that can happen especially around symlinks

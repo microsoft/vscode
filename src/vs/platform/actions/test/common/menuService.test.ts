@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { NullCommandService } from 'vs/platform/commands/test/common/nullCommandService';
@@ -38,6 +39,8 @@ suite('MenuService', function () {
 		disposables.clear();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('group sorting', function () {
 
 		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
@@ -65,7 +68,7 @@ suite('MenuService', function () {
 			group: 'navigation'
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const groups = disposables.add(menuService.createMenu(testMenuId, contextKeyService)).getActions();
 
 		assert.strictEqual(groups.length, 5);
 		const [one, two, three, four, five] = groups;
@@ -94,7 +97,7 @@ suite('MenuService', function () {
 			group: 'Hello'
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const groups = disposables.add(menuService.createMenu(testMenuId, contextKeyService)).getActions();
 
 		assert.strictEqual(groups.length, 1);
 		const [, actions] = groups[0];
@@ -131,7 +134,7 @@ suite('MenuService', function () {
 			order: -1
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const groups = disposables.add(menuService.createMenu(testMenuId, contextKeyService)).getActions();
 
 		assert.strictEqual(groups.length, 1);
 		const [, actions] = groups[0];
@@ -165,7 +168,7 @@ suite('MenuService', function () {
 			order: 1.1
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const groups = disposables.add(menuService.createMenu(testMenuId, contextKeyService)).getActions();
 
 		assert.strictEqual(groups.length, 1);
 		const [[, actions]] = groups;
@@ -183,7 +186,7 @@ suite('MenuService', function () {
 			command: { id: 'a', title: 'Explicit' }
 		}));
 
-		MenuRegistry.addCommand({ id: 'b', title: 'Implicit' });
+		disposables.add(MenuRegistry.addCommand({ id: 'b', title: 'Implicit' }));
 
 		let foundA = false;
 		let foundB = false;

@@ -35,8 +35,11 @@ import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions
 import { autorun } from 'vs/base/common/observable';
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Suggest Widget Model', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		setUnexpectedErrorHandler(function (err) {
 			throw err;
@@ -50,7 +53,8 @@ suite('Suggest Widget Model', () => {
 			async ({ editor, editorViewModel, context, model }) => {
 				let last: boolean | undefined = undefined;
 				const history = new Array<boolean>();
-				const d = autorun('debug', reader => {
+				const d = autorun(reader => {
+					/** @description debug */
 					const selectedSuggestItem = !!model.selectedSuggestItem.read(reader);
 					if (last !== selectedSuggestItem) {
 						last = selectedSuggestItem;
@@ -135,7 +139,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			const serviceCollection = new ServiceCollection(
 				[ITelemetryService, NullTelemetryService],
 				[ILogService, new NullLogService()],
-				[IStorageService, new InMemoryStorageService()],
+				[IStorageService, disposableStore.add(new InMemoryStorageService())],
 				[IKeybindingService, new MockKeybindingService()],
 				[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 					override computeWordRanges() {
@@ -165,8 +169,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			if (options.provider) {
 				const languageFeaturesService = new LanguageFeaturesService();
 				serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
-				const d = languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider);
-				disposableStore.add(d);
+				disposableStore.add(languageFeaturesService.completionProvider.register({ pattern: '**' }, options.provider));
 			}
 
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {

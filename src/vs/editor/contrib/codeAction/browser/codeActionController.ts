@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
@@ -32,6 +30,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 interface IActionShowOptions {
@@ -253,6 +252,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			},
 			onHide: () => {
 				this._editor?.focus();
+			},
+			onFocus: async (action: CodeActionItem, token: CancellationToken) => {
+				await action.resolve(token);
+				if (token.isCancellationRequested) {
+					return;
+				}
+				return { canPreview: !!action.action.edit?.edits.length };
 			}
 		};
 

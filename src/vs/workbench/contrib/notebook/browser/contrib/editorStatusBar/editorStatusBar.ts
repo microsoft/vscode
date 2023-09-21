@@ -167,7 +167,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					text: nls.localize('kernel.select.label', "Select Kernel"),
 					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
 					command: SELECT_KERNEL_ID,
-					backgroundColor: { id: 'statusBarItem.prominentBackground' }
+					kind: 'prominent'
 				},
 				SELECT_KERNEL_ID,
 				StatusbarAlignment.RIGHT,

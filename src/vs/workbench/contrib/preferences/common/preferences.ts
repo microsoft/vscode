@@ -114,10 +114,10 @@ export async function getExperimentalExtensionToggleData(workbenchAssignmentServ
 	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
 	if ((isTreatment || !environmentService.isBuilt) && productService.extensionRecommendations && productService.commonlyUsedSettings) {
 		const settingsEditorRecommendedExtensions: Record<string, IExtensionRecommendations> = {};
-		Object.keys(productService.extensionRecommendations).forEach(key => {
-			const value = productService.extensionRecommendations![key];
-			if (value.onSettingsEditorOpen) {
-				settingsEditorRecommendedExtensions[key] = value;
+		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
+			const extensionInfo = productService.extensionRecommendations![extensionId];
+			if (extensionInfo.onSettingsEditorOpen) {
+				settingsEditorRecommendedExtensions[extensionId] = extensionInfo;
 			}
 		});
 		cachedExtensionToggleData = {

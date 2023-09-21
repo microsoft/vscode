@@ -4,17 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { Emitter } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { isLinux } from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
+import { ISocket, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from 'vs/platform/remote/common/managedSocket';
+import { ManagedRemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ISignService } from 'vs/platform/sign/common/sign';
 import { isAllInterfaces, isLocalhost } from 'vs/platform/tunnel/common/tunnel';
+import { NodeRemoteTunnel } from 'vs/platform/tunnel/node/tunnelService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { CandidatePort, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
+import * as vscode from 'vscode';
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
 	const lines = stdout.trim().split('\n');
@@ -171,8 +180,9 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@ILogService logService: ILogService
+		@IExtHostInitDataService private readonly initData: IExtHostInitDataService,
+		@ILogService logService: ILogService,
+		@ISignService private readonly signService: ISignService,
 	) {
 		super(extHostRpc, initData, logService);
 		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
@@ -296,5 +306,103 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 				return foundCandidates;
 			}
 		});
+	}
+
+	protected override makeManagedTunnelFactory(authority: vscode.ManagedResolvedAuthority): vscode.RemoteAuthorityResolver['tunnelFactory'] {
+		return async (tunnelOptions) => {
+			const t = new NodeRemoteTunnel(
+				{
+					commit: this.initData.commit,
+					quality: this.initData.quality,
+					logService: this.logService,
+					ipcLogger: null,
+					// services and address providers have stubs since we don't need
+					// the connection identification that the renderer process uses
+					remoteSocketFactoryService: {
+						_serviceBrand: undefined,
+						async connect(_connectTo: ManagedRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
+							const result = await authority.makeConnection();
+							return ExtHostManagedSocket.connect(result, path, query, debugLabel);
+						},
+						register() {
+							throw new Error('not implemented');
+						},
+					},
+					addressProvider: {
+						getAddress() {
+							return Promise.resolve({
+								connectTo: new ManagedRemoteConnection(0),
+								connectionToken: authority.connectionToken,
+							});
+						},
+					},
+					signService: this.signService,
+				},
+				'localhost',
+				tunnelOptions.remoteAddress.host || 'localhost',
+				tunnelOptions.remoteAddress.port,
+				tunnelOptions.localAddressPort,
+			);
+
+			await t.waitForReady();
+
+			const disposeEmitter = new Emitter<void>();
+
+			return {
+				localAddress: parseAddress(t.localAddress) ?? t.localAddress,
+				remoteAddress: { port: t.tunnelRemotePort, host: t.tunnelRemoteHost },
+				onDidDispose: disposeEmitter.event,
+				dispose: () => {
+					t.dispose();
+					disposeEmitter.fire();
+					disposeEmitter.dispose();
+				},
+			};
+		};
+	}
+}
+
+class ExtHostManagedSocket extends ManagedSocket {
+	public static connect(
+		passing: vscode.ManagedMessagePassing,
+		path: string, query: string, debugLabel: string,
+	): Promise<ExtHostManagedSocket> {
+		const d = new DisposableStore();
+		const half: RemoteSocketHalf = {
+			onClose: d.add(new Emitter()),
+			onData: d.add(new Emitter()),
+			onEnd: d.add(new Emitter()),
+		};
+
+		d.add(passing.onDidReceiveMessage(d => half.onData.fire(VSBuffer.wrap(d))));
+		d.add(passing.onDidEnd(() => half.onEnd.fire()));
+		d.add(passing.onDidClose(error => half.onClose.fire({
+			type: SocketCloseEventType.NodeSocketCloseEvent,
+			error,
+			hadError: !!error
+		})));
+
+		const socket = new ExtHostManagedSocket(passing, debugLabel, half);
+		socket._register(d);
+		return connectManagedSocket(socket, path, query, debugLabel, half);
+	}
+
+	constructor(
+		private readonly passing: vscode.ManagedMessagePassing,
+		debugLabel: string,
+		half: RemoteSocketHalf,
+	) {
+		super(debugLabel, half);
+	}
+
+	public override write(buffer: VSBuffer): void {
+		this.passing.send(buffer.buffer);
+	}
+	protected override closeRemote(): void {
+		this.passing.end();
+	}
+
+	public override async drain(): Promise<void> {
+		await this.passing.drain?.();
 	}
 }

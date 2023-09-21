@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
@@ -154,11 +154,11 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 			3s has come out to be the good number to fetch and prompt important exe based recommendations
 			Also fetch important exe based recommendations for reporting telemetry
 		*/
-		timeout(3000).then(async () => {
+		this._register(disposableTimeout(async () => {
 			await this.collectTips();
 			this.promptHighImportanceExeBasedTip();
 			this.promptMediumImportanceExeBasedTip();
-		});
+		}, 3000));
 	}
 
 	override async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {

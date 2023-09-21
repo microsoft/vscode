@@ -19,10 +19,11 @@ import { IFileWatcher, watch } from './watch';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { ActionButtonCommand } from './actionButton';
+import { CommitActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
+import { GitHistoryProvider } from './historyProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -46,6 +47,43 @@ export const enum ResourceGroupType {
 
 export class Resource implements SourceControlResourceState {
 
+	static getStatusLetter(type: Status): string {
+		switch (type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return 'M';
+			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
+				return 'A';
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return 'D';
+			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
+				return 'R';
+			case Status.TYPE_CHANGED:
+				return 'T';
+			case Status.UNTRACKED:
+				return 'U';
+			case Status.IGNORED:
+				return 'I';
+			case Status.DELETED_BY_THEM:
+				return 'D';
+			case Status.DELETED_BY_US:
+				return 'D';
+			case Status.INDEX_COPIED:
+				return 'C';
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.ADDED_BY_THEM:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
+			default:
+				throw new Error('Unknown git status: ' + type);
+		}
+	}
+
 	static getStatusText(type: Status) {
 		switch (type) {
 			case Status.INDEX_MODIFIED: return l10n.t('Index Modified');
@@ -59,6 +97,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.IGNORED: return l10n.t('Ignored');
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
 			case Status.INTENT_TO_RENAME: return l10n.t('Intent to Rename');
+			case Status.TYPE_CHANGED: return l10n.t('Type Changed');
 			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
 			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
 			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Deleted By Them');
@@ -67,6 +106,41 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED: return l10n.t('Conflict: Both Added');
 			case Status.BOTH_MODIFIED: return l10n.t('Conflict: Both Modified');
 			default: return '';
+		}
+	}
+
+	static getStatusColor(type: Status): ThemeColor {
+		switch (type) {
+			case Status.INDEX_MODIFIED:
+				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
+			case Status.MODIFIED:
+			case Status.TYPE_CHANGED:
+				return new ThemeColor('gitDecoration.modifiedResourceForeground');
+			case Status.INDEX_DELETED:
+				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
+			case Status.DELETED:
+				return new ThemeColor('gitDecoration.deletedResourceForeground');
+			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
+				return new ThemeColor('gitDecoration.addedResourceForeground');
+			case Status.INDEX_COPIED:
+			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
+				return new ThemeColor('gitDecoration.renamedResourceForeground');
+			case Status.UNTRACKED:
+				return new ThemeColor('gitDecoration.untrackedResourceForeground');
+			case Status.IGNORED:
+				return new ThemeColor('gitDecoration.ignoredResourceForeground');
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return new ThemeColor('gitDecoration.conflictingResourceForeground');
+			default:
+				throw new Error('Unknown git status: ' + type);
 		}
 	}
 
@@ -112,6 +186,7 @@ export class Resource implements SourceControlResourceState {
 			Untracked: getIconUri('status-untracked', 'light'),
 			Ignored: getIconUri('status-ignored', 'light'),
 			Conflict: getIconUri('status-conflict', 'light'),
+			TypeChanged: getIconUri('status-type-changed', 'light')
 		},
 		dark: {
 			Modified: getIconUri('status-modified', 'dark'),
@@ -121,7 +196,8 @@ export class Resource implements SourceControlResourceState {
 			Copied: getIconUri('status-copied', 'dark'),
 			Untracked: getIconUri('status-untracked', 'dark'),
 			Ignored: getIconUri('status-ignored', 'dark'),
-			Conflict: getIconUri('status-conflict', 'dark')
+			Conflict: getIconUri('status-conflict', 'dark'),
+			TypeChanged: getIconUri('status-type-changed', 'dark')
 		}
 	};
 
@@ -138,6 +214,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.IGNORED: return Resource.Icons[theme].Ignored;
 			case Status.INTENT_TO_ADD: return Resource.Icons[theme].Added;
 			case Status.INTENT_TO_RENAME: return Resource.Icons[theme].Renamed;
+			case Status.TYPE_CHANGED: return Resource.Icons[theme].TypeChanged;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
 			case Status.ADDED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.DELETED_BY_THEM: return Resource.Icons[theme].Conflict;
@@ -184,72 +261,11 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get letter(): string {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.MODIFIED:
-				return 'M';
-			case Status.INDEX_ADDED:
-			case Status.INTENT_TO_ADD:
-				return 'A';
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return 'D';
-			case Status.INDEX_RENAMED:
-			case Status.INTENT_TO_RENAME:
-				return 'R';
-			case Status.UNTRACKED:
-				return 'U';
-			case Status.IGNORED:
-				return 'I';
-			case Status.DELETED_BY_THEM:
-				return 'D';
-			case Status.DELETED_BY_US:
-				return 'D';
-			case Status.INDEX_COPIED:
-				return 'C';
-			case Status.BOTH_DELETED:
-			case Status.ADDED_BY_US:
-			case Status.ADDED_BY_THEM:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
-			default:
-				throw new Error('Unknown git status: ' + this.type);
-		}
+		return Resource.getStatusLetter(this.type);
 	}
 
 	get color(): ThemeColor {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
-			case Status.MODIFIED:
-				return new ThemeColor('gitDecoration.modifiedResourceForeground');
-			case Status.INDEX_DELETED:
-				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
-			case Status.DELETED:
-				return new ThemeColor('gitDecoration.deletedResourceForeground');
-			case Status.INDEX_ADDED:
-			case Status.INTENT_TO_ADD:
-				return new ThemeColor('gitDecoration.addedResourceForeground');
-			case Status.INDEX_COPIED:
-			case Status.INDEX_RENAMED:
-			case Status.INTENT_TO_RENAME:
-				return new ThemeColor('gitDecoration.renamedResourceForeground');
-			case Status.UNTRACKED:
-				return new ThemeColor('gitDecoration.untrackedResourceForeground');
-			case Status.IGNORED:
-				return new ThemeColor('gitDecoration.ignoredResourceForeground');
-			case Status.BOTH_DELETED:
-			case Status.ADDED_BY_US:
-			case Status.DELETED_BY_THEM:
-			case Status.ADDED_BY_THEM:
-			case Status.DELETED_BY_US:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return new ThemeColor('gitDecoration.conflictingResourceForeground');
-			default:
-				throw new Error('Unknown git status: ' + this.type);
-		}
+		return Resource.getStatusColor(this.type);
 	}
 
 	get priority(): number {
@@ -257,6 +273,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
 			case Status.INDEX_COPIED:
+			case Status.TYPE_CHANGED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
@@ -525,6 +542,7 @@ class ResourceCommandResolver {
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED:
 				return toGitUri(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
@@ -560,7 +578,8 @@ class ResourceCommandResolver {
 			case Status.UNTRACKED:
 			case Status.IGNORED:
 			case Status.INTENT_TO_ADD:
-			case Status.INTENT_TO_RENAME: {
+			case Status.INTENT_TO_RENAME:
+			case Status.TYPE_CHANGED: {
 				const uriString = resource.resourceUri.toString();
 				const [indexStatus] = this.repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 
@@ -609,6 +628,9 @@ class ResourceCommandResolver {
 			case Status.INTENT_TO_RENAME:
 				return l10n.t('{0} (Intent to add)', basename);
 
+			case Status.TYPE_CHANGED:
+				return l10n.t('{0} (Type changed)', basename);
+
 			default:
 				return '';
 		}
@@ -618,6 +640,14 @@ class ResourceCommandResolver {
 interface BranchProtectionMatcher {
 	include?: picomatch.Matcher;
 	exclude?: picomatch.Matcher;
+}
+
+export interface IRepositoryResolver {
+	getRepository(sourceControl: SourceControl): Repository | undefined;
+	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
+	getRepository(path: string): Repository | undefined;
+	getRepository(resource: Uri): Repository | undefined;
+	getRepository(hint: any): Repository | undefined;
 }
 
 export class Repository implements Disposable {
@@ -752,6 +782,10 @@ export class Repository implements Disposable {
 		return this.repository.root;
 	}
 
+	get rootRealPath(): string | undefined {
+		return this.repository.rootRealPath;
+	}
+
 	get dotGit(): { path: string; commonPath?: string } {
 		return this.repository.dotGit;
 	}
@@ -767,6 +801,7 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		private readonly repositoryResolver: IRepositoryResolver,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
@@ -807,8 +842,13 @@ export class Repository implements Disposable {
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root);
 
-		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
+
+		const historyProvider = new GitHistoryProvider(this);
+		this._sourceControl.historyProvider = historyProvider;
+		this.disposables.push(historyProvider);
+
+		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 		this.disposables.push(this._sourceControl);
 
@@ -895,10 +935,10 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const actionButton = new ActionButtonCommand(this, this.commitCommandCenter);
-		this.disposables.push(actionButton);
-		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
-		this._sourceControl.actionButton = actionButton.button;
+		const commitActionButton = new CommitActionButton(this, this.commitCommandCenter);
+		this.disposables.push(commitActionButton);
+		commitActionButton.onDidChange(() => this._sourceControl.actionButton = commitActionButton.button);
+		this._sourceControl.actionButton = commitActionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
@@ -993,13 +1033,13 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		// Ignore path that is inside a merge group
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
+		// Ignore path that is not inside the current repository
+		if (this.repositoryResolver.getRepository(uri) !== this) {
 			return undefined;
 		}
 
-		// Ignore path that is inside a submodule
-		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
+		// Ignore path that is inside a merge group
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
 			return undefined;
 		}
 
@@ -1087,6 +1127,10 @@ export class Repository implements Disposable {
 	diffBetween(ref1: string, ref2: string, path?: string | undefined): Promise<string | Change[]>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
+	}
+
+	diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
@@ -1395,6 +1439,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Move, () => this.repository.move(from, to));
 	}
 
+	async getDefaultBranch(): Promise<Branch> {
+		return await this.run(Operation.GetBranch, () => this.repository.getDefaultBranch());
+	}
+
 	async getBranch(name: string): Promise<Branch> {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
@@ -1478,6 +1526,10 @@ export class Repository implements Disposable {
 
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
+	}
+
+	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
+		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
@@ -2188,6 +2240,7 @@ export class Repository implements Disposable {
 				case 'D': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 				case 'A': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_ADD, useIcons, renameUri)); break;
 				case 'R': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.INTENT_TO_RENAME, useIcons, renameUri)); break;
+				case 'T': workingTreeGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.WorkingTree, uri, Status.TYPE_CHANGED, useIcons, renameUri)); break;
 			}
 
 			return undefined;

@@ -177,6 +177,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	static _MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB,  // used in tests
 	private static readonly LARGE_FILE_SIZE_THRESHOLD = 20 * 1024 * 1024; // 20 MB;
 	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
+	private static readonly LARGE_FILE_HEAP_OPERATION_THRESHOLD = 256 * 1024 * 1024; // 256M characters, usually ~> 512MB memory usage
 
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
@@ -257,6 +258,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _initialUndoRedoSnapshot: ResourceEditStackSnapshot | null;
 	private readonly _isTooLargeForSyncing: boolean;
 	private readonly _isTooLargeForTokenization: boolean;
+	private readonly _isTooLargeForHeapOperation: boolean;
 
 	//#region Editing
 	private readonly _commandManager: EditStack;
@@ -345,8 +347,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				(bufferTextLength > TextModel.LARGE_FILE_SIZE_THRESHOLD)
 				|| (bufferLineCount > TextModel.LARGE_FILE_LINE_COUNT_THRESHOLD)
 			);
+
+			this._isTooLargeForHeapOperation = bufferTextLength > TextModel.LARGE_FILE_HEAP_OPERATION_THRESHOLD;
 		} else {
 			this._isTooLargeForTokenization = false;
+			this._isTooLargeForHeapOperation = false;
 		}
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
@@ -587,6 +592,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._isTooLargeForTokenization;
 	}
 
+	public isTooLargeForHeapOperation(): boolean {
+		return this._isTooLargeForHeapOperation;
+	}
+
 	public isDisposed(): boolean {
 		return this._isDisposed;
 	}
@@ -743,6 +752,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getValue(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): string {
 		this._assertNotDisposed();
+		if (this.isTooLargeForHeapOperation()) {
+			throw new BugIndicatingError('Operation would exceed heap memory limits');
+		}
+
 		const fullModelRange = this.getFullModelRange();
 		const fullModelValue = this.getValueInRange(fullModelRange, eol);
 
@@ -809,6 +822,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
+		if (this.isTooLargeForHeapOperation()) {
+			throw new BugIndicatingError('Operation would exceed heap memory limits');
+		}
+
 		return this._buffer.getLinesContent();
 	}
 

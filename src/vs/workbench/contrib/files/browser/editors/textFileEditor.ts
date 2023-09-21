@@ -148,6 +148,10 @@ export class TextFileEditor extends AbstractTextCodeEditor<ICodeEditorViewState>
 			// a resolved model might have more specific information about being
 			// readonly or not that the input did not have.
 			control.updateOptions(this.getReadonlyConfiguration(textFileModel.isReadonly()));
+
+			if (control.handleInitialized) {
+				control.handleInitialized();
+			}
 		} catch (error) {
 			await this.handleSetInputError(error, input, options);
 		}

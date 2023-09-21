@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/perl.tmbundle Syntaxes/Perl.plist ./syntaxes/perl.tmLanguage.json Syntaxes/Perl%%206.tmLanguage ./syntaxes/perl6.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/perl.tmbundle Syntaxes/Perl.plist ./syntaxes/perl.tmLanguage.json Syntaxes/Perl%206.tmLanguage ./syntaxes/perl6.tmLanguage.json"
   },
   "contributes": {
     "languages": [
@@ -31,18 +31,23 @@
         "configuration": "./perl.language-configuration.json"
       },
       {
-        "id": "perl6",
+        "id": "raku",
         "aliases": [
-          "Perl 6",
+          "Raku",
+          "Perl6",
           "perl6"
         ],
         "extensions": [
+          ".raku",
+          ".rakumod",
+          ".rakutest",
+          ".rakudoc",
+          ".nqp",
           ".p6",
           ".pl6",
-          ".pm6",
-          ".nqp"
+          ".pm6"
         ],
-        "firstLine": "(^#!.*\\bperl6\\b)|use\\s+v6",
+        "firstLine": "(^#!.*\\bperl6\\b)|use\\s+v6|raku|=begin\\spod|my\\sclass",
         "configuration": "./perl6.language-configuration.json"
       }
     ],
@@ -56,7 +61,7 @@
         ]
       },
       {
-        "language": "perl6",
+        "language": "raku",
         "scopeName": "source.perl.6",
         "path": "./syntaxes/perl6.tmLanguage.json"
       }

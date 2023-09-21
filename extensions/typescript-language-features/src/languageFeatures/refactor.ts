@@ -175,47 +175,80 @@ class MoveToFileRefactorCommand implements Command {
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
+		const body = response.body;
 
-		const selectExistingFileItem: vscode.QuickPickItem = {
-			label: vscode.l10n.t("Select existing file..."),
-		};
-		const selectNewFileItem: vscode.QuickPickItem = {
-			label: vscode.l10n.t("Enter new file path..."),
-		};
-
-		type DestinationItem = vscode.QuickPickItem & { readonly file: string };
+		type DestinationItem = vscode.QuickPickItem & { readonly file?: string };
+		const selectExistingFileItem: vscode.QuickPickItem = { label: vscode.l10n.t("Select existing file...") };
+		const selectNewFileItem: vscode.QuickPickItem = { label: vscode.l10n.t("Enter new file path...") };
 
 		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-		const destinationItems = response.body.files.map((file): DestinationItem => {
-			const uri = this.client.toResource(file);
-			const parentDir = Utils.dirname(uri);
+		const quickPick = vscode.window.createQuickPick<DestinationItem>();
+		quickPick.ignoreFocusOut = true;
 
-			let description;
-			if (workspaceFolder) {
-				if (uri.scheme === Schemes.file) {
-					description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
-				} else {
-					description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
-				}
-			} else {
-				description = parentDir.fsPath;
+		// true so we don't skip computing in the first call
+		let quickPickInRelativeMode = true;
+		const updateItems = () => {
+			const relativeQuery = ['./', '../'].find(str => quickPick.value.startsWith(str));
+			if (quickPickInRelativeMode === false && !!relativeQuery === false) {
+				return;
 			}
+			quickPickInRelativeMode = !!relativeQuery;
+			const destinationItems = body.files.map((file): DestinationItem | undefined => {
+				const uri = this.client.toResource(file);
+				const parentDir = Utils.dirname(uri);
+				const filename = Utils.basename(uri);
 
-			return {
-				file,
-				label: Utils.basename(uri),
-				description,
-			};
-		});
+				let description: string | undefined;
+				if (workspaceFolder) {
+					if (uri.scheme === Schemes.file) {
+						description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
+					} else {
+						description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
+					}
+					if (relativeQuery) {
+						const convertRelativePath = (str: string) => {
+							return !str.startsWith('../') ? `./${str}` : str;
+						};
 
-		const picked = await vscode.window.showQuickPick([
-			selectExistingFileItem,
-			selectNewFileItem,
-			{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
-			...destinationItems
-		], {
-			title: vscode.l10n.t("Move to File"),
-			placeHolder: vscode.l10n.t("Select move destination"),
+						const relativePath = convertRelativePath(path.relative(path.dirname(document.uri.fsPath), uri.fsPath));
+						if (!relativePath.startsWith(relativeQuery)) {
+							return;
+						}
+						description = relativePath;
+					}
+				} else {
+					description = parentDir.fsPath;
+				}
+
+				return {
+					file,
+					label: Utils.basename(uri),
+					description: relativeQuery ? description : path.join(description, filename),
+				};
+			});
+			quickPick.items = [
+				selectExistingFileItem,
+				selectNewFileItem,
+				{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
+				...coalesce(destinationItems)
+			];
+		};
+		quickPick.title = vscode.l10n.t("Move to File");
+		quickPick.placeholder = vscode.l10n.t("Enter file path");
+		quickPick.matchOnDescription = true;
+		quickPick.onDidChangeValue(updateItems);
+		updateItems();
+
+		const picked = await new Promise<DestinationItem | undefined>(resolve => {
+			quickPick.onDidAccept(() => {
+				resolve(quickPick.selectedItems[0]);
+				quickPick.dispose();
+			});
+			quickPick.onDidHide(() => {
+				resolve(undefined);
+				quickPick.dispose();
+			});
+			quickPick.show();
 		});
 		if (!picked) {
 			return;
@@ -236,7 +269,7 @@ class MoveToFileRefactorCommand implements Command {
 			});
 			return picked ? this.client.toTsFilePath(picked) : undefined;
 		} else {
-			return (picked as DestinationItem).file;
+			return picked.file;
 		}
 	}
 }

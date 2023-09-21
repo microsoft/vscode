@@ -8,40 +8,43 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { distinct, flatten } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { visit } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import { assertType, isDefined } from 'vs/base/common/types';
 import { Constants } from 'vs/base/common/uint';
+import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { InlineValueContext } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/editor/common/model';
+import { InlineValue, InlineValueContext } from 'vs/editor/common/languages';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IModelService } from 'vs/editor/common/services/model';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { DebugHoverWidget, ShowDebugHoverResult } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
@@ -219,7 +222,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private gutterIsHovered = false;
 
 	private exceptionWidget: ExceptionWidget | undefined;
-	private configurationWidget: FloatingClickWidget | undefined;
+	private configurationWidget: FloatingEditorClickWidget | undefined;
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();
@@ -787,3 +790,31 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.oldDecorations.clear();
 	}
 }
+
+
+CommandsRegistry.registerCommand(
+	'_executeInlineValueProvider',
+	async (
+		accessor: ServicesAccessor,
+		uri: URI,
+		iRange: IRange,
+		context: InlineValueContext
+	): Promise<InlineValue[] | null> => {
+		assertType(URI.isUri(uri));
+		assertType(Range.isIRange(iRange));
+
+		if (!context || typeof context.frameId !== 'number' || !Range.isIRange(context.stoppedLocation)) {
+			throw illegalArgument('context');
+		}
+
+		const model = accessor.get(IModelService).getModel(uri);
+		if (!model) {
+			throw illegalArgument('uri');
+		}
+
+		const range = Range.lift(iRange);
+		const { inlineValuesProvider } = accessor.get(ILanguageFeaturesService);
+		const providers = inlineValuesProvider.ordered(model);
+		const providerResults = await Promise.all(providers.map(provider => provider.provideInlineValues(model, range, context, CancellationToken.None)));
+		return providerResults.flat().filter(isDefined);
+	});

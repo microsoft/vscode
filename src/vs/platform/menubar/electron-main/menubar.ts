@@ -125,9 +125,9 @@ export class Menubar {
 		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.workspacesHistoryMainService.clearRecentlyOpened();
 
 		// Help Menu Items
-		const twitterUrl = this.productService.twitterUrl;
-		if (twitterUrl) {
-			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(twitterUrl, 'openTwitterUrl');
+		const youTubeUrl = this.productService.youTubeUrl;
+		if (youTubeUrl) {
+			this.fallbackMenuHandlers['workbench.action.openYouTubeUrl'] = () => this.openUrl(youTubeUrl, 'openYouTubeUrl');
 		}
 
 		const requestFeatureUrl = this.productService.requestFeatureUrl;

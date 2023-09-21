@@ -106,10 +106,10 @@ sup {
 	line-height: 0;
 }
 
-ul ul,
-ul ol,
-ol ul,
-ol ol {
+ul ul:first-child,
+ul ol:first-child,
+ol ul:first-child,
+ol ol:first-child {
 	margin-bottom: 0;
 }
 
@@ -136,6 +136,10 @@ textarea:focus {
 
 p {
 	margin-bottom: 16px;
+}
+
+li p {
+	margin-bottom: 0.7em;
 }
 
 ul,
@@ -200,10 +204,11 @@ table > tbody > tr + tr > td {
 }
 
 blockquote {
-	margin: 0 7px 0 5px;
-	padding: 0 16px 0 10px;
+	margin: 0;
+	padding: 2px 16px 0 10px;
 	border-left-width: 5px;
 	border-left-style: solid;
+	border-radius: 2px;
 }
 
 code {
@@ -232,6 +237,7 @@ pre code {
 
 pre {
 	background-color: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-widget-border);
 }
 
 .vscode-high-contrast h1 {

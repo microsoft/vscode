@@ -363,6 +363,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				sessions.splice(sessionIndex, 1);
 
 				await this.storeSessions(sessions);
+				await this._githubServer.logout(session);
 
 				this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
 			} else {

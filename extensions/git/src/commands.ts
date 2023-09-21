@@ -749,20 +749,26 @@ export class CommandCenter {
 		const ref = selection.repository.HEAD?.upstream?.name;
 
 		if (uri !== undefined) {
-			// Launch desktop client if currently in web
 			let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
-			if (env.uiKind === UIKind.Web) {
+			const isWeb = env.uiKind === UIKind.Web;
+			const isRemote = env.remoteName !== undefined;
+
+			if (isWeb || isRemote) {
 				if (ref !== undefined) {
 					target += `&ref=${encodeURIComponent(ref)}`;
 				}
-				return Uri.parse(target);
-			}
 
-			// If already in desktop client but in a remote window, we need to force a new window
-			// so that the git extension can access the local filesystem for cloning
-			if (env.remoteName !== undefined) {
-				target += `&windowId=_blank`;
-				return Uri.parse(target);
+				if (isWeb) {
+					// Launch desktop client if currently in web
+					return Uri.parse(target);
+				}
+
+				if (isRemote) {
+					// If already in desktop client but in a remote window, we need to force a new window
+					// so that the git extension can access the local filesystem for cloning
+					target += `&windowId=_blank`;
+					return Uri.parse(target);
+				}
 			}
 
 			// Otherwise, directly clone
@@ -1777,12 +1783,17 @@ export class CommandCenter {
 				const message = documents.length === 1
 					? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
 					: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
-				const saveAndCommit = l10n.t('Save All & Commit');
-				const commit = l10n.t('Commit Staged Changes');
+				const saveAndCommit = l10n.t('Save All & Commit Changes');
+				const commit = l10n.t('Commit Changes');
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
 					await Promise.all(documents.map(d => d.save()));
+
+					// After saving the dirty documents, if there are any documents that are part of the
+					// index group we have to add them back in order for the saved changes to be committed
+					documents = documents
+						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
 					await repository.add(documents.map(d => d.uri));
 
 					noStagedChanges = repository.indexGroup.resourceStates.length === 0;

@@ -229,6 +229,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
 	private _willRestart: boolean = false;
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
+	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
+	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
+	public get isReconnected(): boolean { return this._tasksReconnected; }
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -328,7 +331,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
 		this._register(this.onDidStateChange(e => {
-			if ((this._willRestart || e.exitReason === TerminalExitReason.User) && e.taskId) {
+			if (e.kind === TaskEventKind.Changed) {
+				// no-op
+			} else if ((this._willRestart || (e.kind === TaskEventKind.Terminated && e.exitReason === TerminalExitReason.User)) && e.taskId) {
 				this.removePersistentTask(e.taskId);
 			} else if (e.kind === TaskEventKind.Start && e.__task && e.__task.getWorkspaceFolder()) {
 				this._setPersistentTask(e.__task);
@@ -340,11 +345,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
 		} else {
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			this._terminalService.whenConnected.then(() => {
 				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 					this._attemptTaskReconnection();
+				} else {
+					this._tasksReconnected = true;
+					this._onDidReconnectToTasks.fire();
 				}
-			}));
+			});
 		}
 		this._upgrade();
 	}
@@ -382,6 +390,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		this.getWorkspaceTasks(TaskRunSource.Reconnect).then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
+			this._onDidReconnectToTasks.fire();
 		});
 	}
 
@@ -1860,6 +1869,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			const active = executeResult.active;
+			if (active && active.same && runSource === TaskRunSource.FolderOpen || runSource === TaskRunSource.Reconnect) {
+				// ignore, the task is already active, likely from being reconnected or from folder open.
+				this._logService.debug('Ignoring task that is already active', executeResult.task);
+				return executeResult.promise;
+			}
 			if (active && active.same) {
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
@@ -2758,6 +2772,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -2875,7 +2892,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
-					this._doRunTaskCommand();
 					return Promise.resolve(undefined);
 				}
 			});
@@ -2971,7 +2987,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 
 			if (!globTasksDetected && groupTasks.length === 0) {
-				groupTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, true);
+				groupTasks = await this._findWorkspaceTasksInGroup(taskGroup, true);
 			}
 
 			const handleMultipleTasks = (areGlobTasks: boolean) => {
@@ -3032,6 +3048,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runBuildCommand(): void {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		return this._runTaskGroupCommand(TaskGroup.Build, {
 			fetching: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...'),
 			select: nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
@@ -3114,48 +3133,44 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _runRestartTaskCommand(arg?: any): void {
-		const runQuickPick = (promise?: Promise<Task[]>) => {
-			this._showQuickPick(promise || this.getActiveTasks(),
+	private async _runRestartTaskCommand(arg?: any): Promise<void> {
+
+		const activeTasks = await this.getActiveTasks();
+
+		if (activeTasks.length === 1) {
+			this._restart(activeTasks[0]);
+			return;
+		}
+
+		if (this.inTerminal()) {
+			// try dispatching using task identifier
+			const identifier = this._getTaskIdentifier(arg);
+			if (identifier !== undefined) {
+				for (const task of activeTasks) {
+					if (task.matches(identifier)) {
+						this._restart(task);
+						return;
+					}
+				}
+			}
+			// show quick pick with active tasks
+			const entry = await this._showQuickPick(
+				activeTasks,
 				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
 					task: null
 				},
-				false, true
-			).then(entry => {
-				const task: Task | undefined | null = entry ? entry.task : undefined;
-				if (task === undefined || task === null) {
-					return;
-				}
-				this._restart(task);
-			});
-		};
-		if (this.inTerminal()) {
-			const identifier = this._getTaskIdentifier(arg);
-			let promise: Promise<Task[]>;
-			if (identifier !== undefined) {
-				promise = this.getActiveTasks();
-				promise.then((tasks) => {
-					for (const task of tasks) {
-						if (task.matches(identifier)) {
-							this._restart(task);
-							return;
-						}
-					}
-					runQuickPick(promise);
-				});
-			} else {
-				runQuickPick();
+				false,
+				true
+			);
+			if (entry && entry.task) {
+				this._restart(entry.task);
 			}
 		} else {
-			this.getActiveTasks().then((activeTasks) => {
-				if (activeTasks.length === 0) {
-					return;
-				}
-				const task = activeTasks[0];
-				this._restart(task);
-			});
+			if (activeTasks.length > 0) {
+				this._restart(activeTasks[0]);
+			}
 		}
 	}
 

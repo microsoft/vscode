@@ -60,7 +60,7 @@ export class InsertImageFromWorkspace implements Command {
 }
 
 function getDefaultUri(document: vscode.TextDocument) {
-	const docUri = getParentDocumentUri(document);
+	const docUri = getParentDocumentUri(document.uri);
 	if (docUri.scheme === Schemes.untitled) {
 		return vscode.workspace.workspaceFolders?.[0]?.uri;
 	}
@@ -76,10 +76,10 @@ async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode
 	await vscode.workspace.applyEdit(edit);
 }
 
-function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsMedia: boolean, title = '', placeholderValue = 0, smartPaste = false) {
+function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsMedia: boolean, title = '', placeholderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false) {
 	const snippetEdits = coalesce(activeEditor.selections.map((selection, i): vscode.SnippetTextEdit | undefined => {
 		const selectionText = activeEditor.document.getText(selection);
-		const snippet = createUriListSnippet(activeEditor.document, selectedFiles, title, placeholderValue, smartPaste, {
+		const snippet = createUriListSnippet(activeEditor.document, selectedFiles, [], title, placeholderValue, pasteAsMarkdownLink, isExternalLink, {
 			insertAsMedia,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,

@@ -58,6 +58,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 		type EditorChatApiArg = {
 			initialRange?: vscode.Range;
+			initialSelection?: vscode.Selection;
 			message?: string;
 			autoSend?: boolean;
 			position?: vscode.Position;
@@ -65,6 +66,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 		type InteractiveEditorRunOptions = {
 			initialRange?: IRange;
+			initialSelection?: ISelection;
 			message?: string;
 			autoSend?: boolean;
 			position?: IPosition;
@@ -80,6 +82,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 				return {
 					initialRange: v.initialRange ? typeConvert.Range.from(v.initialRange) : undefined,
+					initialSelection: v.initialSelection ? typeConvert.Selection.from(v.initialSelection) : undefined,
 					message: v.message,
 					autoSend: v.autoSend,
 					position: v.position ? typeConvert.Position.from(v.position) : undefined,
@@ -89,10 +92,10 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		));
 	}
 
-	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider): vscode.Disposable {
+	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);
@@ -123,7 +126,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		return {
 			id,
 			placeholder: session.placeholder,
-			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer })),
+			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer, executeImmediately: c.executeImmediately })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
 			message: session.message
 		};
@@ -139,13 +142,39 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			return;
 		}
 
-		const res = await entry.provider.provideInteractiveEditorResponse({
-			session: sessionData.session,
+		const apiRequest: vscode.InteractiveEditorRequest = {
 			prompt: request.prompt,
 			selection: typeConvert.Selection.to(request.selection),
 			wholeRange: typeConvert.Range.to(request.wholeRange),
 			attempt: request.attempt,
-		}, token);
+			live: request.live,
+		};
+
+
+		let done = false;
+		const progress: vscode.Progress<{ message?: string; edits?: vscode.TextEdit[] }> = {
+			report: value => {
+				if (!request.live) {
+					throw new Error('Progress reporting is only supported for live sessions');
+				}
+				if (done || token.isCancellationRequested) {
+					return;
+				}
+				if (!value.message && !value.edits) {
+					return;
+				}
+				this._proxy.$handleProgressChunk(request.requestId, {
+					message: value.message,
+					edits: value.edits?.map(typeConvert.TextEdit.from)
+				});
+			}
+		};
+
+		const task = entry.provider.provideInteractiveEditorResponse(sessionData.session, apiRequest, progress, token);
+
+		Promise.resolve(task).finally(() => done = true);
+
+		const res = await task;
 
 		if (res) {
 
@@ -191,33 +220,14 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
-
 		if (entry && response) {
-			// todo@jrieken move to type converter
-			let apiKind: extHostTypes.InteractiveEditorResponseFeedbackKind;
-			switch (kind) {
-				case InlineChatResponseFeedbackKind.Helpful:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Helpful;
-					break;
-				case InlineChatResponseFeedbackKind.Unhelpful:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Unhelpful;
-					break;
-				case InlineChatResponseFeedbackKind.Undone:
-					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
-					break;
-			}
-
+			const apiKind = typeConvert.InteractiveEditorResponseFeedbackKind.to(kind);
 			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
 		}
 	}
 
 	$releaseSession(handle: number, sessionId: number) {
-		const sessionData = this._inputSessions.get(sessionId);
-		const entry = this._inputProvider.get(handle);
-		if (sessionData && entry) {
-			entry.provider.releaseInteractiveEditorSession?.(sessionData.session);
-		}
-		this._inputSessions.delete(sessionId);
+		// TODO@jrieken remove this
 	}
 
 	private static _isMessageResponse(thing: any): thing is vscode.InteractiveEditorMessageResponse {

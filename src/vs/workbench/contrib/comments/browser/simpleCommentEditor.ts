@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorAction, EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -25,9 +25,11 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
-
+export const STARTING_EDITOR_HEIGHT = 5 * 18;
+export const MAX_EDITOR_HEIGHT = 25 * 18;
 
 export class SimpleCommentEditor extends CodeEditorWidget {
 	private _parentThread: ICommentThreadWidget;
@@ -62,12 +64,12 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 
 		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(scopedContextKeyService);
 		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(scopedContextKeyService);
-		this._commentEditorEmpty.set(!this.getValue());
+		this._commentEditorEmpty.set(!this.getModel()?.getValueLength());
 		this._parentThread = parentThread;
 
 		this._register(this.onDidFocusEditorWidget(_ => this._commentEditorFocused.set(true)));
 
-		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getValue())));
+		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getModel()?.getValueLength())));
 		this._register(this.onDidBlurEditorWidget(_ => this._commentEditorFocused.reset()));
 	}
 
@@ -104,7 +106,21 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 				enabled: false
 			},
 			autoClosingBrackets: configurationService.getValue('editor.autoClosingBrackets'),
-			quickSuggestions: false
+			quickSuggestions: false,
+			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 		};
 	}
+}
+
+export function calculateEditorHeight(editor: ICodeEditor, currentHeight: number): number {
+	const layoutInfo = editor.getLayoutInfo();
+	const contentHeight = editor.getContentHeight();
+	const lineHeight = editor.getOption(EditorOption.lineHeight);
+	if ((contentHeight > layoutInfo.height) ||
+		(contentHeight < layoutInfo.height && currentHeight > STARTING_EDITOR_HEIGHT)) {
+		const linesToAdd = Math.ceil((contentHeight - layoutInfo.height) / lineHeight);
+		const newEditorHeight = Math.min(MAX_EDITOR_HEIGHT, layoutInfo.height + (lineHeight * linesToAdd));
+		return newEditorHeight;
+	}
+	return currentHeight;
 }

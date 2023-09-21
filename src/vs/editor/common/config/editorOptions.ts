@@ -13,7 +13,6 @@ import { Constants } from 'vs/base/common/uint';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
@@ -461,6 +460,11 @@ export interface IEditorOptions {
 	 */
 	autoClosingBrackets?: EditorAutoClosingStrategy;
 	/**
+	 * Options for auto closing comments.
+	 * Defaults to language defined behavior.
+	 */
+	autoClosingComments?: EditorAutoClosingStrategy;
+	/**
 	 * Options for auto closing quotes.
 	 * Defaults to language defined behavior.
 	 */
@@ -727,9 +731,14 @@ export interface IEditorOptions {
 	pasteAs?: IPasteAsOptions;
 
 	/**
-	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 * Controls whether the editor / terminal receives tabs or defers them to the workbench for navigation.
 	 */
 	tabFocusMode?: boolean;
+
+	/**
+	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+	 */
+	inlineCompletionsAccessibilityVerbose?: boolean;
 }
 
 /**
@@ -755,6 +764,16 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to true.
 	 */
 	renderSideBySide?: boolean;
+	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	renderSideBySideInlineBreakpoint?: number | undefined;
+	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	useInlineViewWhenSpaceIsLimited?: boolean;
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
@@ -802,7 +821,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -810,10 +829,6 @@ export interface IDiffEditorBaseOptions {
 	accessibilityVerbose?: boolean;
 
 	experimental?: {
-		/**
-		 * Defaults to false.
-		 */
-		collapseUnchangedRegions?: boolean;
 		/**
 		 * Defaults to false.
 		 */
@@ -827,6 +842,18 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to false
 	 */
 	isInEmbeddedEditor?: boolean;
+
+	/**
+	 * If the diff editor should only show the difference review mode.
+	 */
+	onlyShowAccessibleDiffViewer?: boolean;
+
+	hideUnchangedRegions?: {
+		enabled?: boolean;
+		revealLineCount?: number;
+		minimumLineCount?: number;
+		contextLineCount?: number;
+	};
 }
 
 /**
@@ -2012,6 +2039,11 @@ export interface IEditorHoverOptions {
 	 */
 	sticky?: boolean;
 	/**
+	 * Controls how long the hover is visible after you hovered out of it.
+	 * Require sticky setting to be true.
+	 */
+	hidingDelay?: number;
+	/**
 	 * Should the hover be shown above the line if possible?
 	 * Defaults to false.
 	 */
@@ -2029,6 +2061,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
+			hidingDelay: 300,
 			sticky: true,
 			above: true,
 		};
@@ -2052,6 +2085,12 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
+				'editor.hover.hidingDelay': {
+					type: 'integer',
+					minimum: 0,
+					default: defaults.hidingDelay,
+					description: nls.localize('hover.hidingDelay', "Controls the delay in milliseconds after thich the hover is hidden. Requires `editor.hover.sticky` to be enabled.")
+				},
 				'editor.hover.above': {
 					type: 'boolean',
 					default: defaults.above,
@@ -2070,6 +2109,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
+			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
 		};
 	}
@@ -2737,6 +2777,10 @@ export interface IEditorStickyScrollOptions {
 	 * Model to choose for sticky scroll by default
 	 */
 	defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+	/**
+	 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+	 */
+	scrollWithEditor?: boolean;
 }
 
 /**
@@ -2747,7 +2791,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel' };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -2769,6 +2813,11 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 					default: defaults.defaultModel,
 					description: nls.localize('editor.stickyScroll.defaultModel', "Defines the model to use for determining which lines to stick. If the outline model does not exist, it will fall back on the folding provider model which falls back on the indentation model. This order is respected in all three cases.")
 				},
+				'editor.stickyScroll.scrollWithEditor': {
+					type: 'boolean',
+					default: defaults.scrollWithEditor,
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of the sticky scroll widget with the editor's horizontal scrollbar.")
+				},
 			}
 		);
 	}
@@ -2782,6 +2831,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
+			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
 		};
 	}
 }
@@ -4979,6 +5029,7 @@ export const enum EditorOption {
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
+	autoClosingComments,
 	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
@@ -5118,7 +5169,8 @@ export const enum EditorOption {
 	layoutInfo,
 	wrappingInfo,
 	defaultColorDecorators,
-	colorDecoratorsActivatedOn
+	colorDecoratorsActivatedOn,
+	inlineCompletionsAccessibilityVerbose
 }
 
 export const EditorOptions = {
@@ -5170,6 +5222,20 @@ export const EditorOptions = {
 				'',
 			],
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
+		}
+	)),
+	autoClosingComments: register(new EditorStringEnumOption(
+		EditorOption.autoClosingComments, 'autoClosingComments',
+		'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never',
+		['always', 'languageDefined', 'beforeWhitespace', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingComments.languageDefined', "Use language configurations to determine when to autoclose comments."),
+				nls.localize('editor.autoClosingComments.beforeWhitespace', "Autoclose comments only when the cursor is to the left of whitespace."),
+				'',
+			],
+			description: nls.localize('autoClosingComments', "Controls whether the editor should automatically close comments after the user adds an opening comment.")
 		}
 	)),
 	autoClosingDelete: register(new EditorStringEnumOption(
@@ -5337,7 +5403,7 @@ export const EditorOptions = {
 				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced.")
+			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#cursorSurroundingLines#` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(
@@ -5709,6 +5775,8 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
+	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
+		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,

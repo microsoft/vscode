@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesManifestSynchroniser } from 'vs/platform/userDataSync/common/userDataProfilesManifestSync';
 import { ISyncData, ISyncUserDataProfile, IUserDataSyncStoreService, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
@@ -12,24 +12,26 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 
 suite('UserDataProfilesManifestSync', () => {
 
-	const disposableStore = new DisposableStore();
 	const server = new UserDataSyncTestServer();
 	let testClient: UserDataSyncClient;
 	let client2: UserDataSyncClient;
 
 	let testObject: UserDataProfilesManifestSynchroniser;
 
+	teardown(async () => {
+		await testClient.instantiationService.get(IUserDataSyncStoreService).clear();
+	});
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(async () => {
 		testClient = disposableStore.add(new UserDataSyncClient(server));
 		await testClient.setUp(true);
 		testObject = testClient.getSynchronizer(SyncResource.Profiles) as UserDataProfilesManifestSynchroniser;
-		disposableStore.add(toDisposable(() => testClient.instantiationService.get(IUserDataSyncStoreService).clear()));
 
 		client2 = disposableStore.add(new UserDataSyncClient(server));
 		await client2.setUp(true);
 	});
-
-	teardown(() => disposableStore.clear());
 
 	test('when profiles does not exist', async () => {
 		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
@@ -203,6 +205,47 @@ suite('UserDataProfilesManifestSync', () => {
 
 	test('sync profile that uses default profile', async () => {
 		await client2.instantiationService.get(IUserDataProfilesService).createProfile('1', 'name 1', { useDefaultFlags: { keybindings: true } });
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseRemoteProfiles(content!);
+		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
+
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
+	});
+
+	test('sync profile when the profile is updated to use default profile locally', async () => {
+		await client2.instantiationService.get(IUserDataProfilesService).createProfile('1', 'name 1');
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+
+		const profile = testClient.instantiationService.get(IUserDataProfilesService).profiles.find(p => p.id === '1')!;
+		testClient.instantiationService.get(IUserDataProfilesService).updateProfile(profile, { useDefaultFlags: { keybindings: true } });
+
+		await testObject.sync(await testClient.getResourceManifest());
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.conflicts.conflicts, []);
+
+		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseRemoteProfiles(content!);
+		assert.deepStrictEqual(actual, [{ id: '1', name: 'name 1', collection: '1', useDefaultFlags: { keybindings: true } }]);
+		assert.deepStrictEqual(getLocalProfiles(testClient), [{ id: '1', name: 'name 1', shortName: undefined, useDefaultFlags: { keybindings: true } }]);
+	});
+
+	test('sync profile when the profile is updated to use default profile remotely', async () => {
+		const profile = await client2.instantiationService.get(IUserDataProfilesService).createProfile('1', 'name 1');
+		await client2.sync();
+
+		await testObject.sync(await testClient.getResourceManifest());
+
+		client2.instantiationService.get(IUserDataProfilesService).updateProfile(profile, { useDefaultFlags: { keybindings: true } });
 		await client2.sync();
 
 		await testObject.sync(await testClient.getResourceManifest());

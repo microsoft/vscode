@@ -46,7 +46,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
@@ -81,6 +81,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
+		const dnd = instantiationService.createInstance(TerminalTabsDragAndDrop);
 		super('TerminalTabsList', container,
 			{
 				getHeight: () => TerminalTabsListSizes.TabHeight,
@@ -98,7 +99,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				paddingBottom: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
+				dnd,
 				openOnSingleClick: true
 			},
 			contextKeyService,
@@ -106,6 +107,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			_configurationService,
 			instantiationService,
 		);
+		this.disposables.add(dnd);
 
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
@@ -196,8 +198,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 		if (!this._decorationsProvider) {
-			this._decorationsProvider = instantiationService.createInstance(TabDecorationsProvider);
-			decorationsService.registerDecorationsProvider(this._decorationsProvider);
+			this._decorationsProvider = this.disposables.add(instantiationService.createInstance(TabDecorationsProvider));
+			this.disposables.add(decorationsService.registerDecorationsProvider(this._decorationsProvider));
 		}
 		this.refresh();
 	}
@@ -480,12 +482,12 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
 		const actions = [
-			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
 			}),
-			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+			new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
 				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
 			})
 		];
@@ -559,14 +561,16 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 	}
 }
 
-class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
+class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 	private _primaryBackend: ITerminalBackend | undefined;
+
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
+		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
 
@@ -624,7 +628,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			this._autoFocusDisposable = disposableTimeout(() => {
 				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;
-			}, 500);
+			}, 500, this._store);
 		}
 
 		return {
@@ -737,18 +741,17 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 }
 
-class TabDecorationsProvider implements IDecorationsProvider {
+class TabDecorationsProvider extends Disposable implements IDecorationsProvider {
 	readonly label: string = localize('label', "Terminal");
-	private readonly _onDidChange = new Emitter<URI[]>();
+
+	private readonly _onDidChange = this._register(new Emitter<URI[]>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource]));
-	}
-
-	get onDidChange(): Event<URI[]> {
-		return this._onDidChange.event;
+		super();
+		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource])));
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
@@ -771,9 +774,5 @@ class TabDecorationsProvider implements IDecorationsProvider {
 			letter: primaryStatus.icon,
 			tooltip: primaryStatus.tooltip
 		};
-	}
-
-	dispose(): void {
-		this.dispose();
 	}
 }

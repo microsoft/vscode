@@ -18,6 +18,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function createTextModelWithBrackets(disposables: DisposableStore, text: string, brackets: CharacterPair[]): TextModel {
 	const languageId = 'bracketMode2';
@@ -32,6 +33,9 @@ function createTextModelWithBrackets(disposables: DisposableStore, text: string,
 }
 
 suite('TextModelWithTokens', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
 		const languageId = 'testMode';
 		const disposables = new DisposableStore();
@@ -194,6 +198,8 @@ suite('TextModelWithTokens - bracket matching', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('bracket matching 1', () => {
 		const text =
 			')]}{[(' + '\n' +
@@ -272,6 +278,8 @@ suite('TextModelWithTokens - bracket matching', () => {
 });
 
 suite('TextModelWithTokens 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('bracket matching 3', () => {
 		const text = [
@@ -534,6 +542,8 @@ suite('TextModelWithTokens 2', () => {
 
 suite('TextModelWithTokens regression tests', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
 		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: TestLineToken[]): void {
 			if (forceTokenization) {
@@ -699,6 +709,9 @@ suite('TextModelWithTokens regression tests', () => {
 });
 
 suite('TextModel.getLineIndentGuide', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function assertIndentGuides(lines: [number, number, number, number, string][], indentSize: number): void {
 		const languageId = 'testLang';
 		const disposables = new DisposableStore();

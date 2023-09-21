@@ -26,12 +26,15 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { MockLabelService } from 'vs/workbench/services/label/test/common/mockLabelService';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 import { ICellMatch, IFileMatchWithCells } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
+import { addToSearchResult, createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -176,7 +179,7 @@ suite('SearchResult', () => {
 			new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
 			new TextSearchMatch('preview 2', lineOneRange))];
 
-		testObject.add(target);
+		addToSearchResult(testObject, target);
 
 		assert.strictEqual(3, testObject.count());
 
@@ -206,7 +209,7 @@ suite('SearchResult', () => {
 			aRawMatch('/2',
 				new TextSearchMatch('preview 2', lineOneRange))];
 
-		testObject.add(target);
+		addToSearchResult(testObject, target);
 
 		assert.strictEqual(3, testObject.count());
 
@@ -261,7 +264,7 @@ suite('SearchResult', () => {
 			});
 		const target = [fileMatch1, fileMatch2];
 
-		testObject.add(target);
+		addToSearchResult(testObject, target);
 		assert.strictEqual(6, testObject.count());
 		assert.deepStrictEqual(fileMatch1.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].contentResults);
 		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].webviewResults);
@@ -274,7 +277,7 @@ suite('SearchResult', () => {
 		const target2 = sinon.spy();
 
 		const testObject = aSearchResult();
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
 			aRawMatch('/2',
@@ -293,7 +296,7 @@ suite('SearchResult', () => {
 	test('remove triggers change event', function () {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const objectToRemove = testObject.matches()[0];
@@ -308,7 +311,7 @@ suite('SearchResult', () => {
 	test('remove array triggers change event', function () {
 		const target = sinon.spy();
 		const testObject = aSearchResult();
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
 			aRawMatch('/2',
@@ -324,7 +327,7 @@ suite('SearchResult', () => {
 
 	test('Removing all line matches and adding back will add file back to result', function () {
 		const testObject = aSearchResult();
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		const target = testObject.matches()[0];
@@ -342,7 +345,7 @@ suite('SearchResult', () => {
 		const voidPromise = Promise.resolve(null);
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 
@@ -356,7 +359,7 @@ suite('SearchResult', () => {
 		const voidPromise = Promise.resolve(null);
 		instantiationService.stub(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange))]);
 		testObject.onChange(target);
@@ -374,7 +377,7 @@ suite('SearchResult', () => {
 		const voidPromise = Promise.resolve(null);
 		instantiationService.stubPromise(IReplaceService, 'replace', voidPromise);
 		const testObject = aSearchResult();
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/1',
 				new TextSearchMatch('preview 1', lineOneRange)),
 			aRawMatch('/2',
@@ -519,7 +522,7 @@ suite('SearchResult', () => {
 		const root = searchResult?.folderMatches()[0];
 		return instantiationService.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, root, rawMatch, null);
+		}, undefined, undefined, root, rawMatch, null, '');
 	}
 
 	function aSearchResult(): SearchResult {
@@ -553,6 +556,8 @@ suite('SearchResult', () => {
 
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 
@@ -569,7 +574,7 @@ suite('SearchResult', () => {
 			]
 		};
 
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/voo/foo.a',
 				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
 			aRawMatch('/with/path/bar.b',
@@ -623,7 +628,7 @@ suite('SearchResult', () => {
 		 *    |- eyy.y
 		 */
 
-		testObject.add([
+		addToSearchResult(testObject, [
 			aRawMatch('/voo/foo.a',
 				new TextSearchMatch('preview 1', lineOneRange), new TextSearchMatch('preview 2', lineOneRange)),
 			aRawMatch('/voo/beep/foo.c',

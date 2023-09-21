@@ -16,7 +16,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -47,7 +47,7 @@ function getUpdateType(): UpdateType {
 	return _updateType;
 }
 
-export class Win32UpdateService extends AbstractUpdateService {
+export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
 
@@ -69,6 +69,23 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@IProductService productService: IProductService
 	) {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+
+		lifecycleMainService.setRelaunchHandler(this);
+	}
+
+	handleRelaunch(options?: IRelaunchOptions): boolean {
+		if (options?.addArgs || options?.removeArgs) {
+			return false; // we cannot apply an update and restart with different args
+		}
+
+		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
+			return false; // we only handle the relaunch when we have a pending update
+		}
+
+		this.logService.trace('update#handleRelaunch(): running raw#quitAndInstall()');
+		this.doQuitAndInstall();
+
+		return true;
 	}
 
 	protected override async initialize(): Promise<void> {
@@ -137,7 +154,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
-								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath))
+								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath, false /* no retry */))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
@@ -145,7 +162,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 						this.availableUpdate = { packagePath };
 
-						if (fastUpdatesEnabled && update.supportsFastUpdate) {
+						if (fastUpdatesEnabled) {
 							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
 							} else {
@@ -239,7 +256,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
-		if (this.state.update.supportsFastUpdate && this.availableUpdate.updateFilePath) {
+		if (this.availableUpdate.updateFilePath) {
 			fs.unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
@@ -259,7 +276,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		}
 
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const update: IUpdate = { version: 'unknown', productVersion: 'unknown', supportsFastUpdate: !!fastUpdatesEnabled };
+		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
 		this.setState(State.Downloading(update));
 		this.availableUpdate = { packagePath };
