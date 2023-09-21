@@ -45,7 +45,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
 		const editors = this.model.getEditors(order, options);
-		return editors.filter(e => this.contains(e));
+		return editors.filter(e => this.filter(e));
 	}
 
 	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions | undefined): [EditorInput, number] | undefined {
