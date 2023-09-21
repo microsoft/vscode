@@ -123,16 +123,13 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed = false;
-
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	override dispose(): void {
 
 		// State
-		this.disposed = true;
 		this.orphaned = false;
 
 		// Event

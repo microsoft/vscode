@@ -82,5 +82,6 @@ export const ICONS = [
 	registerIcon('profile-icon-compass', Codicon.compass, localize('compass', 'Compass')),
 	registerIcon('profile-icon-paintcan', Codicon.paintcan, localize('paintcan', 'Paint Can')),
 	registerIcon('profile-icon-archive', Codicon.archive, localize('archive', 'Archive')),
+	registerIcon('profile-icon-mic', Codicon.mic, localize('mic', 'Mic')),
 
 ];
