@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AutoOpenBarrier, Promises, timeout } from 'vs/base/common/async';
+import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon, getAllCodicons } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
@@ -759,7 +759,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._lineDataEventAddon = lineDataEventAddon;
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
-		setTimeout(() => {
+		disposableTimeout(() => {
 			this._register(xterm.raw.onBell(() => {
 				if (this._configHelper.config.enableBell) {
 					this.statusList.add({
@@ -771,7 +771,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._audioCueService.playSound(AudioCue.terminalBell.sound.getSound());
 				}
 			}));
-		}, 1000);
+		}, 1000, this._store);
 		this._register(xterm.raw.onSelectionChange(async () => this._onSelectionChange()));
 		this._register(xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey()));
 
