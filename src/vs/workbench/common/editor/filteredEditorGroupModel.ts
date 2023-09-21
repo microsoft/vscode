@@ -43,6 +43,11 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	isSticky(editorOrIndex: number | EditorInput): boolean { return this.model.isSticky(editorOrIndex); }
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
 
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
+		const editors = this.model.getEditors(order, options);
+		return editors.filter(e => this.contains(e));
+	}
+
 	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions | undefined): [EditorInput, number] | undefined {
 		const result = this.model.findEditor(candidate, options);
 		if (!result) {
@@ -55,7 +60,6 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	abstract isLast(editor: EditorInput): boolean;
 	abstract getEditorByIndex(index: number): EditorInput | undefined;
 	abstract indexOf(editor: EditorInput): number;
-	abstract getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
 	abstract contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean;
 
 	abstract filter(editorOrIndex: EditorInput | number): boolean;
@@ -72,7 +76,10 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 		if (options?.excludeSticky) {
 			return [];
 		}
-		return this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(0, this.model.stickyCount);
+		if (order === EditorsOrder.SEQUENTIAL) {
+			return this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(0, this.model.stickyCount);
+		}
+		return super.getEditors(order, options);
 	}
 
 	override isSticky(editorOrIndex: number | EditorInput): boolean {
@@ -121,7 +128,10 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 	}
 
 	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
-		return this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(this.model.stickyCount);
+		if (order === EditorsOrder.SEQUENTIAL) {
+			return this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(this.model.stickyCount);
+		}
+		return super.getEditors(order, options);
 	}
 
 	isFirst(editor: EditorInput): boolean {
