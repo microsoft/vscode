@@ -100,7 +100,8 @@ class AccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 
-		if (this._contextKeyService.getContextKeyValue<boolean>(CommentContextKeys.activeEditorHasCommentingRange.key)) {
+		const editorContext = this._contextKeyService.getContext(this._editor.getDomNode()!);
+		if (editorContext.getValue<boolean>(CommentContextKeys.activeEditorHasCommentingRange.key)) {
 			content.push(this._descriptionForCommand(CommentCommandId.Add, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
 			content.push(this._descriptionForCommand(CommentCommandId.NextThread, CommentAccessibilityHelpNLS.nextCommentThreadKb, CommentAccessibilityHelpNLS.nextCommentThreadNoKb));
 			content.push(this._descriptionForCommand(CommentCommandId.PreviousThread, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadNoKb));
