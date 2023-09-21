@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -144,6 +144,12 @@ suite('FilteredEditorGroupModel', () => {
 		}
 
 		return nonSerializable ? disposables.add(new NonSerializableTestEditorInput(id)) : disposables.add(new TestEditorInput(id));
+	}
+
+	function closeAllEditors(group: EditorGroupModel): void {
+		for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
+			group.closeEditor(editor, undefined, false);
+		}
 	}
 
 	interface ISerializedTestInput {
@@ -678,6 +684,110 @@ suite('FilteredEditorGroupModel', () => {
 
 		assert.strictEqual(stickyFilteredEditorGroup.isLocked, model.isLocked);
 		assert.strictEqual(unstickyFilteredEditorGroup.isLocked, model.isLocked);
+	});
+
+	test('Multiple Editors - Editor Emits Dirty and Label Changed', function () {
+		const model1 = createEditorGroupModel();
+		const model2 = createEditorGroupModel();
+
+		const stickyFilteredEditorGroup1 = disposables.add(new StickyEditorGroupModel(model1));
+		const unstickyFilteredEditorGroup1 = disposables.add(new UnstickyEditorGroupModel(model1));
+		const stickyFilteredEditorGroup2 = disposables.add(new StickyEditorGroupModel(model2));
+		const unstickyFilteredEditorGroup2 = disposables.add(new UnstickyEditorGroupModel(model2));
+
+		const input1 = input();
+		const input2 = input();
+
+		model1.openEditor(input1, { pinned: true, active: true });
+		model2.openEditor(input2, { pinned: true, active: true, sticky: true });
+
+		// DIRTY
+		let dirty1CounterSticky = 0;
+		disposables.add(stickyFilteredEditorGroup1.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
+				dirty1CounterSticky++;
+			}
+		}));
+
+		let dirty1CounterUnsticky = 0;
+		disposables.add(unstickyFilteredEditorGroup1.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
+				dirty1CounterUnsticky++;
+			}
+		}));
+
+		let dirty2CounterSticky = 0;
+		disposables.add(stickyFilteredEditorGroup2.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
+				dirty2CounterSticky++;
+			}
+		}));
+
+		let dirty2CounterUnsticky = 0;
+		disposables.add(unstickyFilteredEditorGroup2.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
+				dirty2CounterUnsticky++;
+			}
+		}));
+
+		// LABEL
+		let label1ChangeCounterSticky = 0;
+		disposables.add(stickyFilteredEditorGroup1.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
+				label1ChangeCounterSticky++;
+			}
+		}));
+
+		let label1ChangeCounterUnsticky = 0;
+		disposables.add(unstickyFilteredEditorGroup1.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
+				label1ChangeCounterUnsticky++;
+			}
+		}));
+
+		let label2ChangeCounterSticky = 0;
+		disposables.add(stickyFilteredEditorGroup2.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
+				label2ChangeCounterSticky++;
+			}
+		}));
+
+		let label2ChangeCounterUnsticky = 0;
+		disposables.add(unstickyFilteredEditorGroup2.onDidModelChange((e) => {
+			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
+				label2ChangeCounterUnsticky++;
+			}
+		}));
+
+		(<TestEditorInput>input1).setDirty();
+		(<TestEditorInput>input1).setLabel();
+
+		assert.strictEqual(dirty1CounterSticky, 0);
+		assert.strictEqual(dirty1CounterUnsticky, 1);
+		assert.strictEqual(label1ChangeCounterSticky, 0);
+		assert.strictEqual(label1ChangeCounterUnsticky, 1);
+
+		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
+
+		assert.strictEqual(dirty2CounterSticky, 1);
+		assert.strictEqual(dirty2CounterUnsticky, 0);
+		assert.strictEqual(label2ChangeCounterSticky, 1);
+		assert.strictEqual(label2ChangeCounterUnsticky, 0);
+
+		closeAllEditors(model2);
+
+		(<TestEditorInput>input2).setDirty();
+		(<TestEditorInput>input2).setLabel();
+
+		assert.strictEqual(dirty2CounterSticky, 1);
+		assert.strictEqual(dirty2CounterUnsticky, 0);
+		assert.strictEqual(label2ChangeCounterSticky, 1);
+		assert.strictEqual(label2ChangeCounterUnsticky, 0);
+		assert.strictEqual(dirty1CounterSticky, 0);
+		assert.strictEqual(dirty1CounterUnsticky, 1);
+		assert.strictEqual(label1ChangeCounterSticky, 0);
+		assert.strictEqual(label1ChangeCounterUnsticky, 1);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

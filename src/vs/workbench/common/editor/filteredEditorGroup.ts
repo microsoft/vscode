@@ -100,11 +100,16 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 	}
 
 	indexOf(editor: EditorInput): number {
-		return this.contains(editor) ? this.model.indexOf(editor) : -1;
+		const editorIndex = this.model.indexOf(editor);
+		if (editorIndex < 0 || editorIndex >= this.model.stickyCount) {
+			return -1;
+		}
+		return editorIndex;
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean {
-		return this.model.contains(candidate, options) && this.model.indexOf(candidate) < this.model.stickyCount;
+		const editorIndex = this.model.indexOf(candidate);
+		return editorIndex >= 0 && editorIndex < this.model.stickyCount;
 	}
 }
 
@@ -136,10 +141,15 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 	}
 
 	indexOf(editor: EditorInput): number {
-		return this.contains(editor) ? this.model.indexOf(editor) - this.model.stickyCount : -1;
+		const editorIndex = this.model.indexOf(editor);
+		if (editorIndex < this.model.stickyCount || editorIndex >= this.model.count) {
+			return -1;
+		}
+		return editorIndex - this.model.stickyCount;
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean {
-		return this.model.contains(candidate, options) && this.model.indexOf(candidate) >= this.model.stickyCount;
+		const editorIndex = this.model.indexOf(candidate);
+		return editorIndex >= this.model.stickyCount && editorIndex < this.model.count;
 	}
 }
