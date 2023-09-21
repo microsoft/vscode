@@ -473,6 +473,7 @@ export class SCMSyncViewPane extends ViewPane {
 				compressionEnabled: true,
 				horizontalScrolling: false,
 				autoExpandSingleChildren: true,
+				collapseByDefault: (e) => !ResourceTree.isResourceNode(e),
 				accessibilityProvider: this.instantiationService.createInstance(SCMSyncViewPaneAccessibilityProvider),
 				identityProvider: this.instantiationService.createInstance(SCMSyncViewPaneTreeIdentityProvider),
 				sorter: this.instantiationService.createInstance(SCMSyncViewPaneTreeSorter),
@@ -505,11 +506,6 @@ export class SCMSyncViewPane extends ViewPane {
 			return;
 		}
 
-		// if (isSCMHistoryItemTreeElement(e.element) && this.viewModel.mode === ViewMode.Tree) {
-		// 	console.log('HELLO');
-		// 	await this._tree.updateChildren(e.element, true, true, { diffDepth: Infinity });
-		// 	await this._tree.expand(e.element, true);
-		// } else
 		if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
 				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
