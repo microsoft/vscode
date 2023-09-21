@@ -58,7 +58,6 @@ export class TaskTerminalStatus extends Disposable {
 			terminalData.disposeListener?.dispose();
 		}
 		this.terminalMap.clear();
-		this._marker?.dispose();
 	}
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
