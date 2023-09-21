@@ -172,4 +172,10 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	getHeight(): number {
 		return this.stickyEditorTabsControl.getHeight() + this.unstickyEditorTabsControl.getHeight();
 	}
+
+	public override dispose(): void {
+		this.parent.classList.toggle('two-tab-bars', false);
+
+		super.dispose();
+	}
 }
