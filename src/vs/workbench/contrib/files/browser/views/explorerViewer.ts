@@ -1039,7 +1039,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private compressedDragOverElement: HTMLElement | undefined;
 	private compressedDropTargetDisposable: IDisposable = Disposable.None;
 
-	private toDispose: IDisposable[];
+	private disposables = new DisposableStore();
 	private dropEnabled = false;
 
 	constructor(
@@ -1054,15 +1054,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.toDispose = [];
-
 		const updateDropEnablement = (e: IConfigurationChangeEvent | undefined) => {
 			if (!e || e.affectsConfiguration('explorer.enableDragAndDrop')) {
 				this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
 			}
 		};
 		updateDropEnablement(undefined);
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => updateDropEnablement(e)));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => updateDropEnablement(e)));
 	}
 
 	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
@@ -1480,6 +1478,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	onDragEnd(): void {
+		this.compressedDropTargetDisposable.dispose();
+	}
+
+	dispose(): void {
 		this.compressedDropTargetDisposable.dispose();
 	}
 }
