@@ -19,7 +19,7 @@ import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/acti
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyTrueExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { QuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -54,6 +54,11 @@ import { ctxIsMergeResultEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/me
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IFileService } from 'vs/platform/files/common/files';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
@@ -712,6 +717,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerShowLogAction();
 		this.registerResetSyncDataAction();
 		this.registerAcceptMergesAction();
+		this.registerDownloadSyncActivityAction();
 	}
 
 	private registerTurnOnSyncAction(): void {
@@ -721,20 +727,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: 'workbench.userDataSync.actions.turnOn',
-					title: { value: localize('global activity turn on sync', "Turn on Settings Sync..."), original: 'Turn on Settings Sync...' },
+					title: { value: localize('global activity turn on sync', "Backup and Sync Settings..."), original: 'Backup and Sync Settings...' },
 					category: { value: SYNC_TITLE, original: `Settings Sync` },
 					f1: true,
 					precondition: when,
 					menu: [{
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 2
+						order: 1
 					}, {
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.MenubarPreferencesMenu,
 						when,
-						order: 2
+						order: 1
 					}, {
 						group: '1_settings',
 						id: MenuId.AccountsContext,
@@ -758,7 +764,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -805,7 +811,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -845,12 +851,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					f1: true,
 					precondition: CONTEXT_HAS_CONFLICTS,
 					menu: [{
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.GlobalActivity,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
 					}, {
-						group: '1_profiles',
+						group: '3_settings_sync',
 						id: MenuId.MenubarPreferencesMenu,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
@@ -875,13 +881,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '1_profiles',
+							group: '3_settings_sync',
 							when,
 							order: 2
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '1_profiles',
+							group: '3_settings_sync',
 							when,
 							order: 2,
 						},
@@ -1122,6 +1128,68 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 				throw new Error(`Unknown resource: ${previewResource.toString()}`);
 			}
+		}));
+	}
+
+	private registerDownloadSyncActivityAction(): void {
+		this._register(registerAction2(class DownloadSyncActivityAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.userDataSync.actions.downloadSyncActivity',
+					title: { original: 'Download Settings Sync Activity', value: localize('download sync activity title', "Download Settings Sync Activity") },
+					category: Categories.Developer,
+					f1: true,
+					precondition: ContextKeyExpr.and(CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized))
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
+				const fileDialogService = accessor.get(IFileDialogService);
+				const progressService = accessor.get(IProgressService);
+				const uriIdentityService = accessor.get(IUriIdentityService);
+				const fileService = accessor.get(IFileService);
+				const userDataSyncMachinesService = accessor.get(IUserDataSyncMachinesService);
+				const notificationService = accessor.get(INotificationService);
+
+				const result = await fileDialogService.showOpenDialog({
+					title: localize('download sync activity dialog title', "Select folder to download Settings Sync activity"),
+					canSelectFiles: false,
+					canSelectFolders: true,
+					canSelectMany: false,
+					openLabel: localize('download sync activity dialog open label', "Save"),
+				});
+
+				if (!result?.[0]) {
+					return;
+				}
+
+				await progressService.withProgress({ location: ProgressLocation.Window }, async () => {
+					const machines = await userDataSyncMachinesService.getMachines();
+					const currentMachine = machines.find(m => m.isCurrent);
+					const name = (currentMachine ? currentMachine.name + ' - ' : '') + 'Settings Sync Activity';
+					const stat = await fileService.resolve(result[0]);
+
+					const nameRegEx = new RegExp(`${escapeRegExpCharacters(name)}\\s(\\d+)`);
+					const indexes: number[] = [];
+					for (const child of stat.children ?? []) {
+						if (child.name === name) {
+							indexes.push(0);
+						} else {
+							const matches = nameRegEx.exec(child.name);
+							if (matches) {
+								indexes.push(parseInt(matches[1]));
+							}
+						}
+					}
+					indexes.sort((a, b) => a - b);
+
+					return userDataSyncWorkbenchService.downloadSyncActivity(uriIdentityService.extUri.joinPath(result[0], indexes[0] !== 0 ? name : `${name} ${indexes[indexes.length - 1] + 1}`));
+				});
+
+				notificationService.info(localize('download sync activity complete', "Successfully downloaded Settings Sync activity."));
+			}
+
 		}));
 	}
 
