@@ -1579,11 +1579,13 @@ export namespace MappedEditsContext {
 
 	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
 		return {
-			selections: extContext.selections.map(s => Selection.from(s)),
-			related: extContext.related.map(r => ({
-				uri: URI.from(r.uri),
-				range: Range.from(r.range)
-			}))
+			documents: extContext.documents.map((subArray) =>
+				subArray.map((r) => ({
+					uri: URI.from(r.uri),
+					version: r.version,
+					ranges: r.ranges.map((r) => Range.from(r)),
+				}))
+			),
 		};
 	}
 }

@@ -365,14 +365,14 @@ export interface IShareableItemDto {
 	selection?: IRange;
 }
 
-export interface IRelatedContextItemDto {
+export interface IDocumentContextItemDto {
 	readonly uri: UriComponents;
-	readonly range: IRange;
+	readonly version: number;
+	readonly ranges: IRange[];
 }
 
 export interface IMappedEditsContextDto {
-	selections: ISelection[];
-	related: IRelatedContextItemDto[];
+	documents: IDocumentContextItemDto[][];
 }
 
 export interface ISignatureHelpProviderMetadataDto {

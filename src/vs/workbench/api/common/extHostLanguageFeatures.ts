@@ -1831,8 +1831,15 @@ class MappedEditsAdapter {
 		const doc = this._documents.getDocument(uri);
 
 		const ctx = {
-			selections: context.selections.map(s => typeConvert.Selection.to(s)),
-			related: context.related.map(r => ({ uri: URI.revive(r.uri), range: typeConvert.Range.to(r.range) })),
+			documents: context.documents.map((docSubArray) =>
+				docSubArray.map((r) => {
+					return {
+						uri: URI.revive(r.uri),
+						version: r.version,
+						ranges: r.ranges.map((range) => typeConvert.Range.to(range)),
+					};
+				})
+			),
 		};
 
 		const mappedEdits = await this._provider.provideMappedEdits(doc, codeBlocks, ctx, token);
