@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Emitter } from 'vs/base/common/event';
-import { firstOrDefault } from 'vs/base/common/arrays';
 import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -21,11 +20,10 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 		super();
 
 		this._register(this.model.onDidModelChange(e => {
-			// Only Editor Events should be filtered
-			if (e.kind !== GroupModelChangeKind.GROUP_ACTIVE && e.kind !== GroupModelChangeKind.GROUP_INDEX && e.kind !== GroupModelChangeKind.GROUP_LOCKED) {
-				const editor = e.editor ?? (e.editorIndex !== undefined ? this.model.getEditorByIndex(e.editorIndex) : undefined);
-				if (!editor || !this.contains(editor)) {
-					return;
+			const candidateOrIndex = e.editorIndex ?? e.editor;
+			if (typeof candidateOrIndex === 'number' || candidateOrIndex) {
+				if (!this.filter(candidateOrIndex)) {
+					return; // exclude events for excluded items
 				}
 			}
 			this._onDidModelChange.fire(e);
@@ -47,7 +45,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
 		const editors = this.model.getEditors(order, options);
-		return editors.filter(e => this.contains(e));
+		return editors.filter(e => this.filter(e));
 	}
 
 	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions | undefined): [EditorInput, number] | undefined {
@@ -55,11 +53,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 		if (!result) {
 			return undefined;
 		}
-		const editor = firstOrDefault(result, undefined);
-		if (!editor || typeof editor === 'number') {
-			return undefined;
-		}
-		return this.contains(editor) ? result : undefined;
+		return this.filter(result[1]) ? result : undefined;
 	}
 
 	abstract isFirst(editor: EditorInput): boolean;
@@ -67,6 +61,8 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	abstract getEditorByIndex(index: number): EditorInput | undefined;
 	abstract indexOf(editor: EditorInput): number;
 	abstract contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean;
+
+	abstract filter(editorOrIndex: EditorInput | number): boolean;
 }
 
 export class StickyEditorGroupModel extends FilteredEditorGroupModel {
@@ -111,6 +107,10 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 		const editorIndex = this.model.indexOf(candidate);
 		return editorIndex >= 0 && editorIndex < this.model.stickyCount;
 	}
+
+	filter(candidateOrIndex: EditorInput | number): boolean {
+		return this.model.isSticky(candidateOrIndex);
+	}
 }
 
 export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
@@ -151,5 +151,9 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions | undefined): boolean {
 		const editorIndex = this.model.indexOf(candidate);
 		return editorIndex >= this.model.stickyCount && editorIndex < this.model.count;
+	}
+
+	filter(candidateOrIndex: EditorInput | number): boolean {
+		return !this.model.isSticky(candidateOrIndex);
 	}
 }
