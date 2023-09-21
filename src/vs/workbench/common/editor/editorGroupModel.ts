@@ -176,14 +176,14 @@ export interface IReadonlyEditorGroupModel {
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[];
 	getEditorByIndex(index: number): EditorInput | undefined;
-	indexOf(candidate: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number;
+	indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number;
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 	isPinned(editorOrIndex: EditorInput | number): boolean;
-	isSticky(candidateOrIndex: EditorInput | number): boolean;
+	isSticky(editorOrIndex: EditorInput | number): boolean;
 	isFirst(editor: EditorInput): boolean;
 	isLast(editor: EditorInput): boolean;
-	findEditor(candidate: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
-	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
+	findEditor(editor: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
+	contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
 }
 
 interface IEditorGroupModel extends IReadonlyEditorGroupModel {
