@@ -367,7 +367,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	async submitComment(): Promise<void> {
 		if (this._commentEditor && this._commentFormActions) {
-			this._commentFormActions.triggerDefaultAction();
+			await this._commentFormActions.triggerDefaultAction();
+			this.pendingEdit = undefined;
 		}
 	}
 

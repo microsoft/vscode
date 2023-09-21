@@ -66,10 +66,6 @@ function isSCMHistoryItemChangeTreeElement(obj: any): obj is SCMHistoryItemChang
 	return (obj as SCMHistoryItemChangeTreeElement).type === 'historyItemChange';
 }
 
-function isSCMHistoryItemChangeResourceTreeNode(obj: any): obj is SCMHistoryItemChangeResourceTreeNode {
-	return ResourceTree.isResourceNode(obj) && isSCMHistoryItemTreeElement((obj as SCMHistoryItemChangeResourceTreeNode).context);
-}
-
 function toDiffEditorArguments(uri: URI, originalUri: URI, modifiedUri: URI): unknown[] {
 	const basename = path.basename(uri.fsPath);
 	const originalQuery = JSON.parse(originalUri.query) as { path: string; ref: string };
@@ -100,11 +96,11 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItemGroup = historyItem.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
 		return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
-	} else if (isSCMHistoryItemChangeResourceTreeNode(element)) {
+	} else if (ResourceTree.isResourceNode(element)) {
 		const historyItem = element.context;
 		const historyItemGroup = historyItem.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
-		return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
+		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
@@ -158,7 +154,7 @@ class ListDelegate implements IListVirtualDelegate<any> {
 			return HistoryItemRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
-		} else if (isSCMHistoryItemChangeResourceTreeNode(element)) {
+		} else if (ResourceTree.isResourceNode(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
 		} else {
 			throw new Error('Invalid tree element');
@@ -169,11 +165,11 @@ class ListDelegate implements IListVirtualDelegate<any> {
 class CompressionDelegate implements ITreeCompressionDelegate<TreeElement> {
 
 	isIncompressible(element: TreeElement): boolean {
-		if (isSCMHistoryItemChangeResourceTreeNode(element)) {
-			return element.childrenCount === 0;
+		if (ResourceTree.isResourceNode(element)) {
+			return element.childrenCount === 0 || !element.parent || !element.parent.parent;
 		}
 
-		return false;
+		return true;
 	}
 
 }
@@ -299,7 +295,7 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 
 	renderElement(node: ITreeNode<SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
 		const historyItemChangeOrFolder = node.element;
-		const fileKind = isSCMHistoryItemChangeResourceTreeNode(historyItemChangeOrFolder) ? FileKind.FOLDER : FileKind.FILE;
+		const fileKind = ResourceTree.isResourceNode(historyItemChangeOrFolder) && historyItemChangeOrFolder.childrenCount > 0 ? FileKind.FOLDER : FileKind.FILE;
 
 		templateData.fileLabel.setFile(node.element.uri, {
 			fileDecorations: { colors: false, badges: true },
@@ -507,12 +503,21 @@ export class SCMSyncViewPane extends ViewPane {
 	private async onDidOpen(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
 			return;
-		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
+		}
+
+		// if (isSCMHistoryItemTreeElement(e.element) && this.viewModel.mode === ViewMode.Tree) {
+		// 	console.log('HELLO');
+		// 	await this._tree.updateChildren(e.element, true, true, { diffDepth: Infinity });
+		// 	await this._tree.expand(e.element, true);
+		// } else
+		if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
 				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
 			}
-		} else if (isSCMHistoryItemChangeResourceTreeNode(e.element) && e.element.childrenCount === 0) {
-			console.log(e.element);
+		} else if (ResourceTree.isResourceNode(e.element) && e.element.childrenCount === 0) {
+			if (e.element.element?.originalUri && e.element.element?.modifiedUri) {
+				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.element.uri, e.element.element.originalUri, e.element.element.modifiedUri), e);
+			}
 		}
 	}
 
@@ -666,7 +671,7 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			return true;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			return false;
-		} else if (isSCMHistoryItemChangeResourceTreeNode(element)) {
+		} else if (ResourceTree.isResourceNode(element)) {
 			return element.childrenCount > 0;
 		} else {
 			throw new Error('hasChildren not implemented.');
@@ -773,7 +778,6 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 				// Tree
 				const tree = new ResourceTree<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>(element, repository.provider.rootUri ?? URI.file('/'), this.uriIdentityService.extUri);
 				for (const change of changes) {
-					// TODO - need to investigate
 					tree.add(change.uri, {
 						uri: change.uri,
 						originalUri: change.originalUri,
@@ -786,7 +790,7 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 
 				children.push(...tree.root.children);
 			}
-		} else if (isSCMHistoryItemChangeResourceTreeNode(element)) {
+		} else if (ResourceTree.isResourceNode(element)) {
 			children.push(...element.children);
 		} else {
 			throw new Error('getChildren Method not implemented.');

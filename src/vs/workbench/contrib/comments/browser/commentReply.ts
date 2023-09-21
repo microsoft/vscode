@@ -174,7 +174,8 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	async submitComment(): Promise<void> {
-		return this._commentFormActions?.triggerDefaultAction();
+		await this._commentFormActions?.triggerDefaultAction();
+		this._pendingComment = undefined;
 	}
 
 	setCommentEditorDecorations() {

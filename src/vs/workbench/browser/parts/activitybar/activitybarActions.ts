@@ -492,7 +492,6 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.updateProfileBadge()));
 	}
 
 	override render(container: HTMLElement): void {

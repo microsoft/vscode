@@ -35,4 +35,5 @@
 
 .icon-select-box .icon-select-id-container .icon-select-id-label .highlight {
 	color: var(--vscode-list-highlightForeground);
+	font-weight: bold;
 }

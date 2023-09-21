@@ -633,7 +633,7 @@ export class ChatService extends Disposable implements IChatService {
 		return agents.find(a => prompt.match(new RegExp(`@${a.id}($|\\s)`)));
 	}
 
-	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
+	async getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[]> {
 		const model = this._sessionModels.get(sessionId);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
