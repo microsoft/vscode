@@ -365,7 +365,6 @@ export function registerTerminalActions() {
 		keybinding: [
 			{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
 				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
