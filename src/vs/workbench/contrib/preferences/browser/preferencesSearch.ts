@@ -104,7 +104,7 @@ export class LocalSearchProvider implements ISearchProvider {
 				LocalSearchProvider.EXACT_MATCH_SCORE :
 				orderedScore--;
 
-			return matches && matches.length ?
+			return matches.length ?
 				{
 					matches,
 					matchType,
@@ -129,7 +129,7 @@ export class LocalSearchProvider implements ISearchProvider {
 	private getGroupFilter(filter: string): IGroupFilter {
 		const regex = strings.createRegExp(filter, false, { global: true });
 		return (group: ISettingsGroup) => {
-			return regex.test(group.title);
+			return group.id !== 'defaultOverrides' && regex.test(group.title);
 		};
 	}
 }
@@ -171,23 +171,6 @@ export class SettingMatches {
 
 		const words = new Set<string>(searchString.split(' '));
 
-		// Description search
-		if (this.searchDescription) {
-			for (const word of words) {
-				// Search the description lines.
-				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
-					if (descriptionMatches?.length) {
-						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
-					}
-				}
-			}
-			if (descriptionMatchingWords.size !== words.size) {
-				// Clear out the match for now. We want to require all words to match in the description.
-				descriptionMatchingWords.clear();
-			}
-		}
-
 		// Key search
 		const settingKeyAsWords: string = this._keyToLabel(setting.key);
 		for (const word of words) {
@@ -208,8 +191,38 @@ export class SettingMatches {
 		const keyIdMatches = matchesContiguousSubString(searchString, setting.key);
 		if (keyIdMatches?.length) {
 			keyMatchingWords.set(setting.key, keyIdMatches.map(match => this.toKeyRange(setting, match)));
+			this.matchType |= SettingMatchType.KeyMatch;
 		}
 
+		// Check if the match was for a language tag group setting such as [markdown].
+		// In such a case, move that setting to be last.
+		if (setting.overrides?.length && (this.matchType & SettingMatchType.KeyMatch)) {
+			this.matchType = SettingMatchType.LanguageTagSettingMatch;
+			const keyRanges = keyMatchingWords.size ?
+				Array.from(keyMatchingWords.values()).flat() : [];
+			return [...keyRanges];
+		}
+
+		// Description search
+		if (this.searchDescription) {
+			for (const word of words) {
+				// Search the description lines.
+				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+					if (descriptionMatches?.length) {
+						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+					}
+				}
+			}
+			if (descriptionMatchingWords.size === words.size) {
+				this.matchType |= SettingMatchType.DescriptionOrValueMatch;
+			} else {
+				// Clear out the match for now. We want to require all words to match in the description.
+				descriptionMatchingWords.clear();
+			}
+		}
+
+		// Value search
 		// Check if the value contains all the words.
 		if (setting.enum?.length) {
 			// Search all string values of enums.
