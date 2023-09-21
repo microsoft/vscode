@@ -47,7 +47,7 @@ export interface IPaneStyles {
  */
 export abstract class Pane extends Disposable implements IView {
 
-	private static readonly HEADER_SIZE = 23;
+	private static readonly HEADER_SIZE = 22;
 
 	readonly element: HTMLElement;
 	private header!: HTMLElement;
