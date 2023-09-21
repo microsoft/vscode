@@ -31,6 +31,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
+	pinnedTabsOnSeparateRow: false,
 	tabHeight: 'normal',
 	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
@@ -215,7 +216,7 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	context?: EditorCloseContext;
 }
 
-export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {
+export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
 
 	/**
 	 * Whether to close the editor at the source or keep it.

@@ -11,7 +11,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -38,6 +38,7 @@ import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 export interface IToolbarActions {
 	readonly primary: IAction[];
@@ -70,7 +71,25 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 	}
 }
 
-export abstract class EditorTabsControl extends Themable {
+export interface IEditorTabsControl extends IDisposable {
+	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
+	openEditor(editor: EditorInput): boolean;
+	openEditors(editors: EditorInput[]): boolean;
+	beforeCloseEditor(editor: EditorInput): void;
+	closeEditor(editor: EditorInput): void;
+	closeEditors(editors: EditorInput[]): void;
+	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void;
+	pinEditor(editor: EditorInput): void;
+	stickEditor(editor: EditorInput): void;
+	unstickEditor(editor: EditorInput): void;
+	setActive(isActive: boolean): void;
+	updateEditorLabel(editor: EditorInput): void;
+	updateEditorDirty(editor: EditorInput): void;
+	layout(dimensions: IEditorTitleControlDimensions): Dimension;
+	getHeight(): number;
+}
+
+export abstract class EditorTabsControl extends Themable implements IEditorTabsControl {
 
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
@@ -103,7 +122,8 @@ export abstract class EditorTabsControl extends Themable {
 	constructor(
 		private parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
-		protected group: IEditorGroupView,
+		protected groupViewer: IEditorGroupView,
+		protected tabsModel: IReadonlyEditorGroupModel,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -139,7 +159,7 @@ export abstract class EditorTabsControl extends Themable {
 	}
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
-		const context: IEditorCommandsContext = { groupId: this.group.id };
+		const context: IEditorCommandsContext = { groupId: this.groupViewer.id };
 
 		// Toolbar Widget
 
@@ -171,7 +191,7 @@ export abstract class EditorTabsControl extends Themable {
 	}
 
 	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
-		const activeEditorPane = this.group.activeEditorPane;
+		const activeEditorPane = this.groupViewer.activeEditorPane;
 
 		// Check Active Editor
 		if (activeEditorPane instanceof EditorPane) {
@@ -204,24 +224,24 @@ export abstract class EditorTabsControl extends Themable {
 
 		// Update contexts
 		this.contextKeyService.bufferChangeEvents(() => {
-			const activeEditor = this.group.activeEditor;
+			const activeEditor = this.groupViewer.activeEditor;
 
 			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 
-			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
-			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
-			this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
-			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
+			this.editorPinnedContext.set(activeEditor ? this.groupViewer.isPinned(activeEditor) : false);
+			this.editorIsFirstContext.set(activeEditor ? this.groupViewer.isFirst(activeEditor) : false);
+			this.editorIsLastContext.set(activeEditor ? this.groupViewer.isLast(activeEditor) : false);
+			this.editorStickyContext.set(activeEditor ? this.groupViewer.isSticky(activeEditor) : false);
 			applyAvailableEditorIds(this.editorAvailableEditorIds, activeEditor, this.editorResolverService);
 
 			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
 			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
-			this.groupLockedContext.set(this.group.isLocked);
+			this.groupLockedContext.set(this.groupViewer.isLocked);
 		});
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
-		const activeEditorPane = this.group.activeEditorPane;
+		const activeEditorPane = this.groupViewer.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
 			const scopedContextKeyService = this.getEditorPaneAwareContextKeyService();
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
@@ -245,7 +265,7 @@ export abstract class EditorTabsControl extends Themable {
 	}
 
 	private getEditorPaneAwareContextKeyService(): IContextKeyService {
-		return this.group.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		return this.groupViewer.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 	}
 
 	protected clearEditorActionsToolbar(): void {
@@ -261,7 +281,7 @@ export abstract class EditorTabsControl extends Themable {
 			}
 
 			// Set editor group as transfer
-			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.group.id)], DraggedEditorGroupIdentifier.prototype);
+			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupViewer.id)], DraggedEditorGroupIdentifier.prototype);
 			if (e.dataTransfer) {
 				e.dataTransfer.effectAllowed = 'copyMove';
 			}
@@ -269,26 +289,26 @@ export abstract class EditorTabsControl extends Themable {
 			// Drag all tabs of the group if tabs are enabled
 			let hasDataTransfer = false;
 			if (this.accessor.partOptions.showTabs) {
-				hasDataTransfer = this.doFillResourceDataTransfers(this.group.getEditors(EditorsOrder.SEQUENTIAL), e);
+				hasDataTransfer = this.doFillResourceDataTransfers(this.groupViewer.getEditors(EditorsOrder.SEQUENTIAL), e);
 			}
 
 			// Otherwise only drag the active editor
 			else {
-				if (this.group.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers([this.group.activeEditor], e);
+				if (this.groupViewer.activeEditor) {
+					hasDataTransfer = this.doFillResourceDataTransfers([this.groupViewer.activeEditor], e);
 				}
 			}
 
 			// Firefox: requires to set a text data transfer to get going
 			if (!hasDataTransfer && isFirefox) {
-				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.group.label));
+				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupViewer.label));
 			}
 
 			// Drag Image
-			if (this.group.activeEditor) {
-				let label = this.group.activeEditor.getName();
-				if (this.accessor.partOptions.showTabs && this.group.count > 1) {
-					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.group.count - 1);
+			if (this.groupViewer.activeEditor) {
+				let label = this.groupViewer.activeEditor.getName();
+				if (this.accessor.partOptions.showTabs && this.groupViewer.count > 1) {
+					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupViewer.count - 1);
 				}
 
 				applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
@@ -303,7 +323,7 @@ export abstract class EditorTabsControl extends Themable {
 
 	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.group.id })), e);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupViewer.id })), e);
 
 			return true;
 		}
@@ -311,21 +331,21 @@ export abstract class EditorTabsControl extends Themable {
 		return false;
 	}
 
-	protected onContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
+	protected onTabContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
 		this.resourceContext.set(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
-		this.editorPinnedContext.set(this.group.isPinned(editor));
+		this.editorPinnedContext.set(this.tabsModel.isPinned(editor));
 		const currentEditorIsFirstContext = !!this.editorIsFirstContext.get();
-		this.editorIsFirstContext.set(this.group.isFirst(editor));
+		this.editorIsFirstContext.set(this.tabsModel.isFirst(editor));
 		const currentEditorIsLastContext = !!this.editorIsLastContext.get();
-		this.editorIsLastContext.set(this.group.isLast(editor));
+		this.editorIsLastContext.set(this.tabsModel.isLast(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();
-		this.editorStickyContext.set(this.group.isSticky(editor));
+		this.editorStickyContext.set(this.tabsModel.isSticky(editor));
 		const currentGroupLockedContext = !!this.groupLockedContext.get();
-		this.groupLockedContext.set(this.group.isLocked);
+		this.groupLockedContext.set(this.tabsModel.isLocked);
 		const currentEditorCanSplitContext = !!this.editorCanSplitInGroupContext.get();
 		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 		const currentSideBySideEditorContext = !!this.sideBySideEditorContext.get();
@@ -345,7 +365,7 @@ export abstract class EditorTabsControl extends Themable {
 			menuId: MenuId.EditorTitleContext,
 			menuActionOptions: { shouldForwardArgs: true, arg: this.resourceContext.get() },
 			contextKeyService: this.contextKeyService,
-			getActionsContext: () => ({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(editor) }),
+			getActionsContext: () => ({ groupId: this.groupViewer.id, editorIndex: this.groupViewer.getIndexOfEditor(editor) }),
 			getKeyBinding: action => this.getKeybinding(action),
 			onHide: () => {
 
