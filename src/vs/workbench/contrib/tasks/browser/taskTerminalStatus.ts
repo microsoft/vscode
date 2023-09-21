@@ -52,11 +52,23 @@ export class TaskTerminalStatus extends Disposable {
 		}));
 	}
 
+	public override dispose(): void {
+		super.dispose();
+		for (const terminalData of this.terminalMap.values()) {
+			terminalData.disposeListener?.dispose();
+		}
+		this.terminalMap.clear();
+		this._marker?.dispose();
+	}
+
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
 		this._register(problemMatcher.onDidFindFirstMatch(() => {
 			this._marker = terminal.registerMarker();
+			if (this._marker) {
+				this._register(this._marker);
+			}
 		}));
 		this._register(problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
