@@ -24,7 +24,7 @@ import { TestContextService, TestStorageService } from 'vs/workbench/test/common
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { isEqual } from 'vs/base/common/resources';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroup';
+import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 
 suite('FilteredEditorGroupModel', () => {
 
