@@ -129,8 +129,25 @@
 			}
 		}
 
+		/**
+		 * There is some bug in WebKit on macOS in CI only that causes the first
+		 * invokation of the file functions to (sometimes) take an inordinately
+		 * long period of time to run. Get around this by invoking them here.
+		 */
+		async function doIoWarmup() {
+			const dir = url.searchParams.get('ioWarmup');
+			if (!dir) {
+				return;
+			}
+
+			// these are the only two functions actually used in CI presently:
+			await __readFileInTests(dir + '/' + 'renderer.html');
+			await __readDirInTests(dir);
+		}
+
 		window.loadAndRun = async function loadAndRun({ modules, grep }, manual = false) {
 			// load
+			await doIoWarmup();
 			await loadModules(modules);
 			// await new Promise((resolve, reject) => {
 			// 	require(modules, resolve, err => {
@@ -152,7 +169,8 @@
 			});
 		}
 
-		const modules = new URL(window.location.href).searchParams.getAll('m');
+		const url = new URL(window.location.href);
+		const modules = url.searchParams.getAll('m');
 		if (Array.isArray(modules) && modules.length > 0) {
 			console.log('MANUALLY running tests', modules);
 
