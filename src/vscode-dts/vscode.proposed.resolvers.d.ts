@@ -183,7 +183,7 @@ declare module 'vscode' {
 		 * @param options Additional options for the spawned process.
 		 * @returns A promise that resolves when the process exits with a {@link ProcessExit} object.
 		 */
-		dowloadCliExecutable?(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
+		downloadCliExecutable?(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
 
 		/**
 		 * Gets the environment where the exec server is running.
@@ -208,7 +208,7 @@ declare module 'vscode' {
 		readonly stdin: WriteStream;
 		readonly stdout: ReadStream;
 		readonly stderr: ReadStream;
-		readonly onExit: Thenable<ProcessEnv>;
+		readonly onExit: Thenable<ProcessExit>;
 	}
 
 	export interface RemoteServerConnector {
@@ -244,8 +244,6 @@ declare module 'vscode' {
 		readonly extensions: string[];
 		/** Whether server traffic should be compressed. */
 		readonly compress?: boolean;
-		/** Path from which to install the server (for WSL).*/
-		readonly archivePath?: string;
 		/** Optional explicit connection token for the server. */
 		readonly connectionToken?: string;
 	}
@@ -266,6 +264,13 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteFileSystem {
+		/**
+		 * Retrieve metadata about a file.
+		 *
+		 * @param path The path of the file to retrieve metadata about.
+		 * @returns The file metadata about the file.
+		 * @throws an exception when `path` doesn't exist.
+		 */
 		stat(path: string): Thenable<FileStat>;
 	}
 
