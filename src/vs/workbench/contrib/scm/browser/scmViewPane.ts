@@ -221,6 +221,8 @@ class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 		}
 		return uris;
 	}
+
+	dispose(): void { }
 }
 
 interface InputTemplate {
