@@ -11,6 +11,7 @@ export interface ICountBadgeOptions {
 	readonly count?: number;
 	readonly countFormat?: string;
 	readonly titleFormat?: string;
+	readonly symbolicZero?: boolean;
 }
 
 export interface ICountBadgeStyles {
@@ -31,12 +32,14 @@ export class CountBadge {
 	private count: number = 0;
 	private countFormat: string;
 	private titleFormat: string;
+	private symbolicZero: boolean;
 
 	constructor(container: HTMLElement, private readonly options: ICountBadgeOptions, private readonly styles: ICountBadgeStyles) {
 
 		this.element = append(container, $('.monaco-count-badge'));
 		this.countFormat = this.options.countFormat || '{0}';
 		this.titleFormat = this.options.titleFormat || '';
+		this.symbolicZero = this.options.symbolicZero || true;
 		this.setCount(this.options.count || 0);
 	}
 
@@ -56,7 +59,7 @@ export class CountBadge {
 	}
 
 	private render() {
-		this.element.textContent = format(this.countFormat, this.count);
+		this.element.textContent = format(this.countFormat, this.symbolicZero && this.count === 0 ? '-' : this.count);
 		this.element.title = format(this.titleFormat, this.count);
 
 		this.element.style.backgroundColor = this.styles.badgeBackground ?? '';
