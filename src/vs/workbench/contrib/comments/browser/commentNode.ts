@@ -16,7 +16,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -72,6 +72,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditor: SimpleCommentEditor | null = null;
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
+	private _editorHeight = STARTING_EDITOR_HEIGHT;
+
 	private _isPendingLabel!: HTMLElement;
 	private _timestamp: HTMLElement | undefined;
 	private _timestampWidget: TimestampWidget | undefined;
@@ -480,11 +482,11 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.pendingEdit ?? this.commentBodyValue);
 		this.pendingEdit = undefined;
-		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
+		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 		this._commentEditor.focus();
 
 		dom.scheduleAtNextAnimationFrame(() => {
-			this._commentEditor!.layout({ width: container.clientWidth - 14, height: 90 });
+			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
 		});
 
@@ -519,8 +521,28 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		}));
 
+		this.calculateEditorHeight();
+
+		this._register((this._commentEditorModel.onDidChangeContent(() => {
+			if (this._commentEditor && this.calculateEditorHeight()) {
+				this._commentEditor.layout({ height: this._editorHeight, width: this._commentEditor.getLayoutInfo().width });
+				this._commentEditor.render(true);
+			}
+		})));
+
 		this._register(this._commentEditor);
 		this._register(this._commentEditorModel);
+	}
+
+	private calculateEditorHeight(): boolean {
+		if (this._commentEditor) {
+			const newEditorHeight = calculateEditorHeight(this._commentEditor, this._editorHeight);
+			if (newEditorHeight !== this._editorHeight) {
+				this._editorHeight = newEditorHeight;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getPendingEdit(): string | undefined {
@@ -551,7 +573,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	layout() {
-		this._commentEditor?.layout();
+		this._commentEditor?.layout({ width: this._commentEditor.getLayoutInfo().width, height: this._editorHeight });
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
 		const scrollHeight = this._body.scrollHeight;
