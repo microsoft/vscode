@@ -138,12 +138,10 @@ declare module 'vscode' {
 		treeData: FileTreeData;
 	}
 
-	// FIXME@ulugbekna: my reservation with this type is that
-	// 	we already have a type called `TextDocumentContext` above passed to inline chat providers
 	export interface DocumentContext {
 		uri: Uri;
 		version: number;
-		ranges: Range[]; // @ulugbekna: we're making this an array of ranges rather than array of `DocumentContext`s, which should be less costly
+		ranges: Range[];
 	}
 
 	export interface InteractiveProgressUsedContext {
