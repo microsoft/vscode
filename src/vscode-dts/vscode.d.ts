@@ -6217,6 +6217,46 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Enumeration of commonly encountered syntax token types.
+	 */
+	export enum SyntaxTokenType {
+		/**
+		 * Everything except tokens that are part of comments, string literals and regular expressions.
+		 */
+		Other = 0,
+		/**
+		 * A comment.
+		 */
+		Comment = 1,
+		/**
+		 * A string literal.
+		 */
+		String = 2,
+		/**
+		 * A regular expression.
+		 */
+		RegEx = 3
+	}
+
+	/**
+	 * Describes pairs of strings where the close string will be automatically inserted when typing the opening string.
+	 */
+	export interface AutoClosingPair {
+		/**
+		 * The string that will trigger the automatic insertion of the closing string.
+		 */
+		open: string;
+		/**
+		 * The closing string that will be automatically inserted when typing the opening string.
+		 */
+		close: string;
+		/**
+		 * A set of tokens where the pair should not be auto closed.
+		 */
+		notIn?: SyntaxTokenType[];
+	}
+
+	/**
 	 * The language configuration interfaces defines the contract between extensions
 	 * and various editor features, like automatic bracket insertion, automatic indentation etc.
 	 */
@@ -6246,6 +6286,10 @@ declare module 'vscode' {
 		 * The language's rules to be evaluated when pressing Enter.
 		 */
 		onEnterRules?: OnEnterRule[];
+		/**
+		 * The language's auto closing pairs.
+		 */
+		autoClosingPairs?: AutoClosingPair[];
 
 		/**
 		 * **Deprecated** Do not use.

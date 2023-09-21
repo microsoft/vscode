@@ -1509,6 +1509,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,
+			SyntaxTokenType: extHostTypes.SyntaxTokenType,
 			TextDocumentChangeReason: extHostTypes.TextDocumentChangeReason,
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
@@ -1584,7 +1585,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,
-			NotebookCodeActionKind: extHostTypes.NotebookCodeActionKind,
 			RelatedInformationType: extHostTypes.RelatedInformationType
 		};
 	};

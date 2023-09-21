@@ -40,7 +40,7 @@ import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/c
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	private static AI_RELATED_INFORMATION_MAX_PICKS = 3;
+	private static AI_RELATED_INFORMATION_MAX_PICKS = 5;
 	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
 	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
@@ -163,13 +163,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			additionalPicks = await this.getRelatedInformationPicks(allPicks, picksSoFar, filter, token);
 		} catch (e) {
 			return [];
-		}
-
-		if (additionalPicks.length) {
-			additionalPicks.unshift({
-				type: 'separator',
-				label: localize('similarCommands', "similar commands")
-			});
 		}
 
 		if (picksSoFar.length || additionalPicks.length) {
