@@ -809,10 +809,10 @@ class SetListViewModeAction extends ViewAction<SCMSyncViewPane> {
 			viewId: SYNC_VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.listTree,
+			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.List),
 			menu: {
 				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID), ContextKeys.ViewMode.isEqualTo(ViewMode.Tree))
+				group: '1_viewmode'
 			}
 		});
 	}
@@ -831,10 +831,10 @@ class SetTreeViewModeAction extends ViewAction<SCMSyncViewPane>  {
 			viewId: SYNC_VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.listFlat,
+			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.Tree),
 			menu: {
 				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID), ContextKeys.ViewMode.isEqualTo(ViewMode.List))
+				group: '1_viewmode'
 			}
 		});
 	}
