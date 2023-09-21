@@ -735,6 +735,8 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		instance.focus();
 		await instance.sendPath(resource, false);
 	}
+
+	dispose(): void { }
 }
 
 class TabDecorationsProvider extends Disposable implements IDecorationsProvider {

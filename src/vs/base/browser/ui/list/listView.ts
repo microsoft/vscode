@@ -90,7 +90,8 @@ const DefaultOptions = {
 		getDragURI() { return null; },
 		onDragStart(): void { },
 		onDragOver() { return false; },
-		drop() { }
+		drop() { },
+		dispose() { }
 	},
 	horizontalScrolling: false,
 	transformOptimization: true,
@@ -436,7 +437,7 @@ export class ListView<T> implements IListView<T> {
 		this.setRowLineHeight = options.setRowLineHeight ?? DefaultOptions.setRowLineHeight;
 		this.setRowHeight = options.setRowHeight ?? DefaultOptions.setRowHeight;
 		this.supportDynamicHeights = options.supportDynamicHeights ?? DefaultOptions.supportDynamicHeights;
-		this.dnd = options.dnd ?? DefaultOptions.dnd;
+		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
 
 		this.layout(options.initialSize?.height, options.initialSize?.width);
 	}
@@ -1241,7 +1242,7 @@ export class ListView<T> implements IListView<T> {
 
 	private onDragLeave(event: IListDragEvent<T>): void {
 		this.onDragLeaveTimeout.dispose();
-		this.onDragLeaveTimeout = disposableTimeout(() => this.clearDragOverFeedback(), 100);
+		this.onDragLeaveTimeout = disposableTimeout(() => this.clearDragOverFeedback(), 100, this.disposables);
 		if (this.currentDragData) {
 			this.dnd.onDragLeave?.(this.currentDragData, event.element, event.index, event.browserEvent);
 		}
@@ -1299,7 +1300,7 @@ export class ListView<T> implements IListView<T> {
 				this.dragOverAnimationDisposable.dispose();
 				this.dragOverAnimationDisposable = undefined;
 			}
-		}, 1000);
+		}, 1000, this.disposables);
 
 		this.dragOverMouseY = event.pageY;
 	}
@@ -1544,6 +1545,7 @@ export class ListView<T> implements IListView<T> {
 			this.domNode.parentNode.removeChild(this.domNode);
 		}
 
-		dispose(this.disposables);
+		this.dragOverAnimationDisposable?.dispose();
+		this.disposables.dispose();
 	}
 }
