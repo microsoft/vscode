@@ -1510,7 +1510,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private redrawTabBorders(tabIndex: number, tabContainer: HTMLElement): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
 		const isTabLastSticky = isTabSticky && this.tabsModel.stickyCount === tabIndex + 1;
-		const showLastStickyTabBorderColor = !this.accessor.partOptions.pinnedTabsOnSeparateRow;
+		const showLastStickyTabBorderColor = this.tabsModel.stickyCount !== this.tabsModel.count;
 
 		// Borders / Outline
 		const borderRightColor = ((isTabLastSticky && showLastStickyTabBorderColor ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
