@@ -225,7 +225,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Only allow history navigation when the input is empty.
 			// (If this model change happened as a result of a history navigation, this is canceled out by a call in this.navigateHistory)
 			const model = this._inputEditor.getModel();
-			const inputHasText = !!model && model.getValue() !== '';
+			const inputHasText = !!model && model.getValueLength() > 0;
 			this.setHistoryNavigationEnablement(!inputHasText);
 			this.inputEditorHasText.set(inputHasText);
 		}));

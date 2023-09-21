@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { AutoOpenBarrier, Promises, timeout } from 'vs/base/common/async';
+import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon, getAllCodicons } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { ErrorNoTelemetry, onUnexpectedError } from 'vs/base/common/errors';
@@ -759,7 +759,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._lineDataEventAddon = lineDataEventAddon;
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
-		setTimeout(() => {
+		disposableTimeout(() => {
 			this._register(xterm.raw.onBell(() => {
 				if (this._configHelper.config.enableBell) {
 					this.statusList.add({
@@ -771,7 +771,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._audioCueService.playSound(AudioCue.terminalBell.sound.getSound());
 				}
 			}));
-		}, 1000);
+		}, 1000, this._store);
 		this._register(xterm.raw.onSelectionChange(async () => this._onSelectionChange()));
 		this._register(xterm.raw.buffer.onBufferChange(() => this._refreshAltBufferContextKey()));
 
@@ -1935,13 +1935,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// to show just the file name. This should only happen if the title looks like an
 				// absolute Windows file path
 				this._sequence = title;
-				if (this._processManager.os === OperatingSystem.Windows) {
-					if (title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
-						title = path.win32.parse(title).name;
-						this._sequence = title;
-					} else {
-						this._sequence = undefined;
-					}
+				if (this._processManager.os === OperatingSystem.Windows &&
+					title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
+					this._sequence = path.win32.parse(title).name;
 				}
 				break;
 		}
@@ -2181,7 +2177,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			items.push({ label: `$(${icon.id})`, description: `${icon.id}`, icon });
 		}
 		const result = await this._quickInputService.pick(items, {
-			matchOnDescription: true
+			matchOnDescription: true,
+			placeHolder: nls.localize('changeIcon', 'Select an icon for the terminal')
 		});
 		if (result) {
 			this._icon = result.icon;
@@ -2212,6 +2209,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
+		quickPick.placeholder = nls.localize('changeColor', 'Select a color for the terminal');
 		quickPick.show();
 		const disposables: IDisposable[] = [];
 		const result = await new Promise<IQuickPickItem | undefined>(r => {

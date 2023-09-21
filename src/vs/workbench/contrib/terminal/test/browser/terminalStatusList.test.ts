@@ -92,12 +92,17 @@ suite('Workbench - TerminalStatusList', () => {
 	});
 
 	test('onDidChangePrimaryStatus', async () => {
-		const result = await new Promise<ITerminalStatus>(r => {
-			store.add(list.onDidRemoveStatus(r));
+		const result = await new Promise<ITerminalStatus | undefined>(r => {
+			store.add(list.onDidChangePrimaryStatus(r));
 			list.add({ id: 'test', severity: Severity.Info });
-			list.remove('test');
 		});
 		deepStrictEqual(result, { id: 'test', severity: Severity.Info });
+	});
+
+	test('primary is not updated to status without an icon', async () => {
+		list.add({ id: 'test', severity: Severity.Info, icon: Codicon.check });
+		list.add({ id: 'warning', severity: Severity.Warning });
+		deepStrictEqual(list.primary, { id: 'test', severity: Severity.Info, icon: Codicon.check });
 	});
 
 	test('add', () => {

@@ -32,6 +32,8 @@ import { status } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
+import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
 
 const $ = dom.$;
 
@@ -50,28 +52,29 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 		])
 	}]);
 
-const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
+export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 export class EmptyTextEditorHintContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.emptyTextEditorHint';
 
-	private toDispose: IDisposable[];
+	protected toDispose: IDisposable[];
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | undefined;
 
 	constructor(
-		private readonly editor: ICodeEditor,
+		protected readonly editor: ICodeEditor,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
-		@IInlineChatService private readonly inlineChatService: IInlineChatService,
+		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
+		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.update()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
 				this.update();
@@ -89,16 +92,41 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}));
 	}
 
-	private update(): void {
-		this.textHintContentWidget?.dispose();
+	protected _shouldRenderHint() {
 		const configValue = this.configurationService.getValue(emptyTextEditorHintSetting);
+		if (configValue === 'hidden') {
+			return false;
+		}
+
+		if (this.editor.getOption(EditorOption.readOnly)) {
+			return false;
+		}
+
 		const model = this.editor.getModel();
+		const languageId = model?.getLanguageId();
+		if (!model || languageId === OUTPUT_MODE_ID || languageId === LOG_MODE_ID || languageId === SEARCH_RESULT_LANGUAGE_ID) {
+			return false;
+		}
+
+		const conflictingDecoration = this.editor.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		);
+		if (conflictingDecoration) {
+			return false;
+		}
 
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
-		const shouldRenderInlineChatHint = inlineChatProviders.length > 0;
-		const shouldRenderDefaultHint = model?.getLanguageId() === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
+		return inlineChatProviders.length > 0 || shouldRenderDefaultHint;
+	}
 
-		if (model && (model.uri.scheme === Schemas.untitled && shouldRenderDefaultHint || shouldRenderInlineChatHint) && configValue !== 'hidden') {
+	protected update(): void {
+		this.textHintContentWidget?.dispose();
+
+		if (this._shouldRenderHint()) {
 			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
 				this.editorGroupsService,
@@ -155,7 +183,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 	}
 
 	private onDidChangeModelContent(): void {
-		if (this.editor.getValue() === '') {
+		if (!this.editor.getModel()?.getValueLength()) {
 			this.editor.addContentWidget(this);
 			this.isVisible = true;
 		} else {

@@ -282,7 +282,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.addTooltipsToRow(rowElementGroup, item);
 
 		if (item.selected && listFocused) {
-			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
+			disposableTimeout(() => rowElement.focus(), undefined, this.listDisposables);
 		}
 
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, 'click', (e) => {

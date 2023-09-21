@@ -999,26 +999,12 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		return sorted;
 	}
 
-	private extname(file: URI): string {
-		const ext = resources.extname(file);
-		if (ext.length === 0) {
-			const basename = resources.basename(file);
-			if (basename.startsWith('.')) {
-				return basename;
-			}
-		} else {
-			return ext;
-		}
-		return '';
-	}
-
 	private filterFile(file: URI): boolean {
 		if (this.options.filters) {
-			const ext = this.extname(file);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
 					const testExt = this.options.filters[i].extensions[j];
-					if ((testExt === '*') || (ext === ('.' + testExt))) {
+					if ((testExt === '*') || (file.path.endsWith('.' + testExt))) {
 						return true;
 					}
 				}

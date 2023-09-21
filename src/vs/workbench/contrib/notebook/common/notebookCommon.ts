@@ -962,7 +962,9 @@ export const NotebookSetting = {
 	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
-	remoteSaving: 'notebook.experimental.remoteSave'
+	remoteSaving: 'notebook.experimental.remoteSave',
+	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
+	cellExecutionScroll: 'notebook.revealNextOnExecuteBehavior'
 } as const;
 
 export const enum CellStatusbarAlignment {

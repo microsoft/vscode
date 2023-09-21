@@ -224,7 +224,7 @@ export interface IChatService {
 	sendRequest(sessionId: string, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
-	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
+	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[]>;
 	clearSession(sessionId: string): void;
 	addRequest(context: any): void;
 	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;

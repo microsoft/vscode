@@ -96,7 +96,7 @@ export class LinesSliceCharSequence implements ISequence {
 		let score = 0;
 		if (prevCategory !== nextCategory) {
 			score += 10;
-			if (nextCategory === CharBoundaryCategory.WordUpper) {
+			if (prevCategory === CharBoundaryCategory.WordLower && nextCategory === CharBoundaryCategory.WordUpper) {
 				score += 1;
 			}
 		}

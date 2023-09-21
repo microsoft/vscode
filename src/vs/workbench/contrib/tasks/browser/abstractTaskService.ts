@@ -229,6 +229,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
 	private _willRestart: boolean = false;
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
+	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
+	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
+	public get isReconnected(): boolean { return this._tasksReconnected; }
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -342,11 +345,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
 		} else {
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			this._terminalService.whenConnected.then(() => {
 				if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 					this._attemptTaskReconnection();
+				} else {
+					this._tasksReconnected = true;
+					this._onDidReconnectToTasks.fire();
 				}
-			}));
+			});
 		}
 		this._upgrade();
 	}
@@ -384,6 +390,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		this.getWorkspaceTasks(TaskRunSource.Reconnect).then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
+			this._onDidReconnectToTasks.fire();
 		});
 	}
 
@@ -1862,6 +1869,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			const active = executeResult.active;
+			if (active && active.same && runSource === TaskRunSource.FolderOpen || runSource === TaskRunSource.Reconnect) {
+				// ignore, the task is already active, likely from being reconnected or from folder open.
+				this._logService.debug('Ignoring task that is already active', executeResult.task);
+				return executeResult.promise;
+			}
 			if (active && active.same) {
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
@@ -2760,6 +2772,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _runTaskCommand(filter?: string | ITaskIdentifier): Promise<void> {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		if (!filter) {
 			return this._doRunTaskCommand();
 		}
@@ -2877,7 +2892,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
-					this._doRunTaskCommand();
 					return Promise.resolve(undefined);
 				}
 			});
@@ -3034,6 +3048,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _runBuildCommand(): void {
+		if (!this._tasksReconnected) {
+			return;
+		}
 		return this._runTaskGroupCommand(TaskGroup.Build, {
 			fetching: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...'),
 			select: nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),

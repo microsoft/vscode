@@ -4,57 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore, IReference, ImmortalReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { IModelService } from 'vs/editor/common/services/model';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
-import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IReference, ImmortalReference, DisposableStore } from 'vs/base/common/lifecycle';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextSnapshot } from 'vs/editor/common/model';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
+import { IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
+import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkingCopyFileService, IMoveOperation, IDeleteOperation, ICopyOperation, ICreateFileOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITextSnapshot } from 'vs/editor/common/model';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { MainThreadBulkEdits } from 'vs/workbench/api/browser/mainThreadBulkEdits';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('MainThreadEditors', () => {
 
@@ -185,9 +186,11 @@ suite('MainThreadEditors', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test(`applyWorkspaceEdit returns false if model is changed by user`, () => {
 
-		const model = modelService.createModel('something', null, resource);
+		const model = disposables.add(modelService.createModel('something', null, resource));
 
 		const workspaceResourceEdit: IWorkspaceTextEditDto = {
 			resource: resource,
@@ -208,7 +211,7 @@ suite('MainThreadEditors', () => {
 
 	test(`issue #54773: applyWorkspaceEdit checks model version in race situation`, () => {
 
-		const model = modelService.createModel('something', null, resource);
+		const model = disposables.add(modelService.createModel('something', null, resource));
 
 		const workspaceResourceEdit1: IWorkspaceTextEditDto = {
 			resource: resource,

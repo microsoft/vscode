@@ -24,6 +24,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type EditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
@@ -219,7 +220,7 @@ export class MultiCommand extends Command {
 		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
 		for (const impl of this._implementations) {
 			if (impl.when) {
-				const context = contextKeyService.getContext(document.activeElement);
+				const context = contextKeyService.getContext(getActiveElement());
 				const value = impl.when.evaluate(context);
 				if (!value) {
 					continue;

@@ -54,7 +54,7 @@ export class ListService implements IListService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private lists: IRegisteredList[] = [];
 	private _lastFocusedWidget: WorkbenchListWidget | undefined = undefined;
 	private _hasCreatedStyleController: boolean = false;
@@ -1469,7 +1469,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['automatic', 'trigger'],
 			default: 'automatic',
-			description: localize('typeNavigationMode', "Controls the how type navigation works in lists and trees in the workbench. When set to 'trigger', type navigation begins once the 'list.triggerTypeNavigation' command is run."),
+			markdownDescription: localize('typeNavigationMode2', "Controls how type navigation works in lists and trees in the workbench. When set to `trigger`, type navigation begins once the `list.triggerTypeNavigation` command is run."),
 		}
 	}
 });
