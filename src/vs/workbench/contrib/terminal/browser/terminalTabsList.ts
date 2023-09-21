@@ -81,6 +81,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
+		const dnd = instantiationService.createInstance(TerminalTabsDragAndDrop);
 		super('TerminalTabsList', container,
 			{
 				getHeight: () => TerminalTabsListSizes.TabHeight,
@@ -98,7 +99,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				paddingBottom: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
+				dnd,
 				openOnSingleClick: true
 			},
 			contextKeyService,
@@ -106,6 +107,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			_configurationService,
 			instantiationService,
 		);
+		this.disposables.add(dnd);
 
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
@@ -559,14 +561,16 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 	}
 }
 
-class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
+class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 	private _primaryBackend: ITerminalBackend | undefined;
+
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
+		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
 
@@ -624,7 +628,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			this._autoFocusDisposable = disposableTimeout(() => {
 				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;
-			}, 500);
+			}, 500, this._store);
 		}
 
 		return {
