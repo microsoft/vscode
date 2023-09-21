@@ -247,7 +247,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
 
-		const _currentDecorations = this._editor.createDecorationsCollection();
+		const currentDecorations = this._editor.createDecorationsCollection();
 
 		const editorDom = this._editor.getDomNode();
 		if (!editorDom) {
@@ -265,11 +265,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
 				this._applyCodeAction(action, /* retrigger */ true, !!preview);
 				this._actionWidgetService.hide();
-				_currentDecorations.clear();
+				currentDecorations.clear();
 			},
 			onHide: () => {
 				this._editor?.focus();
-				_currentDecorations.clear();
+				currentDecorations.clear();
 			},
 			onHover: async (action: CodeActionItem, token: CancellationToken) => {
 				await action.resolve(token);
@@ -279,14 +279,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				return { canPreview: !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				if (action && action.toMark && action.action.diagnostics) {
+				if (action && action.highlightRange && action.action.diagnostics) {
 					const decorations: IModelDeltaDecoration[] = [{ range: action.action.diagnostics[0], options: CodeActionController.DECORATION }];
-					_currentDecorations.set(decorations);
+					currentDecorations.set(decorations);
 				} else {
-					_currentDecorations.clear();
+					currentDecorations.clear();
 				}
 			}
-
 		};
 
 		this._actionWidgetService.show(

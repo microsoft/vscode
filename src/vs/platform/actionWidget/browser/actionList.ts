@@ -314,13 +314,10 @@ export class ActionList<T> extends Disposable {
 		if (focused.length === 0) {
 			return;
 		}
-
 		const focusIndex = focused[0];
 		const element = this._list.element(focusIndex);
 		this._delegate.onFocus?.(element.item);
-
 	}
-
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
 		const element = e.element;

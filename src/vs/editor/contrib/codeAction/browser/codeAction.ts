@@ -57,7 +57,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 		}
 	}
 
-	public readonly validActions: CodeActionItem[];
+	public readonly validActions: readonly CodeActionItem[];
 	public readonly allActions: readonly CodeActionItem[];
 
 	public constructor(

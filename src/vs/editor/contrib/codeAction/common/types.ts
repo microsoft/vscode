@@ -193,7 +193,7 @@ export class CodeActionItem {
 	constructor(
 		public readonly action: languages.CodeAction,
 		public readonly provider: languages.CodeActionProvider | undefined,
-		public toMark?: boolean,
+		public highlightRange?: boolean,
 	) { }
 
 	async resolve(token: CancellationToken): Promise<this> {
@@ -213,7 +213,7 @@ export class CodeActionItem {
 }
 
 export interface CodeActionSet extends ActionSet<CodeActionItem> {
-	readonly validActions: CodeActionItem[];
+	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
 
 	readonly documentation: readonly languages.Command[];

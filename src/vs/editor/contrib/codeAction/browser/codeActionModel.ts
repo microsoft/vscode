@@ -216,19 +216,19 @@ export class CodeActionModel extends Disposable {
 						}
 
 						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : CodeActionKind.None);
+						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
 
 						if (!foundQuickfix) {
 							const allMarkers = this._markerService.read({ resource: model.uri });
 
 							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
 							if (allMarkers.length > 0) {
-								const currPosition: Position = trigger.selection.getPosition();
-								let trackedPosition: Position = currPosition;
+								const currPosition = trigger.selection.getPosition();
+								let trackedPosition = currPosition;
 								let distance = Number.MAX_VALUE;
 								let toBeModified = false;
 
-								allMarkers.forEach((marker: IMarker) => {
+								for (const marker of allMarkers) {
 									const col = marker.endColumn;
 									const row = marker.endLineNumber;
 									const startRow = marker.startLineNumber;
@@ -239,47 +239,41 @@ export class CodeActionModel extends Disposable {
 										toBeModified = true;
 										trackedPosition = new Position(row, col);
 									}
-								});
+								}
 
 								// Only retriggers if actually found quickfix on the same line as cursor
 								if (toBeModified) {
-
 									const newCodeActionTrigger: CodeActionTrigger = {
 										type: trigger.trigger.type,
 										triggerAction: trigger.trigger.triggerAction,
-										filter: { include: CodeActionKind.QuickFix },
+										filter: { include: trigger.trigger.filter?.include ? trigger.trigger.filter?.include : CodeActionKind.QuickFix },
 										autoApply: trigger.trigger.autoApply,
 										context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
 									};
 
 									const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
 									const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
+									const currentActions = [...codeActionSet.validActions];
 									if (actionsAtMarker.validActions.length !== 0) {
-
 										actionsAtMarker.validActions.forEach(action => {
-											action.toMark = action.action.isPreferred;
+											action.highlightRange = action.action.isPreferred;
 										});
-
 										// Already filtered through to only get quickfixes, so no need to filter again.
-										codeActionSet.validActions.push(...actionsAtMarker.validActions);
+										currentActions.push(...actionsAtMarker.validActions);
 									}
+									const newCodeActionSet: CodeActionSet = { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
+									return newCodeActionSet;
 								}
 							}
-							return codeActionSet;
-
 						}
 					}
-
 					// temporarilly hiding here as this is enabled/disabled behind a setting.
-					const codeActionSet = getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
-					return codeActionSet;
-
+					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
 
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
-
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
