@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -23,7 +23,7 @@ interface ITerminalData {
 	status: ITerminalStatus;
 	problemMatcher: AbstractProblemCollector;
 	taskRunEnded: boolean;
-	disposeListener?: IDisposable;
+	disposeListener?: MutableDisposable<IDisposable>;
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
@@ -50,14 +50,12 @@ export class TaskTerminalStatus extends Disposable {
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
 			}
 		}));
-	}
-
-	public override dispose(): void {
-		super.dispose();
-		for (const terminalData of this.terminalMap.values()) {
-			terminalData.disposeListener?.dispose();
-		}
-		this.terminalMap.clear();
+		this._register(toDisposable(() => {
+			for (const terminalData of this.terminalMap.values()) {
+				terminalData.disposeListener?.dispose();
+			}
+			this.terminalMap.clear();
+		}));
 	}
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
@@ -140,7 +138,8 @@ export class TaskTerminalStatus extends Disposable {
 			return;
 		}
 		if (!terminalData.disposeListener) {
-			terminalData.disposeListener = terminalData.terminal.onDisposed(() => {
+			terminalData.disposeListener = this._register(new MutableDisposable());
+			terminalData.disposeListener.value = terminalData.terminal.onDisposed(() => {
 				if (!event.terminalId) {
 					return;
 				}
