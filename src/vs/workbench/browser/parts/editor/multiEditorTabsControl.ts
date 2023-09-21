@@ -809,7 +809,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const tabActionRunner = new EditorCommandsContextActionRunner({
 			groupId: this.groupViewer.id,
 			get editorIndex() {
-				return that.getEditorIndex(tabIndex);
+				const editor = assertIsDefined(that.tabsModel.getEditorByIndex(tabIndex));
+
+				return that.groupViewer.getIndexOfEditor(editor);
 			},
 		});
 
@@ -1938,11 +1940,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		return undefined;
-	}
-
-	private getEditorIndex(tabIndex: number): number {
-		// Turning the tab index (relative) into an editor index (absolute)
-		return this.groupViewer.getIndexOfEditor(assertIsDefined(this.tabsModel.getEditorByIndex(tabIndex)));
 	}
 
 	private getLastTab(): HTMLElement | undefined {
