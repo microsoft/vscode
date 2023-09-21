@@ -21,7 +21,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 
 		this._register(this.model.onDidModelChange(e => {
 			const candidateOrIndex = e.editorIndex ?? e.editor;
-			if (typeof candidateOrIndex !== 'undefined') {
+			if (candidateOrIndex !== undefined) {
 				if (!this.filter(candidateOrIndex)) {
 					return; // exclude events for excluded items
 				}
@@ -62,7 +62,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	abstract indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number;
 	abstract contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
 
-	abstract filter(editorOrIndex: EditorInput | number): boolean;
+	protected abstract filter(editorOrIndex: EditorInput | number): boolean;
 }
 
 export class StickyEditorGroupModel extends FilteredEditorGroupModel {
@@ -107,7 +107,7 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 		return editorIndex >= 0 && editorIndex < this.model.stickyCount;
 	}
 
-	filter(candidateOrIndex: EditorInput | number): boolean {
+	protected filter(candidateOrIndex: EditorInput | number): boolean {
 		return this.model.isSticky(candidateOrIndex);
 	}
 }
@@ -152,7 +152,7 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 		return editorIndex >= this.model.stickyCount && editorIndex < this.model.count;
 	}
 
-	filter(candidateOrIndex: EditorInput | number): boolean {
+	protected filter(candidateOrIndex: EditorInput | number): boolean {
 		return !this.model.isSticky(candidateOrIndex);
 	}
 }
