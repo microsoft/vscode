@@ -14,7 +14,7 @@ import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -22,6 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -88,6 +89,7 @@ function createScreenReaderHelp(): IDisposable {
 		const editorService = accessor.get(IEditorService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const keybindingService = accessor.get(IKeybindingService);
+		const contextKeyService = accessor.get(IContextKeyService);
 
 		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
 		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
@@ -102,14 +104,18 @@ function createScreenReaderHelp(): IDisposable {
 		}
 
 		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
-
+		const content = [
+			localize('msg1', "You are in a diff editor."),
+			localize('msg2', "View the next {0} or previous {1} diff in diff review mode that is optimized for screen readers.", next, previous),
+			localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
+		];
+		const commentCommandInfo = getCommentCommandInfo(keybindingService, contextKeyService, codeEditor);
+		if (commentCommandInfo) {
+			content.push(commentCommandInfo);
+		}
 		accessibleViewService.show({
 			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
-			provideContent: () => [
-				localize('msg1', "You are in a diff editor."),
-				localize('msg2', "View the next {0} or previous {1} diff in diff review mode that is optimized for screen readers.", next, previous),
-				localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
-			].join('\n\n'),
+			provideContent: () => content.join('\n\n'),
 			onClose: () => {
 				codeEditor.focus();
 			},
