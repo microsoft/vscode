@@ -1830,16 +1830,19 @@ class MappedEditsAdapter {
 		const uri = URI.revive(resource);
 		const doc = this._documents.getDocument(uri);
 
+		const usedContext = context.documents.map((docSubArray) =>
+			docSubArray.map((r) => {
+				return {
+					uri: URI.revive(r.uri),
+					version: r.version,
+					ranges: r.ranges.map((range) => typeConvert.Range.to(range)),
+				};
+			})
+		);
+
 		const ctx = {
-			documents: context.documents.map((docSubArray) =>
-				docSubArray.map((r) => {
-					return {
-						uri: URI.revive(r.uri),
-						version: r.version,
-						ranges: r.ranges.map((range) => typeConvert.Range.to(range)),
-					};
-				})
-			),
+			documents: usedContext,
+			selections: usedContext[0]?.[0]?.ranges ?? [] // @ulugbekna: this is a hack for backward compatibility
 		};
 
 		const mappedEdits = await this._provider.provideMappedEdits(doc, codeBlocks, ctx, token);
