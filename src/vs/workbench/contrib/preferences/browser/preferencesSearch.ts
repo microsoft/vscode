@@ -172,8 +172,6 @@ export class SettingMatches {
 		const words = new Set<string>(searchString.split(' '));
 		const settingKeyAsWords: string = this._keyToLabel(setting.key);
 
-		const settingValue = this.configurationService.getValue(setting.key);
-
 		if (this.searchDescription) {
 			for (const word of words) {
 				// Search the description lines.
@@ -199,7 +197,7 @@ export class SettingMatches {
 		}
 		// For now, only allow a match if all words match in the key.
 		if (keyMatchingWords.size === words.size) {
-			this.matchType |= SettingMatchType.KeyMatchesAllWords;
+			this.matchType |= SettingMatchType.KeyMatch;
 		} else {
 			keyMatchingWords.clear();
 		}
@@ -225,18 +223,21 @@ export class SettingMatches {
 					valueMatchingWords.clear();
 				}
 			}
-		} else if (typeof settingValue === 'string') {
-			for (const word of words) {
-				const valueMatches = matchesContiguousSubString(word, settingValue);
-				if (valueMatches?.length) {
-					valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+		} else {
+			const settingValue = this.configurationService.getValue(setting.key);
+			if (typeof settingValue === 'string') {
+				for (const word of words) {
+					const valueMatches = matchesContiguousSubString(word, settingValue);
+					if (valueMatches?.length) {
+						valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+					}
 				}
-			}
-			if (valueMatchingWords.size === words.size) {
-				this.matchType |= SettingMatchType.DescriptionOrValueMatch;
-			} else {
-				// Clear out the match for now. We want to require all words to match in the value.
-				valueMatchingWords.clear();
+				if (valueMatchingWords.size === words.size) {
+					this.matchType |= SettingMatchType.DescriptionOrValueMatch;
+				} else {
+					// Clear out the match for now. We want to require all words to match in the value.
+					valueMatchingWords.clear();
+				}
 			}
 		}
 

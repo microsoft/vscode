@@ -140,8 +140,7 @@ export enum SettingMatchType {
 	None = 0,
 	RemoteMatch = 1 << 0,
 	DescriptionOrValueMatch = 1 << 1,
-	KeyMatch = 1 << 2,
-	KeyMatchesAllWords = 1 << 3
+	KeyMatch = 1 << 2
 }
 
 export interface ISettingMatch {
