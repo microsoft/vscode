@@ -257,7 +257,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	updateWidth(index: number): void;
-	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
+	updateElementHeight(index: number, size: number | undefined, scrollOptions?: { anchorIndex: number } | { keepInViewPadding: number }): void;
 	rerender(): void;
 	layout(height?: number, width?: number): void;
 }
@@ -499,7 +499,7 @@ export class ListView<T> implements IListView<T> {
 		this.scrollableElement.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
-	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null, keepInViewPadding?: number | undefined): void {
+	updateElementHeight(index: number, size: number | undefined, scrollOptions?: { anchorIndex: number } | { keepInViewPadding: number }): void {
 		if (index < 0 || index >= this.items.length) {
 			return;
 		}
@@ -527,13 +527,13 @@ export class ListView<T> implements IListView<T> {
 		if (index < lastRenderRange.start) {
 			// do not scroll the viewport if resized element is out of viewport
 			renderTopOverride = this.lastRenderTop + heightDiff;
-		} else if (keepInViewPadding) {
+		} else if (scrollOptions && 'keepInViewPadding' in scrollOptions) {
 			const elementBottom = this.elementTop(index) + size;
-			if (elementBottom - keepInViewPadding < this.lastRenderTop) {
+			if (elementBottom - scrollOptions.keepInViewPadding < this.lastRenderTop) {
 				// keep the element in view with provided padding
-				renderTopOverride = elementBottom - keepInViewPadding;
+				renderTopOverride = elementBottom - scrollOptions.keepInViewPadding;
 			}
-		} else if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
+		} else if (scrollOptions && !!scrollOptions.anchorIndex && scrollOptions.anchorIndex > index && scrollOptions.anchorIndex <= lastRenderRange.end) {
 			// anchor in viewport
 			// resized element in viewport and above the anchor
 			renderTopOverride = this.lastRenderTop + heightDiff;
