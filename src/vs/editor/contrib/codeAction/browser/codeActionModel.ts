@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { getCodeActions } from './codeAction';
