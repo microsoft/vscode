@@ -100,7 +100,9 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItem = element.context;
 		const historyItemGroup = historyItem.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
-		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
+		return element.childrenCount === 0 && element.element ?
+			`historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.element.uri.toString()}` :
+			`folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
@@ -295,9 +297,10 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 
 	renderElement(node: ITreeNode<SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
 		const historyItemChangeOrFolder = node.element;
+		const uri = ResourceTree.isResourceNode(historyItemChangeOrFolder) ? historyItemChangeOrFolder.element?.uri ?? historyItemChangeOrFolder.uri : historyItemChangeOrFolder.uri;
 		const fileKind = ResourceTree.isResourceNode(historyItemChangeOrFolder) && historyItemChangeOrFolder.childrenCount > 0 ? FileKind.FOLDER : FileKind.FILE;
 
-		templateData.fileLabel.setFile(node.element.uri, {
+		templateData.fileLabel.setFile(uri, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
 			hidePath: this.viewMode() === ViewMode.Tree,
@@ -626,7 +629,7 @@ class SCMSyncPaneViewModel {
 		return mode;
 	}
 
-	private async refresh(repository?: ISCMRepository): Promise<void> {
+	async refresh(repository?: ISCMRepository): Promise<void> {
 		if (this.repositories.size === 0) {
 			return;
 		}
@@ -685,7 +688,7 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			const historyItemGroup = historyProvider?.currentHistoryItemGroup;
 
 			if (!historyProvider || !historyItemGroup) {
-				return children;
+				return [];
 			}
 
 			// Action Button
@@ -698,94 +701,12 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 				} as ISCMActionButton);
 			}
 
-			// History item group base
-			const historyItemGroupBase = await historyProvider.resolveHistoryItemGroupBase(historyItemGroup.id);
-			if (!historyItemGroupBase) {
-				return children;
-			}
-
-			// Common ancestor, ahead, behind
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id);
-
-			// Incoming
-			if (historyItemGroupBase) {
-				children.push({
-					id: historyItemGroupBase.id,
-					label: `$(cloud-download) ${historyItemGroupBase.label}`,
-					description: localize('incoming', "Incoming Changes"),
-					ancestor: ancestor?.id,
-					count: ancestor?.behind ?? 0,
-					repository: element,
-					type: 'historyItemGroup'
-				} as SCMHistoryItemGroupTreeElement);
-			}
-
-			// Outgoing
-			if (historyItemGroup) {
-				children.push({
-					id: historyItemGroup.id,
-					label: `$(cloud-upload) ${historyItemGroup.label}`,
-					description: localize('outgoing', "Outgoing Changes"),
-					ancestor: ancestor?.id,
-					count: ancestor?.ahead ?? 0,
-					repository: element,
-					type: 'historyItemGroup'
-				} as SCMHistoryItemGroupTreeElement);
-			}
+			// History item groups
+			children.push(...await this.getHistoryItemGroups(element));
 		} else if (isSCMHistoryItemGroupTreeElement(element)) {
-			const scmProvider = element.repository.provider;
-			const historyProvider = scmProvider.historyProvider;
-
-			if (!historyProvider) {
-				return children;
-			}
-
-			const historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
-			children.push(...historyItems.map(historyItem => ({
-				id: historyItem.id,
-				label: historyItem.label,
-				description: historyItem.description,
-				icon: historyItem.icon,
-				historyItemGroup: element,
-				type: 'historyItem'
-			} as SCMHistoryItemTreeElement)));
+			children.push(...await this.getHistoryItems(element));
 		} else if (isSCMHistoryItemTreeElement(element)) {
-			const repository = element.historyItemGroup.repository;
-			const historyProvider = repository.provider.historyProvider;
-
-			if (!historyProvider) {
-				return children;
-			}
-
-			// History Item Changes
-			const changes = await historyProvider.provideHistoryItemChanges(element.id) ?? [];
-
-			if (this.viewMode() === ViewMode.List) {
-				// List
-				children.push(...changes.map(change => ({
-					uri: change.uri,
-					originalUri: change.originalUri,
-					modifiedUri: change.modifiedUri,
-					renameUri: change.renameUri,
-					historyItem: element,
-					type: 'historyItemChange'
-				} as SCMHistoryItemChangeTreeElement)));
-			} else {
-				// Tree
-				const tree = new ResourceTree<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>(element, repository.provider.rootUri ?? URI.file('/'), this.uriIdentityService.extUri);
-				for (const change of changes) {
-					tree.add(change.uri, {
-						uri: change.uri,
-						originalUri: change.originalUri,
-						modifiedUri: change.modifiedUri,
-						renameUri: change.renameUri,
-						historyItem: element,
-						type: 'historyItemChange'
-					} as SCMHistoryItemChangeTreeElement);
-				}
-
-				children.push(...tree.root.children);
-			}
+			children.push(...await this.getHistoryItemChanges(element));
 		} else if (ResourceTree.isResourceNode(element)) {
 			children.push(...element.children);
 		} else {
@@ -793,6 +714,131 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 		}
 
 		return children;
+	}
+
+	private async getHistoryItemGroups(element: ISCMRepository): Promise<SCMHistoryItemGroupTreeElement[]> {
+		const scmProvider = element.provider;
+		const historyProvider = scmProvider.historyProvider;
+		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
+
+		if (!historyProvider || !currentHistoryItemGroup) {
+			return [];
+		}
+
+		// History item group base
+		const historyItemGroupBase = await historyProvider.resolveHistoryItemGroupBase(currentHistoryItemGroup.id);
+		if (!historyItemGroupBase) {
+			return [];
+		}
+
+		// Common ancestor, ahead, behind
+		const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, historyItemGroupBase.id);
+
+		const children: SCMHistoryItemGroupTreeElement[] = [];
+		// Incoming
+		if (historyItemGroupBase) {
+			children.push({
+				id: historyItemGroupBase.id,
+				label: `$(cloud-download) ${historyItemGroupBase.label}`,
+				description: localize('incoming', "Incoming Changes"),
+				ancestor: ancestor?.id,
+				count: ancestor?.behind ?? 0,
+				repository: element,
+				type: 'historyItemGroup'
+			} as SCMHistoryItemGroupTreeElement);
+		}
+
+		// Outgoing
+		children.push({
+			id: currentHistoryItemGroup.id,
+			label: `$(cloud-upload) ${currentHistoryItemGroup.label}`,
+			description: localize('outgoing', "Outgoing Changes"),
+			ancestor: ancestor?.id,
+			count: ancestor?.ahead ?? 0,
+			repository: element,
+			type: 'historyItemGroup'
+		} as SCMHistoryItemGroupTreeElement);
+
+		return children;
+	}
+
+	private async getHistoryItems(element: SCMHistoryItemGroupTreeElement): Promise<SCMHistoryItemTreeElement[]> {
+		const scmProvider = element.repository.provider;
+		const historyProvider = scmProvider.historyProvider;
+
+		if (!historyProvider) {
+			return [];
+		}
+
+		const historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
+		return historyItems.map(historyItem => ({
+			id: historyItem.id,
+			label: historyItem.label,
+			description: historyItem.description,
+			icon: historyItem.icon,
+			historyItemGroup: element,
+			type: 'historyItem'
+		} as SCMHistoryItemTreeElement));
+	}
+
+	private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode)[]> {
+		const repository = element.historyItemGroup.repository;
+		const historyProvider = repository.provider.historyProvider;
+
+		if (!historyProvider) {
+			return [];
+		}
+
+		// History Item Changes
+		const changes = await historyProvider.provideHistoryItemChanges(element.id) ?? [];
+
+		if (this.viewMode() === ViewMode.List) {
+			// List
+			return changes.map(change => ({
+				uri: change.uri,
+				originalUri: change.originalUri,
+				modifiedUri: change.modifiedUri,
+				renameUri: change.renameUri,
+				historyItem: element,
+				type: 'historyItemChange'
+			} as SCMHistoryItemChangeTreeElement));
+		}
+
+		// Tree
+		const tree = new ResourceTree<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>(element, repository.provider.rootUri ?? URI.file('/'), this.uriIdentityService.extUri);
+		for (const change of changes) {
+			tree.add(change.uri, {
+				uri: change.uri,
+				originalUri: change.originalUri,
+				modifiedUri: change.modifiedUri,
+				renameUri: change.renameUri,
+				historyItem: element,
+				type: 'historyItemChange'
+			} as SCMHistoryItemChangeTreeElement);
+		}
+
+		return [...tree.root.children];
+	}
+
+}
+
+class RefreshAction extends ViewAction<SCMSyncViewPane> {
+	constructor() {
+		super({
+			id: 'workbench.scm.sync.action.refresh',
+			title: localize('refresh', "Refresh"),
+			viewId: SYNC_VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.refresh,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation'
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMSyncViewPane): Promise<void> {
+		view.viewModel.refresh();
 	}
 }
 
@@ -840,5 +886,6 @@ class SetTreeViewModeAction extends ViewAction<SCMSyncViewPane>  {
 	}
 }
 
+registerAction2(RefreshAction);
 registerAction2(SetListViewModeAction);
 registerAction2(SetTreeViewModeAction);

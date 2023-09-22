@@ -177,10 +177,10 @@ export class InlineChatWidget {
 	private readonly _previewCreateEditor: IdleValue<ICodeEditor>;
 	private readonly _previewCreateModel = this._store.add(new MutableDisposable());
 
-	private readonly _onDidChangeHeight = new MicrotaskEmitter<void>();
+	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
-	private readonly _onDidChangeInput = new Emitter<this>();
+	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
 	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
 
 	private _lastDim: Dimension | undefined;

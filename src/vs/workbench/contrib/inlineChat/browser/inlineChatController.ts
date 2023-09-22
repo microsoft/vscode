@@ -38,7 +38,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ISelection } from 'vs/editor/common/core/selection';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const enum State {
@@ -64,7 +64,7 @@ const enum Message {
 	RERUN_INPUT = 1 << 6,
 }
 
-export interface InlineChatRunOptions {
+export abstract class InlineChatRunOptions {
 	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
@@ -72,6 +72,19 @@ export interface InlineChatRunOptions {
 	existingSession?: Session;
 	isUnstashed?: boolean;
 	position?: IPosition;
+
+	static isInteractiveEditorOptions(options: any): options is InlineChatRunOptions {
+		const { initialSelection, initialRange, message, autoSend, position } = options;
+		if (
+			typeof message !== 'undefined' && typeof message !== 'string'
+			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
+			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)
+			|| typeof initialSelection !== 'undefined' && !Selection.isISelection(initialSelection)
+			|| typeof position !== 'undefined' && !Position.isIPosition(position)) {
+			return false;
+		}
+		return true;
+	}
 }
 
 export class InlineChatController implements IEditorContribution {
