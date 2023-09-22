@@ -139,6 +139,10 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
 			this._activeRequestProgressCallbacks.get(id)?.({ ...progress, resolvedContent: deferredContentPromise.p });
 			return this._responsePartHandlePool;
+		} else if ('reference' in progress) {
+			// TODO@roblourens, jrieken
+			// this is a placeholder for references that have been considered
+			return;
 		} else if (responsePartHandle) {
 			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${id}_${responsePartHandle}`;
