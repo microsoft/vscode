@@ -672,7 +672,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (issueType !== IssueType.FeatureRequest) {
-			sourceSelect.append(this.makeOption('', localize('unknown', "Don't know"), false));
+			sourceSelect.append(this.makeOption('unknown', localize('unknown', "Don't know"), false));
 		}
 
 		if (selected !== -1 && selected < sourceSelect.options.length) {
