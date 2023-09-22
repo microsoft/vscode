@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from 'vs/base/common/filters';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { TfIdfCalculator, normalizeTfIdfScores } from 'vs/base/common/tfIdf';
@@ -71,7 +71,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			return [];
 		}
 
-		const runTfidf = once(() => {
+		const runTfidf = createSingleCallFunction(() => {
 			const tfidf = new TfIdfCalculator();
 			tfidf.updateDocuments(allCommandPicks.map(commandPick => ({
 				key: commandPick.commandId,

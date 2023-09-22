@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate, IContextMenuEvent } from 'vs/base/browser/contextmenu';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
@@ -93,7 +93,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		const actions = delegate.getActions();
 		if (actions.length) {
-			const onHide = once(() => {
+			const onHide = createSingleCallFunction(() => {
 				delegate.onHide?.(false);
 
 				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();

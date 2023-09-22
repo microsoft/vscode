@@ -16,7 +16,7 @@ import { EditorScopedLayoutService } from 'vs/editor/standalone/browser/standalo
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { QuickInputController, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInputController';
 import { QuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 
 class EditorScopedQuickInputService extends QuickInputService {
@@ -73,7 +73,7 @@ export class StandaloneQuickInputService implements IQuickInputService {
 			const newQuickInputService = quickInputService = this.instantiationService.createInstance(EditorScopedQuickInputService, editor);
 			this.mapEditorToService.set(editor, quickInputService);
 
-			once(editor.onDidDispose)(() => {
+			createSingleCallFunction(editor.onDidDispose)(() => {
 				newQuickInputService.dispose();
 				this.mapEditorToService.delete(editor);
 			});
