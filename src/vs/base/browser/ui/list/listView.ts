@@ -528,7 +528,7 @@ export class ListView<T> implements IListView<T> {
 			// do not scroll the viewport if resized element is out of viewport
 			heightDiff = size - originalSize;
 		} else {
-			if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
+			if (anchorIndex !== null && anchorIndex > index && anchorIndex < lastRenderRange.end) {
 				// anchor in viewport
 				// resized element in viewport and above the anchor
 				heightDiff = size - originalSize;
