@@ -35,7 +35,6 @@ export class CommandCenterControl {
 		hoverDelegate: IHoverDelegate,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this.element.classList.add('command-center');
 

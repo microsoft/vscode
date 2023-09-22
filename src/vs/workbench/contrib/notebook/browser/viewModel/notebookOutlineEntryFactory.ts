@@ -13,7 +13,6 @@ import { OutlineEntry } from './OutlineEntry';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IRange } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
 import { SymbolKind } from 'vs/editor/common/languages';
 
 type entryDesc = {
@@ -94,7 +93,8 @@ export class NotebookOutlineEntryFactory {
 		return entries;
 	}
 
-	public async cacheSymbols(textModel: ITextModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
+	public async cacheSymbols(cell: ICellViewModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
+		const textModel = await cell.resolveTextModel();
 		const outlineModel = await outlineModelService.getOrCreate(textModel, cancelToken);
 		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
 		this.cellOutlineEntryCache[textModel.id] = entries;

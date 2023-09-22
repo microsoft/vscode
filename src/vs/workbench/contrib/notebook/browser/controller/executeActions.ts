@@ -457,7 +457,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 		const languageService = accessor.get(ILanguageService);
 
 		const config = accessor.get(IConfigurationService);
-		const scrollBehavior = config.getValue(NotebookSetting.cellExecutionScroll);
+		const scrollBehavior = config.getValue(NotebookSetting.scrollToRevealCell);
 		let focusOptions: IFocusNotebookCellOptions;
 		if (scrollBehavior === 'none') {
 			focusOptions = { skipReveal: true };

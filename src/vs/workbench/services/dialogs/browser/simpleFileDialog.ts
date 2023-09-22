@@ -828,6 +828,9 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
+			} else if (statDirname.readonly || statDirname.locked) {
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateReadonlyFolder', 'This folder cannot be used as a save destination. Please choose another folder');
+				return Promise.resolve(false);
 			}
 		} else { // open
 			if (!stat) {
