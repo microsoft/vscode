@@ -14,30 +14,45 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenEvent, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ActionButtonRenderer } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { getActionViewItemProvider, isSCMActionButton, isSCMRepository, isSCMRepositoryArray } from 'vs/workbench/contrib/scm/browser/util';
-import { ISCMActionButton, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMActionButton, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, SYNC_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { comparePaths } from 'vs/base/common/comparers';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
 import { localize } from 'vs/nls';
 import { Iterable } from 'vs/base/common/iterator';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { basename, dirname } from 'vs/base/common/resources';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { stripIcons } from 'vs/base/common/iconLabels';
+import { FileKind } from 'vs/platform/files/common/files';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Emitter } from 'vs/base/common/event';
+import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
+import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement;
+type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
+type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode;
 
 function isSCMHistoryItemGroupTreeElement(obj: any): obj is SCMHistoryItemGroupTreeElement {
 	return (obj as SCMHistoryItemGroupTreeElement).type === 'historyItemGroup';
@@ -59,7 +74,7 @@ function toDiffEditorArguments(uri: URI, originalUri: URI, modifiedUri: URI): un
 	const originalShortRef = originalQuery.ref.substring(0, 8).concat(originalQuery.ref.endsWith('^') ? '^' : '');
 	const modifiedShortRef = modifiedQuery.ref.substring(0, 8).concat(modifiedQuery.ref.endsWith('^') ? '^' : '');
 
-	return [originalUri, modifiedUri, `${basename} (${originalShortRef}) ↔ ${basename} (${modifiedShortRef})`];
+	return [originalUri, modifiedUri, `${basename} (${originalShortRef}) ↔ ${basename} (${modifiedShortRef})`, null];
 }
 
 function getSCMResourceId(element: TreeElement): string {
@@ -81,10 +96,24 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItemGroup = historyItem.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
 		return `historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.uri.toString()}`;
+	} else if (ResourceTree.isResourceNode(element)) {
+		const historyItem = element.context;
+		const historyItemGroup = historyItem.historyItemGroup;
+		const provider = historyItemGroup.repository.provider;
+		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
 }
+
+const enum ViewMode {
+	List = 'list',
+	Tree = 'tree'
+}
+
+const ContextKeys = {
+	ViewMode: new RawContextKey<ViewMode>('scmSyncViewMode', ViewMode.List),
+};
 
 interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
 	readonly description?: string;
@@ -125,10 +154,24 @@ class ListDelegate implements IListVirtualDelegate<any> {
 			return HistoryItemRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
+		} else if (ResourceTree.isResourceNode(element)) {
+			return HistoryItemChangeRenderer.TEMPLATE_ID;
 		} else {
 			throw new Error('Invalid tree element');
 		}
 	}
+}
+
+class CompressionDelegate implements ITreeCompressionDelegate<TreeElement> {
+
+	isIncompressible(element: TreeElement): boolean {
+		if (ResourceTree.isResourceNode(element)) {
+			return element.childrenCount === 0 || !element.parent || !element.parent.parent;
+		}
+
+		return true;
+	}
+
 }
 
 interface HistoryItemGroupTemplate {
@@ -169,8 +212,8 @@ interface HistoryItemTemplate {
 	readonly iconContainer: HTMLElement;
 	// readonly avatarImg: HTMLImageElement;
 	readonly iconLabel: IconLabel;
-	readonly timestampContainer: HTMLElement;
-	readonly timestamp: HTMLSpanElement;
+	// readonly timestampContainer: HTMLElement;
+	// readonly timestamp: HTMLSpanElement;
 	readonly disposables: IDisposable;
 }
 
@@ -189,10 +232,10 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemTreeElement, vo
 		const iconContainer = prepend(iconLabel.element, $('.icon-container'));
 		// const avatarImg = append(iconContainer, $('img.avatar')) as HTMLImageElement;
 
-		const timestampContainer = append(iconLabel.element, $('.timestamp-container'));
-		const timestamp = append(timestampContainer, $('span.timestamp'));
+		// const timestampContainer = append(iconLabel.element, $('.timestamp-container'));
+		// const timestamp = append(timestampContainer, $('span.timestamp'));
 
-		return { iconContainer, iconLabel, timestampContainer, timestamp, disposables: new DisposableStore() };
+		return { iconContainer, iconLabel, disposables: new DisposableStore() };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -231,12 +274,15 @@ interface HistoryItemChangeTemplate {
 	readonly disposables: IDisposable;
 }
 
-class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTreeElement, void, HistoryItemChangeTemplate> {
+class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode, void, HistoryItemChangeTemplate> {
 
 	static readonly TEMPLATE_ID = 'historyItemChange';
 	get templateId(): string { return HistoryItemChangeRenderer.TEMPLATE_ID; }
 
-	constructor(private labels: ResourceLabels) { }
+	constructor(
+		private readonly viewMode: () => ViewMode,
+		private readonly labels: ResourceLabels,
+		@ILabelService private labelService: ILabelService) { }
 
 	renderTemplate(container: HTMLElement): HistoryItemChangeTemplate {
 		const element = append(container, $('.change'));
@@ -247,10 +293,27 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 		return { element, name, fileLabel, decorationIcon, disposables: new DisposableStore() };
 	}
 
-	renderElement(node: ITreeNode<SCMHistoryItemChangeTreeElement, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
+	renderElement(node: ITreeNode<SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
+		const historyItemChangeOrFolder = node.element;
+		const fileKind = ResourceTree.isResourceNode(historyItemChangeOrFolder) && historyItemChangeOrFolder.childrenCount > 0 ? FileKind.FOLDER : FileKind.FILE;
+
 		templateData.fileLabel.setFile(node.element.uri, {
 			fileDecorations: { colors: false, badges: true },
-			hidePath: false,
+			fileKind,
+			hidePath: this.viewMode() === ViewMode.Tree,
+		});
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode>, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
+		const compressed = node.element as ICompressedTreeNode<SCMHistoryItemChangeResourceTreeNode>;
+
+		const folder = compressed.elements[compressed.elements.length - 1];
+		const label = compressed.elements.map(e => e.name);
+
+		templateData.fileLabel.setResource({ resource: folder.uri, name: label }, {
+			fileDecorations: { colors: false, badges: true },
+			fileKind: FileKind.FOLDER,
+			separator: this.labelService.getSeparator(folder.uri.scheme)
 		});
 	}
 
@@ -261,8 +324,41 @@ class HistoryItemChangeRenderer implements ITreeRenderer<SCMHistoryItemChangeTre
 
 class SCMSyncViewPaneAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
+	constructor(
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	) { }
+
 	getAriaLabel(element: TreeElement): string {
-		// TODO - add aria labels
+		if (isSCMRepository(element)) {
+			let folderName = '';
+			if (element.provider.rootUri) {
+				const folder = this.workspaceContextService.getWorkspaceFolder(element.provider.rootUri);
+
+				if (folder?.uri.toString() === element.provider.rootUri.toString()) {
+					folderName = folder.name;
+				} else {
+					folderName = basename(element.provider.rootUri);
+				}
+			}
+			return `${folderName} ${element.provider.label}`;
+		} else if (isSCMHistoryItemGroupTreeElement(element)) {
+			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
+		} else if (isSCMActionButton(element)) {
+			return element.button?.command.title ?? '';
+		} else if (isSCMHistoryItemTreeElement(element)) {
+			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
+		} else if (isSCMHistoryItemChangeTreeElement(element)) {
+			const result = [basename(element.uri)];
+			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
+
+			if (path) {
+				result.push(path);
+			}
+
+			return result.join(', ');
+		}
+
 		return '';
 	}
 	getWidgetAriaLabel(): string {
@@ -327,7 +423,8 @@ class SCMSyncViewPaneTreeSorter implements ITreeSorter<TreeElement> {
 export class SCMSyncViewPane extends ViewPane {
 
 	private listLabels!: ResourceLabels;
-	private _tree!: WorkbenchAsyncDataTree<TreeElement, TreeElement>;
+	private treeContainer!: HTMLElement;
+	private _tree!: WorkbenchCompressibleAsyncDataTree<TreeElement, TreeElement>;
 
 	private _viewModel!: SCMSyncPaneViewModel;
 	get viewModel(): SCMSyncPaneViewModel { return this._viewModel; }
@@ -353,35 +450,46 @@ export class SCMSyncViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		const treeContainer = append(container, $('.scm-view.scm-sync-view.file-icon-themable-tree'));
+		this.treeContainer = append(container, $('.scm-view.scm-sync-view'));
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
 		this._tree = this.instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+			WorkbenchCompressibleAsyncDataTree,
 			'SCM Sync View',
-			treeContainer,
+			this.treeContainer,
 			new ListDelegate(),
+			new CompressionDelegate(),
 			[
 				this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ActionButtonRenderer),
 				this.instantiationService.createInstance(HistoryItemGroupRenderer),
 				this.instantiationService.createInstance(HistoryItemRenderer),
-				this.instantiationService.createInstance(HistoryItemChangeRenderer, this.listLabels),
+				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewModel.mode, this.listLabels),
 			],
-			this.instantiationService.createInstance(SCMSyncDataSource),
+			this.instantiationService.createInstance(SCMSyncDataSource, () => this.viewModel.mode),
 			{
+				compressionEnabled: true,
 				horizontalScrolling: false,
-				accessibilityProvider: new SCMSyncViewPaneAccessibilityProvider(),
-				identityProvider: new SCMSyncViewPaneTreeIdentityProvider(),
-				sorter: new SCMSyncViewPaneTreeSorter(),
-			}) as WorkbenchAsyncDataTree<TreeElement, TreeElement>;
+				autoExpandSingleChildren: true,
+				collapseByDefault: (e) => !ResourceTree.isResourceNode(e),
+				accessibilityProvider: this.instantiationService.createInstance(SCMSyncViewPaneAccessibilityProvider),
+				identityProvider: this.instantiationService.createInstance(SCMSyncViewPaneTreeIdentityProvider),
+				sorter: this.instantiationService.createInstance(SCMSyncViewPaneTreeSorter),
+			}) as WorkbenchCompressibleAsyncDataTree<TreeElement, TreeElement>;
 
 		this._register(this._tree);
 		this._register(this._tree.onDidOpen(this.onDidOpen, this));
 
 		this._viewModel = this.instantiationService.createInstance(SCMSyncPaneViewModel, this._tree);
+
+		this.treeContainer.classList.add('file-icon-themable-tree');
+		this.treeContainer.classList.add('show-file-icons');
+
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -389,14 +497,30 @@ export class SCMSyncViewPane extends ViewPane {
 		this._tree.layout(height, width);
 	}
 
+	private onDidChangeMode(): void {
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+	}
+
 	private async onDidOpen(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
 		if (!e.element) {
 			return;
-		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
+		}
+
+		if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
-				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri));
+				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
+			}
+		} else if (ResourceTree.isResourceNode(e.element) && e.element.childrenCount === 0) {
+			if (e.element.element?.originalUri && e.element.element?.modifiedUri) {
+				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.element.uri, e.element.element.originalUri, e.element.element.modifiedUri), e);
 			}
 		}
+	}
+
+	private updateIndentStyles(theme: any): void {
+		this.treeContainer.classList.toggle('list-view-mode', this._viewModel.mode === ViewMode.List);
+		this.treeContainer.classList.toggle('tree-view-mode', this._viewModel.mode === ViewMode.Tree);
+		this.treeContainer.classList.toggle('align-icons-and-twisties', (this._viewModel.mode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
 	}
 
 	override dispose(): void {
@@ -407,6 +531,26 @@ export class SCMSyncViewPane extends ViewPane {
 
 class SCMSyncPaneViewModel {
 
+	private readonly _onDidChangeMode = new Emitter<ViewMode>();
+	readonly onDidChangeMode = this._onDidChangeMode.event;
+
+	private _mode: ViewMode;
+	get mode(): ViewMode { return this._mode; }
+	set mode(mode: ViewMode) {
+		if (this._mode === mode) {
+			return;
+		}
+
+		this._mode = mode;
+
+		this.refresh();
+		this.modeContextKey.set(mode);
+		this._onDidChangeMode.fire(mode);
+
+		this.storageService.store(`scm.syncViewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private modeContextKey: IContextKey<ViewMode>;
 	private repositories = new Map<ISCMRepository, IDisposable>();
 	private historyProviders = new Map<ISCMRepository, IDisposable>();
 
@@ -415,19 +559,25 @@ class SCMSyncPaneViewModel {
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		private readonly tree: WorkbenchAsyncDataTree<TreeElement, TreeElement>,
+		private readonly tree: WorkbenchCompressibleAsyncDataTree<TreeElement, TreeElement>,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISCMViewService scmViewService: ISCMViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-
+		@IStorageService private readonly storageService: IStorageService,
 	) {
-		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-		this.onDidChangeConfiguration();
+		configurationService.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this.disposables);
+		this._onDidChangeConfiguration();
 
 		scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this.disposables);
 		this._onDidChangeVisibleRepositories({ added: scmViewService.visibleRepositories, removed: [] });
+
+		this._mode = this.getViewMode();
+
+		this.modeContextKey = ContextKeys.ViewMode.bindTo(contextKeyService);
+		this.modeContextKey.set(this._mode);
 	}
 
-	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+	private _onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
 		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
 			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
 			this.refresh();
@@ -439,10 +589,13 @@ class SCMSyncPaneViewModel {
 			const repositoryDisposable = repository.provider.onDidChangeHistoryProvider(() => this._onDidChangeHistoryProvider(repository));
 			this._onDidChangeHistoryProvider(repository);
 
-			this.repositories.set(repository, { dispose() { repositoryDisposable.dispose(); } });
+			this.repositories.set(repository, repositoryDisposable);
 		}
 
 		for (const repository of removed) {
+			this.historyProviders.get(repository)?.dispose();
+			this.historyProviders.delete(repository);
+
 			this.repositories.get(repository)?.dispose();
 			this.repositories.delete(repository);
 		}
@@ -461,6 +614,16 @@ class SCMSyncPaneViewModel {
 			this.historyProviders.get(repository)?.dispose();
 			this.historyProviders.delete(repository);
 		}
+	}
+
+	private getViewMode(): ViewMode {
+		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewMode.List : ViewMode.Tree;
+		const storageMode = this.storageService.get(`scm.syncViewMode`, StorageScope.WORKSPACE) as ViewMode;
+		if (typeof storageMode === 'string') {
+			mode = storageMode;
+		}
+
+		return mode;
 	}
 
 	private async refresh(repository?: ISCMRepository): Promise<void> {
@@ -487,6 +650,10 @@ class SCMSyncPaneViewModel {
 
 class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 
+	constructor(
+		private readonly viewMode: () => ViewMode,
+		@IUriIdentityService private uriIdentityService: IUriIdentityService) { }
+
 	hasChildren(element: TreeElement): boolean {
 		if (isSCMRepositoryArray(element)) {
 			return true;
@@ -500,6 +667,8 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			return true;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			return false;
+		} else if (ResourceTree.isResourceNode(element)) {
+			return element.childrenCount > 0;
 		} else {
 			throw new Error('hasChildren not implemented.');
 		}
@@ -542,8 +711,8 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			if (historyItemGroupBase) {
 				children.push({
 					id: historyItemGroupBase.id,
-					label: localize('incoming', "$(cloud-download) Incoming Changes"),
-					description: historyItemGroupBase.label,
+					label: `$(cloud-download) ${historyItemGroupBase.label}`,
+					description: localize('incoming', "Incoming Changes"),
 					ancestor: ancestor?.id,
 					count: ancestor?.behind ?? 0,
 					repository: element,
@@ -555,8 +724,8 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 			if (historyItemGroup) {
 				children.push({
 					id: historyItemGroup.id,
-					label: localize('outgoing', "$(cloud-upload) Outgoing Changes"),
-					description: historyItemGroup.label,
+					label: `$(cloud-upload) ${historyItemGroup.label}`,
+					description: localize('outgoing', "Outgoing Changes"),
 					ancestor: ancestor?.id,
 					count: ancestor?.ahead ?? 0,
 					repository: element,
@@ -590,14 +759,35 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 
 			// History Item Changes
 			const changes = await historyProvider.provideHistoryItemChanges(element.id) ?? [];
-			children.push(...changes.map(change => ({
-				uri: change.uri,
-				originalUri: change.originalUri,
-				modifiedUri: change.modifiedUri,
-				renameUri: change.renameUri,
-				historyItem: element,
-				type: 'historyItemChange'
-			} as SCMHistoryItemChangeTreeElement)));
+
+			if (this.viewMode() === ViewMode.List) {
+				// List
+				children.push(...changes.map(change => ({
+					uri: change.uri,
+					originalUri: change.originalUri,
+					modifiedUri: change.modifiedUri,
+					renameUri: change.renameUri,
+					historyItem: element,
+					type: 'historyItemChange'
+				} as SCMHistoryItemChangeTreeElement)));
+			} else {
+				// Tree
+				const tree = new ResourceTree<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>(element, repository.provider.rootUri ?? URI.file('/'), this.uriIdentityService.extUri);
+				for (const change of changes) {
+					tree.add(change.uri, {
+						uri: change.uri,
+						originalUri: change.originalUri,
+						modifiedUri: change.modifiedUri,
+						renameUri: change.renameUri,
+						historyItem: element,
+						type: 'historyItemChange'
+					} as SCMHistoryItemChangeTreeElement);
+				}
+
+				children.push(...tree.root.children);
+			}
+		} else if (ResourceTree.isResourceNode(element)) {
+			children.push(...element.children);
 		} else {
 			throw new Error('getChildren Method not implemented.');
 		}
@@ -605,3 +795,50 @@ class SCMSyncDataSource implements IAsyncDataSource<TreeElement, TreeElement> {
 		return children;
 	}
 }
+
+class SetListViewModeAction extends ViewAction<SCMSyncViewPane> {
+
+	constructor() {
+		super({
+			id: 'workbench.scm.sync.action.setListViewMode',
+			title: localize('setListViewMode', "View as List"),
+			viewId: SYNC_VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.listTree,
+			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.List),
+			menu: {
+				id: MenuId.ViewTitle,
+				group: '1_viewmode'
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMSyncViewPane): Promise<void> {
+		view.viewModel.mode = ViewMode.List;
+	}
+}
+
+class SetTreeViewModeAction extends ViewAction<SCMSyncViewPane>  {
+
+	constructor() {
+		super({
+			id: 'workbench.scm.sync.action.setTreeViewMode',
+			title: localize('setTreeViewMode', "View as Tree"),
+			viewId: SYNC_VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.listFlat,
+			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.Tree),
+			menu: {
+				id: MenuId.ViewTitle,
+				group: '1_viewmode'
+			}
+		});
+	}
+
+	async runInView(_: ServicesAccessor, view: SCMSyncViewPane): Promise<void> {
+		view.viewModel.mode = ViewMode.Tree;
+	}
+}
+
+registerAction2(SetListViewModeAction);
+registerAction2(SetTreeViewModeAction);

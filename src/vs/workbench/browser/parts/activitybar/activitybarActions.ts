@@ -351,7 +351,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 				if (account.canSignOut) {
 					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), undefined, true, async () => {
 						const allSessions = await this.authenticationService.getSessions(providerId);
-						const sessionsForAccount = allSessions.filter(s => s.account.id === account.id);
+						const sessionsForAccount = allSessions.filter(s => s.account.label === account.label);
 						return await this.authenticationService.removeAccountSessions(providerId, account.label, sessionsForAccount);
 					}));
 					providerSubMenuActions.push(signOutAction);
@@ -399,34 +399,35 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
 	private async addOrUpdateAccount(providerId: string, account: AuthenticationSessionAccount): Promise<void> {
 		let accounts = this.groupedAccounts.get(providerId);
-		if (accounts) {
-			const existingAccount = accounts.find(a => a.id === account.id);
-			if (existingAccount) {
-				// Update the label if it has changed
-				if (existingAccount.label !== account.label) {
-					existingAccount.label = account.label;
-				}
-				return;
-			}
-		} else {
+		if (!accounts) {
 			accounts = [];
 			this.groupedAccounts.set(providerId, accounts);
 		}
 
 		const sessionFromEmbedder = await this.sessionFromEmbedder.value;
-		// If the session stored from the embedder allows sign out, then we can treat it and all others as sign out-able
-		let canSignOut = !!sessionFromEmbedder?.canSignOut;
-		if (!canSignOut) {
-			if (sessionFromEmbedder?.id) {
-				const sessions = (await this.authenticationService.getSessions(providerId)).filter(s => s.account.id === account.id);
-				canSignOut = !sessions.some(s => s.id === sessionFromEmbedder.id);
-			} else {
-				// The default if we don't have a session from the embedder is to allow sign out
-				canSignOut = true;
-			}
+		let canSignOut = true;
+		if (
+			sessionFromEmbedder												// if we have a session from the embedder
+			&& !sessionFromEmbedder.canSignOut								// and that session says we can't sign out
+			&& (await this.authenticationService.getSessions(providerId))	// and that session is associated with the account we are adding/updating
+				.some(s =>
+					s.id === sessionFromEmbedder.id
+					&& s.account.id === account.id
+				)
+		) {
+			canSignOut = false;
 		}
 
-		accounts.push({ ...account, canSignOut });
+		const existingAccount = accounts.find(a => a.label === account.label);
+		if (existingAccount) {
+			// if we have an existing account and we discover that we
+			// can't sign out of it, update the account to mark it as "can't sign out"
+			if (!canSignOut) {
+				existingAccount.canSignOut = canSignOut;
+			}
+		} else {
+			accounts.push({ ...account, canSignOut });
+		}
 	}
 
 	private removeAccount(providerId: string, account: AuthenticationSessionAccount): void {
@@ -492,7 +493,6 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.updateProfileBadge()));
 	}
 
 	override render(container: HTMLElement): void {

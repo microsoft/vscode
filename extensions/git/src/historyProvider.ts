@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon } from 'vscode';
-import { Repository } from './repository';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
+import { Repository, Resource } from './repository';
 import { IDisposable } from './util';
 import { toGitUri } from './uri';
 import { SyncActionButton } from './actionButton';
+import { Status } from './api/git';
 
-export class GitHistoryProvider implements SourceControlHistoryProvider, IDisposable {
+export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
 	private readonly _onDidChangeActionButton = new EventEmitter<void>();
 	readonly onDidChangeActionButton: Event<void> = this._onDidChangeActionButton.event;
 
 	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup: Event<void> = this._onDidChangeCurrentHistoryItemGroup.event;
+
+	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
+	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private _actionButton: SourceControlActionButton | undefined;
 	get actionButton(): SourceControlActionButton | undefined { return this._actionButton; }
@@ -33,6 +37,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
 
+	private historyItemDecorations = new Map<string, FileDecoration>();
+
 	private disposables: Disposable[] = [];
 
 	constructor(protected readonly repository: Repository) {
@@ -42,6 +48,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 
 		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
 		this.disposables.push(actionButton.onDidChange(() => this.actionButton = actionButton.button));
+
+		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
@@ -96,14 +104,32 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 			? historyItemId.split('..')
 			: [`${historyItemId}^`, historyItemId];
 
+		const historyItemChangesUri: Uri[] = [];
+		const historyItemChanges: SourceControlHistoryItemChange[] = [];
 		const changes = await this.repository.diffBetween(ref1, ref2);
 
-		return changes.map(change => ({
-			uri: change.uri.with({ query: `ref=${historyItemId}` }),
-			originalUri: toGitUri(change.originalUri, ref1),
-			modifiedUri: toGitUri(change.originalUri, ref2),
-			renameUri: change.renameUri,
-		}));
+		for (const change of changes) {
+			const historyItemUri = change.uri.with({
+				query: `ref=${historyItemId}`
+			});
+
+			// History item change
+			historyItemChanges.push({
+				uri: historyItemUri,
+				originalUri: toGitUri(change.originalUri, ref1),
+				modifiedUri: toGitUri(change.originalUri, ref2),
+				renameUri: change.renameUri,
+			});
+
+			// History item change decoration
+			const fileDecoration = this.historyItemChangeFileDecoration(change.status);
+			this.historyItemDecorations.set(historyItemUri.toString(), fileDecoration);
+
+			historyItemChangesUri.push(historyItemUri);
+		}
+
+		this._onDidChangeDecorations.fire(historyItemChangesUri);
+		return historyItemChanges;
 	}
 
 	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<SourceControlHistoryItemGroup | undefined> {
@@ -131,9 +157,24 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, IDispos
 		return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
 	}
 
+	provideFileDecoration(uri: Uri): FileDecoration | undefined {
+		return this.historyItemDecorations.get(uri.toString());
+	}
+
+	private historyItemChangeFileDecoration(status: Status): FileDecoration {
+		const letter = Resource.getStatusLetter(status);
+		const tooltip = Resource.getStatusText(status);
+		const color = Resource.getStatusColor(status);
+
+		const fileDecoration = new FileDecoration(letter, tooltip, color);
+		fileDecoration.propagate = status !== Status.DELETED && status !== Status.INDEX_DELETED;
+
+		return fileDecoration;
+	}
+
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
 		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
-		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: 'Changes', description: diffShortStat };
+		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), description: diffShortStat };
 	}
 
 	dispose(): void {

@@ -9,6 +9,17 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import * as strings from 'vs/base/common/strings';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
@@ -54,3 +65,66 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
+
+
+export namespace CommentAccessibilityHelpNLS {
+	export const intro = nls.localize('intro', "The editor contains a commentable range. Some useful commands include:");
+	export const introWidget = nls.localize('introWidget', "Some useful comment commands include:");
+	export const escape = nls.localize('escape', "- Dismiss Comment (Escape)");
+	export const nextRange = nls.localize('next', "- Navigate to the next commenting range ({0})");
+	export const nextRangeNoKb = nls.localize('nextNoKb', "- Go to Next Commenting Range, which is currently not triggerable via keybinding.");
+	export const previousRange = nls.localize('previous', "- Navigate to the previous commenting range ({0})");
+	export const previousRangeNoKb = nls.localize('previousNoKb', "Run the command: Go to Previous Commenting Range, which is currently not triggerable via keybinding.");
+	export const nextCommentThreadKb = nls.localize('nextCommentThreadKb', "- Navigate to the next comment thread ({0})");
+	export const nextCommentThreadNoKb = nls.localize('nextCommentThreadNoKb', "- Run the command: Go to Next Comment Thread, which is currently not triggerable via keybinding.");
+	export const previousCommentThreadKb = nls.localize('previousCommentThreadKb', "- Navigate to the previous comment thread ({0})");
+	export const previousCommentThreadNoKb = nls.localize('previousCommentThreadNoKb', "- Run the command: Go to Previous Comment Thread, which is currently not triggerable via keybinding.");
+	export const addComment = nls.localize('addComment', "- Add Comment ({0})");
+	export const addCommentNoKb = nls.localize('addCommentNoKb', "- Add Comment on Current Selection, which is currently not triggerable via keybinding.");
+	export const submitComment = nls.localize('submitComment', "- Submit Comment ({0})");
+	export const submitCommentNoKb = nls.localize('submitCommentNoKb', "- Submit Comment, accessible via tabbing, as it's currently not triggerable with a keybinding.");
+}
+
+export class CommentsAccessibilityHelpContribution extends Disposable {
+	static ID: 'commentsAccessibilityHelpContribution';
+	constructor() {
+		super();
+		this._register(AccessibilityHelpAction.addImplementation(110, 'comments', accessor => {
+			const instantiationService = accessor.get(IInstantiationService);
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			accessibleViewService.show(instantiationService.createInstance(CommentsAccessibilityHelpProvider));
+			return true;
+		}, ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused)));
+	}
+}
+export class CommentsAccessibilityHelpProvider implements IAccessibleContentProvider {
+	verbositySettingKey: AccessibilityVerbositySettingId = AccessibilityVerbositySettingId.Comments;
+	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
+	private _element: HTMLElement | undefined;
+	constructor(
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
+	) {
+
+	}
+	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
+		const kb = this._keybindingService.lookupKeybinding(commandId);
+		if (kb) {
+			return strings.format(msg, kb.getAriaLabel());
+		}
+		return strings.format(noKbMsg, commandId);
+	}
+	provideContent(): string {
+		this._element = document.activeElement as HTMLElement;
+		const content: string[] = [];
+		content.push(CommentAccessibilityHelpNLS.introWidget);
+		content.push(CommentAccessibilityHelpNLS.escape);
+		content.push(this._descriptionForCommand(CommentCommandId.Add, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
+		content.push(this._descriptionForCommand(CommentCommandId.Submit, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.submitCommentNoKb));
+		content.push(this._descriptionForCommand(CommentCommandId.NextRange, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb));
+		content.push(this._descriptionForCommand(CommentCommandId.PreviousRange, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb));
+		return content.join('\n');
+	}
+	onClose(): void {
+		this._element?.focus();
+	}
+}

@@ -430,7 +430,7 @@ export class CommentService extends Disposable implements ICommentService {
 				changedOwners.add(pendingComment.owner);
 			} else {
 				const commentsForOwner = this._continueOnComments.get(pendingComment.owner)!;
-				if (commentsForOwner.every(comment => (comment.uri.toString() !== pendingComment.uri.toString()) || !Range.equalsRange(comment.range, pendingComment.range) || (comment.body !== pendingComment.body))) {
+				if (commentsForOwner.every(comment => (comment.uri.toString() !== pendingComment.uri.toString()) || !Range.equalsRange(comment.range, pendingComment.range))) {
 					commentsForOwner.push(pendingComment);
 					changedOwners.add(pendingComment.owner);
 				}

@@ -47,6 +47,43 @@ export const enum ResourceGroupType {
 
 export class Resource implements SourceControlResourceState {
 
+	static getStatusLetter(type: Status): string {
+		switch (type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return 'M';
+			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
+				return 'A';
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return 'D';
+			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
+				return 'R';
+			case Status.TYPE_CHANGED:
+				return 'T';
+			case Status.UNTRACKED:
+				return 'U';
+			case Status.IGNORED:
+				return 'I';
+			case Status.DELETED_BY_THEM:
+				return 'D';
+			case Status.DELETED_BY_US:
+				return 'D';
+			case Status.INDEX_COPIED:
+				return 'C';
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.ADDED_BY_THEM:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
+			default:
+				throw new Error('Unknown git status: ' + type);
+		}
+	}
+
 	static getStatusText(type: Status) {
 		switch (type) {
 			case Status.INDEX_MODIFIED: return l10n.t('Index Modified');
@@ -69,6 +106,41 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED: return l10n.t('Conflict: Both Added');
 			case Status.BOTH_MODIFIED: return l10n.t('Conflict: Both Modified');
 			default: return '';
+		}
+	}
+
+	static getStatusColor(type: Status): ThemeColor {
+		switch (type) {
+			case Status.INDEX_MODIFIED:
+				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
+			case Status.MODIFIED:
+			case Status.TYPE_CHANGED:
+				return new ThemeColor('gitDecoration.modifiedResourceForeground');
+			case Status.INDEX_DELETED:
+				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
+			case Status.DELETED:
+				return new ThemeColor('gitDecoration.deletedResourceForeground');
+			case Status.INDEX_ADDED:
+			case Status.INTENT_TO_ADD:
+				return new ThemeColor('gitDecoration.addedResourceForeground');
+			case Status.INDEX_COPIED:
+			case Status.INDEX_RENAMED:
+			case Status.INTENT_TO_RENAME:
+				return new ThemeColor('gitDecoration.renamedResourceForeground');
+			case Status.UNTRACKED:
+				return new ThemeColor('gitDecoration.untrackedResourceForeground');
+			case Status.IGNORED:
+				return new ThemeColor('gitDecoration.ignoredResourceForeground');
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return new ThemeColor('gitDecoration.conflictingResourceForeground');
+			default:
+				throw new Error('Unknown git status: ' + type);
 		}
 	}
 
@@ -189,75 +261,11 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get letter(): string {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-			case Status.MODIFIED:
-				return 'M';
-			case Status.INDEX_ADDED:
-			case Status.INTENT_TO_ADD:
-				return 'A';
-			case Status.INDEX_DELETED:
-			case Status.DELETED:
-				return 'D';
-			case Status.INDEX_RENAMED:
-			case Status.INTENT_TO_RENAME:
-				return 'R';
-			case Status.TYPE_CHANGED:
-				return 'T';
-			case Status.UNTRACKED:
-				return 'U';
-			case Status.IGNORED:
-				return 'I';
-			case Status.DELETED_BY_THEM:
-				return 'D';
-			case Status.DELETED_BY_US:
-				return 'D';
-			case Status.INDEX_COPIED:
-				return 'C';
-			case Status.BOTH_DELETED:
-			case Status.ADDED_BY_US:
-			case Status.ADDED_BY_THEM:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
-			default:
-				throw new Error('Unknown git status: ' + this.type);
-		}
+		return Resource.getStatusLetter(this.type);
 	}
 
 	get color(): ThemeColor {
-		switch (this.type) {
-			case Status.INDEX_MODIFIED:
-				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
-			case Status.MODIFIED:
-			case Status.TYPE_CHANGED:
-				return new ThemeColor('gitDecoration.modifiedResourceForeground');
-			case Status.INDEX_DELETED:
-				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
-			case Status.DELETED:
-				return new ThemeColor('gitDecoration.deletedResourceForeground');
-			case Status.INDEX_ADDED:
-			case Status.INTENT_TO_ADD:
-				return new ThemeColor('gitDecoration.addedResourceForeground');
-			case Status.INDEX_COPIED:
-			case Status.INDEX_RENAMED:
-			case Status.INTENT_TO_RENAME:
-				return new ThemeColor('gitDecoration.renamedResourceForeground');
-			case Status.UNTRACKED:
-				return new ThemeColor('gitDecoration.untrackedResourceForeground');
-			case Status.IGNORED:
-				return new ThemeColor('gitDecoration.ignoredResourceForeground');
-			case Status.BOTH_DELETED:
-			case Status.ADDED_BY_US:
-			case Status.DELETED_BY_THEM:
-			case Status.ADDED_BY_THEM:
-			case Status.DELETED_BY_US:
-			case Status.BOTH_ADDED:
-			case Status.BOTH_MODIFIED:
-				return new ThemeColor('gitDecoration.conflictingResourceForeground');
-			default:
-				throw new Error('Unknown git status: ' + this.type);
-		}
+		return Resource.getStatusColor(this.type);
 	}
 
 	get priority(): number {

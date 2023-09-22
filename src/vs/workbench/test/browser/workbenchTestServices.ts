@@ -1396,7 +1396,7 @@ export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider i
 			| FileSystemProviderCapabilities.FileReadStream;
 	}
 
-	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
+	override readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
 		const BUFFER_SIZE = 64 * 1024;
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 

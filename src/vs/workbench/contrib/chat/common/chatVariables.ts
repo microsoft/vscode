@@ -33,6 +33,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
+	hasVariable(name: string): boolean;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 
 	/**
@@ -100,6 +101,10 @@ export class ChatVariablesService implements IChatVariablesService {
 			variables: resolvedVariables,
 			prompt: parsedPrompt.join('')
 		};
+	}
+
+	hasVariable(name: string): boolean {
+		return this._resolver.has(name.toLowerCase());
 	}
 
 	getVariables(): Iterable<Readonly<IChatVariableData>> {

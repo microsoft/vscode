@@ -225,6 +225,9 @@ pub struct CommandShellArgs {
 	/// Require the given token string to be given in the handshake.
 	#[clap(long)]
 	pub require_token: Option<String>,
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long, hide = true)]
+	pub parent_process_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

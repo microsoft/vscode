@@ -40,6 +40,9 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export const ID = 'editor.contrib.review';
 
@@ -380,7 +383,8 @@ export class CommentController implements IEditorContribution {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -848,7 +852,17 @@ export class CommentController implements IEditorContribution {
 				if (this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
 					this._hasRespondedToEditorChange = true;
 					this._activeEditorHasCommentingRange.set(true);
-					status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+					const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Comments);
+					if (verbose) {
+						const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
+						if (keybinding) {
+							status(nls.localize('hasCommentRangesKb', "Editor has commenting ranges, run the command Open Accessibility Help ({0}), for more information.", keybinding));
+						} else {
+							status(nls.localize('hasCommentRangesNoKb', "Editor has commenting ranges, run the command Open Accessibility Help, which is currently not triggerable via keybinding, for more information."));
+						}
+					} else {
+						status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+					}
 				} else {
 					this._activeEditorHasCommentingRange.set(false);
 				}

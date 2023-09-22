@@ -1150,6 +1150,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				const uriIdentityService = accessor.get(IUriIdentityService);
 				const fileService = accessor.get(IFileService);
 				const userDataSyncMachinesService = accessor.get(IUserDataSyncMachinesService);
+				const notificationService = accessor.get(INotificationService);
 
 				const result = await fileDialogService.showOpenDialog({
 					title: localize('download sync activity dialog title', "Select folder to download Settings Sync activity"),
@@ -1185,6 +1186,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 					return userDataSyncWorkbenchService.downloadSyncActivity(uriIdentityService.extUri.joinPath(result[0], indexes[0] !== 0 ? name : `${name} ${indexes[indexes.length - 1] + 1}`));
 				});
+
+				notificationService.info(localize('download sync activity complete', "Successfully downloaded Settings Sync activity."));
 			}
 
 		}));

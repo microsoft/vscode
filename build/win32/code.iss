@@ -1528,11 +1528,12 @@ begin
     begin
       CreateMutex('{#AppMutex}-ready');
 
+      Log('Checking whether application is still running...');
       while (CheckForMutexes('{#AppMutex}')) do
       begin
-        Log('Application is still running, waiting');
         Sleep(1000)
       end;
+      Log('Application appears not to be running.');
 
       StopTunnelServiceIfNeeded();
 
