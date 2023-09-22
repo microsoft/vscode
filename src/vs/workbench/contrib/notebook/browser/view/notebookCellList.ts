@@ -1205,7 +1205,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const focused = this.getFocus();
 		const focus = focused.length ? focused[0] : null;
 
-		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anochorToFocusedCell);
+		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
 		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
 		const anchorToFocusedCell = anchorFocusedSetting === 'true' || (allowScrolling && anchorFocusedSetting !== 'false');
 		if (focused && anchorToFocusedCell) {
