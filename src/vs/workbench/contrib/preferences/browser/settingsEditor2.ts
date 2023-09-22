@@ -845,6 +845,7 @@ export class SettingsEditor2 extends EditorPane {
 				'aria-label': localize('settings', "Settings"),
 			})),
 			this.viewState));
+		this.tocTreeDisposed = false;
 
 		this._register(this.tocTree.onDidFocus(() => {
 			this._currentFocusContext = SettingsFocusContext.TableOfContents;
