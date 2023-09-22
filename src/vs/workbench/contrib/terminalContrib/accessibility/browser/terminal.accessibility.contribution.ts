@@ -249,7 +249,7 @@ registerTerminalAction({
 		}
 	],
 	run: async (c) => {
-		const instance = await c.service.getActiveOrCreateInstance();
+		const instance = await c.service.activeInstance;
 		if (!instance) {
 			return;
 		}
@@ -270,7 +270,7 @@ registerTerminalAction({
 		}
 	],
 	run: async (c) => {
-		const instance = await c.service.getActiveOrCreateInstance();
+		const instance = await c.service.activeInstance;
 		if (!instance) {
 			return;
 		}
