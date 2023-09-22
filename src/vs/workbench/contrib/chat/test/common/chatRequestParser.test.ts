@@ -119,6 +119,16 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('agent with question mark', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgent.returns(<IChatAgentData>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = await parser.parseChatRequest('1', 'Are you there @agent?');
+		await assertSnapshot(result);
+	});
+
 	test('agent not first', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
 		agentsService.getAgent.returns(<IChatAgentData>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });

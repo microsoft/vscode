@@ -12,8 +12,8 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashC
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-const variableOrAgentReg = /^@([\w_\-]+)(:\d+)?(?=([^\w\d\_\-]|$))/i; // An @-variable with an optional numeric : arg (@response:2)
-const slashReg = /\/([\w_-]+)(?=(\s|$))/i; // A / command
+const variableOrAgentReg = /^@([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // An @-variable with an optional numeric : arg (@response:2)
+const slashReg = /\/([\w_-]+)(?=(\s|$|\b))/i; // A / command
 
 export class ChatRequestParser {
 	constructor(
