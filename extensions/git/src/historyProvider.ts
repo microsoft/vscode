@@ -122,7 +122,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			});
 
 			// History item change decoration
-			const fileDecoration = this.historyItemChangeFileDecoration(change.status);
+			const fileDecoration = this.getHistoryItemChangeFileDecoration(change.status);
 			this.historyItemDecorations.set(historyItemUri.toString(), fileDecoration);
 
 			historyItemChangesUri.push(historyItemUri);
@@ -161,15 +161,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private historyItemChangeFileDecoration(status: Status): FileDecoration {
+	private getHistoryItemChangeFileDecoration(status: Status): FileDecoration {
 		const letter = Resource.getStatusLetter(status);
 		const tooltip = Resource.getStatusText(status);
 		const color = Resource.getStatusColor(status);
 
-		const fileDecoration = new FileDecoration(letter, tooltip, color);
-		fileDecoration.propagate = status !== Status.DELETED && status !== Status.INDEX_DELETED;
-
-		return fileDecoration;
+		return new FileDecoration(letter, tooltip, color);
 	}
 
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {

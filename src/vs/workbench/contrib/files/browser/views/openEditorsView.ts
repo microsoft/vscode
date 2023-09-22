@@ -708,9 +708,11 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 			});
 			this.editorGroupService.activateGroup(group);
 		} else {
-			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
+			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), { index });
 		}
 	}
+
+	dispose(): void { }
 }
 
 class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {

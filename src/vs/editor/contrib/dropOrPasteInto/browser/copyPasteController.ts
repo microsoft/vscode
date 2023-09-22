@@ -448,8 +448,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			})),
 			token);
 		const edits = coalesce(results ?? []);
-		sortEditsByYieldTo(edits);
-		return edits;
+		return sortEditsByYieldTo(edits);
 	}
 
 	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken) {
