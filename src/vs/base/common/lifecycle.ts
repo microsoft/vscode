@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { SetMap, groupBy } from 'vs/base/common/collections';
-import { once } from 'vs/base/common/functional';
+import { groupBy } from 'vs/base/common/collections';
+import { SetMap } from './map';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { Iterable } from 'vs/base/common/iterator';
 
 // #region Disposable Tracking
@@ -345,7 +346,7 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
  */
 export function toDisposable(fn: () => void): IDisposable {
 	const self = trackDisposable({
-		dispose: once(() => {
+		dispose: createSingleCallFunction(() => {
 			markAsDisposed(self);
 			fn();
 		})
@@ -429,6 +430,34 @@ export class DisposableStore implements IDisposable {
 		}
 
 		return o;
+	}
+
+	/**
+	 * Deletes a disposable from store and disposes of it. This will not throw or warn and proceed to dispose the
+	 * disposable even when the disposable is not part in the store.
+	 */
+	public delete<T extends IDisposable>(o: T): void {
+		if (!o) {
+			return;
+		}
+		if ((o as unknown as DisposableStore) === this) {
+			throw new Error('Cannot dispose a disposable on itself!');
+		}
+		this._toDispose.delete(o);
+		o.dispose();
+	}
+
+	/**
+	 * Deletes the value from the store, but does not dispose it.
+	 */
+	public deleteAndLeak<T extends IDisposable>(o: T): void {
+		if (!o) {
+			return;
+		}
+		if (this._toDispose.has(o)) {
+			this._toDispose.delete(o);
+			setParentOfDisposable(o, null);
+		}
 	}
 }
 
@@ -595,7 +624,7 @@ export abstract class ReferenceCollection<T> {
 		}
 
 		const { object } = reference;
-		const dispose = once(() => {
+		const dispose = createSingleCallFunction(() => {
 			if (--reference!.counter === 0) {
 				this.destroyReferencedObject(key, reference!.object);
 				this.references.delete(key);

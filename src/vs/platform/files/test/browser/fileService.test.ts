@@ -5,12 +5,14 @@
 
 import * as assert from 'assert';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
+import { bufferToReadable, bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat } from 'vs/platform/files/common/files';
+import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -177,7 +179,7 @@ suite('File Service', () => {
 				throw new Error('failed');
 			}
 
-			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+			override readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				if (async) {
 					const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
 					timeout(5, CancellationToken.None).then(() => stream.error(new Error('failed')));
@@ -232,7 +234,7 @@ suite('File Service', () => {
 				};
 			}
 
-			readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+			override readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 				const stream = newWriteableStream<Uint8Array>(chunk => chunk[0]);
 				disposables.add(token.onCancellationRequested(() => {
 					stream.error(new Error('Expected cancellation'));
@@ -245,7 +247,7 @@ suite('File Service', () => {
 			}
 		};
 
-		const disposable = service.registerProvider('test', provider);
+		disposables.add(service.registerProvider('test', provider));
 
 		provider.setCapabilities(FileSystemProviderCapabilities.FileReadStream);
 
@@ -272,8 +274,96 @@ suite('File Service', () => {
 		}
 
 		assert.ok(e2);
+	});
 
-		disposable.dispose();
+	test('enforced atomic read/write/delete', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+
+		const atomicResource = URI.parse('test://foo/bar/atomic');
+		const nonAtomicResource = URI.parse('test://foo/nonatomic');
+
+		let atomicReadCounter = 0;
+		let atomicWriteCounter = 0;
+		let atomicDeleteCounter = 0;
+
+		const provider = new class extends NullFileSystemProvider implements IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability {
+
+			override async stat(resource: URI): Promise<IStat> {
+				return {
+					type: FileType.File,
+					ctime: Date.now(),
+					mtime: Date.now(),
+					size: 0
+				};
+			}
+
+			override async readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array> {
+				if (opts?.atomic) {
+					atomicReadCounter++;
+				}
+				return new Uint8Array();
+			}
+
+			override readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+				return newWriteableStream<Uint8Array>(chunk => chunk[0]);
+			}
+
+			enforceAtomicReadFile(resource: URI): boolean {
+				return isEqual(resource, atomicResource);
+			}
+
+			override async writeFile(resource: URI, content: Uint8Array, opts: IFileAtomicWriteOptions): Promise<void> {
+				if (opts.atomic) {
+					atomicWriteCounter++;
+				}
+			}
+
+			enforceAtomicWriteFile(resource: URI): IFileAtomicOptions | false {
+				return isEqual(resource, atomicResource) ? { postfix: '.tmp' } : false;
+			}
+
+			override async delete(resource: URI, opts: IFileAtomicDeleteOptions): Promise<void> {
+				if (opts.atomic) {
+					atomicDeleteCounter++;
+				}
+			}
+
+			enforceAtomicDelete(resource: URI): IFileAtomicOptions | false {
+				return isEqual(resource, atomicResource) ? { postfix: '.tmp' } : false;
+			}
+		};
+
+		provider.setCapabilities(
+			FileSystemProviderCapabilities.FileReadWrite |
+			FileSystemProviderCapabilities.FileOpenReadWriteClose |
+			FileSystemProviderCapabilities.FileReadStream |
+			FileSystemProviderCapabilities.FileAtomicRead |
+			FileSystemProviderCapabilities.FileAtomicWrite |
+			FileSystemProviderCapabilities.FileAtomicDelete
+		);
+
+		disposables.add(service.registerProvider('test', provider));
+
+		await service.readFile(atomicResource);
+		await service.readFile(nonAtomicResource);
+		await service.readFileStream(atomicResource);
+		await service.readFileStream(nonAtomicResource);
+
+		await service.writeFile(atomicResource, VSBuffer.fromString(''));
+		await service.writeFile(nonAtomicResource, VSBuffer.fromString(''));
+
+		await service.writeFile(atomicResource, bufferToStream(VSBuffer.fromString('')));
+		await service.writeFile(nonAtomicResource, bufferToStream(VSBuffer.fromString('')));
+
+		await service.writeFile(atomicResource, bufferToReadable(VSBuffer.fromString('')));
+		await service.writeFile(nonAtomicResource, bufferToReadable(VSBuffer.fromString('')));
+
+		await service.del(atomicResource);
+		await service.del(nonAtomicResource);
+
+		assert.strictEqual(atomicReadCounter, 2);
+		assert.strictEqual(atomicWriteCounter, 3);
+		assert.strictEqual(atomicDeleteCounter, 1);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

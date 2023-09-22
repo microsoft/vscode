@@ -136,6 +136,11 @@ impl ServiceContainer for TunnelServiceContainer {
 
 pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
+	let mut shutdown_reqs = vec![ShutdownRequest::CtrlC];
+	if let Some(p) = args.parent_process_id.and_then(|p| Pid::from_str(&p).ok()) {
+		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
+	}
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -144,7 +149,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.require_token
 			.map(AuthRequired::VSDAWithToken)
 			.unwrap_or(AuthRequired::VSDA),
-		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
 	};
 

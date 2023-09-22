@@ -182,6 +182,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
 			},
+			'workbench.editor.pinnedTabsOnSeparateRow': {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize('workbench.editor.pinnedTabsOnSeparateRow', "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+			},
 			'workbench.editor.preventPinnedEditorClose': {
 				'type': 'string',
 				'enum': ['keyboardAndMouse', 'keyboard', 'mouse', 'never'],

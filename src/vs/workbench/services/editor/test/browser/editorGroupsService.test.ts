@@ -1455,6 +1455,28 @@ suite('EditorGroupsService', () => {
 		editorGroupModelChangeListener.dispose();
 	});
 
+	test('sticky: true wins over index', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+
+		assert.strictEqual(group.stickyCount, 0);
+
+		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = createTestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		const inputSticky = createTestFileEditorInput(URI.file('foo/bar/sticky'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputInactive, { inactive: true });
+		await group.openEditor(inputSticky, { sticky: true, index: 2 });
+
+		assert.strictEqual(group.stickyCount, 1);
+		assert.strictEqual(group.isSticky(inputSticky), true);
+
+		assert.strictEqual(group.getIndexOfEditor(input), 1);
+		assert.strictEqual(group.getIndexOfEditor(inputInactive), 2);
+		assert.strictEqual(group.getIndexOfEditor(inputSticky), 0);
+	});
+
 	test('moveEditor with context (across groups)', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;

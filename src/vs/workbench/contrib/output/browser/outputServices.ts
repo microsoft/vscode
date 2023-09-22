@@ -9,7 +9,7 @@ import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/services/output/common/output';
+import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_MIME, OUTPUT_MIME, OutputChannelUpdateMode, IOutputChannelDescriptor, Extensions, IOutputChannelRegistry, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/services/output/common/output';
 import { OutputLinkProvider } from 'vs/workbench/contrib/output/browser/outputLinkProvider';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
@@ -203,42 +203,5 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		} else {
 			this.storageService.remove(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE);
 		}
-	}
-}
-
-export class LogContentProvider {
-
-	private channelModels: Map<string, IOutputChannelModel> = new Map<string, IOutputChannelModel>();
-
-	constructor(
-		@IOutputService private readonly outputService: IOutputService,
-		@IOutputChannelModelService private readonly outputChannelModelService: IOutputChannelModelService,
-		@ILanguageService private readonly languageService: ILanguageService
-	) {
-	}
-
-	provideTextContent(resource: URI): Promise<ITextModel> | null {
-		if (resource.scheme === LOG_SCHEME) {
-			const channelModel = this.getChannelModel(resource);
-			if (channelModel) {
-				return channelModel.loadModel();
-			}
-		}
-		return null;
-	}
-
-	private getChannelModel(resource: URI): IOutputChannelModel | undefined {
-		const channelId = resource.path;
-		let channelModel = this.channelModels.get(channelId);
-		if (!channelModel) {
-			const channelDisposables: IDisposable[] = [];
-			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
-			if (outputChannelDescriptor && outputChannelDescriptor.file) {
-				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.languageId ? this.languageService.createById(outputChannelDescriptor.languageId) : this.languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME), outputChannelDescriptor.file);
-				channelModel.onDispose(() => dispose(channelDisposables), channelDisposables);
-				this.channelModels.set(channelId, channelModel);
-			}
-		}
-		return channelModel;
 	}
 }

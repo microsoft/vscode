@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { BidirectionalMap, LinkedMap, LRUCache, ResourceMap, Touch } from 'vs/base/common/map';
+import { BidirectionalMap, LinkedMap, LRUCache, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -570,4 +570,43 @@ suite('BidirectionalMap', () => {
 		assert.strictEqual(map.getKey(2), undefined);
 		assert.strictEqual(map.getKey(3), undefined);
 	});
+});
+
+suite('SetMap', () => {
+
+	test('add and get', () => {
+		const setMap = new SetMap<string, number>();
+		setMap.add('a', 1);
+		setMap.add('a', 2);
+		setMap.add('b', 3);
+		assert.deepStrictEqual([...setMap.get('a')], [1, 2]);
+		assert.deepStrictEqual([...setMap.get('b')], [3]);
+	});
+
+	test('delete', () => {
+		const setMap = new SetMap<string, number>();
+		setMap.add('a', 1);
+		setMap.add('a', 2);
+		setMap.add('b', 3);
+		setMap.delete('a', 1);
+		assert.deepStrictEqual([...setMap.get('a')], [2]);
+		setMap.delete('a', 2);
+		assert.deepStrictEqual([...setMap.get('a')], []);
+	});
+
+	test('forEach', () => {
+		const setMap = new SetMap<string, number>();
+		setMap.add('a', 1);
+		setMap.add('a', 2);
+		setMap.add('b', 3);
+		let sum = 0;
+		setMap.forEach('a', value => sum += value);
+		assert.strictEqual(sum, 3);
+	});
+
+	test('get empty set', () => {
+		const setMap = new SetMap<string, number>();
+		assert.deepStrictEqual([...setMap.get('a')], []);
+	});
+
 });
