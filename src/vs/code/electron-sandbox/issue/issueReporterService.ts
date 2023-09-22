@@ -1056,7 +1056,10 @@ export class IssueReporter extends Disposable {
 		if (extensionsSelector) {
 			const { selectedExtension } = this.issueReporterModel.getData();
 			reset(extensionsSelector, this.makeOption('', localize('selectExtension', "Select extension"), true), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
-			extensionsSelector.selectedIndex = 0;
+
+			if (!selectedExtension) {
+				extensionsSelector.selectedIndex = 0;
+			}
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
