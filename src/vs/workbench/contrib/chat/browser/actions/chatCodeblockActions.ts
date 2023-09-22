@@ -264,13 +264,12 @@ export function registerChatCodeBlockActions() {
 				// 1st sub-array - array with documents used to get the chat reply
 				const docRefs: DocumentContextItem[][] = [];
 
-				const model = codeEditor.getModel();
-				if (model) {
+				if (codeEditor.hasModel()) {
+					const model = codeEditor.getModel();
 					const currentDocUri = model.uri;
 					const currentDocVersion = model.getVersionId();
 					const selections = codeEditor.getSelections();
-					if (selections && selections.length > 0) {
-
+					if (selections.length > 0) {
 						docRefs.push([
 							{
 								uri: currentDocUri,
