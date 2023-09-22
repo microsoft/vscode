@@ -487,11 +487,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): boolean {
+		const changed = this.handleOpenedEditors();
+
+		// Respect option to focus tab control if provided
 		if (options?.focusTabControl) {
-			const tabIndex = this.tabsModel.indexOf(editor);
-			(<HTMLElement>this.tabsContainer?.children[tabIndex]).focus();
+			this.withTab(editor, (editor, tabIndex, tabContainer) => tabContainer.focus());
 		}
-		return this.handleOpenedEditors();
+
+		return changed;
 	}
 
 	openEditors(editors: EditorInput[]): boolean {
@@ -812,11 +815,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const that = this;
 		const tabActionRunner = new EditorCommandsContextActionRunner({
 			groupId: this.groupViewer.id,
-			get editorIndex() {
-				const editor = assertIsDefined(that.tabsModel.getEditorByIndex(tabIndex));
-
-				return that.groupViewer.getIndexOfEditor(editor);
-			},
+			get editorIndex() { return that.toEditorIndex(tabIndex); }
 		});
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
@@ -839,6 +838,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel));
 
 		return tabContainer;
+	}
+
+	private toEditorIndex(tabIndex: number): number {
+
+		// Given a `tabIndex` that is relative to the tabs model
+		// returns the `editorIndex` relative to the entire group
+
+		const editor = assertIsDefined(this.tabsModel.getEditorByIndex(tabIndex));
+
+		return this.groupViewer.getIndexOfEditor(editor);
 	}
 
 	private registerTabListeners(tab: HTMLElement, tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
@@ -940,9 +949,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Navigate in editors
 			else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(kb => event.equals(kb))) {
-
-				const editor = assertIsDefined(this.tabsModel.getEditorByIndex(tabIndex));
-				let editorIndex = this.groupViewer.getIndexOfEditor(editor);
+				let editorIndex = this.toEditorIndex(tabIndex);
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
 					editorIndex = editorIndex - 1;
 				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.DownArrow)) {
