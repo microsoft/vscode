@@ -257,7 +257,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	updateWidth(index: number): void;
-	updateElementHeight(index: number, size: number | undefined, scrollOptions?: { anchorIndex: number } | { keepInViewPadding: number }): void;
+	updateElementHeight(index: number, size: number | undefined, newScrollTop?: number | undefined): void;
 	rerender(): void;
 	layout(height?: number, width?: number): void;
 }
@@ -499,7 +499,7 @@ export class ListView<T> implements IListView<T> {
 		this.scrollableElement.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
-	updateElementHeight(index: number, size: number | undefined, scrollOptions?: { anchorIndex: number } | { keepInViewPadding: number }): void {
+	updateElementHeight(index: number, size: number | undefined, newScrollTop?: number | undefined): void {
 		if (index < 0 || index >= this.items.length) {
 			return;
 		}
@@ -522,27 +522,19 @@ export class ListView<T> implements IListView<T> {
 
 		const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 
-		let renderTopOverride = undefined;
-		const heightDiff = size - originalSize;
-		if (index < lastRenderRange.start) {
+		let scrollTop: number;
+		if (newScrollTop) {
+			scrollTop = newScrollTop;
+		} else if (index < lastRenderRange.start) {
 			// do not scroll the viewport if resized element is out of viewport
-			renderTopOverride = this.lastRenderTop + heightDiff;
-		} else if (scrollOptions && 'keepInViewPadding' in scrollOptions) {
-			const elementBottom = this.elementTop(index) + size;
-			if (elementBottom - scrollOptions.keepInViewPadding < this.lastRenderTop) {
-				// keep the element in view with provided padding
-				renderTopOverride = elementBottom - scrollOptions.keepInViewPadding;
-			}
-		} else if (scrollOptions && !!scrollOptions.anchorIndex && scrollOptions.anchorIndex > index && scrollOptions.anchorIndex <= lastRenderRange.end) {
-			// anchor in viewport
-			// resized element in viewport and above the anchor
-			renderTopOverride = this.lastRenderTop + heightDiff;
+			scrollTop = this.lastRenderTop + size - originalSize;
+		} else {
+			scrollTop = this.lastRenderTop;
 		}
 
 		this.rangeMap.splice(index, 1, [{ size: size }]);
 		this.items[index].size = size;
-		const newRenderTop = Math.max(0, renderTopOverride ?? this.lastRenderTop);
-		this.render(lastRenderRange, newRenderTop, this.lastRenderHeight, undefined, undefined, true);
+		this.render(lastRenderRange, Math.max(0, scrollTop), this.lastRenderHeight, undefined, undefined, true);
 		this.setScrollTop(this.lastRenderTop);
 
 		this.eventuallyUpdateScrollDimensions();

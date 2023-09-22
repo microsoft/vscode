@@ -355,7 +355,13 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		const viewIndex = this.indexOf(element);
 		const focused = this.getFocus();
 
-		this.view.updateElementHeight(viewIndex, size, focused.length ? focused[0] : null);
+		let scrollTop: number | undefined;
+		if (focused && focused.length && this.view.lastVisibleIndex >= focused[0] && focused[0] > viewIndex) {
+			// anchor is below index and anchor is visible
+			const heightDiff = this.view.elementHeight(viewIndex) - size;
+			scrollTop = this.view.getScrollTop() + heightDiff;
+		}
+		this.view.updateElementHeight(viewIndex, size, scrollTop);
 	}
 
 	override style(styles: IListStyles) {

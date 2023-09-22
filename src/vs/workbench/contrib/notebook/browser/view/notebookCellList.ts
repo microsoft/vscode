@@ -1194,25 +1194,35 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					}
 				});
 			}
-			const scrollOptions = anchorElementIndex !== undefined ? { anchorIndex: anchorElementIndex } : undefined;
-			this.view.updateElementHeight(index, size, scrollOptions);
+			this.view.updateElementHeight(index, size, this.caclulateScrollTop(index, size, anchorElementIndex));
 			return;
 		}
 
-		if (anchorElementIndex !== undefined) {
-			return this.view.updateElementHeight(index, size, { anchorIndex: anchorElementIndex });
+		// the `element` is in the viewport, it's very often that the height update is triggered by user interaction (collapse, run cell)
+		// then we should make sure that the `element`'s visual view position doesn't change as long as it will remain within the viewport after changing the size.
+
+		return this.view.updateElementHeight(index, size, this.caclulateScrollTop(index, size, anchorElementIndex));
+	}
+
+	private caclulateScrollTop(index: number, newSize: number, anchorIndex: number | undefined) {
+		if (anchorIndex !== undefined && this.view.lastVisibleIndex >= anchorIndex && anchorIndex > index) {
+			// anchor is below index and anchor is visible
+			const heightDiff = this.view.elementHeight(index) - newSize;
+			return this.view.getScrollTop() + heightDiff;
 		}
 
-		// Provide padding to ensure that at least one line of a shrinking item will stay in view
+		// Don't let the resized element shrink itself out of view
+		// Otherwise an executing cell that removed its old output may not come back into view with the new output
+		let newScrollTop: number | undefined;
 		const lineHeight = this.notebookOptions.getLayoutConfiguration().cellStatusBarHeight;
 		const padding = this.notebookOptions.getLayoutConfiguration().cellBottomMargin;
 		const { bottomToolbarGap } = this.notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 		const paddingForLastLine = lineHeight + padding + bottomToolbarGap;
-
-		// the `element` is in the viewport, it's very often that the height update is triggered by user interaction (collapse, run cell)
-		// then we should make sure that the `element`'s visual view position doesn't change as long as it will remain within the viewport after changing the size.
-		return this.view.updateElementHeight(index, size, { keepInViewPadding: paddingForLastLine });
-
+		const elementBottom = this.view.elementTop(index) + newSize;
+		if (elementBottom - paddingForLastLine < this.view.getScrollTop()) {
+			newScrollTop = elementBottom - paddingForLastLine;
+		}
+		return newScrollTop;
 	}
 
 	// override
