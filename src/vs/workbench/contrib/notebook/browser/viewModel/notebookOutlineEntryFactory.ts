@@ -13,7 +13,6 @@ import { OutlineEntry } from './OutlineEntry';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
 import { SymbolKind } from 'vs/editor/common/languages';
 
 type entryDesc = {
