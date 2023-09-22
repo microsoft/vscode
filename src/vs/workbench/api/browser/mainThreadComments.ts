@@ -611,7 +611,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 				id: COMMENTS_VIEW_ID,
-				name: COMMENTS_VIEW_TITLE,
+				name: { value: COMMENTS_VIEW_TITLE, original: COMMENTS_VIEW_ORIGINAL_TITLE },
 				canToggleVisibility: false,
 				ctorDescriptor: new SyncDescriptor(CommentsPanel),
 				canMoveView: true,

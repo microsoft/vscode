@@ -60,7 +60,7 @@ export class UserDataSyncDataViews extends Disposable {
 
 	private registerConflictsView(container: ViewContainer): void {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		const viewName = localize('conflicts', "Conflicts");
+		const viewName = { value: localize('conflicts', "Conflicts"), original: 'Conflicts' };
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: SYNC_CONFLICTS_VIEW_ID,
 			name: viewName,
@@ -68,7 +68,7 @@ export class UserDataSyncDataViews extends Disposable {
 			when: ContextKeyExpr.and(CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW, CONTEXT_HAS_CONFLICTS),
 			canToggleVisibility: false,
 			canMoveView: false,
-			treeView: this.instantiationService.createInstance(TreeView, SYNC_CONFLICTS_VIEW_ID, viewName),
+			treeView: this.instantiationService.createInstance(TreeView, SYNC_CONFLICTS_VIEW_ID, viewName.value),
 			collapsed: false,
 			order: 100,
 		}], container);
@@ -76,8 +76,8 @@ export class UserDataSyncDataViews extends Disposable {
 
 	private registerMachinesView(container: ViewContainer): void {
 		const id = `workbench.views.sync.machines`;
-		const name = localize('synced machines', "Synced Machines");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		const name = { value: localize('synced machines', "Synced Machines"), original: 'Synced Machines' };
+		const treeView = this.instantiationService.createInstance(TreeView, id, name.value);
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncMachinesViewDataProvider, treeView);
 		treeView.showRefreshAction = true;
 		treeView.canSelectMany = true;
@@ -140,8 +140,8 @@ export class UserDataSyncDataViews extends Disposable {
 
 	private registerActivityView(container: ViewContainer, remote: boolean): void {
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}Activity`;
-		const name = remote ? localize('remote sync activity title', "Sync Activity (Remote)") : localize('local sync activity title', "Sync Activity (Local)");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		const name = remote ? { value: localize('remote sync activity title', "Sync Activity (Remote)"), original: 'Sync Activity (Remote)' } : { value: localize('local sync activity title', "Sync Activity (Local)"), original: 'Sync Activity (Local)' };
+		const treeView = this.instantiationService.createInstance(TreeView, id, name.value);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = remote ? this.instantiationService.createInstance(RemoteUserDataSyncActivityViewDataProvider)
@@ -180,7 +180,7 @@ export class UserDataSyncDataViews extends Disposable {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,
-			name,
+			name: { value: name, original: name },
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			when: CONTEXT_ENABLE_ACTIVITY_VIEWS,
 			canToggleVisibility: true,
@@ -296,8 +296,8 @@ export class UserDataSyncDataViews extends Disposable {
 
 	private registerTroubleShootView(container: ViewContainer): void {
 		const id = `workbench.views.sync.troubleshoot`;
-		const name = localize('troubleshoot', "Troubleshoot");
-		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		const name = { value: localize('troubleshoot', "Troubleshoot"), original: 'Troubleshoot' };
+		const treeView = this.instantiationService.createInstance(TreeView, id, name.value);
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncTroubleshootViewDataProvider);
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = dataProvider;

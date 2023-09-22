@@ -79,7 +79,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1'
+			name: { value: 'Test View 1', original: 'Test View 1' }
 		};
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
@@ -105,7 +105,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
@@ -143,8 +143,8 @@ suite('ViewContainerModel', () => {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', when: ContextKeyExpr.equals('showview2', true) };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: { value: 'Test View 1', original: 'Test View 1' } };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: { value: 'Test View 2', original: 'Test View 2' }, when: ContextKeyExpr.equals('showview2', true) };
 
 		ViewsRegistry.registerViews([view1, view2], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1], 'only view1 should be visible');
@@ -166,8 +166,8 @@ suite('ViewContainerModel', () => {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: { value: 'Test View 1', original: 'Test View 1' }, when: ContextKeyExpr.equals('showview1', true) };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: { value: 'Test View 2', original: 'Test View 2' } };
 
 		ViewsRegistry.registerViews([view1, view2], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'only view2 should be visible');
@@ -189,9 +189,9 @@ suite('ViewContainerModel', () => {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', canToggleVisibility: true };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', canToggleVisibility: true };
-		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3', canToggleVisibility: true };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: { value: 'Test View 1', original: 'Test View 1' }, canToggleVisibility: true };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: { value: 'Test View 2', original: 'Test View 2' }, canToggleVisibility: true };
+		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: { value: 'Test View 3', original: 'Test View 3' }, canToggleVisibility: true };
 
 		ViewsRegistry.registerViews([view1, view2, view3], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3]);
@@ -234,9 +234,9 @@ suite('ViewContainerModel', () => {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
-		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3' };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: { value: 'Test View 1', original: 'Test View 1' } };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: { value: 'Test View 2', original: 'Test View 2' } };
+		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: { value: 'Test View 3', original: 'Test View 3' } };
 
 		ViewsRegistry.registerViews([view1, view2, view3], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'model views should be OK');
@@ -271,7 +271,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1'
+			name: { value: 'Test View 1', original: 'Test View 1' }
 		};
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
@@ -291,7 +291,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
@@ -321,18 +321,18 @@ suite('ViewContainerModel', () => {
 		const view1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview', true)
 		};
 		const view2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: { value: 'Test View 2', original: 'Test View 2' },
 		};
 		const view3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: { value: 'Test View 3', original: 'Test View 3' },
 			when: ContextKeyExpr.equals('showview', true)
 		};
 
@@ -362,7 +362,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -392,7 +392,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -419,7 +419,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -446,7 +446,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -478,13 +478,13 @@ suite('ViewContainerModel', () => {
 		ViewsRegistry.registerViews([{
 			id: 'view5',
 			ctorDescriptor: null!,
-			name: 'Test View 5',
+			name: { value: 'Test View 5', original: 'Test View 5' },
 			canToggleVisibility: true,
 			order: 5
 		}, {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: { value: 'Test View 2', original: 'Test View 2' },
 			canToggleVisibility: true,
 			order: 2
 		}], container);
@@ -496,19 +496,19 @@ suite('ViewContainerModel', () => {
 		ViewsRegistry.registerViews([{
 			id: 'view4',
 			ctorDescriptor: null!,
-			name: 'Test View 4',
+			name: { value: 'Test View 4', original: 'Test View 4' },
 			canToggleVisibility: true,
 			order: 4
 		}, {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: { value: 'Test View 3', original: 'Test View 3' },
 			canToggleVisibility: true,
 			order: 3
 		}, {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			canToggleVisibility: true,
 			order: 1
 		}], container);
@@ -528,7 +528,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -559,7 +559,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -587,7 +587,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			canToggleVisibility: true
 		};
 
@@ -611,19 +611,19 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: { value: 'Test View 2', original: 'Test View 2' },
 			canToggleVisibility: true
 		};
 		const viewDescriptor3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: { value: 'Test View 3', original: 'Test View 3' },
 			canToggleVisibility: true
 		};
 
@@ -669,19 +669,19 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: { value: 'Test View 2', original: 'Test View 2' },
 			canToggleVisibility: true
 		};
 		const viewDescriptor3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: { value: 'Test View 3', original: 'Test View 3' },
 			canToggleVisibility: true
 		};
 
@@ -737,25 +737,25 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: { value: 'Test View 2', original: 'Test View 2' },
 			canToggleVisibility: true
 		};
 		const viewDescriptor3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: { value: 'Test View 3', original: 'Test View 3' },
 			canToggleVisibility: true
 		};
 		const viewDescriptor4: IViewDescriptor = {
 			id: 'view4',
 			ctorDescriptor: null!,
-			name: 'Test View 4',
+			name: { value: 'Test View 4', original: 'Test View 4' },
 			canToggleVisibility: true
 		};
 
@@ -812,7 +812,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: { value: 'Test View 1', original: 'Test View 1' },
 			canToggleVisibility: true
 		};
 		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{

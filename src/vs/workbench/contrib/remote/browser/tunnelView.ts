@@ -1083,7 +1083,7 @@ export class TunnelPanel extends ViewPane {
 
 export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly id = TunnelPanel.ID;
-	readonly name = TunnelPanel.TITLE;
+	readonly name = { value: TunnelPanel.TITLE, original: 'Ports' };
 	readonly ctorDescriptor: SyncDescriptor<TunnelPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;

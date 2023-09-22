@@ -134,7 +134,7 @@ export class SwitchRemoteViewItem extends Disposable {
 						thisCapture.select(authority);
 					}
 				});
-				this.completedRemotes.set(authority[0], { text, authority, virtualWorkspace: view.virtualWorkspace, dispose: () => action.dispose() });
+				this.completedRemotes.set(authority[0], { text: text.value, authority, virtualWorkspace: view.virtualWorkspace, dispose: () => action.dispose() });
 			}
 		}
 		if (this.completedRemotes.size > startingCount) {

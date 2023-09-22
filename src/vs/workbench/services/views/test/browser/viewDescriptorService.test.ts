@@ -60,19 +60,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true
 			}
 		];
@@ -102,19 +102,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true
 			}
 		];
@@ -142,19 +142,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true
 			}
 		];
@@ -202,19 +202,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true
 			}
 		];
@@ -283,21 +283,21 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true,
 				order: 1
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true,
 				order: 2
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true,
 				order: 3
 			}
@@ -346,25 +346,25 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: 'Test View 4',
+				name: { value: 'Test View 4', original: 'Test View 4' },
 				canMoveView: true
 			}
 		];
@@ -395,25 +395,25 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: 'Test View 4',
+				name: { value: 'Test View 4', original: 'Test View 4' },
 				canMoveView: true
 			}
 		];
@@ -457,21 +457,21 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true,
 				order: 1
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true,
 				order: 2
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true,
 				order: 3
 			}
@@ -503,7 +503,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true,
 				order: 1
 			}
@@ -540,25 +540,25 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: { value: 'Test View 3', original: 'Test View 3' },
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: 'Test View 4',
+				name: { value: 'Test View 4', original: 'Test View 4' },
 				canMoveView: true
 			}
 		];
@@ -602,7 +602,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			}
 		];
@@ -640,13 +640,13 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			}
 		];
@@ -672,14 +672,14 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: { value: 'Test View 1', original: 'Test View 1' },
 				canMoveView: true,
 				canToggleVisibility: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: { value: 'Test View 2', original: 'Test View 2' },
 				canMoveView: true
 			}
 		];

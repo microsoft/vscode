@@ -338,7 +338,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: BulkEditPane.ID,
-	name: localize('panel', "Refactor Preview"),
+	name: { value: localize('panel', "Refactor Preview"), original: 'Refactor Preview' },
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 	containerIcon: refactorPreviewViewIcon,

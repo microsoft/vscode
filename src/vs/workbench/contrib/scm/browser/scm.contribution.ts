@@ -76,7 +76,7 @@ viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
-	name: localize('source control', "Source Control"),
+	name: { value: localize('source control', "Source Control"), original: 'Source Control' },
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -98,7 +98,7 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
-	name: localize('source control repositories', "Source Control Repositories"),
+	name: { value: localize('source control repositories', "Source Control Repositories"), original: 'Source Control Repositories' },
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
@@ -112,7 +112,7 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: SYNC_VIEW_PANE_ID,
-	name: localize('source control sync', "Source Control Sync"),
+	name: { value: localize('source control sync', "Source Control Sync"), original: 'Source Control Sync' },
 	ctorDescriptor: new SyncDescriptor(SCMSyncViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,

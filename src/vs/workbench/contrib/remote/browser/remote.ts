@@ -440,6 +440,7 @@ class IssueReporterItem extends HelpItemBase {
 
 class HelpPanel extends ViewPane {
 	static readonly ID = '~remote.helpPanel';
+	static readonly ORIGINAL_TITLE = 'Help and feedback';
 	static readonly TITLE = nls.localize('remote.help', "Help and feedback");
 	private tree!: WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>;
 
@@ -506,7 +507,7 @@ class HelpPanel extends ViewPane {
 
 class HelpPanelDescriptor implements IViewDescriptor {
 	readonly id = HelpPanel.ID;
-	readonly name = HelpPanel.TITLE;
+	readonly name = { value: HelpPanel.TITLE, original: HelpPanel.ORIGINAL_TITLE };
 	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;

@@ -139,7 +139,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Markers.MARKERS_VIEW_ID,
 	containerIcon: markersViewIcon,
-	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
+	name: { value: Messages.MARKERS_PANEL_TITLE_PROBLEMS, original: Messages.MARKERS_PANEL_ORIGINAL_TITLE_PROBLEMS },
 	canToggleVisibility: false,
 	canMoveView: true,
 	ctorDescriptor: new SyncDescriptor(MarkersView),

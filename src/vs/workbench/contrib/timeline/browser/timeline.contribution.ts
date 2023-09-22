@@ -26,7 +26,7 @@ const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize
 
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
-	readonly name = TimelinePane.TITLE;
+	readonly name = { value: TimelinePane.TITLE, original: 'Timeline' };
 	readonly containerIcon = timelineViewIcon;
 	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
 	readonly order = 2;

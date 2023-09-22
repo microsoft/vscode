@@ -59,6 +59,7 @@ export class OpenEditorsView extends ViewPane {
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static readonly DEFAULT_MIN_VISIBLE_OPEN_EDITORS = 0;
 	static readonly ID = 'workbench.explorer.openEditorsView';
+	static readonly ORIGINAL_NAME = 'Open Editors';
 	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private dirtyCountElement!: HTMLElement;
