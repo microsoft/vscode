@@ -29,6 +29,7 @@ interface IAlternativeModuleProvider {
 
 interface INodeModuleFactory extends Partial<IAlternativeModuleProvider> {
 	readonly nodeModuleName: string | string[];
+	setExtensionPaths(extensionPaths: ExtensionPaths): void;
 	load(request: string, parent: URI, original: LoadFunction): any;
 }
 
@@ -48,6 +49,7 @@ export abstract class RequireInterceptor {
 	) {
 		this._factories = new Map<string, INodeModuleFactory>();
 		this._alternatives = [];
+		this._extHostExtensionService.onDidChangeExtensions(() => this.updateExtensions());
 	}
 
 	async install(): Promise<void> {
@@ -63,6 +65,14 @@ export abstract class RequireInterceptor {
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
+		}
+	}
+
+	protected async updateExtensions(): Promise<void> {
+		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
+
+		for (const [, interceptor] of this._factories) {
+			interceptor.setExtensionPaths(extensionPaths);
 		}
 	}
 
@@ -152,11 +162,15 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: ExtensionPaths,
+		private _extensionPaths: ExtensionPaths,
 		private readonly _extensionRegistry: IExtensionRegistries,
 		private readonly _configProvider: ExtHostConfigProvider,
 		private readonly _logService: ILogService,
 	) {
+	}
+
+	public setExtensionPaths(extensionPaths: ExtensionPaths) {
+		this._extensionPaths = extensionPaths;
 	}
 
 	public load(_request: string, parent: URI): any {
@@ -210,7 +224,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
 	constructor(
-		private readonly _extensionPaths: ExtensionPaths,
+		private _extensionPaths: ExtensionPaths,
 		private readonly _appUriScheme: string,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 	) {
@@ -231,6 +245,10 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 			}
 			return this.callOriginal(target, options);
 		};
+	}
+
+	public setExtensionPaths(extensionPaths: ExtensionPaths) {
+		this._extensionPaths = extensionPaths;
 	}
 
 	public load(request: string, parent: URI, original: LoadFunction): any {
