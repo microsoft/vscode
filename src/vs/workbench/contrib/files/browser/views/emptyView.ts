@@ -25,6 +25,7 @@ import { DragAndDropObserver } from 'vs/base/browser/dom';
 export class EmptyView extends ViewPane {
 
 	static readonly ID: string = 'workbench.explorer.emptyView';
+	static readonly ORIGINAL_NAME = 'No Folder Opened';
 	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 	private _disposed: boolean = false;
 

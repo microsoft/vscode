@@ -129,7 +129,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			id: viewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
-			name: providerDescriptor.label,
+			name: { value: providerDescriptor.label, original: providerDescriptor.label },
 			canToggleVisibility: false,
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: providerDescriptor.id }]),

@@ -683,7 +683,7 @@ registerAction2(class extends Action2 {
 
 					results.push({
 						id: viewDescriptor.id,
-						label: viewDescriptor.name
+						label: viewDescriptor.name.value
 					});
 				}
 			});
@@ -707,7 +707,7 @@ registerAction2(class extends Action2 {
 
 					results.push({
 						id: viewDescriptor.id,
-						label: viewDescriptor.name
+						label: viewDescriptor.name.value
 					});
 				}
 			});
@@ -732,7 +732,7 @@ registerAction2(class extends Action2 {
 
 					results.push({
 						id: viewDescriptor.id,
-						label: viewDescriptor.name
+						label: viewDescriptor.name.value
 					});
 				}
 			});
@@ -806,7 +806,7 @@ class MoveFocusedViewAction extends Action2 {
 
 		const quickPick = quickInputService.createQuickPick();
 		quickPick.placeholder = localize('moveFocusedView.selectDestination', "Select a Destination for the View");
-		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name);
+		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name.value);
 
 		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
 		const currentContainer = viewDescriptorService.getViewContainerByViewId(focusedViewId)!;

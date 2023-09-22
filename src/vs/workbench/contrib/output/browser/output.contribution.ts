@@ -61,7 +61,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
-	name: nls.localize('output', "Output"),
+	name: { value: nls.localize('output', "Output"), original: 'Output' },
 	containerIcon: outputViewIcon,
 	canMoveView: true,
 	canToggleVisibility: false,

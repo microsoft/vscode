@@ -86,7 +86,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 viewsRegistry.registerViews([{
 	id: Testing.ResultsViewId,
-	name: localize('testResultsPanelName', "Test Results"),
+	name: { value: localize('testResultsPanelName', "Test Results"), original: 'Test Results' },
 	containerIcon: testingResultsIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
@@ -105,7 +105,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 
 viewsRegistry.registerViews([{
 	id: Testing.ExplorerViewId,
-	name: localize('testExplorer', "Test Explorer"),
+	name: { value: localize('testExplorer', "Test Explorer"), original: 'Test Explorer' },
 	ctorDescriptor: new SyncDescriptor(TestingExplorerView),
 	canToggleVisibility: true,
 	canMoveView: true,

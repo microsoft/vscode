@@ -132,7 +132,7 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 }, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true, isDefault: true });
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
-	name: nls.localize('terminal', "Terminal"),
+	name: { value: nls.localize('terminal', "Terminal"), original: 'Terminal' },
 	containerIcon: terminalViewIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
