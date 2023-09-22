@@ -8,8 +8,10 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
+import { intersection } from 'vs/base/common/collections';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -154,15 +156,8 @@ export class WorkbenchToolBar extends ToolBar {
 		// count for max
 		if (this._options?.overflowBehavior !== undefined) {
 
-			const primaryIds = new Set(primary.map(a => a.id));
-			const exemptedIds = new Set(this._options.overflowBehavior.exempted);
-			let exemptedCount = 0;
-			for (const id of primaryIds) {
-				if (exemptedIds.has(id)) {
-					exemptedCount++;
-				}
-			}
-			const maxItems = this._options.overflowBehavior.maxItems - exemptedCount;
+			const exemptedIds = intersection(new Set(this._options.overflowBehavior.exempted), Iterable.map(primary, a => a.id));
+			const maxItems = this._options.overflowBehavior.maxItems - exemptedIds.size;
 
 			let count = 0;
 			for (let i = 0; i < primary.length; i++) {
