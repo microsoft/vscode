@@ -39,6 +39,7 @@ import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsD
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export interface IToolbarActions {
 	readonly primary: IAction[];
@@ -173,7 +174,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
-			maxNumberOfItems: 9,
+			overflowBehavior: { maxItems: 9, exempted: [CLOSE_EDITOR_COMMAND_ID] },
 			highlightToggledItems: true,
 		}));
 
