@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { IParsedChatRequest, ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 const variableRefUrl = 'http://_vscodeDecoration_';
 

@@ -11,7 +11,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {

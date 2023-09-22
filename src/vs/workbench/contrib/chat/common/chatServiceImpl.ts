@@ -24,8 +24,9 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestAgentPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { ChatRequestAgentPart, ChatRequestParser, ChatRequestSlashCommandPart } from 'vs/workbench/contrib/chat/common/chatRequestParser';
+import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService, IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -536,20 +537,18 @@ export class ChatService extends Disposable implements IChatService {
 					rawResponse = { session: model.session! };
 
 				} else {
+					request = model.addRequest(parsedRequest);
 					const requestProps: IChatRequest = {
 						session: model.session!,
-						message, // ?
+						message,
 						variables: {}
 					};
 
-					if (typeof requestProps.message === 'string') {
-						// const varResult = await this.chatVariablesService.resolveVariables(requestProps.message, model, token);
-						// requestProps.variables = varResult.variables;
-						// requestProps.message = varResult.prompt;
+					if ('parts' in parsedRequest) {
+						const varResult = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
+						requestProps.variables = varResult.variables;
+						requestProps.message = varResult.prompt;
 					}
-					request = model.addRequest(parsedRequest);
-
-					// Variable resolver needs to work with the parsed request. We send this to the provider, and MainThread will convert this to the markdown format that we want to send to extensions (unless we adopt this format)
 					rawResponse = await provider.provideReply(requestProps, progressCallback, token);
 				}
 
@@ -691,7 +690,7 @@ export class ChatService extends Disposable implements IChatService {
 		return Array.from(this._providers.keys());
 	}
 
-	async addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): Promise<void> {
+	async addCompleteRequest(sessionId: string, message: string | IParsedChatRequest, response: IChatCompleteResponse): Promise<void> {
 		this.trace('addCompleteRequest', `message: ${message}`);
 
 		const model = this._sessionModels.get(sessionId);
@@ -700,7 +699,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		await model.waitForInitialization();
-		const parsedRequest = await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
+		const parsedRequest = typeof message === 'string' ? await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message) : message;
 		const request = model.addRequest(parsedRequest);
 		if (typeof response.message === 'string') {
 			model.acceptResponseProgress(request, { content: response.message });

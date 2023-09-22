@@ -87,6 +87,17 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('variable with question mark', async () => {
+		const variablesService = mockObject<IChatVariablesService>()({});
+		variablesService.hasVariable.returns(true);
+		instantiationService.stub(IChatVariablesService, variablesService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const text = 'What is @selection?';
+		const result = await parser.parseChatRequest('1', text);
+		await assertSnapshot(result);
+	});
+
 	test('invalid variables', async () => {
 		const variablesService = mockObject<IChatVariablesService>()({});
 		variablesService.hasVariable.returns(false);

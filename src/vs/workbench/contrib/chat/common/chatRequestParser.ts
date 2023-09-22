@@ -6,17 +6,13 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { Range } from 'vs/editor/common/core/range';
+import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export interface IParsedChatRequest {
-	readonly parts: ReadonlyArray<IParsedChatRequestPart>;
-	readonly text: string;
-}
-
-const variableOrAgentReg = /^@([\w_\-]+)(:\d+)?(?=(\s|$))/i; // An @-variable with an optional numeric : arg (@response:2)
+const variableOrAgentReg = /^@([\w_\-]+)(:\d+)?(?=([^\w\d\_\-]|$))/i; // An @-variable with an optional numeric : arg (@response:2)
 const slashReg = /\/([\w_-]+)(?=(\s|$))/i; // A / command
 
 export class ChatRequestParser {
@@ -137,62 +133,5 @@ export class ChatRequestParser {
 		}
 
 		return;
-	}
-}
-
-export interface IParsedChatRequestPart {
-	readonly range: OffsetRange;
-	readonly editorRange: IRange;
-	readonly text: string;
-}
-
-// TODO rename to tokens
-
-export class ChatRequestTextPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
-}
-
-/**
- * An invocation of a static variable that can be resolved by the variable service
- */
-export class ChatRequestVariablePart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string) { }
-
-	get text(): string {
-		const argPart = this.variableArg ? `:${this.variableArg}` : '';
-		return `@${this.variableName}${argPart}`;
-	}
-}
-
-/**
- * An invocation of an agent that can be resolved by the agent service
- */
-export class ChatRequestAgentPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
-
-	get text(): string {
-		return `@${this.agent.id}`;
-	}
-}
-
-/**
- * An invocation of an agent's subcommand
- */
-export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: IChatAgentCommand) { }
-
-	get text(): string {
-		return `/${this.command.name}`;
-	}
-}
-
-/**
- * An invocation of a standalone slash command
- */
-export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
-
-	get text(): string {
-		return `/${this.slashCommand.command}`;
 	}
 }

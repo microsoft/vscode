@@ -26,7 +26,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart } from '../../common/chatRequestParser';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
