@@ -487,7 +487,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): boolean {
-		// TODO figure out index and pass focus
+		if (options?.focusTabControl) {
+			const tabIndex = this.tabsModel.indexOf(editor);
+			(<HTMLElement>this.tabsContainer?.children[tabIndex]).focus();
+		}
 		return this.handleOpenedEditors();
 	}
 
@@ -937,19 +940,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Navigate in editors
 			else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(kb => event.equals(kb))) {
-				// TODO: operate over entire group, not filtered tabs
-				let tabTargetIndex: number;
+
+				const editor = assertIsDefined(this.tabsModel.getEditorByIndex(tabIndex));
+				let editorIndex = this.groupViewer.getIndexOfEditor(editor);
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
-					tabTargetIndex = tabIndex - 1;
+					editorIndex = editorIndex - 1;
 				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.DownArrow)) {
-					tabTargetIndex = tabIndex + 1;
+					editorIndex = editorIndex + 1;
 				} else if (event.equals(KeyCode.Home)) {
-					tabTargetIndex = 0;
+					editorIndex = 0;
 				} else {
-					tabTargetIndex = this.tabsModel.count - 1;
+					editorIndex = this.groupViewer.count - 1;
 				}
 
-				const target = this.tabsModel.getEditorByIndex(tabTargetIndex);
+				const target = this.groupViewer.getEditorByIndex(editorIndex);
 				if (target) {
 					handled = true;
 					this.groupViewer.openEditor(target, { preserveFocus: true }, { focusTabControl: true });

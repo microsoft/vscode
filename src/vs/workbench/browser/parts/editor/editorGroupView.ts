@@ -1092,7 +1092,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show in title control after editor control because some actions depend on it
 		// but respect the internal options in case title control updates should skip.
 		if (!internalOptions?.skipTitleUpdate) {
-			this.titleControl.openEditor(editor);
+			this.titleControl.openEditor(editor, internalOptions);
 		}
 
 		return openEditorPromise;
