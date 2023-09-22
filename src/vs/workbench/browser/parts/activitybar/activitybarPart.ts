@@ -44,7 +44,6 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -526,10 +525,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			preventLoopNavigation: true
 		}));
 
-		this.globalActivityAction = this._register(new ActivityAction(this.createGlobalActivity(this.userDataProfileService.currentProfile)));
+		this.globalActivityAction = this._register(new ActivityAction(this.createGlobalActivity()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
 			if (this.globalActivityAction) {
-				this.globalActivityAction.activity = this.createGlobalActivity(e.profile);
+				this.globalActivityAction.activity = this.createGlobalActivity();
 			}
 		}));
 
@@ -546,11 +545,11 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
 
-	private createGlobalActivity(profile: IUserDataProfile): IActivity {
+	private createGlobalActivity(): IActivity {
 		return {
 			id: 'workbench.actions.manage',
 			name: localize('manage', "Manage"),
-			classNames: ThemeIcon.asClassNameArray(profile.icon ? ThemeIcon.fromId(profile.icon) : ActivitybarPart.GEAR_ICON),
+			classNames: ThemeIcon.asClassNameArray(this.userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(this.userDataProfileService.currentProfile.icon) : ActivitybarPart.GEAR_ICON),
 		};
 	}
 
