@@ -35,7 +35,7 @@ import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/te
 import { IEditableData } from 'vs/workbench/common/views';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
@@ -81,7 +81,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
-		const dnd = instantiationService.createInstance(TerminalTabsDragAndDrop);
 		super('TerminalTabsList', container,
 			{
 				getHeight: () => TerminalTabsListSizes.TabHeight,
@@ -99,7 +98,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				paddingBottom: TerminalTabsListSizes.TabHeight,
-				dnd,
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
 				openOnSingleClick: true
 			},
 			contextKeyService,
@@ -107,7 +106,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			_configurationService,
 			instantiationService,
 		);
-		this.disposables.add(dnd);
 
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
@@ -419,7 +417,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		inputBox.focus();
 		inputBox.select({ start: 0, end: value.length });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			inputBox.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);

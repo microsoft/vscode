@@ -272,18 +272,18 @@ suite('FilteredEditorGroupModel', () => {
 		model.openEditor(input2, { pinned: true, sticky: false });
 
 
-		assert.strictEqual(stickyFilteredEditorGroup.isEmpty, true);
-		assert.strictEqual(unstickyFilteredEditorGroup.isEmpty, false);
+		assert.strictEqual(stickyFilteredEditorGroup.count === 0, true);
+		assert.strictEqual(unstickyFilteredEditorGroup.count === 0, false);
 
 		model.stick(input1);
 
-		assert.strictEqual(stickyFilteredEditorGroup.isEmpty, false);
-		assert.strictEqual(unstickyFilteredEditorGroup.isEmpty, false);
+		assert.strictEqual(stickyFilteredEditorGroup.count === 0, false);
+		assert.strictEqual(unstickyFilteredEditorGroup.count === 0, false);
 
 		model.stick(input2);
 
-		assert.strictEqual(stickyFilteredEditorGroup.isEmpty, false);
-		assert.strictEqual(unstickyFilteredEditorGroup.isEmpty, true);
+		assert.strictEqual(stickyFilteredEditorGroup.count === 0, false);
+		assert.strictEqual(unstickyFilteredEditorGroup.count === 0, true);
 	});
 
 	test('Sticky/Unsticky editors', async () => {

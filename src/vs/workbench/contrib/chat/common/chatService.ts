@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
@@ -227,7 +228,7 @@ export interface IChatService {
 	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[]>;
 	clearSession(sessionId: string): void;
 	addRequest(context: any): void;
-	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;
+	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
 	removeHistoryEntry(sessionId: string): void;

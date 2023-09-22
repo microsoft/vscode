@@ -82,7 +82,7 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 	return options;
 }
 
-export interface IEditorGroupsAccessor {
+export interface IEditorGroupsView {
 
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;

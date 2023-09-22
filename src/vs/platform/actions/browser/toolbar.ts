@@ -63,9 +63,11 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 	allowContextMenu?: never;
 
 	/**
-	 * Maximun number of items that can shown. Extra items will be shown in the overflow menu.
+	 * Controls the overflow behavior of the primary group of toolbar. This isthe maximum number of items and id of
+	 * items that should never overflow
+	 *
 	 */
-	maxNumberOfItems?: number;
+	overflowBehavior?: { maxItems: number; exempted?: string[] };
 };
 
 /**
@@ -150,14 +152,22 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 
 		// count for max
-		if (this._options?.maxNumberOfItems !== undefined) {
+		if (this._options?.overflowBehavior !== undefined) {
+
+			const exempted = new Set(this._options.overflowBehavior.exempted);
+			const maxItems = this._options.overflowBehavior.maxItems - exempted.size;
+
 			let count = 0;
 			for (let i = 0; i < primary.length; i++) {
 				const action = primary[i];
 				if (!action) {
 					continue;
 				}
-				if (++count >= this._options.maxNumberOfItems) {
+				count++;
+				if (exempted.has(action.id)) {
+					continue;
+				}
+				if (count >= maxItems) {
 					primary[i] = undefined!;
 					extraSecondary[i] = action;
 				}
