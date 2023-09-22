@@ -154,8 +154,15 @@ export class WorkbenchToolBar extends ToolBar {
 		// count for max
 		if (this._options?.overflowBehavior !== undefined) {
 
-			const exempted = new Set(this._options.overflowBehavior.exempted);
-			const maxItems = this._options.overflowBehavior.maxItems - exempted.size;
+			const primaryIds = new Set(primary.map(a => a.id));
+			const exemptedIds = new Set(this._options.overflowBehavior.exempted);
+			let exemptedCount = 0;
+			for (const id of primaryIds) {
+				if (exemptedIds.has(id)) {
+					exemptedCount++;
+				}
+			}
+			const maxItems = this._options.overflowBehavior.maxItems - exemptedCount;
 
 			let count = 0;
 			for (let i = 0; i < primary.length; i++) {
@@ -164,7 +171,7 @@ export class WorkbenchToolBar extends ToolBar {
 					continue;
 				}
 				count++;
-				if (exempted.has(action.id)) {
+				if (exemptedIds.has(action.id)) {
 					continue;
 				}
 				if (count >= maxItems) {
