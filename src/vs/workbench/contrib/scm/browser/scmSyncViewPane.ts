@@ -295,9 +295,10 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 
 	renderElement(node: ITreeNode<SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode, void>, index: number, templateData: HistoryItemChangeTemplate, height: number | undefined): void {
 		const historyItemChangeOrFolder = node.element;
+		const uri = ResourceTree.isResourceNode(historyItemChangeOrFolder) ? historyItemChangeOrFolder.element?.uri ?? historyItemChangeOrFolder.uri : historyItemChangeOrFolder.uri;
 		const fileKind = ResourceTree.isResourceNode(historyItemChangeOrFolder) && historyItemChangeOrFolder.childrenCount > 0 ? FileKind.FOLDER : FileKind.FILE;
 
-		templateData.fileLabel.setFile(node.element.uri, {
+		templateData.fileLabel.setFile(uri, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
 			hidePath: this.viewMode() === ViewMode.Tree,
