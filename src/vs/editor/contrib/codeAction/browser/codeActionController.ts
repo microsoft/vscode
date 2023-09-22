@@ -30,6 +30,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 
 interface IActionShowOptions {
@@ -54,7 +55,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	private readonly _resolver: CodeActionKeybindingResolver;
 
-	#disposed = false;
+	private _disposed = false;
 
 	constructor(
 		editor: ICodeEditor,
@@ -89,7 +90,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	override dispose() {
-		this.#disposed = true;
+		this._disposed = true;
 		super.dispose();
 	}
 
@@ -148,7 +149,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		if (this.#disposed) {
+		if (this._disposed) {
 			return;
 		}
 
@@ -251,6 +252,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			},
 			onHide: () => {
 				this._editor?.focus();
+			},
+			onFocus: async (action: CodeActionItem, token: CancellationToken) => {
+				await action.resolve(token);
+				if (token.isCancellationRequested) {
+					return;
+				}
+				return { canPreview: !!action.action.edit?.edits.length };
 			}
 		};
 

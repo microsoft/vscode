@@ -54,7 +54,7 @@ ModesRegistry.registerLanguage({
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	title: nls.localize('output', "Output"),
+	title: { value: nls.localize('output', "Output"), original: 'Output' },
 	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
@@ -368,9 +368,19 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: {
 						id: MenuId.CommandPalette,
 					},
+					description: {
+						description: 'workbench.action.openLogFile',
+						args: [{
+							name: 'logFile',
+							schema: {
+								markdownDescription: nls.localize('logFile', "The id of the log file to open, for example `\"window\"`. Currently the best way to get this is to get the ID by checking the `workbench.action.output.show.<id>` commands"),
+								type: 'string'
+							}
+						}]
+					},
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const quickInputService = accessor.get(IQuickInputService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -379,7 +389,14 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 				const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
 					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 
-				const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
+				const argName = args && typeof args === 'string' ? args : undefined;
+				let entry: IOutputChannelQuickPickItem | undefined;
+				if (argName) {
+					entry = entries.find(e => e.id === argName);
+				}
+				if (!entry) {
+					entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
+				}
 				if (entry) {
 					assertIsDefined(entry.channel.file);
 					await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });

@@ -39,7 +39,7 @@ registerAction2(class extends Action2 {
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
 		if (entry) {
-			await nativeHostService.showItemInFolder(entry.location.fsPath);
+			await nativeHostService.showItemInFolder(entry.location.with({ scheme: Schemas.file }).fsPath);
 		}
 	}
 });

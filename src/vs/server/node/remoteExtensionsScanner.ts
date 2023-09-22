@@ -28,7 +28,8 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _whenExtensionsReady: Promise<void>;
+	private readonly _whenBuiltinExtensionsReady = Promise.resolve();
+	private readonly _whenExtensionsReady = Promise.resolve();
 
 	constructor(
 		private readonly _extensionManagementCLI: ExtensionManagementCLI,
@@ -44,21 +45,19 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 			_logService.trace('Installing builtin extensions passed via args...');
 			const installOptions: InstallOptions = { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] };
 			performance.mark('code/server/willInstallBuiltinExtensions');
-			this._whenExtensionsReady = _extensionManagementCLI.installExtensions([], this._asExtensionIdOrVSIX(builtinExtensionsToInstall), installOptions, !!environmentService.args['force'])
+			this._whenExtensionsReady = this._whenBuiltinExtensionsReady = _extensionManagementCLI.installExtensions([], this._asExtensionIdOrVSIX(builtinExtensionsToInstall), installOptions, !!environmentService.args['force'])
 				.then(() => {
 					performance.mark('code/server/didInstallBuiltinExtensions');
 					_logService.trace('Finished installing builtin extensions');
 				}, error => {
 					_logService.error(error);
 				});
-		} else {
-			this._whenExtensionsReady = Promise.resolve();
 		}
 
 		const extensionsToInstall = environmentService.args['install-extension'];
 		if (extensionsToInstall) {
 			_logService.trace('Installing extensions passed via args...');
-			this._whenExtensionsReady
+			this._whenExtensionsReady = this._whenBuiltinExtensionsReady
 				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], {
 					isMachineScoped: !!environmentService.args['do-not-sync'],
 					installPreReleaseVersion: !!environmentService.args['pre-release'],
@@ -84,7 +83,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		performance.mark('code/server/willScanExtensions');
 		this._logService.trace(`Scanning extensions using UI language: ${language}`);
 
-		await this.whenExtensionsReady();
+		await this._whenBuiltinExtensionsReady;
 
 		const extensionDevelopmentPaths = extensionDevelopmentLocations ? extensionDevelopmentLocations.filter(url => url.scheme === Schemas.file).map(url => url.fsPath) : undefined;
 		profileLocation = profileLocation ?? this._userDataProfilesService.defaultProfile.extensionsResource;
@@ -99,7 +98,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	}
 
 	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean, language?: string): Promise<IExtensionDescription | null> {
-		await this.whenExtensionsReady();
+		await this._whenBuiltinExtensionsReady;
 
 		const extensionPath = extensionLocation.scheme === Schemas.file ? extensionLocation.fsPath : null;
 

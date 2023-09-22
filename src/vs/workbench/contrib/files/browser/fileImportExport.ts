@@ -29,7 +29,7 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { listenStream } from 'vs/base/common/stream';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { coalesce } from 'vs/base/common/arrays';
 import { canceled } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -710,12 +710,12 @@ export class FileDownload {
 			const disposables = new DisposableStore();
 			disposables.add(toDisposable(() => target.close()));
 
-			disposables.add(once(token.onCancellationRequested)(() => {
+			disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => {
 				disposables.dispose();
 				reject(canceled());
 			}));
 
-			disposables.add(listenStream(sourceStream, {
+			listenStream(sourceStream, {
 				onData: data => {
 					target.write(data.buffer);
 					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
@@ -728,7 +728,7 @@ export class FileDownload {
 					disposables.dispose();
 					resolve();
 				}
-			}));
+			}, token);
 		});
 	}
 

@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -16,7 +15,7 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
-import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE, COMMENTS_VIEW_ORIGINAL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -287,13 +286,15 @@ export class MainThreadCommentController implements ICommentController {
 			this._commentService.updateComments(this._uniqueId, {
 				added: [thread],
 				removed: [],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		} else {
 			this._commentService.updateNotebookComments(this._uniqueId, {
 				added: [thread as MainThreadCommentThread<ICellRange>],
 				removed: [],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		}
 
@@ -311,13 +312,15 @@ export class MainThreadCommentController implements ICommentController {
 			this._commentService.updateComments(this._uniqueId, {
 				added: [],
 				removed: [],
-				changed: [thread]
+				changed: [thread],
+				pending: []
 			});
 		} else {
 			this._commentService.updateNotebookComments(this._uniqueId, {
 				added: [],
 				removed: [],
-				changed: [thread as MainThreadCommentThread<ICellRange>]
+				changed: [thread as MainThreadCommentThread<ICellRange>],
+				pending: []
 			});
 		}
 
@@ -332,13 +335,15 @@ export class MainThreadCommentController implements ICommentController {
 			this._commentService.updateComments(this._uniqueId, {
 				added: [],
 				removed: [thread],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		} else {
 			this._commentService.updateNotebookComments(this._uniqueId, {
 				added: [],
 				removed: [thread as MainThreadCommentThread<ICellRange>],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		}
 	}
@@ -502,8 +507,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}));
 	}
 
-	$registerCommentController(handle: number, id: string, label: string): void {
-		const providerId = generateUuid();
+	$registerCommentController(handle: number, id: string, label: string, extensionId: string): void {
+		const providerId = `${label}-${extensionId}`;
 		this._handlers.set(handle, providerId);
 
 		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});
@@ -596,7 +601,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!commentsViewAlreadyRegistered) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
-				title: COMMENTS_VIEW_TITLE,
+				title: { value: COMMENTS_VIEW_TITLE, original: COMMENTS_VIEW_ORIGINAL_TITLE },
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 				storageId: COMMENTS_VIEW_STORAGE_ID,
 				hideIfEmpty: true,

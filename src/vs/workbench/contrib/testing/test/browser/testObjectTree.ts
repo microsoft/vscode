@@ -89,7 +89,7 @@ class ByLabelTreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 			}
 		}
 
-		return (a.sortText || a.label).localeCompare(b.sortText || b.label);
+		return (a.test.item.sortText || a.test.item.label).localeCompare(b.test.item.sortText || b.test.item.label);
 	}
 }
 
@@ -104,7 +104,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	constructor(makeTree: (listener: ITestService) => T, public readonly c = testStubs.nested()) {
 		super();
 		this._register(c);
-		this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */));
+		this._register(this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */)));
 
 		const collection = new MainThreadTestCollection((testId, levels) => {
 			this.c.expand(testId, levels);
@@ -120,7 +120,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 			onDidProcessDiff: this.onDiff.event,
 		} as any));
 		const sorter = new ByLabelTreeSorter();
-		this.tree = this._register(new TestObjectTree(t => 'label' in t ? t.label : t.message.toString(), sorter));
+		this.tree = this._register(new TestObjectTree(t => 'test' in t ? t.test.item.label : t.message.toString(), sorter));
 		this._register(this.tree.onDidChangeCollapseState(evt => {
 			if (evt.node.element instanceof TestItemTreeElement) {
 				this.projection.expandElement(evt.node.element, evt.deep ? Infinity : 0);

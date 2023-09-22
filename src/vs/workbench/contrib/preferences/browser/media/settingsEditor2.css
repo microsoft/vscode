@@ -492,6 +492,9 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown * {
 	margin: 0px;
 }
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown *:not(:last-child) {
+	margin-bottom: 8px;
+}
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button {
 	opacity: 0.9;

@@ -429,6 +429,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		}
 
 		const result: MarkdownHover[] = [];
+		const existedReason = new Set<string>();
 		let index = 300;
 		for (const d of lineDecorations) {
 
@@ -479,6 +480,11 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 					);
 					break;
 			}
+
+			if (existedReason.has(reason)) {
+				continue;
+			}
+			existedReason.add(reason);
 
 			const adjustSettingsArgs: ShowExcludeOptionsArgs = {
 				codePoint: codePoint,

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInlineChatService, IInlineChatSessionProvider, CTX_INLINE_CHAT_HAS_PROVIDER } from './inlineChat';
@@ -16,6 +17,11 @@ export class InlineChatServiceImpl implements IInlineChatService {
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 
+	private readonly _onDidChangeProviders = new Emitter<void>();
+	public get onDidChangeProviders() {
+		return this._onDidChangeProviders.event;
+	}
+
 	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
 		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_PROVIDER.bindTo(contextKeyService);
 	}
@@ -24,10 +30,12 @@ export class InlineChatServiceImpl implements IInlineChatService {
 
 		const rm = this._entries.push(provider);
 		this._ctxHasProvider.set(true);
+		this._onDidChangeProviders.fire();
 
 		return toDisposable(() => {
 			rm();
 			this._ctxHasProvider.set(this._entries.size > 0);
+			this._onDidChangeProviders.fire();
 		});
 	}
 

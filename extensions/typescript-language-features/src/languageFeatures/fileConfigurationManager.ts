@@ -195,6 +195,7 @@ export default class FileConfigurationManager extends Disposable {
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			disableLineTextInReferences: true,
+			interactiveInlayHints: true,
 			...getInlayHintsPreferences(config),
 		};
 

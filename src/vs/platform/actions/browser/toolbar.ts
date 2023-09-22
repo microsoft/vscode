@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
@@ -62,9 +63,11 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 	allowContextMenu?: never;
 
 	/**
-	 * Maximun number of items that can shown. Extra items will be shown in the overflow menu.
+	 * Controls the overflow behavior of the primary group of toolbar. This isthe maximum number of items and id of
+	 * items that should never overflow
+	 *
 	 */
-	maxNumberOfItems?: number;
+	overflowBehavior?: { maxItems: number; exempted?: string[] };
 };
 
 /**
@@ -149,14 +152,22 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 
 		// count for max
-		if (this._options?.maxNumberOfItems !== undefined) {
+		if (this._options?.overflowBehavior !== undefined) {
+
+			const exempted = new Set(this._options.overflowBehavior.exempted);
+			const maxItems = this._options.overflowBehavior.maxItems - exempted.size;
+
 			let count = 0;
 			for (let i = 0; i < primary.length; i++) {
 				const action = primary[i];
 				if (!action) {
 					continue;
 				}
-				if (++count >= this._options.maxNumberOfItems) {
+				count++;
+				if (exempted.has(action.id)) {
+					continue;
+				}
+				if (count >= maxItems) {
 					primary[i] = undefined!;
 					extraSecondary[i] = action;
 				}
@@ -170,13 +181,14 @@ export class WorkbenchToolBar extends ToolBar {
 		// add context menu for toggle actions
 		if (toggleActions.length > 0) {
 			this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
+				const event = new StandardMouseEvent(e);
 
-				const action = this.getItemAction(<HTMLElement>e.target);
+				const action = this.getItemAction(event.target);
 				if (!(action)) {
 					return;
 				}
-				e.preventDefault();
-				e.stopPropagation();
+				event.preventDefault();
+				event.stopPropagation();
 
 				let noHide = false;
 
@@ -232,7 +244,7 @@ export class WorkbenchToolBar extends ToolBar {
 				}
 
 				this._contextMenuService.showContextMenu({
-					getAnchor: () => e,
+					getAnchor: () => event,
 					getActions: () => actions,
 					// add context menu actions (iff appicable)
 					menuId: this._options?.contextMenu,

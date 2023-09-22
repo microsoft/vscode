@@ -19,6 +19,7 @@ import { timeout } from 'vs/base/common/async';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('EditorsObserver', function () {
 
@@ -51,7 +52,7 @@ suite('EditorsObserver', function () {
 	async function createEditorObserver(): Promise<[EditorPart, EditorsObserver, IInstantiationService]> {
 		const [part, instantiationService] = await createPart();
 
-		const observer = disposables.add(new EditorsObserver(part, new TestStorageService()));
+		const observer = disposables.add(new EditorsObserver(part, disposables.add(new TestStorageService())));
 
 		return [part, observer, instantiationService];
 	}
@@ -60,9 +61,9 @@ suite('EditorsObserver', function () {
 		const [part, observer] = await createEditorObserver();
 
 		let onDidMostRecentlyActiveEditorsChangeCalled = false;
-		const listener = observer.onDidMostRecentlyActiveEditorsChange(() => {
+		disposables.add(observer.onDidMostRecentlyActiveEditorsChange(() => {
 			onDidMostRecentlyActiveEditorsChangeCalled = true;
-		});
+		}));
 
 		let currentEditorsMRU = observer.editors;
 		assert.strictEqual(currentEditorsMRU.length, 0);
@@ -135,8 +136,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
 		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
-
-		listener.dispose();
 	});
 
 	test('basics (multi group)', async () => {
@@ -147,7 +146,7 @@ suite('EditorsObserver', function () {
 		let currentEditorsMRU = observer.editors;
 		assert.strictEqual(currentEditorsMRU.length, 0);
 
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const sideGroup = disposables.add(part.addGroup(rootGroup, GroupDirection.RIGHT));
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
 
@@ -176,7 +175,7 @@ suite('EditorsObserver', function () {
 
 		// Opening an editor inactive should not change
 		// the most recent editor, but rather put it behind
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input2, { inactive: true });
 
@@ -212,13 +211,15 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditors(input2.resource), false);
 		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
 		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
+
+		part.removeGroup(sideGroup);
 	});
 
 	test('hasEditor/hasEditors - same resource, different type id', async () => {
 		const [part, observer] = await createEditorObserver();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(input1.resource, 'otherTypeId');
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(input1.resource, 'otherTypeId'));
 
 		assert.strictEqual(observer.hasEditors(input1.resource), false);
 		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
@@ -252,8 +253,8 @@ suite('EditorsObserver', function () {
 	test('hasEditor/hasEditors - side by side editor support', async () => {
 		const [part, observer, instantiationService] = await createEditorObserver();
 
-		const primary = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const secondary = new TestFileEditorInput(URI.parse('foo://bar2'), 'otherTypeId');
+		const primary = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const secondary = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), 'otherTypeId'));
 
 		const input = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, secondary, primary);
 
@@ -289,9 +290,9 @@ suite('EditorsObserver', function () {
 	test('copy group', async function () {
 		const [part, observer] = await createEditorObserver();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
 
 		const rootGroup = part.activeGroup;
 
@@ -351,15 +352,15 @@ suite('EditorsObserver', function () {
 
 		const rootGroup = part.activeGroup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input1, { pinned: true });
 		await rootGroup.openEditor(input2, { pinned: true });
 		await rootGroup.openEditor(input3, { pinned: true });
 
-		const storage = new TestStorageService();
+		const storage = disposables.add(new TestStorageService());
 		const observer = disposables.add(new EditorsObserver(part, storage));
 		await part.whenReady;
 
@@ -398,17 +399,17 @@ suite('EditorsObserver', function () {
 
 		const rootGroup = part.activeGroup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_SERIALIZABLE_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input1, { pinned: true });
 		await rootGroup.openEditor(input2, { pinned: true });
 
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const sideGroup = disposables.add(part.addGroup(rootGroup, GroupDirection.RIGHT));
 		await sideGroup.openEditor(input3, { pinned: true });
 
-		const storage = new TestStorageService();
+		const storage = disposables.add(new TestStorageService());
 		const observer = disposables.add(new EditorsObserver(part, storage));
 		await part.whenReady;
 
@@ -447,11 +448,11 @@ suite('EditorsObserver', function () {
 
 		const rootGroup = part.activeGroup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input1, { pinned: true });
 
-		const storage = new TestStorageService();
+		const storage = disposables.add(new TestStorageService());
 		const observer = disposables.add(new EditorsObserver(part, storage));
 		await part.whenReady;
 
@@ -473,18 +474,18 @@ suite('EditorsObserver', function () {
 
 	test('observer closes editors when limit reached (across all groups)', async () => {
 		const [part] = await createPart();
-		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3 } }));
 
-		const storage = new TestStorageService();
+		const storage = disposables.add(new TestStorageService());
 		const observer = disposables.add(new EditorsObserver(part, storage));
 
 		const rootGroup = part.activeGroup;
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const sideGroup = disposables.add(part.addGroup(rootGroup, GroupDirection.RIGHT));
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID));
+		const input4 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input1, { pinned: true });
 		await rootGroup.openEditor(input2, { pinned: true });
@@ -502,7 +503,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 
 		input2.setDirty();
-		part.enforcePartOptions({ limit: { enabled: true, value: 1 } });
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 1 } }));
 
 		await timeout(0);
 
@@ -516,7 +517,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
 		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 
-		const input5 = new TestFileEditorInput(URI.parse('foo://bar5'), TEST_EDITOR_INPUT_ID);
+		const input5 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar5'), TEST_EDITOR_INPUT_ID));
 		await sideGroup.openEditor(input5, { pinned: true });
 
 		assert.strictEqual(rootGroup.count, 1);
@@ -534,18 +535,18 @@ suite('EditorsObserver', function () {
 
 	test('observer closes editors when limit reached (in group)', async () => {
 		const [part] = await createPart();
-		part.enforcePartOptions({ limit: { enabled: true, value: 3, perEditorGroup: true } });
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3, perEditorGroup: true } }));
 
-		const storage = new TestStorageService();
+		const storage = disposables.add(new TestStorageService());
 		const observer = disposables.add(new EditorsObserver(part, storage));
 
 		const rootGroup = part.activeGroup;
-		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const sideGroup = disposables.add(part.addGroup(rootGroup, GroupDirection.RIGHT));
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID));
+		const input4 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input1, { pinned: true });
 		await rootGroup.openEditor(input2, { pinned: true });
@@ -577,7 +578,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 
-		part.enforcePartOptions({ limit: { enabled: true, value: 1, perEditorGroup: true } });
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 1, perEditorGroup: true } }));
 
 		await timeout(10);
 
@@ -601,17 +602,17 @@ suite('EditorsObserver', function () {
 
 	test('observer does not close sticky', async () => {
 		const [part] = await createPart();
-		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3 } }));
 
-		const storage = new TestStorageService();
+		const storage = disposables.add(new TestStorageService());
 		const observer = disposables.add(new EditorsObserver(part, storage));
 
 		const rootGroup = part.activeGroup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID));
+		const input4 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input1, { pinned: true, sticky: true });
 		await rootGroup.openEditor(input2, { pinned: true });
@@ -631,18 +632,18 @@ suite('EditorsObserver', function () {
 
 	test('observer does not close scratchpads', async () => {
 		const [part] = await createPart();
-		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
+		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3 } }));
 
-		const storage = new TestStorageService();
+		const storage = disposables.add(new TestStorageService());
 		const observer = disposables.add(new EditorsObserver(part, storage));
 
 		const rootGroup = part.activeGroup;
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
 		input1.capabilities = EditorInputCapabilities.Untitled | EditorInputCapabilities.Scratchpad;
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
-		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		const input3 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID));
+		const input4 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID));
 
 		await rootGroup.openEditor(input1, { pinned: true });
 		await rootGroup.openEditor(input2, { pinned: true });
@@ -659,4 +660,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 		assert.strictEqual(observer.hasEditor({ resource: input4.resource, typeId: input4.typeId, editorId: input4.editorId }), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate, IContextMenuEvent } from 'vs/base/browser/contextmenu';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
@@ -23,7 +23,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
-import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -82,7 +82,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 	}
@@ -93,7 +93,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		const actions = delegate.getActions();
 		if (actions.length) {
-			const onHide = once(() => {
+			const onHide = createSingleCallFunction(() => {
 				delegate.onHide?.(false);
 
 				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
@@ -103,8 +103,8 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			const menu = this.createMenu(delegate, actions, onHide);
 			const anchor = delegate.getAnchor();
 
-			let x: number;
-			let y: number;
+			let x: number | undefined;
+			let y: number | undefined;
 
 			let zoom = getZoomFactor();
 			if (dom.isHTMLElement(anchor)) {
@@ -155,20 +155,23 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				if (isMacintosh) {
 					y += 4 / zoom;
 				}
+			} else if (isAnchor(anchor)) {
+				x = anchor.x;
+				y = anchor.y;
 			} else {
-				const pos: { x: number; y: number } = anchor;
-				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
-				y = pos.y;
+				// We leave x/y undefined in this case which will result in
+				// Electron taking care of opening the menu at the cursor position.
 			}
 
-			x *= zoom;
-			y *= zoom;
+			if (typeof x === 'number') {
+				x = Math.floor(x * zoom);
+			}
 
-			popup(menu, {
-				x: Math.floor(x),
-				y: Math.floor(y),
-				positioningItem: delegate.autoSelectFirstItem ? 0 : undefined,
-			}, () => onHide());
+			if (typeof y === 'number') {
+				y = Math.floor(y * zoom);
+			}
+
+			popup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
 		}

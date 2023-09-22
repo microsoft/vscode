@@ -86,7 +86,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 				}
 
 				const allowedTooltips = isProposedApiEnabled(extension, 'quickPickItemTooltip');
-				const allowedIcons = isProposedApiEnabled(extension, 'quickPickItemIcon');
 
 				return itemsPromise.then(items => {
 
@@ -101,10 +100,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 							if (item.tooltip && !allowedTooltips) {
 								console.warn(`Extension '${extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 							}
-							if (item.iconPath && !allowedIcons) {
-								console.warn(`Extension '${extension.identifier.value}' uses an icon which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
-							}
-							const icon = (item.iconPath && allowedIcons) ? getIconPathOrClass(item.iconPath) : undefined;
+
+							const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
 							pickItems.push({
 								label: item.label,
 								iconPath: icon?.iconPath,
@@ -573,7 +570,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			});
 
 			const allowedTooltips = isProposedApiEnabled(this.extension, 'quickPickItemTooltip');
-			const allowedIcons = isProposedApiEnabled(this.extension, 'quickPickItemIcon');
 
 			const pickItems: TransferQuickPickItemOrSeparator[] = [];
 			for (let handle = 0; handle < items.length; handle++) {
@@ -584,10 +580,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 					if (item.tooltip && !allowedTooltips) {
 						console.warn(`Extension '${this.extension.identifier.value}' uses a tooltip which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
 					}
-					if (item.iconPath && !allowedIcons) {
-						console.warn(`Extension '${this.extension.identifier.value}' uses an icon which is proposed API that is only available when running out of dev or with the following command line switch: --enable-proposed-api ${this.extension.identifier.value}`);
-					}
-					const icon = (item.iconPath && allowedIcons) ? getIconPathOrClass(item.iconPath) : undefined;
+
+					const icon = (item.iconPath) ? getIconPathOrClass(item.iconPath) : undefined;
 					pickItems.push({
 						handle,
 						label: item.label,

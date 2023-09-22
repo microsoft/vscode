@@ -6,13 +6,12 @@
 import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { Promises } from 'vs/base/node/pfs';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
-import { hostname, release } from 'os';
+import { hostname, release, arch } from 'os';
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CharCode } from 'vs/base/common/charCode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -21,7 +20,7 @@ import { getMarks, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -799,7 +798,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				detail: uri.scheme === Schemas.file ?
 					localize('pathNotExistDetail', "The path '{0}' does not exist on this computer.", getPathLabel(uri, { os: OS, tildify: this.environmentMainService })) :
 					localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString(true))
-			}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+			}, BrowserWindow.getFocusedWindow() ?? undefined);
 
 			return undefined;
 		}));
@@ -1401,8 +1400,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				profile: defaultProfile
 			},
 
-			homeDir: this.environmentMainService.userHome.fsPath,
-			tmpDir: this.environmentMainService.tmpDir.fsPath,
+			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
+			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
 
 			remoteAuthority: options.remoteAuthority,
@@ -1419,12 +1418,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				window: [],
 				global: this.loggerService.getRegisteredLoggers()
 			},
-			logsPath: this.environmentMainService.logsHome.fsPath,
+			logsPath: this.environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 
 			product,
 			isInitialStartup: options.initialStartup,
 			perfMarks: getMarks(),
-			os: { release: release(), hostname: hostname() },
+			os: { release: release(), hostname: hostname(), arch: arch() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
@@ -1464,9 +1463,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() - 1, newCount: this.getWindowCount() });
 
 			// Window Events
-			once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
-			once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
-			once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
+			Event.once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
+			Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
+			Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
 			createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y }));
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);

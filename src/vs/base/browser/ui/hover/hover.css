@@ -7,12 +7,12 @@
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	z-index: 50;
 	user-select: text;
 	-webkit-user-select: text;
-	box-sizing: initial;
+	box-sizing: border-box;
 	animation: fadein 100ms linear;
 	line-height: 1.5em;
+	white-space: var(--vscode-hover-whiteSpace, normal);
 }
 
 .monaco-hover.hidden {
@@ -28,7 +28,7 @@
 }
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
-	max-width: 500px;
+	max-width: var(--vscode-hover-maxWidth, 500px);
 	word-wrap: break-word;
 }
 
@@ -106,7 +106,7 @@
 }
 
 .monaco-hover .monaco-tokenized-source {
-	white-space: pre-wrap;
+	white-space: var(--vscode-hover-sourceWhiteSpace, pre-wrap);
 }
 
 .monaco-hover .hover-row.status-bar {
