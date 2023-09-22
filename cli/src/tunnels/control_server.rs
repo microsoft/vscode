@@ -777,6 +777,8 @@ async fn handle_update(
 	let latest_release = updater.get_current_release().await?;
 	let up_to_date = updater.is_up_to_date_with(&latest_release);
 
+	let _ = updater.cleanup_old_update();
+
 	if !params.do_update || up_to_date {
 		return Ok(UpdateResult {
 			up_to_date,

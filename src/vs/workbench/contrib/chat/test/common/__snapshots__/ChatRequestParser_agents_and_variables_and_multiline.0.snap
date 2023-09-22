@@ -22,42 +22,42 @@
     {
       range: {
         start: 6,
-        endExclusive: 17
+        endExclusive: 18
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 7,
-        endLineNumber: 1,
-        endColumn: 18
+        endLineNumber: 2,
+        endColumn: 4
       },
-      text: " Please do "
+      text: " Please \ndo "
     },
     {
       range: {
-        start: 17,
-        endExclusive: 28
+        start: 18,
+        endExclusive: 29
       },
       editorRange: {
-        startLineNumber: 1,
-        startColumn: 18,
-        endLineNumber: 1,
-        endColumn: 29
+        startLineNumber: 2,
+        startColumn: 4,
+        endLineNumber: 2,
+        endColumn: 15
       },
       command: { name: "subCommand" }
     },
     {
       range: {
-        start: 28,
-        endExclusive: 35
+        start: 29,
+        endExclusive: 63
       },
       editorRange: {
-        startLineNumber: 1,
-        startColumn: 29,
-        endLineNumber: 1,
-        endColumn: 36
+        startLineNumber: 2,
+        startColumn: 15,
+        endLineNumber: 3,
+        endColumn: 18
       },
-      text: " thanks"
+      text: " with @selection\nand @debugConsole"
     }
   ],
-  text: "@agent Please do /subCommand thanks"
+  text: "@agent Please \ndo /subCommand with @selection\nand @debugConsole"
 }

@@ -102,6 +102,10 @@
 	align-items: center;
 }
 
+.profile-edit-widget > .profile-icon-container:only-child > .profile-icon-label {
+	width: 45px;
+}
+
 .profile-edit-widget > .profile-icon-container > .profile-icon-id {
 	display: inline-flex;
 	align-items: center;

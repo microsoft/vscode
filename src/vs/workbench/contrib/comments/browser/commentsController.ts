@@ -851,7 +851,6 @@ export class CommentController implements IEditorContribution {
 			if (!this._hasRespondedToEditorChange) {
 				if (this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
 					this._hasRespondedToEditorChange = true;
-					this._activeEditorHasCommentingRange.set(true);
 					const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Comments);
 					if (verbose) {
 						const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
@@ -863,8 +862,6 @@ export class CommentController implements IEditorContribution {
 					} else {
 						status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
 					}
-				} else {
-					this._activeEditorHasCommentingRange.set(false);
 				}
 			}
 		});
@@ -1129,7 +1126,12 @@ export class CommentController implements IEditorContribution {
 		// create viewzones
 		this.removeCommentWidgetsAndStoreCache();
 
+		let hasCommentingRanges = false;
 		this._commentInfos.forEach(info => {
+			if (!hasCommentingRanges && (info.commentingRanges.ranges.length > 0 || info.commentingRanges.fileComments)) {
+				hasCommentingRanges = true;
+			}
+
 			const providerCacheStore = this._pendingNewCommentCache[info.owner];
 			const providerEditsCacheStore = this._pendingEditsCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
@@ -1157,6 +1159,12 @@ export class CommentController implements IEditorContribution {
 
 		this._commentingRangeDecorator.update(this.editor, this._commentInfos);
 		this._commentThreadRangeDecorator.update(this.editor, this._commentInfos);
+
+		if (hasCommentingRanges) {
+			this._activeEditorHasCommentingRange.set(true);
+		} else {
+			this._activeEditorHasCommentingRange.set(false);
+		}
 	}
 
 	public closeWidget(): void {

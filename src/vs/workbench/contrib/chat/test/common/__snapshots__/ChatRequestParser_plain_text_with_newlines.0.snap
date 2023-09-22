@@ -3,16 +3,16 @@
     {
       range: {
         start: 0,
-        endExclusive: 26
+        endExclusive: 21
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 1,
-        endLineNumber: 1,
-        endColumn: 27
+        endLineNumber: 3,
+        endColumn: 7
       },
-      text: "What does @selection mean?"
+      text: "line 1\nline 2\r\nline 3"
     }
   ],
-  text: "What does @selection mean?"
+  text: "line 1\nline 2\r\nline 3"
 }

@@ -1834,4 +1834,6 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			this.dragCancellationToken?.cancel();
 		}
 	}
+
+	dispose(): void { }
 }

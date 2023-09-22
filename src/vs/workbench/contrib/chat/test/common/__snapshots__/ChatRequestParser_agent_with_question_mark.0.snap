@@ -3,43 +3,48 @@
     {
       range: {
         start: 0,
-        endExclusive: 10
+        endExclusive: 14
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 1,
         endLineNumber: 1,
-        endColumn: 11
+        endColumn: 15
       },
-      text: "What does "
+      text: "Are you there "
     },
     {
       range: {
-        start: 10,
+        start: 14,
         endExclusive: 20
       },
       editorRange: {
         startLineNumber: 1,
-        startColumn: 11,
+        startColumn: 15,
         endLineNumber: 1,
         endColumn: 21
       },
-      variableName: "selection",
-      variableArg: ""
+      agent: {
+        id: "agent",
+        metadata: {
+          description: "",
+          subCommands: [ { name: "subCommand" } ]
+        }
+      }
     },
     {
       range: {
         start: 20,
-        endExclusive: 26
+        endExclusive: 21
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 21,
         endLineNumber: 1,
-        endColumn: 27
+        endColumn: 22
       },
-      text: " mean?"
+      text: "?"
     }
   ],
-  text: "What does @selection mean?"
+  text: "Are you there @agent?"
 }

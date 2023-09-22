@@ -6,7 +6,7 @@
 import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer, encodeBase64 } from 'vs/base/common/buffer';
 import { IDataTransferFile, IDataTransferItem, UriList } from 'vs/base/common/dataTransfer';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
@@ -2076,7 +2076,7 @@ export namespace DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new types.InternalFileDataTransferItem(
-				new types.DataTransferFile(file.name, URI.revive(file.uri), file.id, once(() => resolveFileData(file.id))));
+				new types.DataTransferFile(file.name, URI.revive(file.uri), file.id, createSingleCallFunction(() => resolveFileData(file.id))));
 		}
 
 		if (mime === Mimes.uriList && item.uriListData) {

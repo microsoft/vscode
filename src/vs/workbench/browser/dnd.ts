@@ -659,6 +659,8 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 	}
 
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void { }
+
+	dispose(): void { }
 }
 
 //#endregion

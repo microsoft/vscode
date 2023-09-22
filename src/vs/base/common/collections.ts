@@ -63,6 +63,24 @@ export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: 
 	}
 	return { removed, added };
 }
+
+/**
+ * Computes the intersection of two sets.
+ *
+ * @param setA - The first set.
+ * @param setB - The second iterable.
+ * @returns A new set containing the elements that are in both `setA` and `setB`.
+ */
+export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
+	const result = new Set<T>();
+	for (const elem of setB) {
+		if (setA.has(elem)) {
+			result.add(elem);
+		}
+	}
+	return result;
+}
+
 export class SetMap<K, V> {
 
 	private map = new Map<K, Set<V>>();
