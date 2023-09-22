@@ -112,7 +112,7 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: SYNC_VIEW_PANE_ID,
-	name: localize('source control sync', "Source Control Sync"),
+	name: { value: localize('source control sync', "Source Control Sync"), original: 'Source Control Sync' },
 	ctorDescriptor: new SyncDescriptor(SCMSyncViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -302,7 +302,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.acceptInput',
-	description: { description: localize('scm accept', "Source Control: Accept Input"), args: [] },
+	metadata: { description: localize('scm accept', "Source Control: Accept Input"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.has('scmRepository'),
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,

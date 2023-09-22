@@ -2112,7 +2112,7 @@ SOFTWARE.
 ---------------------------------------------------------
 
 dialoguer 0.10.4 - MIT
-https://github.com/mitsuhiko/dialoguer
+https://github.com/console-rs/dialoguer
 
 The MIT License (MIT)
 
@@ -3366,7 +3366,7 @@ DEALINGS IN THE SOFTWARE.
 
 hermit-abi 0.1.19 - MIT/Apache-2.0
 hermit-abi 0.3.1 - MIT OR Apache-2.0
-https://github.com/hermitcore/rusty-hermit
+https://github.com/hermit-os/hermit-rs
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -4202,6 +4202,39 @@ libc 0.2.144 - MIT OR Apache-2.0
 https://github.com/rust-lang/libc
 
 Copyright (c) 2014-2020 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+libz-sys 1.1.12 - MIT OR Apache-2.0
+https://github.com/rust-lang/libz-sys
+
+Copyright (c) 2014 Alex Crichton
+Copyright (c) 2020 Josh Triplett
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated

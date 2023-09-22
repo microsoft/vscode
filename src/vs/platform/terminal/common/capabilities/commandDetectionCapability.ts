@@ -449,11 +449,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 	}
 
-	invalidateCurrentCommand(request: ICommandInvalidationRequest): void {
-		this._currentCommand.isInvalid = true;
-		this._onCurrentCommandInvalidated.fire(request);
-	}
-
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
 			this._preHandleCommandFinishedWindows();

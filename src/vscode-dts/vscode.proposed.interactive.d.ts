@@ -48,6 +48,12 @@ declare module 'vscode' {
 		wholeRange?: Range;
 	}
 
+	export interface InteractiveEditorProgressItem {
+		message?: string;
+		edits?: TextEdit[];
+		slashCommand?: InteractiveEditorSlashCommand;
+	}
+
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
@@ -69,7 +75,7 @@ declare module 'vscode' {
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
@@ -115,6 +121,10 @@ declare module 'vscode' {
 		errorDetails?: InteractiveResponseErrorDetails;
 	}
 
+	export interface InteractiveContentReference {
+		reference: Uri | Location;
+	}
+
 	export interface InteractiveProgressContent {
 		content: string | MarkdownString;
 	}
@@ -138,7 +148,23 @@ declare module 'vscode' {
 		treeData: FileTreeData;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
+	export interface DocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	export interface InteractiveProgressUsedContext {
+		documents: DocumentContext[];
+	}
+
+	export type InteractiveProgress =
+		| InteractiveProgressContent
+		| InteractiveProgressId
+		| InteractiveProgressTask
+		| InteractiveProgressFileTree
+		| InteractiveProgressUsedContext
+		| InteractiveContentReference;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
@@ -176,7 +202,6 @@ declare module 'vscode' {
 		provideSlashCommands?(session: S, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
 
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
-		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
@@ -201,7 +226,6 @@ declare module 'vscode' {
 		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
-		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;
 
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 

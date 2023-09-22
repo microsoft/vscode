@@ -128,3 +128,18 @@ export async function getExperimentalExtensionToggleData(workbenchAssignmentServ
 	}
 	return undefined;
 }
+
+/**
+ * Compares two nullable numbers such that null values always come after defined ones.
+ */
+export function compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
+	const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
+	const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
+	if (aOrMax < bOrMax) {
+		return -1;
+	} else if (aOrMax > bOrMax) {
+		return 1;
+	} else {
+		return 0;
+	}
+}

@@ -29,17 +29,6 @@ function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }
 
-function computeModelSha1(model: ITextModel): string {
-	// compute the sha1
-	const shaComputer = new StringSHA1();
-	const snapshot = model.createSnapshot();
-	let text: string | null;
-	while ((text = snapshot.read())) {
-		shaComputer.update(text);
-	}
-	return shaComputer.digest();
-}
-
 class ModelData implements IDisposable {
 
 	private readonly _modelEventListeners = new DisposableStore();
@@ -337,7 +326,12 @@ export class ModelService extends Disposable implements IModelService {
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;
 			const elements = this._undoRedoService.getElements(resource);
-			const sha1IsEqual = (computeModelSha1(model) === disposedModelData.sha1);
+			const sha1Computer = this._getSHA1Computer();
+			const sha1IsEqual = (
+				sha1Computer.canComputeSHA1(model)
+					? sha1Computer.computeSHA1(model) === disposedModelData.sha1
+					: false
+			);
 			if (sha1IsEqual || disposedModelData.sharesUndoRedoStack) {
 				for (const element of elements.past) {
 					if (isEditStackElement(element) && element.matchesResource(resource)) {
@@ -535,6 +529,7 @@ export class ModelService extends Disposable implements IModelService {
 		}
 
 		const maxMemory = ModelService.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
+		const sha1Computer = this._getSHA1Computer();
 		if (!maintainUndoRedoStack) {
 			if (!sharesUndoRedoStack) {
 				const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
@@ -542,8 +537,8 @@ export class ModelService extends Disposable implements IModelService {
 					this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
 				}
 			}
-		} else if (!sharesUndoRedoStack && heapSize > maxMemory) {
-			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
+		} else if (!sharesUndoRedoStack && (heapSize > maxMemory || !sha1Computer.canComputeSHA1(model))) {
+			// the undo stack for this file would never fit in the configured memory or the file is very large, so don't bother with it.
 			const initialUndoRedoSnapshot = modelData.model.getInitialUndoRedoSnapshot();
 			if (initialUndoRedoSnapshot !== null) {
 				this._undoRedoService.restoreSnapshot(initialUndoRedoSnapshot);
@@ -552,7 +547,7 @@ export class ModelService extends Disposable implements IModelService {
 			this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
 			// We only invalidate the elements, but they remain in the undo-redo service.
 			this._undoRedoService.setElementsValidFlag(model.uri, false, (element) => (isEditStackElement(element) && element.matchesResource(model.uri)));
-			this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
+			this._insertDisposedModel(new DisposedModelInfo(model.uri, modelData.model.getInitialUndoRedoSnapshot(), Date.now(), sharesUndoRedoStack, heapSize, sha1Computer.computeSHA1(model), model.getVersionId(), model.getAlternativeVersionId()));
 		}
 
 		delete this._models[modelId];
@@ -571,5 +566,34 @@ export class ModelService extends Disposable implements IModelService {
 		const newOptions = this.getCreationOptions(newLanguageId, model.uri, model.isForSimpleWidget);
 		ModelService._setModelOptionsForModel(model, newOptions, oldOptions);
 		this._onModelModeChanged.fire({ model, oldLanguageId: oldLanguageId });
+	}
+
+	protected _getSHA1Computer(): ITextModelSHA1Computer {
+		return new DefaultModelSHA1Computer();
+	}
+}
+
+export interface ITextModelSHA1Computer {
+	canComputeSHA1(model: ITextModel): boolean;
+	computeSHA1(model: ITextModel): string;
+}
+
+export class DefaultModelSHA1Computer implements ITextModelSHA1Computer {
+
+	public static MAX_MODEL_SIZE = 10 * 1024 * 1024; // takes 200ms to compute a sha1 on a 10MB model on a new machine
+
+	canComputeSHA1(model: ITextModel): boolean {
+		return (model.getValueLength() <= DefaultModelSHA1Computer.MAX_MODEL_SIZE);
+	}
+
+	computeSHA1(model: ITextModel): string {
+		// compute the sha1
+		const shaComputer = new StringSHA1();
+		const snapshot = model.createSnapshot();
+		let text: string | null;
+		while ((text = snapshot.read())) {
+			shaComputer.update(text);
+		}
+		return shaComputer.digest();
 	}
 }
