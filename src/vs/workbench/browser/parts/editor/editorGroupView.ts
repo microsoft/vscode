@@ -946,8 +946,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditor()
 
-	async openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined> {
+	async openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
 		return this.doOpenEditor(editor, options, {
+			// Appply given internal open options
+			...internalOptions,
 			// Allow to match on a side-by-side editor when same
 			// editor is opened on both sides. In that case we
 			// do not want to open a new editor but reuse that one.
@@ -1090,7 +1092,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show in title control after editor control because some actions depend on it
 		// but respect the internal options in case title control updates should skip.
 		if (!internalOptions?.skipTitleUpdate) {
-			this.titleControl.openEditor(editor);
+			this.titleControl.openEditor(editor, internalOptions);
 		}
 
 		return openEditorPromise;

@@ -24,7 +24,7 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorGroupsView, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
@@ -74,7 +74,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 
 export interface IEditorTabsControl extends IDisposable {
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
-	openEditor(editor: EditorInput): boolean;
+	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): boolean;
 	openEditors(editors: EditorInput[]): boolean;
 	beforeCloseEditor(editor: EditorInput): void;
 	closeEditor(editor: EditorInput): void;

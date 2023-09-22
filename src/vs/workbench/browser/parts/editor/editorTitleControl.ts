@@ -8,7 +8,7 @@ import { Dimension, clearNode } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
@@ -95,8 +95,8 @@ export class EditorTitleControl extends Themable {
 		this.groupView.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
-	openEditor(editor: EditorInput): void {
-		const didChange = this.editorTabsControl.openEditor(editor);
+	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): void {
+		const didChange = this.editorTabsControl.openEditor(editor, options);
 
 		this.handleOpenedEditors(didChange);
 	}

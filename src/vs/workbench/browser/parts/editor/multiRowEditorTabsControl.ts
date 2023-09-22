@@ -5,7 +5,7 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsView, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
@@ -55,9 +55,9 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		return this.model.isSticky(editor) ? this.stickyEditorTabsControl : this.unstickyEditorTabsControl;
 	}
 
-	openEditor(editor: EditorInput): boolean {
+	openEditor(editor: EditorInput, options: IInternalEditorOpenOptions): boolean {
 		const [editorTabController, otherTabController] = this.model.isSticky(editor) ? [this.stickyEditorTabsControl, this.unstickyEditorTabsControl] : [this.unstickyEditorTabsControl, this.stickyEditorTabsControl];
-		const didChange = editorTabController.openEditor(editor);
+		const didChange = editorTabController.openEditor(editor, options);
 		if (didChange) {
 			// HACK: To render all editor tabs on startup, otherwise only one row gets rendered
 			otherTabController.openEditors([]);

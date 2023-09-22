@@ -34,7 +34,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -486,8 +486,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions);
 	}
 
-	openEditor(editor: EditorInput): boolean {
-		return this.handleOpenedEditors();
+	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): boolean {
+		const changed = this.handleOpenedEditors();
+
+		// Respect option to focus tab control if provided
+		if (options?.focusTabControl) {
+			this.withTab(editor, (editor, tabIndex, tabContainer) => tabContainer.focus());
+		}
+
+		return changed;
 	}
 
 	openEditors(editors: EditorInput[]): boolean {
@@ -808,11 +815,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const that = this;
 		const tabActionRunner = new EditorCommandsContextActionRunner({
 			groupId: this.groupView.id,
-			get editorIndex() {
-				const editor = assertIsDefined(that.tabsModel.getEditorByIndex(tabIndex));
-
-				return that.groupView.getIndexOfEditor(editor);
-			},
+			get editorIndex() { return that.toEditorIndex(tabIndex); }
 		});
 
 		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
@@ -835,6 +838,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel));
 
 		return tabContainer;
+	}
+
+	private toEditorIndex(tabIndex: number): number {
+
+		// Given a `tabIndex` that is relative to the tabs model
+		// returns the `editorIndex` relative to the entire group
+
+		const editor = assertIsDefined(this.tabsModel.getEditorByIndex(tabIndex));
+
+		return this.groupView.getIndexOfEditor(editor);
 	}
 
 	private registerTabListeners(tab: HTMLElement, tabIndex: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
@@ -936,22 +949,21 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Navigate in editors
 			else if ([KeyCode.LeftArrow, KeyCode.RightArrow, KeyCode.UpArrow, KeyCode.DownArrow, KeyCode.Home, KeyCode.End].some(kb => event.equals(kb))) {
-				let tabTargetIndex: number;
+				let editorIndex = this.toEditorIndex(tabIndex);
 				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.UpArrow)) {
-					tabTargetIndex = tabIndex - 1;
+					editorIndex = editorIndex - 1;
 				} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.DownArrow)) {
-					tabTargetIndex = tabIndex + 1;
+					editorIndex = editorIndex + 1;
 				} else if (event.equals(KeyCode.Home)) {
-					tabTargetIndex = 0;
+					editorIndex = 0;
 				} else {
-					tabTargetIndex = this.tabsModel.count - 1;
+					editorIndex = this.groupView.count - 1;
 				}
 
-				const target = this.tabsModel.getEditorByIndex(tabTargetIndex);
+				const target = this.groupView.getEditorByIndex(editorIndex);
 				if (target) {
 					handled = true;
-					this.groupView.openEditor(target, { preserveFocus: true });
-					(<HTMLElement>tabsContainer.childNodes[tabTargetIndex]).focus();
+					this.groupView.openEditor(target, { preserveFocus: true }, { focusTabControl: true });
 				}
 			}
 
