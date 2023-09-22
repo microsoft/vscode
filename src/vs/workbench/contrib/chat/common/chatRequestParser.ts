@@ -7,19 +7,23 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatDynamicReferenceModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferenceModel';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicReferencePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 const variableOrAgentReg = /^@([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // An @-variable with an optional numeric : arg (@response:2)
-const slashReg = /\/([\w_-]+)(?=(\s|$|\b))/i; // A / command
+const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
+const dollarSignVarReg = /\$([\w_\-]+):([\w_\-\.]+)(?=(\s|$|\b))/i; // A / command
 
 export class ChatRequestParser {
 	constructor(
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) { }
 
 	async parseChatRequest(sessionId: string, message: string): Promise<IParsedChatRequest> {
@@ -31,11 +35,15 @@ export class ChatRequestParser {
 			const previousChar = message.charAt(i - 1);
 			const char = message.charAt(i);
 			let newPart: IParsedChatRequestPart | undefined;
-			if (char === '@' && (previousChar === ' ' || i === 0)) {
-				newPart = this.tryToParseVariableOrAgent(message.slice(i), i, new Position(lineNumber, column), parts);
-			} else if (char === '/' && (previousChar === ' ' || i === 0)) {
-				// TODO try to make this sync
-				newPart = await this.tryToParseSlashCommand(sessionId, message.slice(i), i, new Position(lineNumber, column), parts);
+			if (previousChar === ' ' || i === 0) {
+				if (char === '@') {
+					newPart = this.tryToParseVariableOrAgent(message.slice(i), i, new Position(lineNumber, column), parts);
+				} else if (char === '/') {
+					// TODO try to make this sync
+					newPart = await this.tryToParseSlashCommand(sessionId, message.slice(i), i, new Position(lineNumber, column), parts);
+				} else if (char === '$') {
+					newPart = await this.tryToParseDynamicVariable(sessionId, message.slice(i), i, new Position(lineNumber, column), parts);
+				}
 			}
 
 			if (newPart) {
@@ -130,6 +138,43 @@ export class ChatRequestParser {
 				// Valid standalone slash command
 				return new ChatRequestSlashCommandPart(slashRange, slashEditorRange, slashCommand);
 			}
+		}
+
+		return;
+	}
+
+	private async tryToParseDynamicVariable(sessionId: string, message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): Promise<ChatRequestDynamicReferencePart | undefined> {
+		const nextVarMatch = message.match(dollarSignVarReg);
+		if (!nextVarMatch) {
+			return;
+		}
+
+		const [full, name, arg] = nextVarMatch;
+		const range = new OffsetRange(offset, offset + full.length);
+		const editorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
+
+		if (name !== 'file') {
+			// I suppose we support other types later
+			return;
+		}
+
+		const widget = this.chatWidgetService.getWidgetBySessionId(sessionId);
+		if (!widget || !widget.viewModel) {
+			return;
+		}
+
+		const model = widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID);
+		if (!model) {
+			return;
+		}
+
+		const refAtThisPosition = model.references.find(r =>
+			r.range.startLineNumber === position.lineNumber &&
+			r.range.startColumn === position.column &&
+			r.range.endLineNumber === position.lineNumber &&
+			r.range.endColumn === position.column + full.length);
+		if (refAtThisPosition) {
+			return new ChatRequestDynamicReferencePart(range, editorRange, name, arg, refAtThisPosition.data);
 		}
 
 		return;

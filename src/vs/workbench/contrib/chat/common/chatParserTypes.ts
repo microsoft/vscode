@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
 import { IChatAgentData, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -20,8 +21,6 @@ export interface IParsedChatRequestPart {
 	readonly editorRange: IRange;
 	readonly text: string;
 }
-
-// TODO rename to tokens
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
@@ -69,5 +68,20 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 
 	get text(): string {
 		return `/${this.slashCommand.command}`;
+	}
+}
+
+/**
+ * An invocation of a dynamic reference like '$file:'
+ */
+export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string, readonly arg: string, readonly data: URI) { }
+
+	get referenceText(): string {
+		return `${this.name}:${this.arg}`;
+	}
+
+	get text(): string {
+		return `$${this.referenceText}`;
 	}
 }

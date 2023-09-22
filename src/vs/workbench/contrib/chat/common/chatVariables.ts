@@ -9,7 +9,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestDynamicReferencePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export interface IChatVariableData {
 	name: string;
@@ -67,21 +67,25 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		const parsedPrompt: string[] = [];
 		prompt.parts
-			.forEach((varPart, i) => {
-				if (varPart instanceof ChatRequestVariablePart) {
-					const data = this._resolver.get(varPart.variableName.toLowerCase());
+			.forEach((part, i) => {
+				if (part instanceof ChatRequestVariablePart) {
+					const data = this._resolver.get(part.variableName.toLowerCase());
 					if (data) {
-						jobs.push(data.resolver(prompt.text, varPart.variableArg, model, token).then(value => {
+						jobs.push(data.resolver(prompt.text, part.variableArg, model, token).then(value => {
 							if (value) {
-								resolvedVariables[varPart.variableName] = value;
-								parsedPrompt[i] = `[@${varPart.variableName}](values:${varPart.variableName})`;
+								resolvedVariables[part.variableName] = value;
+								parsedPrompt[i] = `[${part.text}](values:${part.variableName})`;
 							} else {
-								parsedPrompt[i] = varPart.text;
+								parsedPrompt[i] = part.text;
 							}
 						}).catch(onUnexpectedExternalError));
 					}
+				} else if (part instanceof ChatRequestDynamicReferencePart) {
+					// Maybe the dynamic reference should include a full IChatRequestVariableValue[] at the time it is inserted?
+					resolvedVariables[part.referenceText] = [{ level: 'full', value: part.data.toString() }];
+					parsedPrompt[i] = `[${part.text}](values:${part.referenceText})`;
 				} else {
-					parsedPrompt[i] = varPart.text;
+					parsedPrompt[i] = part.text;
 				}
 			});
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -19,9 +18,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -30,7 +27,8 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatDynamicReferenceModel, dynamicReferenceDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferenceModel';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -44,65 +42,6 @@ const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
 const variableTextDecorationType = 'chat-variable-text';
-const fileDecorationType = 'chat-file-reference';
-
-interface IDynamicReference {
-	range: IRange;
-	// data: any; // File details for a file, something else for a different type of thing, is it typed?
-	data: URI;
-}
-
-class ChatDynamicReferenceModel extends Disposable implements IChatWidgetContrib {
-	public static readonly ID = 'chatDynamicReferenceModel';
-
-	private readonly references: IDynamicReference[] = [];
-
-	get id() {
-		return ChatDynamicReferenceModel.ID;
-	}
-
-	constructor(
-		private readonly widget: IChatWidget,
-		@ILabelService private readonly labelService: ILabelService
-	) {
-		super();
-		this._register(widget.inputEditor.onDidChangeModelContent(e => {
-			e.changes.forEach(c => {
-				this.references.forEach((ref, i) => {
-					if (Range.areIntersecting(ref.range, c.range)) {
-						// The reference text was changed, it's broken
-						this.references.splice(i, 1);
-					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
-						const delta = c.text.length - c.rangeLength;
-						ref.range = {
-							startLineNumber: ref.range.startLineNumber,
-							startColumn: ref.range.startColumn + delta,
-							endLineNumber: ref.range.endLineNumber,
-							endColumn: ref.range.endColumn + delta
-						};
-					}
-				});
-			});
-
-			this.updateReferences();
-		}));
-	}
-
-	addReference(ref: IDynamicReference): void {
-		this.references.push(ref);
-		this.updateReferences();
-	}
-
-	private updateReferences(): void {
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, fileDecorationType, this.references.map(r => (<IDecorationOptions>{
-			range: r.range,
-			// hoverMessage: new MarkdownString('`' + r.data.fsPath + '`')
-			hoverMessage: new MarkdownString(this.labelService.getUriLabel(r.data))
-		})));
-	}
-}
-
-ChatWidget.CONTRIBS.push(ChatDynamicReferenceModel);
 
 class InputEditorDecorations extends Disposable {
 
@@ -139,7 +78,7 @@ class InputEditorDecorations extends Disposable {
 
 	private updateRegisteredDecorationTypes() {
 		this.codeEditorService.removeDecorationType(variableTextDecorationType);
-		this.codeEditorService.removeDecorationType(fileDecorationType);
+		this.codeEditorService.removeDecorationType(dynamicReferenceDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 
 		const theme = this.themeService.getColorTheme();
@@ -152,7 +91,7 @@ class InputEditorDecorations extends Disposable {
 			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
 			borderRadius: '3px'
 		});
-		this.codeEditorService.registerDecorationType(decorationDescription, fileDecorationType, {
+		this.codeEditorService.registerDecorationType(decorationDescription, dynamicReferenceDecorationType, {
 			color: theme.getColor(chatSlashCommandForeground)?.toString(),
 			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
 			borderRadius: '3px'
@@ -517,7 +456,7 @@ class SelectAndInsertFileAction extends Action2 {
 				});
 			}
 		} else {
-			(context.widget as ChatWidget).inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
+			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
 		}
 	}
 }
