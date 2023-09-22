@@ -77,7 +77,7 @@ export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLay
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
 export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
 export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVisible', true, localize('editorTabsVisible', "Whether editor tabs are visible"));
-export const EditorPinnedAndNotPinnedTabsVisibleContext = new RawContextKey<boolean>('editorPinnedAndNotPinnedTabsVisible', true, localize('editorPinnedAndNotPinnedTabsVisible', "Whether at least one pinned and one none pinned editor tab is visible"));
+export const EditorPinnedAndUnpinnedTabsVisibleContext = new RawContextKey<boolean>('editorPinnedAndUnpinnedTabsVisible', true, localize('editorPinnedAndUnpinnedTabsVisible', "Whether at least one pinned and one unpinned editor tab is visible"));
 
 //#endregion
 
