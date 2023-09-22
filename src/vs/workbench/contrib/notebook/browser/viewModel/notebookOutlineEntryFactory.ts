@@ -94,7 +94,8 @@ export class NotebookOutlineEntryFactory {
 		return entries;
 	}
 
-	public async cacheSymbols(textModel: ITextModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
+	public async cacheSymbols(cell: ICellViewModel, outlineModelService: IOutlineModelService, cancelToken: CancellationToken) {
+		const textModel = await cell.resolveTextModel();
 		const outlineModel = await outlineModelService.getOrCreate(textModel, cancelToken);
 		const entries = createOutlineEntries(outlineModel.getTopLevelSymbols(), 7);
 		this.cellOutlineEntryCache[textModel.id] = entries;
