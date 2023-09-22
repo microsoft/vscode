@@ -100,7 +100,9 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItem = element.context;
 		const historyItemGroup = historyItem.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
-		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
+		return element.childrenCount === 0 && element.element ?
+			`historyItemChange:${provider.id}/${historyItemGroup.id}/${historyItem.id}/${element.element.uri.toString()}` :
+			`folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
