@@ -85,6 +85,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib
 });
 
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: CommentCommandId.NextRange,
+		title: nls.localize('comments.nextCommentingRange', "Go to Next Commenting Range"),
+		category: 'Comments',
+	},
+	when: CommentContextKeys.activeEditorHasCommentingRange
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CommentCommandId.PreviousRange,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
@@ -102,6 +111,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
 	weight: KeybindingWeight.EditorContrib
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: CommentCommandId.PreviousRange,
+		title: nls.localize('comments.previousCommentingRange', "Go to Previous Commenting Range"),
+		category: 'Comments',
+	},
+	when: CommentContextKeys.activeEditorHasCommentingRange
 });
 
 CommandsRegistry.registerCommand({
