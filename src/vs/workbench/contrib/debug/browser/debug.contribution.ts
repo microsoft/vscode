@@ -452,7 +452,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.toolBarLocation': {
 			enum: ['floating', 'docked', 'commandCenter', 'hidden'],
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, `commandCenter` (requires `{0}`), or `hidden`.", '#window.commandCenter#', '#window.titleBarStyle#'),
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, `commandCenter` (requires `{0}`), or `hidden`.", '#window.commandCenter#'),
 			default: 'floating',
 			markdownEnumDescriptions: [
 				nls.localize('debugToolBar.floating', "Show debug toolbar in all views."),
@@ -588,8 +588,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.enableStatusBarColor': {
 			type: 'boolean',
-			description: nls.localize('debug.enableStatusBarColor', "Color status bar when debugger is active"),
+			description: nls.localize('debug.enableStatusBarColor', "Color status bar when debugger is active."),
 			default: true
+		},
+		'debug.showLauncherWhileDebugging': {
+			type: 'boolean',
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.showLauncherWhileDebugging' }, "Continue to show 'Start Debugging' control in title bar of 'Run and Debug' view while debugging is active. Ignored if `{0}` is `docked`.", '#debug.toolBarLocation#'),
+			default: false
 		}
 	}
 });
