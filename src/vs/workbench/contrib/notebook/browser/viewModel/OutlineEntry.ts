@@ -8,7 +8,7 @@ import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/marke
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import { SymbolKind, SymbolKinds } from 'vs/editor/common/languages';
 
 
@@ -38,7 +38,8 @@ export class OutlineEntry {
 		readonly label: string,
 		readonly isExecuting: boolean,
 		readonly isPaused: boolean,
-		readonly position?: Range,
+		readonly position?: IRange,
+		readonly range?: IRange,
 		readonly symbolKind?: SymbolKind,
 	) { }
 

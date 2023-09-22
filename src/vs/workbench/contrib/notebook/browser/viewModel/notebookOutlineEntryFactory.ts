@@ -12,13 +12,13 @@ import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/
 import { OutlineEntry } from './OutlineEntry';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { SymbolKind } from 'vs/editor/common/languages';
 
 type entryDesc = {
 	name: string;
-	position: Range;
+	range: IRange;
 	level: number;
 	kind: SymbolKind;
 };
@@ -73,9 +73,9 @@ export class NotebookOutlineEntryFactory {
 				// So symbols need to be precached before this function is called to get the full list.
 				if (cachedEntries) {
 					cachedEntries.forEach((cached) => {
-						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.position, cached.kind));
+						const position = { ...cached.range, endLineNumber: cached.range.startLineNumber, endColumn: cached.range.startColumn };
+						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, position, cached.range, cached.kind));
 					});
-
 				}
 			}
 
@@ -107,11 +107,7 @@ type documentSymbol = ReturnType<outlineModel['getTopLevelSymbols']>[number];
 function createOutlineEntries(symbols: documentSymbol[], level: number): entryDesc[] {
 	const entries: entryDesc[] = [];
 	symbols.forEach(symbol => {
-		const position = new Range(symbol.selectionRange.startLineNumber,
-			symbol.selectionRange.startColumn,
-			symbol.selectionRange.startLineNumber,
-			symbol.selectionRange.startColumn);
-		entries.push({ name: symbol.name, position, level, kind: symbol.kind });
+		entries.push({ name: symbol.name, range: symbol.range, level, kind: symbol.kind });
 		if (symbol.children) {
 			entries.push(...createOutlineEntries(symbol.children, level + 1));
 		}
