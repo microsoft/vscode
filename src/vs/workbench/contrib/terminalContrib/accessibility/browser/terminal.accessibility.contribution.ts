@@ -250,7 +250,6 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
@@ -272,7 +271,6 @@ registerTerminalAction({
 	],
 	run: async (c) => {
 		const instance = await c.service.getActiveOrCreateInstance();
-		await c.service.revealActiveTerminal();
 		if (!instance) {
 			return;
 		}
