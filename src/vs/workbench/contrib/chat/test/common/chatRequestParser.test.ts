@@ -36,7 +36,7 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
-	test('_plain text with newlines', async () => {
+	test('plain text with newlines', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'line 1\nline 2\r\nline 3';
 		const result = await parser.parseChatRequest('1', text);
@@ -139,7 +139,7 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
-	test('_agents and variables and multiline', async () => {
+	test('agents and variables and multiline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
 		agentsService.getAgent.returns(<IChatAgentData>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
 		instantiationService.stub(IChatAgentService, agentsService as any);
