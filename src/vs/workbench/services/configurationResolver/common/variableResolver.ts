@@ -179,13 +179,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
-	private getSeparator(folderUri: uri | undefined): string {
+	private getSeparatorConfig(folderUri: uri | undefined): string {
 
 		// get pathSeparator setting value from explorer config
 		const sep = this._context.getConfigurationValue(folderUri, 'explorer.pathSeparator');
 		if (sep === '\\' || sep === '/') {
 			return sep;
 		}
+
 		return paths.sep;
 	}
 
@@ -294,7 +295,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				switch (variable) {
 					case 'workspaceRoot':
 					case 'workspaceFolder':
-						return normalizeDriveLetter(this.fsPath(getFolderUri(VariableKind.WorkspaceFolder))).split(paths.sep).join(this.getSeparator(folderUri));
+						return normalizeDriveLetter(this.fsPath(getFolderUri(VariableKind.WorkspaceFolder))).split(paths.sep).join(this.getSeparatorConfig(folderUri));
 
 					case 'cwd':
 						return ((folderUri || argument) ? normalizeDriveLetter(this.fsPath(getFolderUri(VariableKind.Cwd))) : process.cwd());
@@ -325,27 +326,27 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						throw new VariableError(VariableKind.SelectedText, localize('canNotResolveSelectedText', "Variable {0} can not be resolved. Make sure to have some text selected in the active editor.", match));
 					}
 					case 'file':
-						return getFilePath(VariableKind.File).split(paths.sep).join(this.getSeparator(folderUri));
+						return getFilePath(VariableKind.File).split(paths.sep).join(this.getSeparatorConfig(folderUri));
 
 					case 'fileWorkspaceFolder':
-						return getFolderPathForFile(VariableKind.FileWorkspaceFolder).split(paths.sep).join(this.getSeparator(folderUri));
+						return getFolderPathForFile(VariableKind.FileWorkspaceFolder).split(paths.sep).join(this.getSeparatorConfig(folderUri));
 
 					case 'relativeFile':
 						if (folderUri || argument) {
-							return paths.relative(this.fsPath(getFolderUri(VariableKind.RelativeFile)), getFilePath(VariableKind.RelativeFile));
+							return paths.relative(this.fsPath(getFolderUri(VariableKind.RelativeFile)), getFilePath(VariableKind.RelativeFile)).split(paths.sep).join(this.getSeparatorConfig(folderUri));
 						}
-						return getFilePath(VariableKind.RelativeFile).split(paths.sep).join(this.getSeparator(folderUri));
+						return getFilePath(VariableKind.RelativeFile).split(paths.sep).join(this.getSeparatorConfig(folderUri));
 
 					case 'relativeFileDirname': {
 						const dirname = paths.dirname(getFilePath(VariableKind.RelativeFileDirname));
 						if (folderUri || argument) {
-							const relative = paths.relative(this.fsPath(getFolderUri(VariableKind.RelativeFileDirname)), dirname);
+							const relative = paths.relative(this.fsPath(getFolderUri(VariableKind.RelativeFileDirname)), dirname).split(paths.sep).join(this.getSeparatorConfig(folderUri));
 							return relative.length === 0 ? '.' : relative;
 						}
-						return dirname.split(paths.sep).join(this.getSeparator(folderUri));;
+						return dirname.split(paths.sep).join(this.getSeparatorConfig(folderUri));
 					}
 					case 'fileDirname':
-						return paths.dirname(getFilePath(VariableKind.FileDirname)).split(paths.sep).join(this.getSeparator(folderUri));
+						return paths.dirname(getFilePath(VariableKind.FileDirname)).split(paths.sep).join(this.getSeparatorConfig(folderUri));
 
 
 					case 'fileExtname':
@@ -376,7 +377,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return match;
 					}
 					case 'pathSeparator':
-						return this.getSeparator(folderUri);
+						return this.getSeparatorConfig(folderUri);
 
 					default:
 						try {
