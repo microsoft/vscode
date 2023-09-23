@@ -52,7 +52,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
@@ -65,7 +65,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -92,7 +91,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { CodeEditorService } from 'vs/workbench/services/editor/browser/codeEditorService';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -136,7 +135,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -166,6 +165,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
+import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -249,6 +249,7 @@ export function workbenchInstantiationService(
 	const environmentService = overrides?.environmentService ? overrides.environmentService(instantiationService) : TestEnvironmentService;
 	instantiationService.stub(IEnvironmentService, environmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+	instantiationService.stub(ILogService, new NullLogService());
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(IProgressService, new TestProgressService());
@@ -306,7 +307,6 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
 	instantiationService.stub(ILoggerService, disposables.add(new TestLoggerService(TestEnvironmentService.logsHome)));
-	instantiationService.stub(ILogService, new NullLogService());
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
 	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
@@ -590,6 +590,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	hasContainer = true;
 	container: HTMLElement = window.document.body;
+	containers = [window.document.body];
+	activeContainer: HTMLElement = window.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
@@ -698,10 +700,6 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		throw new Error('Method not implemented.');
-	}
-
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertIsDefined(this.parts.get(viewContainerLocation));
 	}
@@ -715,6 +713,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
+	readonly partId = Parts.SIDEBAR_PART;
 	element: HTMLElement = undefined!;
 	minimumWidth = 0;
 	maximumWidth = 0;
@@ -734,6 +733,8 @@ export class TestSideBarPart implements IPaneCompositePart {
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }
 	dispose() { }
+	getPinnedPaneCompositeIds() { return []; }
+	getVisiblePaneCompositeIds() { return []; }
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
@@ -756,7 +757,7 @@ class TestHoverService implements IHoverService {
 	}
 }
 
-export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
+export class TestPanelPart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
 
 	element: HTMLElement = undefined!;
@@ -767,6 +768,7 @@ export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelector
 	onDidChange = Event.None;
 	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
 	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
+	readonly partId = Parts.AUXILIARYBAR_PART;
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
 	getPaneComposite(id: string): any { return activeViewlet; }
@@ -776,7 +778,6 @@ export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelector
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
 	getProgressIndicator(id: string) { return null!; }
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }
@@ -856,9 +857,14 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
+	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
 
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
+
+	readonly activePart = this;
+	registerEditorPart(part: any): IDisposable { return Disposable.None; }
+	createAuxiliaryEditorPart(): IAuxiliaryEditorPart { throw new Error('Method not implemented.'); }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -933,6 +939,8 @@ export class TestEditorGroupView implements IEditorGroupView {
 }
 
 export class TestEditorGroupAccessor implements IEditorGroupsView {
+
+	label: string = '';
 
 	groups: IEditorGroupView[] = [];
 	activeGroup!: IEditorGroupView;
@@ -1448,6 +1456,7 @@ export class TestHostService implements IHostService {
 	}
 
 	async focus(options?: { force: boolean }): Promise<void> { }
+	async moveTop(): Promise<void> { }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
@@ -1702,7 +1711,11 @@ export class TestSingletonFileEditorInput extends TestFileEditorInput {
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Singleton; }
 }
 
-export class TestEditorPart extends EditorPart {
+export class TestEditorPart extends MainEditorPart implements IEditorGroupsService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly activePart = this;
 
 	testSaveState(): void {
 		return super.saveState();
@@ -1719,10 +1732,30 @@ export class TestEditorPart extends EditorPart {
 			delete profileMemento[key];
 		}
 	}
+
+	registerEditorPart(part: IEditorPart): IDisposable {
+		return Disposable.None;
+	}
+
+	createAuxiliaryEditorPart(): IAuxiliaryEditorPart {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
-	const part = disposables.add(instantiationService.createInstance(TestEditorPart));
+
+	class TestEditorParts extends EditorParts {
+
+		testMainPart!: TestEditorPart;
+
+		protected override createMainEditorPart(): MainEditorPart {
+			this.testMainPart = instantiationService.createInstance(TestEditorPart, this);
+
+			return this.testMainPart;
+		}
+	}
+
+	const part = disposables.add(instantiationService.createInstance(TestEditorParts)).testMainPart;
 	part.create(document.createElement('div'));
 	part.layout(1080, 800, 0, 0);
 

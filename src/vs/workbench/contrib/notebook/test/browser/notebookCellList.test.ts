@@ -6,8 +6,10 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('NotebookCellList', () => {
@@ -23,6 +25,10 @@ suite('NotebookCellList', () => {
 	setup(() => {
 		testDisposables = new DisposableStore();
 		instantiationService = setupInstantiationService(testDisposables);
+		const config = new TestConfigurationService({
+			[NotebookSetting.anchorToFocusedCell]: 'auto'
+		});
+		instantiationService.stub(IConfigurationService, config);
 	});
 
 	test('revealElementsInView: reveal fully visible cell should not scroll', async function () {

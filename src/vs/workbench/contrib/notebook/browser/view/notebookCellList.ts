@@ -830,7 +830,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
 		const firstIndex = this.view.firstVisibleIndex;
-		if (viewIndex <= firstIndex) {
+		const elementHeight = this.view.elementHeight(viewIndex);
+
+		if (viewIndex <= firstIndex || elementHeight >= this.view.renderHeight) {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Top, firstLine);
 		} else {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom, firstLine);
@@ -1207,8 +1209,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
 		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
-		const anchorToFocusedCell = anchorFocusedSetting === 'true' || (allowScrolling && anchorFocusedSetting !== 'false');
-		if (focused && anchorToFocusedCell) {
+		const scrollHeuristic = allowScrolling && anchorFocusedSetting === 'auto' && this.view.elementTop(index) < this.view.getScrollTop();
+		if (focused && (anchorFocusedSetting === 'on' || scrollHeuristic)) {
 			this.view.updateElementHeight(index, size, focus);
 		}
 

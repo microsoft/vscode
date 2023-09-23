@@ -588,7 +588,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.enableStatusBarColor': {
 			type: 'boolean',
-			description: nls.localize('debug.enableStatusBarColor', "Color status bar when debugger is active"),
+			description: nls.localize('debug.enableStatusBarColor', "Color of the Status bar when debugger is active."),
 			default: true
 		}
 	}

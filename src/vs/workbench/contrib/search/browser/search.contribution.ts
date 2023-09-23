@@ -202,7 +202,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (e.g., from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},

@@ -194,7 +194,6 @@ export interface ICommandDetectionCapability {
 	handleCommandStart(options?: IHandleCommandOptions): void;
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
-	invalidateCurrentCommand(request: ICommandInvalidationRequest): void;
 	/**
 	 * Set the command line explicitly.
 	 * @param commandLine The command line being set.

@@ -5,7 +5,7 @@
 
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -33,6 +33,7 @@ export class InlineChatAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			accessibleViewService.show({
+				id: AccessibleViewProviderId.InlineChat,
 				verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
 				provideContent(): string { return responseContent; },
 				onClose() {
