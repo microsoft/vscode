@@ -1,0 +1,63 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 6
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 7
+      },
+      agent: {
+        id: "agent",
+        metadata: {
+          description: "",
+          subCommands: [ { name: "subCommand" } ]
+        }
+      }
+    },
+    {
+      range: {
+        start: 6,
+        endExclusive: 18
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 7,
+        endLineNumber: 2,
+        endColumn: 4
+      },
+      text: " Please \ndo "
+    },
+    {
+      range: {
+        start: 18,
+        endExclusive: 29
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 4,
+        endLineNumber: 2,
+        endColumn: 15
+      },
+      command: { name: "subCommand" }
+    },
+    {
+      range: {
+        start: 29,
+        endExclusive: 63
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 15,
+        endLineNumber: 3,
+        endColumn: 18
+      },
+      text: " with @selection\nand @debugConsole"
+    }
+  ],
+  text: "@agent Please \ndo /subCommand with @selection\nand @debugConsole"
+}

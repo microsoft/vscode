@@ -365,14 +365,14 @@ export interface IShareableItemDto {
 	selection?: IRange;
 }
 
-export interface IRelatedContextItemDto {
+export interface IDocumentContextItemDto {
 	readonly uri: UriComponents;
-	readonly range: IRange;
+	readonly version: number;
+	readonly ranges: IRange[];
 }
 
 export interface IMappedEditsContextDto {
-	selections: ISelection[];
-	related: IRelatedContextItemDto[];
+	documents: IDocumentContextItemDto[][];
 }
 
 export interface ISignatureHelpProviderMetadataDto {
@@ -1223,7 +1223,18 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
-export type IChatResponseProgressDto = { content: string | IMarkdownString } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
+export type IDocumentContextDto = {
+	uri: UriComponents;
+	version: number;
+	ranges: IRange[];
+};
+
+export type IChatResponseProgressDto =
+	| { content: string | IMarkdownString }
+	| { requestId: string }
+	| { placeholder: string }
+	| { treeData: IChatResponseProgressFileTreeData }
+	| { documents: IDocumentContextDto[] };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;

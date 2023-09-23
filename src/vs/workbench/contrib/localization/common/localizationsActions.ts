@@ -65,9 +65,11 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		});
 
 		disposables.add(qp.onDidAccept(async () => {
-			const selectedLanguage = qp.activeItems[0];
-			qp.hide();
-			await localeService.setLocale(selectedLanguage);
+			const selectedLanguage = qp.activeItems[0] as ILanguagePackItem | undefined;
+			if (selectedLanguage) {
+				qp.hide();
+				await localeService.setLocale(selectedLanguage);
+			}
 		}));
 
 		disposables.add(qp.onDidTriggerItemButton(async e => {

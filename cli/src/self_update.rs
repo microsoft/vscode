@@ -24,6 +24,8 @@ pub struct SelfUpdate<'a> {
 	update_service: &'a UpdateService,
 }
 
+static OLD_UPDATE_EXTENSION: &str = "Updating CLI";
+
 impl<'a> SelfUpdate<'a> {
 	pub fn new(update_service: &'a UpdateService) -> Result<Self, AnyError> {
 		let commit = VSCODE_CLI_COMMIT
@@ -59,6 +61,18 @@ impl<'a> SelfUpdate<'a> {
 		release.commit == self.commit
 	}
 
+	/// Cleans up old self-updated binaries. Should be called with regularity.
+	/// May fail if old versions are still running.
+	pub fn cleanup_old_update(&self) -> Result<(), std::io::Error> {
+		let current_path = std::env::current_exe()?;
+		let old_path = current_path.with_extension(OLD_UPDATE_EXTENSION);
+		if old_path.exists() {
+			fs::remove_file(old_path)?;
+		}
+
+		Ok(())
+	}
+
 	/// Updates the CLI to the given release.
 	pub async fn do_update(
 		&self,
@@ -89,8 +103,11 @@ impl<'a> SelfUpdate<'a> {
 		// OS later. However, this can fail if the tempdir is on a different drive
 		// than the installation dir. In this case just rename it to ".old".
 		if fs::rename(&target_path, tempdir.path().join("old-code-cli")).is_err() {
-			fs::rename(&target_path, target_path.with_extension(".old"))
-				.map_err(|e| wrap(e, "failed to rename old CLI"))?;
+			fs::rename(
+				&target_path,
+				target_path.with_extension(OLD_UPDATE_EXTENSION),
+			)
+			.map_err(|e| wrap(e, "failed to rename old CLI"))?;
 		}
 
 		fs::rename(&staging_path, &target_path)

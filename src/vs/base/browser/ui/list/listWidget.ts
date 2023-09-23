@@ -1097,7 +1097,8 @@ const DefaultOptions: IListOptions<any> = {
 		getDragURI() { return null; },
 		onDragStart(): void { },
 		onDragOver() { return false; },
-		drop() { }
+		drop() { },
+		dispose() { }
 	}
 };
 
@@ -1297,6 +1298,10 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
 		this.dnd.drop(data, targetElement, targetIndex, originalEvent);
+	}
+
+	dispose(): void {
+		this.dnd.dispose();
 	}
 }
 

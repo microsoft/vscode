@@ -179,7 +179,7 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.multiple  {
-	justify-content: space-between;
+	justify-content: flex-start;
 	padding: 0 12px;
 }
 

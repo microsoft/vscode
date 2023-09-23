@@ -22,7 +22,6 @@ import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteA
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { PlatformName, PlatformToString, isWeb, platform } from 'vs/base/common/platform';
-import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -768,7 +767,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.items = computeItems();
 		quickPick.sortByLabel = false;
 		quickPick.canSelectMany = false;
-		once(quickPick.onDidAccept)((async _ => {
+		Event.once(quickPick.onDidAccept)((async _ => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
 				const commandId = selectedItems[0].id!;
@@ -793,7 +792,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 		}));
 
-		once(quickPick.onDidTriggerItemButton)(async (e) => {
+		Event.once(quickPick.onDidTriggerItemButton)(async (e) => {
 			const remoteExtension = this.remoteExtensionMetadata.find(value => ExtensionIdentifier.equals(value.id, e.item.id));
 			if (remoteExtension) {
 				await this.openerService.open(URI.parse(remoteExtension.helpLink));

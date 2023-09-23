@@ -128,7 +128,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		this._register(disposableTimeout(() => this.promptImportantRecommendations(uri, model), 0));
+		disposableTimeout(() => this.promptImportantRecommendations(uri, model), 0, this._store);
 	}
 
 	/**
@@ -232,12 +232,12 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				const disposables = new DisposableStore();
 				disposables.add(model.onDidChangeLanguage(() => {
 					// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-					disposables.add(disposableTimeout(() => {
+					disposableTimeout(() => {
 						if (!disposables.isDisposed) {
 							this.promptImportantRecommendations(uri, model, unmatchedRecommendations);
 							disposables.dispose();
 						}
-					}, 0));
+					}, 0, disposables);
 				}));
 				disposables.add(model.onWillDispose(() => disposables.dispose()));
 			}
