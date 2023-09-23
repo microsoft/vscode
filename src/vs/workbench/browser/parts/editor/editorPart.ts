@@ -1272,6 +1272,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	}
 
 	async close(): Promise<void> {
+		// TODO@bpasero this needs full support for closing all editors, handling vetos and showing dialogs
 		this._onDidClose.fire();
 	}
 }
