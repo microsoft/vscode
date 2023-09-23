@@ -1567,23 +1567,31 @@ export namespace LanguageSelector {
 export namespace MappedEditsContext {
 
 	export function is(v: unknown): v is vscode.MappedEditsContext {
-		return (!!v &&
-			typeof v === 'object' &&
-			'selections' in v &&
-			Array.isArray(v.selections) &&
-			v.selections.every(s => s instanceof types.Selection) &&
-			'related' in v &&
-			Array.isArray(v.related) &&
-			v.related.every(e => e && typeof e === 'object' && URI.isUri(e.uri) && e.range instanceof types.Range));
+		return (
+			!!v && typeof v === 'object' &&
+			'documents' in v &&
+			Array.isArray(v.documents) &&
+			v.documents.every(subArr =>
+				Array.isArray(subArr) &&
+				subArr.every(docRef =>
+					docRef && typeof docRef === 'object' &&
+					'uri' in docRef && URI.isUri(docRef.uri) &&
+					'version' in docRef && typeof docRef.version === 'number' &&
+					'ranges' in docRef && Array.isArray(docRef.ranges) && docRef.ranges.every((r: unknown) => r instanceof types.Range)
+				)
+			)
+		);
 	}
 
 	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
 		return {
-			selections: extContext.selections.map(s => Selection.from(s)),
-			related: extContext.related.map(r => ({
-				uri: URI.from(r.uri),
-				range: Range.from(r.range)
-			}))
+			documents: extContext.documents.map((subArray) =>
+				subArray.map((r) => ({
+					uri: URI.from(r.uri),
+					version: r.version,
+					ranges: r.ranges.map((r) => Range.from(r)),
+				}))
+			),
 		};
 	}
 }
