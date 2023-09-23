@@ -387,7 +387,8 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', function (done) {
+			// still flaky with retries, skipping https://github.com/microsoft/vscode/issues/193505
+			test.skip('should listen to all future terminal data events', function (done) {
 				// This test has been flaky in the past but it's not clear why, possibly because
 				// events from previous tests polluting the event recording in this test. Retries
 				// was added so we continue to have coverage of the onDidWriteTerminalData API.

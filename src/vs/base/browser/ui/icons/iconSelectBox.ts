@@ -19,6 +19,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 export interface IIconSelectBoxOptions {
 	readonly icons: ThemeIcon[];
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly showIconInfo?: boolean;
 }
 
 interface IRenderedIconItem {
@@ -46,7 +47,7 @@ export class IconSelectBox extends Disposable {
 	private scrollableElement: DomScrollableElement | undefined;
 	private iconIdElement: HighlightedLabel | undefined;
 	private readonly iconContainerWidth = 36;
-	private readonly iconContainerHeight = 32;
+	private readonly iconContainerHeight = 36;
 
 	constructor(
 		private readonly options: IIconSelectBoxOptions,
@@ -78,7 +79,10 @@ export class IconSelectBox extends Disposable {
 			horizontal: ScrollbarVisibility.Hidden,
 		}));
 		dom.append(iconSelectBoxContainer, this.scrollableElement.getDomNode());
-		this.iconIdElement = new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label')));
+
+		if (this.options.showIconInfo) {
+			this.iconIdElement = new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label')));
+		}
 
 		const iconsDisposables = disposables.add(new MutableDisposable());
 		iconsDisposables.value = this.renderIcons(this.options.icons, [], iconsContainer);
@@ -227,7 +231,7 @@ export class IconSelectBox extends Disposable {
 		}
 
 		if (this.scrollableElement) {
-			this.scrollableElement.getDomNode().style.height = `${dimension.height - 80}px`;
+			this.scrollableElement.getDomNode().style.height = `${this.iconIdElement ? dimension.height - 80 : dimension.height - 40}px`;
 			this.scrollableElement.scanDomNode();
 		}
 	}
@@ -242,6 +246,12 @@ export class IconSelectBox extends Disposable {
 		}
 		this.focusIcon(index);
 		this._onDidSelect.fire(this.renderedIcons[index].icon);
+	}
+
+	clearInput(): void {
+		if (this.inputBox) {
+			this.inputBox.value = '';
+		}
 	}
 
 	focus(): void {

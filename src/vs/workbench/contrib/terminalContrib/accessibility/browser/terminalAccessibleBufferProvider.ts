@@ -25,8 +25,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		@IModelService _modelService: IModelService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService
+		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
 	}
