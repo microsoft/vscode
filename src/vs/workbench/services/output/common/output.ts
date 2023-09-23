@@ -30,11 +30,6 @@ export const OUTPUT_MODE_ID = 'Log';
 export const LOG_MIME = 'text/x-code-log-output';
 
 /**
- * Log resource scheme.
- */
-export const LOG_SCHEME = 'log';
-
-/**
  * Id used by the log output editor.
  */
 export const LOG_MODE_ID = 'log';

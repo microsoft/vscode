@@ -68,7 +68,7 @@ registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
 
 
 export namespace CommentAccessibilityHelpNLS {
-	export const intro = nls.localize('intro', "The editor contains a commentable range. Some useful commands include:");
+	export const intro = nls.localize('intro', "The editor contains commentable range(s). Some useful commands include:");
 	export const introWidget = nls.localize('introWidget', "Some useful comment commands include:");
 	export const escape = nls.localize('escape', "- Dismiss Comment (Escape)");
 	export const nextRange = nls.localize('next', "- Navigate to the next commenting range ({0})");

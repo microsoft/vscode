@@ -41,7 +41,15 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	isSticky(editorOrIndex: EditorInput | number): boolean { return this.model.isSticky(editorOrIndex); }
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
+	isFirst(editor: EditorInput): boolean {
+		return this.model.isFirst(editor, this.getEditors(EditorsOrder.SEQUENTIAL));
+	}
+
+	isLast(editor: EditorInput): boolean {
+		return this.model.isLast(editor, this.getEditors(EditorsOrder.SEQUENTIAL));
+	}
+
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
 		const editors = this.model.getEditors(order, options);
 		return editors.filter(e => this.filter(e));
 	}
@@ -56,8 +64,6 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 
 	abstract get count(): number;
 
-	abstract isFirst(editor: EditorInput): boolean;
-	abstract isLast(editor: EditorInput): boolean;
 	abstract getEditorByIndex(index: number): EditorInput | undefined;
 	abstract indexOf(editor: EditorInput | IUntypedEditorInput | null, editors?: EditorInput[], options?: IMatchEditorOptions): number;
 	abstract contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
@@ -68,7 +74,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 	get count(): number { return this.model.stickyCount; }
 
-	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
+	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
 		if (options?.excludeSticky) {
 			return [];
 		}
@@ -80,14 +86,6 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 
 	override isSticky(editorOrIndex: number | EditorInput): boolean {
 		return true;
-	}
-
-	isFirst(editor: EditorInput): boolean {
-		return this.model.isFirst(editor);
-	}
-
-	isLast(editor: EditorInput): boolean {
-		return this.model.indexOf(editor) === this.model.stickyCount - 1;
 	}
 
 	getEditorByIndex(index: number): EditorInput | undefined {
@@ -120,19 +118,11 @@ export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
 		return false;
 	}
 
-	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly EditorInput[] {
+	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
 		if (order === EditorsOrder.SEQUENTIAL) {
 			return this.model.getEditors(EditorsOrder.SEQUENTIAL).slice(this.model.stickyCount);
 		}
 		return super.getEditors(order, options);
-	}
-
-	isFirst(editor: EditorInput): boolean {
-		return this.model.indexOf(editor) === this.model.stickyCount;
-	}
-
-	isLast(editor: EditorInput): boolean {
-		return this.model.isLast(editor);
 	}
 
 	getEditorByIndex(index: number): EditorInput | undefined {

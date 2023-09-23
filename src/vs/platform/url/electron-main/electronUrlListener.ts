@@ -85,7 +85,7 @@ export class ElectronURLListener extends Disposable {
 		} else {
 			logService.trace('ElectronURLListener: waiting for window to be ready to handle URLs...');
 
-			this._register(Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush));
+			this._register(Event.once(windowsMainService.onDidSignalReadyWindow)(() => this.flush()));
 		}
 	}
 
