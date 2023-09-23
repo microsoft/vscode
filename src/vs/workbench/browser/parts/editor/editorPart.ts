@@ -15,7 +15,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -139,7 +139,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
-		private readonly accessor: IEditorGroupsAccessor,
+		private readonly groupsView: IEditorGroupsView,
 		id: string,
 		readonly label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -573,11 +573,11 @@ export class EditorPart extends Part implements IEditorPart {
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.accessor, this.count, this.label, this.instantiationService);
+			groupView = EditorGroupView.createCopy(from, this.groupsView, this.count, this.label, this.instantiationService);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.accessor, this.count, this.label, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this.groupsView, this.count, this.label, this.instantiationService);
 		} else {
-			groupView = EditorGroupView.createNew(this.accessor, this.count, this.label, this.instantiationService);
+			groupView = EditorGroupView.createNew(this.groupsView, this.count, this.label, this.instantiationService);
 		}
 
 		// Keep in map
@@ -842,7 +842,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
-			groupView = this.accessor.getGroup(group);
+			groupView = this.groupsView.getGroup(group);
 		} else {
 			groupView = group;
 		}
@@ -857,7 +857,7 @@ export class EditorPart extends Part implements IEditorPart {
 	createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
 		assertType(container instanceof HTMLElement);
 
-		return this.instantiationService.createInstance(EditorDropTarget, this.accessor, container, delegate);
+		return this.instantiationService.createInstance(EditorDropTarget, this.groupsView, container, delegate);
 	}
 
 	//#region Part
@@ -1234,14 +1234,14 @@ export class EditorPart extends Part implements IEditorPart {
 export class MainEditorPart extends EditorPart {
 
 	constructor(
-		accessor: IEditorGroupsAccessor,
+		groupsView: IEditorGroupsView,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(accessor, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
+		super(groupsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 }
 
@@ -1253,7 +1253,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	readonly onDidClose = this._onDidClose.event;
 
 	constructor(
-		accessor: IEditorGroupsAccessor,
+		groupsView: IEditorGroupsView,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -1261,7 +1261,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(accessor, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
+		super(groupsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 
 	async close(): Promise<void> {

@@ -9,12 +9,12 @@ import { IDimension, getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorGroupView, IEditorGroupsAccessor } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, IEditorGroupsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChildWindowService } from 'vs/workbench/services/childWindow/browser/childWindowService';
 
-export class EditorParts extends Disposable implements IEditorGroupsService, IEditorGroupsAccessor {
+export class EditorParts extends Disposable implements IEditorGroupsService, IEditorGroupsView {
 
 	declare readonly _serviceBrand: undefined;
 

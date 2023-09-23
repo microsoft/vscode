@@ -5,8 +5,8 @@
 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import 'vs/css!./media/review';
-import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -21,101 +21,109 @@ import { CommentController, ID } from 'vs/workbench/contrib/comments/browser/com
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-
-export class NextCommentThreadAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.nextCommentThreadAction',
-			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
-			alias: 'Go to Next Comment Thread',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Alt | KeyCode.F9,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.nextCommentThread();
-	}
-}
-
-export class PreviousCommentThreadAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.previousCommentThreadAction',
-			label: nls.localize('previousCommentThreadAction', "Go to Previous Comment Thread"),
-			alias: 'Go to Previous Comment Thread',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.previousCommentThread();
-	}
-}
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
-registerEditorAction(NextCommentThreadAction);
-registerEditorAction(PreviousCommentThreadAction);
 
-export class NextCommentingRangeAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.goToNextCommentingRange',
-			label: nls.localize('goToNextCommentingRange', "Go to Next Commenting Range"),
-			alias: 'Go to Next Commenting Range',
-			precondition: CommentContextKeys.WorkspaceHasCommenting,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.NextThread,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.nextCommentingRange();
-	}
-}
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.nextCommentThread();
+	},
+	weight: KeybindingWeight.EditorContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyMod.Alt | KeyCode.F9,
+});
 
-export class PreviousCommentingRangeAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.goToPreviousCommentingRange',
-			label: nls.localize('goToPreviousCommentingRange', "Go to Previous Commenting Range"),
-			alias: 'Go to Next Commenting Range',
-			precondition: CommentContextKeys.WorkspaceHasCommenting,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.PreviousThread,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = CommentController.get(editor);
-		controller?.previousCommentingRange();
-	}
-}
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.previousCommentThread();
+	},
+	weight: KeybindingWeight.EditorContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
+});
 
-registerEditorAction(NextCommentingRangeAction);
-registerEditorAction(PreviousCommentingRangeAction);
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.NextRange,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
 
-const TOGGLE_COMMENTING_COMMAND = 'workbench.action.toggleCommenting';
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.nextCommentingRange();
+	},
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
+	weight: KeybindingWeight.EditorContrib
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: CommentCommandId.NextRange,
+		title: nls.localize('comments.nextCommentingRange', "Go to Next Commenting Range"),
+		category: 'Comments',
+	},
+	when: CommentContextKeys.activeEditorHasCommentingRange
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.PreviousRange,
+	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return Promise.resolve();
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return Promise.resolve();
+		}
+		controller.previousCommentingRange();
+	},
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
+	weight: KeybindingWeight.EditorContrib
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: CommentCommandId.PreviousRange,
+		title: nls.localize('comments.previousCommentingRange', "Go to Previous Commenting Range"),
+		category: 'Comments',
+	},
+	when: CommentContextKeys.activeEditorHasCommentingRange
+});
+
 CommandsRegistry.registerCommand({
-	id: TOGGLE_COMMENTING_COMMAND,
+	id: CommentCommandId.ToggleCommenting,
 	handler: (accessor) => {
 		const commentService = accessor.get(ICommentService);
 		const enable = commentService.isCommentingEnabled;
@@ -125,16 +133,15 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: TOGGLE_COMMENTING_COMMAND,
+		id: CommentCommandId.ToggleCommenting,
 		title: nls.localize('comments.toggleCommenting', "Toggle Editor Commenting"),
 		category: 'Comments',
 	},
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: ADD_COMMENT_COMMAND,
+	id: CommentCommandId.Add,
 	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
@@ -161,16 +168,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: ADD_COMMENT_COMMAND,
+		id: CommentCommandId.Add,
 		title: nls.localize('comments.addCommand', "Add Comment on Current Selection"),
 		category: 'Comments'
 	},
 	when: CommentContextKeys.activeCursorHasCommentingRange
 });
 
-const COLLAPSE_ALL_COMMENT_COMMAND = 'workbench.action.collapseAllComments';
 CommandsRegistry.registerCommand({
-	id: COLLAPSE_ALL_COMMENT_COMMAND,
+	id: CommentCommandId.CollapseAll,
 	handler: (accessor) => {
 		return getActiveController(accessor)?.collapseAll();
 	}
@@ -178,16 +184,15 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: COLLAPSE_ALL_COMMENT_COMMAND,
+		id: CommentCommandId.CollapseAll,
 		title: nls.localize('comments.collapseAll', "Collapse All Comments"),
 		category: 'Comments'
 	},
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-const EXPAND_ALL_COMMENT_COMMAND = 'workbench.action.expandAllComments';
 CommandsRegistry.registerCommand({
-	id: EXPAND_ALL_COMMENT_COMMAND,
+	id: CommentCommandId.ExpandAll,
 	handler: (accessor) => {
 		return getActiveController(accessor)?.expandAll();
 	}
@@ -195,16 +200,15 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: EXPAND_ALL_COMMENT_COMMAND,
+		id: CommentCommandId.ExpandAll,
 		title: nls.localize('comments.expandAll', "Expand All Comments"),
 		category: 'Comments'
 	},
 	when: CommentContextKeys.WorkspaceHasCommenting
 });
 
-const EXPAND_UNRESOLVED_COMMENT_COMMAND = 'workbench.action.expandUnresolvedComments';
 CommandsRegistry.registerCommand({
-	id: EXPAND_UNRESOLVED_COMMENT_COMMAND,
+	id: CommentCommandId.ExpandUnresolved,
 	handler: (accessor) => {
 		return getActiveController(accessor)?.expandUnresolved();
 	}
@@ -212,7 +216,7 @@ CommandsRegistry.registerCommand({
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: EXPAND_UNRESOLVED_COMMENT_COMMAND,
+		id: CommentCommandId.ExpandUnresolved,
 		title: nls.localize('comments.expandUnresolved', "Expand Unresolved Comments"),
 		category: 'Comments'
 	},
@@ -220,7 +224,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.submitComment',
+	id: CommentCommandId.Submit,
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	when: ctxCommentEditorFocused,
@@ -233,7 +237,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'workbench.action.hideComment',
+	id: CommentCommandId.Hide,
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
