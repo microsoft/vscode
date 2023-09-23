@@ -516,18 +516,19 @@ registerAction2(ToggleTabsVisibilityAction);
 
 // --- Toggle Pinned Tabs On Separate Row
 
-export class ToggleSeperatePinnedTabsAction extends Action2 {
+export class ToggleSeparatePinnedTabsAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleSeperatePinnedTabs';
+	static readonly ID = 'workbench.action.toggleSeparatePinnedTabs';
 
 	constructor() {
 		super({
-			id: ToggleSeperatePinnedTabsAction.ID,
+			id: ToggleSeparatePinnedTabsAction.ID,
 			title: {
-				value: localize('toggleSeperatePinnedTabs', "Seperate Pinned Tabs"),
-				original: 'Seperate Pinned Tabs'
+				value: localize('toggleSeparatePinnedTabs', "Separate Pinned Tabs"),
+				original: 'Separate Pinned Tabs'
 			},
 			category: Categories.View,
+			precondition: ContextKeyExpr.has('config.workbench.editor.showTabs'),
 			f1: true
 		});
 	}
@@ -541,7 +542,7 @@ export class ToggleSeperatePinnedTabsAction extends Action2 {
 		return configurationService.updateValue('workbench.editor.pinnedTabsOnSeparateRow', newPinnedTabsOnSeparateRow);
 	}
 }
-registerAction2(ToggleSeperatePinnedTabsAction);
+registerAction2(ToggleSeparatePinnedTabsAction);
 
 // --- Toggle Zen Mode
 
