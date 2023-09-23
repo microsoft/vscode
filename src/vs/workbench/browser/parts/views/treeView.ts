@@ -1259,10 +1259,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 
-		const menuActions = this.menus.getResourceActions(node);
-		if (menuActions.menu) {
-			templateData.elementDisposable.add(menuActions.menu);
-		}
+		const menuActions = this.menus.getResourceActions(node, templateData.elementDisposable);
 		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
 
 		if (this._actionRunner) {
@@ -1513,7 +1510,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 	}
 }
 
-class TreeMenus extends Disposable implements IDisposable {
+class TreeMenus implements IDisposable {
 	private contextKeyService: IContextKeyService | undefined;
 	private _onDidChange = new Emitter<ITreeItem>();
 	public readonly onDidChange = this._onDidChange.event;
@@ -1521,15 +1518,10 @@ class TreeMenus extends Disposable implements IDisposable {
 	constructor(
 		private id: string,
 		@IMenuService private readonly menuService: IMenuService
-	) {
-		super();
-	}
+	) { }
 
-	/**
-	 * Caller is now responsible for disposing of the menu!
-	 */
-	getResourceActions(element: ITreeItem): { menu?: IMenu; actions: IAction[] } {
-		const actions = this.getActions(MenuId.ViewItemContext, element, true);
+	getResourceActions(element: ITreeItem, disposableStore: DisposableStore): { menu?: IMenu; actions: IAction[] } {
+		const actions = this.getActions(MenuId.ViewItemContext, element, disposableStore);
 		return { menu: actions.menu, actions: actions.primary };
 	}
 
@@ -1541,7 +1533,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, element: ITreeItem, listen: boolean = false): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
+	private getActions(menuId: MenuId, element: ITreeItem, listen?: DisposableStore): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -1557,16 +1549,16 @@ class TreeMenus extends Disposable implements IDisposable {
 		const result = { primary, secondary, menu };
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
 		if (listen) {
-			this._register(menu.onDidChange(() => this._onDidChange.fire(element)));
+			listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
+			listen.add(menu);
 		} else {
 			menu.dispose();
 		}
 		return result;
 	}
 
-	override dispose() {
+	dispose() {
 		this.contextKeyService = undefined;
-		super.dispose();
 	}
 }
 

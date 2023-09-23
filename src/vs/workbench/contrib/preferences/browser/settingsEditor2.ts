@@ -205,6 +205,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings = false;
+	private tocTreeDisposed = false;
 
 	/** Persist the search query upon reloads */
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
@@ -844,6 +845,7 @@ export class SettingsEditor2 extends EditorPane {
 				'aria-label': localize('settings', "Settings"),
 			})),
 			this.viewState));
+		this.tocTreeDisposed = false;
 
 		this._register(this.tocTree.onDidFocus(() => {
 			this._currentFocusContext = SettingsFocusContext.TableOfContents;
@@ -877,6 +879,10 @@ export class SettingsEditor2 extends EditorPane {
 
 		this._register(this.tocTree.onDidBlur(() => {
 			this.tocRowFocused.set(false);
+		}));
+
+		this._register(this.tocTree.onDidDispose(() => {
+			this.tocTreeDisposed = true;
 		}));
 	}
 
@@ -1537,7 +1543,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
-			} else {
+			} else if (!this.tocTreeDisposed) {
 				// Leaving search mode
 				this.tocTree.collapseAll();
 				this.refreshTOCTree();

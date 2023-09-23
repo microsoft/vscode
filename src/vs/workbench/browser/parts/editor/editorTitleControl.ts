@@ -8,7 +8,7 @@ import { Dimension, clearNode } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
@@ -43,8 +43,8 @@ export class EditorTitleControl extends Themable {
 
 	constructor(
 		private parent: HTMLElement,
-		private accessor: IEditorGroupsAccessor,
-		private groupViewer: IEditorGroupView,
+		private groupsView: IEditorGroupsView,
+		private groupView: IEditorGroupView,
 		private model: IReadonlyEditorGroupModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
@@ -57,21 +57,21 @@ export class EditorTitleControl extends Themable {
 
 	private createEditorTabsControl(): IEditorTabsControl {
 		let control: IEditorTabsControl;
-		if (this.accessor.partOptions.showTabs) {
-			if (this.accessor.partOptions.pinnedTabsOnSeparateRow) {
-				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.accessor, this.groupViewer, this.model);
+		if (this.groupsView.partOptions.showTabs) {
+			if (this.groupsView.partOptions.pinnedTabsOnSeparateRow) {
+				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.groupsView, this.groupView, this.model);
 			} else {
-				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.accessor, this.groupViewer, this.model);
+				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.groupsView, this.groupView, this.model);
 			}
 		} else {
-			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.accessor, this.groupViewer, this.model);
+			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.groupsView, this.groupView, this.model);
 		}
 
 		return this.editorTabsControlDisposable.add(control);
 	}
 
 	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
-		if (!this.accessor.partOptions.showTabs) {
+		if (!this.groupsView.partOptions.showTabs) {
 			return undefined; // single tabs have breadcrumbs inlined
 		}
 
@@ -80,7 +80,7 @@ export class EditorTitleControl extends Themable {
 		breadcrumbsContainer.classList.add('breadcrumbs-below-tabs');
 		this.parent.appendChild(breadcrumbsContainer);
 
-		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupViewer, {
+		const breadcrumbsControlFactory = this.breadcrumbsControlDisposables.add(this.instantiationService.createInstance(BreadcrumbsControlFactory, breadcrumbsContainer, this.groupView, {
 			showFileIcons: true,
 			showSymbolIcons: true,
 			showDecorationColors: false,
@@ -92,11 +92,11 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleBreadcrumbsEnablementChange(): void {
-		this.groupViewer.relayout(); // relayout when breadcrumbs are enable/disabled
+		this.groupView.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
-	openEditor(editor: EditorInput): void {
-		const didChange = this.editorTabsControl.openEditor(editor);
+	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): void {
+		const didChange = this.editorTabsControl.openEditor(editor, options);
 
 		this.handleOpenedEditors(didChange);
 	}
@@ -132,7 +132,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private handleClosedEditors(): void {
-		if (!this.groupViewer.activeEditor) {
+		if (!this.groupView.activeEditor) {
 			this.breadcrumbsControl?.update();
 		}
 	}

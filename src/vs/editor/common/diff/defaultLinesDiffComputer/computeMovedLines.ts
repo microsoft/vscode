@@ -7,7 +7,7 @@ import { ITimeout, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffCo
 import { DetailedLineRangeMapping, LineRangeMapping } from '../rangeMapping';
 import { pushMany, compareBy, numberComparator, reverseOrder } from 'vs/base/common/arrays';
 import { MonotonousArray, findLastMonotonous } from 'vs/base/common/arraysFind';
-import { SetMap } from 'vs/base/common/collections';
+import { SetMap } from 'vs/base/common/map';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';

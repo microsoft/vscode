@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -82,7 +82,7 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 	return options;
 }
 
-export interface IEditorGroupsAccessor {
+export interface IEditorGroupsView {
 
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
@@ -148,6 +148,8 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	notifyIndexChanged(newIndex: number): void;
 
+	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
+
 	relayout(): void;
 }
 
@@ -200,6 +202,11 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * opened in one of the sides.
 	 */
 	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+
+	/**
+	 * When set to `true`, pass DOM focus into the tab control. 
+	 */
+	focusTabControl?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {

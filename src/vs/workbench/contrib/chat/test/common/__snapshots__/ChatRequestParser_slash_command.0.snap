@@ -1,28 +1,31 @@
-[
-  {
-    range: {
-      start: 0,
-      endExclusive: 4
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 4
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 5
+      },
+      slashCommand: { command: "fix" }
     },
-    editorRange: {
-      startLineNumber: 1,
-      startColumn: 1,
-      endLineNumber: 1,
-      endColumn: 5
-    },
-    slashCommand: { command: "fix" }
-  },
-  {
-    range: {
-      start: 4,
-      endExclusive: 9
-    },
-    editorRange: {
-      startLineNumber: 1,
-      startColumn: 5,
-      endLineNumber: 1,
-      endColumn: 10
-    },
-    text: " this"
-  }
-]
+    {
+      range: {
+        start: 4,
+        endExclusive: 9
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 5,
+        endLineNumber: 1,
+        endColumn: 10
+      },
+      text: " this"
+    }
+  ],
+  text: "/fix this"
+}

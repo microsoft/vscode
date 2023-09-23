@@ -3,43 +3,43 @@
     {
       range: {
         start: 0,
-        endExclusive: 10
+        endExclusive: 8
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 1,
         endLineNumber: 1,
-        endColumn: 11
+        endColumn: 9
       },
-      text: "What does "
+      text: "What is "
     },
     {
       range: {
-        start: 10,
-        endExclusive: 20
+        start: 8,
+        endExclusive: 18
       },
       editorRange: {
         startLineNumber: 1,
-        startColumn: 11,
+        startColumn: 9,
         endLineNumber: 1,
-        endColumn: 21
+        endColumn: 19
       },
       variableName: "selection",
       variableArg: ""
     },
     {
       range: {
-        start: 20,
-        endExclusive: 26
+        start: 18,
+        endExclusive: 19
       },
       editorRange: {
         startLineNumber: 1,
-        startColumn: 21,
+        startColumn: 19,
         endLineNumber: 1,
-        endColumn: 27
+        endColumn: 20
       },
-      text: " mean?"
+      text: "?"
     }
   ],
-  text: "What does @selection mean?"
+  text: "What is @selection?"
 }

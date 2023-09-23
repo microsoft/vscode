@@ -10,7 +10,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
@@ -979,7 +979,7 @@ class TestObservers {
 		return {
 			onDidChangeTest: current.tests.onDidChangeTests,
 			get tests() { return [...current.tests.rootTests].map(t => t.revived); },
-			dispose: once(() => {
+			dispose: createSingleCallFunction(() => {
 				if (--current.observers === 0) {
 					this.proxy.$unsubscribeFromDiffs();
 					this.current = undefined;
