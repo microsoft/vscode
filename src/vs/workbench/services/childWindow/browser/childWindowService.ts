@@ -47,7 +47,7 @@ export class ChildWindowService implements IChildWindowService {
 		disposables.add(registerWindow(childWindow));
 		disposables.add(toDisposable(() => childWindow.close()));
 
-		disposables.add(addDisposableListener(childWindow, 'close', () => {
+		disposables.add(addDisposableListener(childWindow, 'unload', () => {
 			onDidClose.fire();
 			disposables.dispose();
 		}));

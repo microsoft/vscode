@@ -1065,9 +1065,7 @@ export class EditorPart extends Part implements IEditorPart {
 				onUnexpectedError(new Error(`Error restoring editor grid widget: ${error} (with state: ${JSON.stringify(uiState)})`));
 
 				// Clear any state we have from the failing restore
-				this.groupViews.forEach(group => group.dispose());
-				this.groupViews.clear();
-				this.mostRecentActiveGroups = [];
+				this.disposeGroups();
 
 				return false; // failure
 			}
@@ -1216,11 +1214,20 @@ export class EditorPart extends Part implements IEditorPart {
 		};
 	}
 
+	private disposeGroups(): void {
+		for (const group of this.groups) {
+			group.dispose();
+			this._onDidRemoveGroup.fire(group);
+		}
+
+		this.groupViews.clear();
+		this.mostRecentActiveGroups = [];
+	}
+
 	override dispose(): void {
 
 		// Forward to all groups
-		this.groupViews.forEach(group => group.dispose());
-		this.groupViews.clear();
+		this.disposeGroups();
 
 		// Grid widget
 		this.gridWidget?.dispose();
