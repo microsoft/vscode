@@ -141,7 +141,7 @@ export class EditorPart extends Part implements IEditorPart {
 	constructor(
 		private readonly groupsView: IEditorGroupsView,
 		id: string,
-		readonly label: string,
+		readonly groupsLabel: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -573,11 +573,11 @@ export class EditorPart extends Part implements IEditorPart {
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.groupsView, this.label, this.count, this.instantiationService);
+			groupView = EditorGroupView.createCopy(from, this.groupsView, this.groupsLabel, this.count, this.instantiationService);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.groupsView, this.label, this.count, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this.groupsView, this.groupsLabel, this.count, this.instantiationService);
 		} else {
-			groupView = EditorGroupView.createNew(this.groupsView, this.label, this.count, this.instantiationService);
+			groupView = EditorGroupView.createNew(this.groupsView, this.groupsLabel, this.count, this.instantiationService);
 		}
 
 		// Keep in map
