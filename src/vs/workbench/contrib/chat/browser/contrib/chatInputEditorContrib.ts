@@ -15,10 +15,12 @@ import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -435,29 +437,49 @@ class SelectAndInsertFileAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const textModelService = accessor.get(ITextModelService);
+		const logService = accessor.get(ILogService);
+
 		const context = args[0];
 		if (!isSelectAndInsertFileActionContext(context)) {
 			return;
 		}
 
+		const doCleanup = () => {
+			// Failed, remove the dangling `file`
+			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
+		};
+
 		const quickInputService = accessor.get(IQuickInputService);
 		const picks = await quickInputService.quickAccess.pick('');
-		if (picks?.length) {
-			const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
-			const fileName = basename(resource);
-			const editor = context.widget.inputEditor;
-			const text = `$file:${fileName}`;
-			const range = context.range;
-			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
-			if (success) {
-				context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
-					range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-					data: resource
-				});
-			}
-		} else {
-			context.widget.inputEditor.executeEdits('chatInsertFile', [{ range: context.range, text: `` }]);
+		if (!picks?.length) {
+			logService.trace('SelectAndInsertFileAction: no file selected');
+			doCleanup();
+			return;
 		}
+
+		const resource = (picks[0] as unknown as { resource: unknown }).resource as URI;
+		if (!textModelService.canHandleResource(resource)) {
+			logService.trace('SelectAndInsertFileAction: non-text resource selected');
+			doCleanup();
+			return;
+		}
+
+		const fileName = basename(resource);
+		const editor = context.widget.inputEditor;
+		const text = `$file:${fileName}`;
+		const range = context.range;
+		const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
+		if (!success) {
+			logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
+			doCleanup();
+			return;
+		}
+
+		context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
+			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
+			data: resource
+		});
 	}
 }
 registerAction2(SelectAndInsertFileAction);

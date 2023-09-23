@@ -7,8 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatDynamicReferenceModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferenceModel';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicReferencePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -23,7 +21,6 @@ export class ChatRequestParser {
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@IChatVariablesService private readonly variableService: IChatVariablesService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) { }
 
 	async parseChatRequest(sessionId: string, message: string): Promise<IParsedChatRequest> {
@@ -158,17 +155,8 @@ export class ChatRequestParser {
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetBySessionId(sessionId);
-		if (!widget || !widget.viewModel) {
-			return;
-		}
-
-		const model = widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID);
-		if (!model) {
-			return;
-		}
-
-		const refAtThisPosition = model.references.find(r =>
+		const references = this.variableService.getDynamicReferences(sessionId);
+		const refAtThisPosition = references.find(r =>
 			r.range.startLineNumber === position.lineNumber &&
 			r.range.startColumn === position.column &&
 			r.range.endLineNumber === position.lineNumber &&

@@ -3,20 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-
-export interface IDynamicReference {
-	range: IRange;
-	// data: any; // File details for a file, something else for a different type of thing, is it typed?
-	data: URI;
-}
+import { IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export const dynamicReferenceDecorationType = 'chat-dynamic-reference';
 
