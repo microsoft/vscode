@@ -170,7 +170,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		return this.groups.length;
 	}
 
-	getGroups(order: GroupsOrder): readonly IEditorGroupView[] {
+	getGroups(order: GroupsOrder): IEditorGroupView[] {
 		return [...this.parts].map(part => part.getGroups(order)).flat();
 	}
 

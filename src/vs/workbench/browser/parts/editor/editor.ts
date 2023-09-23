@@ -84,7 +84,7 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 
 export interface IEditorGroupsView {
 
-	readonly groups: readonly IEditorGroupView[];
+	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
 	readonly partOptions: IEditorPartOptions;
@@ -93,7 +93,7 @@ export interface IEditorGroupsView {
 	readonly onDidVisibilityChange: Event<boolean>;
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
-	getGroups(order: GroupsOrder): readonly IEditorGroupView[];
+	getGroups(order: GroupsOrder): IEditorGroupView[];
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
@@ -204,7 +204,7 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 
 	/**
-	 * When set to `true`, pass DOM focus into the tab control. 
+	 * When set to `true`, pass DOM focus into the tab control.
 	 */
 	focusTabControl?: boolean;
 }

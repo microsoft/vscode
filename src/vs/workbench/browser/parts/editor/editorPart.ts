@@ -210,7 +210,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	};
 
-	get groups(): readonly IEditorGroupView[] {
+	get groups(): IEditorGroupView[] {
 		return Array.from(this.groupViews.values());
 	}
 
@@ -235,7 +235,7 @@ export class EditorPart extends Part implements IEditorPart {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
-	getGroups(order = GroupsOrder.CREATION_TIME): readonly IEditorGroupView[] {
+	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		switch (order) {
 			case GroupsOrder.CREATION_TIME:
 				return this.groups;
@@ -1076,7 +1076,7 @@ export class EditorPart extends Part implements IEditorPart {
 		return true; // success
 	}
 
-	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: readonly IEditorGroupView[]): void {
+	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
 
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];
