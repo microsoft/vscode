@@ -10,11 +10,16 @@ import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
 import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { FileAccess } from 'vs/base/common/network';
 
 registerThemingParticipant((theme, collector) => {
 
 	// Background (helps for subpixel-antialiasing on Windows)
 	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+	if (isIOS && isStandalone()) {
+		// Update body background color to ensure the home indicator area looks similar to the workbench
+		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
+	}
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	// Selection (do NOT remove - https://github.com/microsoft/vscode/issues/169662)
@@ -54,10 +59,14 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 
-	// Update body background color to ensure the home indicator area looks similar to the workbench
-	if (isIOS && isStandalone()) {
-		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
-	}
+	// Codicon support in child windows
+	collector.addRule(`
+		@font-face {
+			font-family: 'codicon';
+			font-display: block;
+			src: url('${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6') format('truetype');
+		}
+	`);
 });
 
 /**

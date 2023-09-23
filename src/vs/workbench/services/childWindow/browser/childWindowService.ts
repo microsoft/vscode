@@ -6,7 +6,6 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Dimension, EventType, addDisposableListener, getClientArea, registerWindow } from 'vs/base/browser/dom';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
 import { assertIsDefined } from 'vs/base/common/types';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -150,33 +149,6 @@ export class ChildWindowService implements IChildWindowService {
 				childWindow.document.head.appendChild(link);
 			}
 		}
-
-		// Apply stylesheets with `url()` (TODO@bpasero hack)
-		const styleSheetsWithUrl = document.createElement('style');
-		styleSheetsWithUrl.textContent = `
-			@font-face {
-				font-family: 'codicon';
-				font-display: block;
-				src: url('${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6') format('truetype');
-			}
-
-			.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-light.svg')}');
-			}
-
-			.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-dark.svg')}');
-			}
-
-			.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-hcLight.svg')}');
-			}
-
-			.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
-				background-image: url('${FileAccess.asBrowserUri('vs/workbench/browser/parts/editor/media/letterpress-hcDark.svg')}');
-			}
-			`;
-		childWindow.document.head.appendChild(styleSheetsWithUrl);
 	}
 
 	private createContainer(childWindow: Window): HTMLElement {
