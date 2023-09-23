@@ -58,16 +58,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region factory
 
-	static createNew(groupsView: IEditorGroupsView, index: number, groupsLabel: string, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, null, groupsView, index, groupsLabel);
+	static createNew(groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, null, groupsView, groupsLabel, groupIndex);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroupModel, groupsView: IEditorGroupsView, index: number, groupsLabel: string, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, serialized, groupsView, index, groupsLabel);
+	static createFromSerialized(serialized: ISerializedEditorGroupModel, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, serialized, groupsView, groupsLabel, groupIndex);
 	}
 
-	static createCopy(copyFrom: IEditorGroupView, groupsView: IEditorGroupsView, index: number, groupsLabel: string, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, copyFrom, groupsView, index, groupsLabel);
+	static createCopy(copyFrom: IEditorGroupView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, copyFrom, groupsView, groupsLabel, groupIndex);
 	}
 
 	//#endregion
@@ -135,8 +135,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private groupsView: IEditorGroupsView,
-		private _index: number,
 		private readonly groupsLabel: string,
+		private _index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
