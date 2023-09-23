@@ -390,7 +390,7 @@ export class CodeApplication extends Disposable {
 			// Child Window: apply zoom after loading finished
 			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 			if (isChildWindow) {
-				contents.on('did-start-loading', () => {
+				contents.on('dom-ready', () => {
 					const windowZoomLevel = this.configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0;
 
 					contents.setZoomLevel(windowZoomLevel);
