@@ -362,7 +362,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
 			}));
@@ -397,7 +397,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
 			}));
