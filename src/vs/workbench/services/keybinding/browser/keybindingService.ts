@@ -53,6 +53,7 @@ import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -906,13 +907,13 @@ class KeybindingsJsonSchema {
 		this.commandsEnumDescriptions.length = 0;
 
 		const knownCommands = new Set<string>();
-		const addKnownCommand = (commandId: string, description?: string | undefined) => {
+		const addKnownCommand = (commandId: string, description?: string | ILocalizedString | undefined) => {
 			if (!/^_/.test(commandId)) {
 				if (!knownCommands.has(commandId)) {
 					knownCommands.add(commandId);
 
 					this.commandsEnum.push(commandId);
-					this.commandsEnumDescriptions.push(description);
+					this.commandsEnumDescriptions.push(isLocalizedString(description) ? description.value : description);
 
 					// Also add the negative form for keybinding removal
 					this.removalCommandsEnum.push(`-${commandId}`);
@@ -924,7 +925,7 @@ class KeybindingsJsonSchema {
 		for (const [commandId, command] of allCommands) {
 			const commandDescription = command.description;
 
-			addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
+			addKnownCommand(commandId, commandDescription?.description);
 
 			if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
 				continue;

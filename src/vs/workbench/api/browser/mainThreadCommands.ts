@@ -10,6 +10,7 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol';
+import { isString } from 'vs/base/common/types';
 
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
@@ -102,7 +103,11 @@ function _generateMarkdown(description: string | Dto<ICommandHandlerDescription>
 	if (typeof description === 'string') {
 		return description;
 	} else {
-		const parts = [description.description];
+		const descriptionString = isString(description.description)
+			? description.description
+			// Our docs website is in English, so keep the original here.
+			: description.description.original;
+		const parts = [descriptionString];
 		parts.push('\n\n');
 		if (description.args) {
 			for (const arg of description.args) {

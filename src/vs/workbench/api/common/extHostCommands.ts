@@ -233,7 +233,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			throw new Error('Unknown command');
 		}
 		const { callback, thisArg, description } = command;
-		if (description) {
+		if (description?.args) {
 			for (let i = 0; i < description.args.length; i++) {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
