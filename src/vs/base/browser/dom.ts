@@ -729,6 +729,25 @@ export function getActiveDocument(): Document {
 	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
+export function getActiveWindow(): Window & typeof globalThis {
+	const document = getActiveDocument();
+	return document.defaultView?.window ?? window;
+}
+
+function getWindow(e: unknown): Window & typeof globalThis {
+	const candidateNode = e as Node | undefined;
+	if (candidateNode?.ownerDocument?.defaultView) {
+		return candidateNode.ownerDocument.defaultView.window;
+	}
+
+	const candidateEvent = e as UIEvent | undefined;
+	if (candidateEvent?.view) {
+		return candidateEvent.view.window;
+	}
+
+	return window;
+}
+
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
@@ -813,20 +832,6 @@ export function isPointerEvent(e: unknown): e is PointerEvent {
 
 export function isDragEvent(e: unknown): e is DragEvent {
 	return e instanceof DragEvent || e instanceof getWindow(e).DragEvent;
-}
-
-function getWindow(e?: unknown): Window & typeof globalThis {
-	const candidateNode = e as Node | undefined;
-	if (candidateNode?.ownerDocument?.defaultView) {
-		return candidateNode.ownerDocument.defaultView.window;
-	}
-
-	const candidateEvent = e as UIEvent | undefined;
-	if (candidateEvent?.view) {
-		return candidateEvent.view.window;
-	}
-
-	return window;
 }
 
 export const EventType = {
