@@ -11,7 +11,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -373,7 +373,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Find target anchor
 		let anchor: HTMLElement | StandardMouseEvent = this.element;
-		if (e instanceof MouseEvent) {
+		if (e) {
 			anchor = new StandardMouseEvent(e);
 		}
 
@@ -401,7 +401,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title Container
 		const handleTitleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
 			let target: HTMLElement;
-			if (e instanceof MouseEvent) {
+			if (isMouseEvent(e)) {
 				if (e.button !== 0 /* middle/right mouse button */ || (isMacintosh && e.ctrlKey /* macOS context menu */)) {
 					return undefined;
 				}

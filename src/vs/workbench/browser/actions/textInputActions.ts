@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper } from 'vs/base/browser/dom';
+import { EventHelper, isHTMLElement } from 'vs/base/browser/dom';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -85,7 +85,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		}
 
 		const target = e.target;
-		if (!(target instanceof HTMLElement) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
+		if (!isHTMLElement(target) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
 			return; // only for inputs or textareas
 		}
 

@@ -62,6 +62,7 @@ import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
 import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1204,13 +1205,13 @@ export function registerTerminalActions() {
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
-			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
+			if (eventOrOptions && isMouseEvent(eventOrOptions) && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				await c.service.createTerminal({ location: { splitActiveTerminal: true } });
 				return;
 			}
 
 			if (c.service.isProcessSupportRegistered) {
-				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
+				eventOrOptions = !eventOrOptions || isMouseEvent(eventOrOptions) ? {} : eventOrOptions;
 
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
@@ -1707,7 +1708,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
 				options = { config };
-			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
+			} else if (isMouseEvent(eventOrOptionsOrProfile) || isPointerEvent(eventOrOptionsOrProfile) || isKeyboardEvent(eventOrOptionsOrProfile)) {
 				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;
 			} else {

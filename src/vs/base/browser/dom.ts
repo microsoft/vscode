@@ -644,7 +644,7 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 			return true;
 		}
 
-		if (node instanceof HTMLElement) {
+		if (isHTMLElement(node)) {
 			const flowToParentElement = getParentFlowToElement(node);
 			if (flowToParentElement) {
 				node = flowToParentElement;
@@ -791,11 +791,42 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 	}
 }
 
-export function isHTMLElement(o: any): o is HTMLElement {
-	if (typeof HTMLElement === 'object') {
-		return o instanceof HTMLElement;
+export function isHTMLElement(e: unknown): e is HTMLElement {
+	return e instanceof HTMLElement || e instanceof getWindow(e).HTMLElement;
+}
+
+export function isElement(e: unknown): e is Element {
+	return e instanceof Element || e instanceof getWindow(e).Element;
+}
+
+export function isMouseEvent(e: unknown): e is MouseEvent {
+	return e instanceof MouseEvent || e instanceof getWindow(e).MouseEvent;
+}
+
+export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
+	return e instanceof KeyboardEvent || e instanceof getWindow(e).KeyboardEvent;
+}
+
+export function isPointerEvent(e: unknown): e is PointerEvent {
+	return e instanceof PointerEvent || e instanceof getWindow(e).PointerEvent;
+}
+
+export function isDragEvent(e: unknown): e is DragEvent {
+	return e instanceof DragEvent || e instanceof getWindow(e).DragEvent;
+}
+
+function getWindow(e?: unknown): Window & typeof globalThis {
+	const candidateNode = e as Node | undefined;
+	if (candidateNode?.ownerDocument?.defaultView) {
+		return candidateNode.ownerDocument.defaultView.window;
 	}
-	return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
+
+	const candidateEvent = e as UIEvent | undefined;
+	if (candidateEvent?.view) {
+		return candidateEvent.view.window;
+	}
+
+	return window;
 }
 
 export const EventType = {
@@ -963,7 +994,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
-		if (element instanceof HTMLElement) {
+		if (isHTMLElement(element)) {
 			this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
 			this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
 		}
@@ -1116,7 +1147,7 @@ export function hide(...elements: HTMLElement[]): void {
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
+		if (isHTMLElement(node) && node.hasAttribute(attribute)) {
 			return node;
 		}
 
@@ -1906,7 +1937,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 
 	if (children) {
 		for (const c of children) {
-			if (c instanceof HTMLElement) {
+			if (isHTMLElement(c)) {
 				el.appendChild(c);
 			} else if (typeof c === 'string') {
 				el.append(c);
