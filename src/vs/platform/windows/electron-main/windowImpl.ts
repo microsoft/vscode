@@ -10,9 +10,8 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
@@ -220,25 +219,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			});
 
-			// Apply icon to window
-			// Linux: always
-			// Windows: only when running out of sources, otherwise an icon is set by us on the executable
-			if (isLinux) {
-				options.icon = join(this.environmentMainService.appRoot, 'resources/linux/code.png');
-			} else if (isWindows && !this.environmentMainService.isBuilt) {
-				options.icon = join(this.environmentMainService.appRoot, 'resources/win32/code_150x150.png');
-			}
-
 			if (isMacintosh && !this.useNativeFullScreen()) {
 				options.fullscreenable = false; // enables simple fullscreen mode
-			}
-
-			if (isMacintosh) {
-				options.acceptFirstMouse = true; // enabled by default
-
-				if (windowSettings?.clickThroughInactive === false) {
-					options.acceptFirstMouse = false;
-				}
 			}
 
 			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;

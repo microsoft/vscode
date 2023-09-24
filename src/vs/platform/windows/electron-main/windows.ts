@@ -5,7 +5,7 @@
 
 import { BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -14,6 +14,8 @@ import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimu
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { join } from 'vs/base/common/path';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -110,6 +112,9 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
+	const environmentMainService = accessor.get(IEnvironmentMainService);
+
+	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
 	return {
 		width: windowState.width,
@@ -120,12 +125,22 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
+		icon: (() => {
+			if (isLinux) {
+				return join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
+			} else if (isWindows && !environmentMainService.isBuilt) {
+				return join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+			}
+
+			return undefined;
+		})(),
+		acceptFirstMouse: isMacintosh ? windowSettings?.clickThroughInactive === false ? false : true : undefined,
 		...overrides,
 		webPreferences: {
 			preload: undefined,
 			enableWebSQL: false,
 			spellcheck: false,
-			zoomFactor: zoomLevelToZoomFactor(configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0),
+			zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel ?? 0),
 			autoplayPolicy: 'user-gesture-required',
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
