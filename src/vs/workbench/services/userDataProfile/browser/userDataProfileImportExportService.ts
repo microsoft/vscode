@@ -62,7 +62,7 @@ import { Mutable, isUndefined } from 'vs/base/common/types';
 import { Action, ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { isWeb } from 'vs/base/common/platform';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, getAllCodicons } from 'vs/base/common/codicons';
 import { Barrier } from 'vs/base/common/async';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
@@ -339,6 +339,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 		if (isUserDataProfileTemplate(source) && source.icon) {
 			icon = ThemeIcon.fromId(source.icon);
+		}
+		if (icon.id !== DEFAULT_ICON.id && !ICONS.some(({ id }) => id === icon.id) && !getAllCodicons().some(({ id }) => id === icon.id)) {
+			icon = DEFAULT_ICON;
 		}
 		let result: { name: string; items: ReadonlyArray<IQuickPickItem>; icon?: string | null } | undefined;
 		disposables.add(Event.any(quickPick.onDidCustom, quickPick.onDidAccept)(() => {
