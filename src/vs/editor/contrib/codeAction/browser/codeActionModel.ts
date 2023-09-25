@@ -208,7 +208,7 @@ export class CodeActionModel extends Disposable {
 				const startPosition = trigger.selection.getStartPosition();
 
 				const actions = createCancelablePromise(async token => {
-					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix) {
+					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 
 						if (token.isCancellationRequested) {
