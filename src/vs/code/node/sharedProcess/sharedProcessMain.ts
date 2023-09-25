@@ -158,6 +158,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		instantiationService.invokeFunction(accessor => {
 			const logService = accessor.get(ILogService);
+			const telemetryService = accessor.get(ITelemetryService);
+			const userDataProfilesService = accessor.get(IUserDataProfilesService);
 
 			// Log info
 			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
@@ -167,6 +169,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			// Error handler
 			this.registerErrorHandler(logService);
+
+			// Report Profiles Info
+			this.reportProfilesInfo(telemetryService, userDataProfilesService);
+			this._register(userDataProfilesService.onDidChangeProfiles(() => this.reportProfilesInfo(telemetryService, userDataProfilesService)));
 		});
 
 		// Instantiate Contributions
@@ -441,6 +447,20 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			}
 
 			logService.error(`[uncaught exception in sharedProcess]: ${message}`);
+		});
+	}
+
+	private reportProfilesInfo(telemetryService: ITelemetryService, userDataProfilesService: IUserDataProfilesService): void {
+		type ProfilesInfoClassification = {
+			owner: 'sandy081';
+			comment: 'Report profiles information';
+			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of profiles' };
+		};
+		type ProfilesInfoEvent = {
+			count: number;
+		};
+		telemetryService.publicLog2<ProfilesInfoEvent, ProfilesInfoClassification>('profilesInfo', {
+			count: userDataProfilesService.profiles.length
 		});
 	}
 
