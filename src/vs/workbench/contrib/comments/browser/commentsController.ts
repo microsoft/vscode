@@ -344,7 +344,7 @@ class CommentingRangeDecorator {
 
 			return range;
 		}
-		return decorations[0].getActiveRange() ?? undefined;
+		return (decorations.length > 0 ? (decorations[0].getActiveRange() ?? undefined) : undefined);
 	}
 
 	public dispose(): void {
