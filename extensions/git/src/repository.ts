@@ -1439,10 +1439,6 @@ export class Repository implements Disposable {
 		await this.run(Operation.Move, () => this.repository.move(from, to));
 	}
 
-	async getDefaultBranch(): Promise<Branch> {
-		return await this.run(Operation.GetBranch, () => this.repository.getDefaultBranch());
-	}
-
 	async getBranch(name: string): Promise<Branch> {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
@@ -1452,6 +1448,32 @@ export class Repository implements Disposable {
 			const refs = await this.getRefs(query, cancellationToken);
 			return refs.filter(value => (value.type === RefType.Head || value.type === RefType.RemoteHead) && (query.remote || !value.remote));
 		});
+	}
+
+	async getBranchBase(ref: string): Promise<Branch | undefined> {
+		const branch = await this.getBranch(ref);
+
+		// Upstream
+		if (branch.upstream) {
+			return this.getBranch(`refs/remotes/${branch.upstream.remote}/${branch.upstream.name}`);
+		}
+
+		// Default branch
+		return await this.getDefaultBranch();
+	}
+
+	private async getDefaultBranch(): Promise<Branch | undefined> {
+		try {
+			const defaultBranchResult = await this.repository.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+			if (defaultBranchResult.stdout.trim() === '' || defaultBranchResult.stderr) {
+				return undefined;
+			}
+
+			return this.getBranch(defaultBranchResult.stdout.trim());
+		}
+		catch (err) { }
+
+		return undefined;
 	}
 
 	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {
