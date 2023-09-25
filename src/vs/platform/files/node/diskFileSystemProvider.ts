@@ -11,7 +11,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { isEqual } from 'vs/base/common/extpath';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase, joinPath, basename as resourcesBasename, dirname as resourcesDirname } from 'vs/base/common/resources';
@@ -252,28 +252,37 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private async doWriteFileAtomic(resource: URI, tempResource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 
-		// Write to temp resource first
-		await this.doWriteFile(tempResource, content, opts);
+		// Ensure to create locks for all resources involved
+		// since atomic write involves mutiple disk operations
+		// and resources.
+		const [resourceLock, tempResourceLock] = await Promise.all([this.createResourceLock(resource), this.createResourceLock(tempResource)]);
 
 		try {
+			// Write to temp resource first
+			await this.doWriteFile(tempResource, content, opts, true /* disable write lock */);
 
-			// Rename over existing to ensure atomic replace
-			await this.rename(tempResource, resource, { overwrite: true });
-
-		} catch (error) {
-
-			// Cleanup in case of rename error
 			try {
-				await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
-			} catch (error) {
-				// ignore - we want the outer error to bubble up
-			}
 
-			throw error;
+				// Rename over existing to ensure atomic replace
+				await this.rename(tempResource, resource, { overwrite: true });
+
+			} catch (error) {
+
+				// Cleanup in case of rename error
+				try {
+					await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
+				} catch (error) {
+					// ignore - we want the outer error to bubble up
+				}
+
+				throw error;
+			}
+		} finally {
+			dispose([resourceLock, tempResourceLock]);
 		}
 	}
 
-	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions, disableWriteLock?: boolean): Promise<void> {
 		let handle: number | undefined = undefined;
 		try {
 			const filePath = this.toFilePath(resource);
@@ -293,7 +302,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true, unlock: opts.unlock });
+			handle = await this.open(resource, { create: true, unlock: opts.unlock }, disableWriteLock);
 
 			// Write content at once
 			await this.write(handle, 0, content, 0, content.byteLength);
@@ -317,14 +326,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		DiskFileSystemProvider.canFlush = enabled;
 	}
 
-	async open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+	async open(resource: URI, opts: IFileOpenOptions, disableWriteLock?: boolean): Promise<number> {
 		const filePath = this.toFilePath(resource);
 
 		// Writes: guard multiple writes to the same resource
 		// behind a single lock to prevent races when writing
 		// from multiple places at the same time to the same file
 		let lock: IDisposable | undefined = undefined;
-		if (isFileOpenForWriteOptions(opts)) {
+		if (isFileOpenForWriteOptions(opts) && !disableWriteLock) {
 			lock = await this.createResourceLock(resource);
 		}
 
