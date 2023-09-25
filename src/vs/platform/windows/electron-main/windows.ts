@@ -116,7 +116,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	return {
+	const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 		width: windowState.width,
 		height: windowState.height,
 		x: windowState.x,
@@ -125,16 +125,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
 		title: productService.nameLong,
-		icon: (() => {
-			if (isLinux) {
-				return join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
-			} else if (isWindows && !environmentMainService.isBuilt) {
-				return join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
-			}
-
-			return undefined;
-		})(),
-		acceptFirstMouse: isMacintosh ? windowSettings?.clickThroughInactive === false ? false : true : undefined,
 		...overrides,
 		webPreferences: {
 			preload: undefined,
@@ -150,4 +140,20 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		},
 		experimentalDarkMode: true
 	};
+
+	if (isLinux) {
+		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
+	} else if (isWindows && !environmentMainService.isBuilt) {
+		options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+	}
+
+	if (isMacintosh) {
+		options.acceptFirstMouse = true; // enabled by default
+
+		if (windowSettings?.clickThroughInactive === false) {
+			options.acceptFirstMouse = false;
+		}
+	}
+
+	return options;
 }
