@@ -27,6 +27,8 @@ export class ChatRequestTextPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
 }
 
+export const chatVariableLeader = '#'; // warning, this also shows up in a regex in the parser
+
 /**
  * An invocation of a static variable that can be resolved by the variable service
  */
@@ -35,7 +37,7 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 
 	get text(): string {
 		const argPart = this.variableArg ? `:${this.variableArg}` : '';
-		return `@${this.variableName}${argPart}`;
+		return `${chatVariableLeader}${this.variableName}${argPart}`;
 	}
 }
 
