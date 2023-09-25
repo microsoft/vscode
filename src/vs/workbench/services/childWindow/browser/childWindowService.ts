@@ -47,6 +47,8 @@ export class ChildWindowService implements IChildWindowService {
 		disposables.add(registerWindow(childWindow));
 		disposables.add(toDisposable(() => childWindow.close()));
 
+		this.blockMethods(childWindow);
+
 		this.applyMeta(childWindow);
 		this.applyCSS(childWindow, disposables);
 
@@ -60,42 +62,6 @@ export class ChildWindowService implements IChildWindowService {
 			onDidClose: onDidClose.event,
 			dispose: () => disposables.dispose()
 		};
-	}
-
-	private registerListeners(childWindow: Window & typeof globalThis, container: HTMLElement, disposables: DisposableStore) {
-		const onDidClose = disposables.add(new Emitter<void>());
-		disposables.add(addDisposableListener(childWindow, 'unload', () => {
-			onDidClose.fire();
-			disposables.dispose();
-		}));
-
-		disposables.add(addDisposableListener(childWindow, 'unhandledrejection', e => {
-			onUnexpectedError(e.reason);
-			e.preventDefault();
-		}));
-
-		const onDidResize = disposables.add(new Emitter<Dimension>());
-		disposables.add(addDisposableListener(childWindow, EventType.RESIZE, () => {
-			const dimension = getClientArea(childWindow.document.body);
-			position(container, 0, 0, 0, 0, 'relative');
-			size(container, dimension.width, dimension.height);
-
-			onDidResize.fire(dimension);
-		}));
-
-		if (isWeb) {
-			disposables.add(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true))); // Prevent default navigation on drop
-			disposables.add(addDisposableListener(container, EventType.WHEEL, e => e.preventDefault(), { passive: false })); // Prevent the back/forward gestures in macOS
-			disposables.add(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true))); // Prevent native context menus in web
-		} else {
-			for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
-				disposables.add(addDisposableListener(childWindow.document.body, event, (e: DragEvent) => {
-					EventHelper.stop(e);
-				}));
-			}
-		}
-
-		return { onDidResize, onDidClose };
 	}
 
 	private applyMeta(childWindow: Window): void {
@@ -148,6 +114,48 @@ export class ChildWindowService implements IChildWindowService {
 		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
 
 		return container;
+	}
+
+	private registerListeners(childWindow: Window & typeof globalThis, container: HTMLElement, disposables: DisposableStore) {
+		const onDidClose = disposables.add(new Emitter<void>());
+		disposables.add(addDisposableListener(childWindow, 'unload', () => {
+			onDidClose.fire();
+			disposables.dispose();
+		}));
+
+		disposables.add(addDisposableListener(childWindow, 'unhandledrejection', e => {
+			onUnexpectedError(e.reason);
+			e.preventDefault();
+		}));
+
+		const onDidResize = disposables.add(new Emitter<Dimension>());
+		disposables.add(addDisposableListener(childWindow, EventType.RESIZE, () => {
+			const dimension = getClientArea(childWindow.document.body);
+			position(container, 0, 0, 0, 0, 'relative');
+			size(container, dimension.width, dimension.height);
+
+			onDidResize.fire(dimension);
+		}));
+
+		if (isWeb) {
+			disposables.add(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true))); // Prevent default navigation on drop
+			disposables.add(addDisposableListener(container, EventType.WHEEL, e => e.preventDefault(), { passive: false })); // Prevent the back/forward gestures in macOS
+			disposables.add(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true))); // Prevent native context menus in web
+		} else {
+			for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
+				disposables.add(addDisposableListener(childWindow.document.body, event, (e: DragEvent) => {
+					EventHelper.stop(e);
+				}));
+			}
+		}
+
+		return { onDidResize, onDidClose };
+	}
+
+	private blockMethods(childWindow: Window): void {
+		childWindow.document.createElement = function () {
+			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
+		};
 	}
 }
 
