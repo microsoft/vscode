@@ -278,7 +278,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				cp.stdout.on('data', data => process.stdout.write(data));
 				cp.stderr.on('data', data => process.stderr.write(data));
 			} else {
-				_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit'] });
+				_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: 'inherit' });
 			}
 		}
 	} else {
