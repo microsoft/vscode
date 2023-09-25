@@ -33,6 +33,9 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -331,70 +334,114 @@ export async function formatDocumentWithProvider(
 	mode: FormattingMode,
 	token: CancellationToken
 ): Promise<boolean> {
-	const workerService = accessor.get(IEditorWorkerService);
 
-	let model: ITextModel;
+	let completed = false;
 	let cts: CancellationTokenSource;
-	if (isCodeEditor(editorOrModel)) {
-		model = editorOrModel.getModel();
-		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, undefined, token);
-	} else {
-		model = editorOrModel;
-		cts = new TextModelCancellationTokenSource(editorOrModel, token);
-	}
 
-	let edits: TextEdit[] | undefined;
+	const configurationSvc = accessor.get(IConfigurationService);
+	let timeoutSec = 3;
 	try {
-		const rawEdits = await provider.provideDocumentFormattingEdits(
-			model,
-			model.getFormattingOptions(),
-			cts.token
-		);
-
-		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
-
-		if (cts.token.isCancellationRequested) {
-			return true;
-		}
-
-	} finally {
-		cts.dispose();
+		timeoutSec = configurationSvc.getValue<number>('editor.formatOnSaveTimeout');
+	} catch (_) {
 	}
+	const notifySvc = accessor.get(INotificationService);
+	const telemetrySvc = accessor.get(ITelemetryService);
 
-	if (!edits || edits.length === 0) {
-		return false;
-	}
+	if (!Number.isNaN(timeoutSec) && Number.isInteger(timeoutSec) && timeoutSec > 0) {
+		setTimeout(() => {
+			const seconds = timeoutSec === 1 ? 'second' : 'seconds';
+			if (!completed && token !== CancellationToken.None) {
 
-	if (isCodeEditor(editorOrModel)) {
-		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
+				type FormatTimeoutClassification = {
+					owner: 'markzuber';
+					comment: 'Format provider timeout data';
+					provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the format provider' };
+					timeoutSec: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The timeout in seconds' };
+				};
+				type FormatTimeoutEvent = {
+					provider: string | undefined;
+					timeoutSec: number;
+				};
 
-		if (mode !== FormattingMode.Silent) {
-			alertFormattingEdits(edits);
-			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
-		}
-
-	} else {
-		// use model to apply edits
-		const [{ range }] = edits;
-		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		model.pushEditOperations([initialSelection], edits.map(edit => {
-			return {
-				text: edit.text,
-				range: Range.lift(edit.range),
-				forceMoveMarkers: true
-			};
-		}), undoEdits => {
-			for (const { range } of undoEdits) {
-				if (Range.areIntersectingOrTouching(range, initialSelection)) {
-					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
-				}
+				telemetrySvc.publicLog2<FormatTimeoutEvent, FormatTimeoutClassification>('editor.autoformatter.timedout', {
+					provider: provider.displayName,
+					timeoutSec,
+				});
+				// TODO: nls.localize?  If so, how do do it with format strings, nls.localize requires string literal.
+				notifySvc.warn(`${provider.displayName || 'Your configured formatter'} did not respond within ${timeoutSec} ${seconds} and auto-formatting was cancelled. Your file might have been saved without re-formatting.`);
+				cts?.cancel();
 			}
-			return null;
-		});
+		}, timeoutSec * 1000);
 	}
 
-	return true;
+	try {
+		const workerService = accessor.get(IEditorWorkerService);
+
+		let model: ITextModel;
+		let cts: CancellationTokenSource;
+		if (isCodeEditor(editorOrModel)) {
+			model = editorOrModel.getModel();
+			cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, undefined, token);
+		} else {
+			model = editorOrModel;
+			cts = new TextModelCancellationTokenSource(editorOrModel, token);
+		}
+
+		let edits: TextEdit[] | undefined;
+		try {
+			const rawEdits = await provider.provideDocumentFormattingEdits(
+				model,
+				model.getFormattingOptions(),
+				cts.token
+			);
+
+			edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+
+		} finally {
+			cts.dispose();
+		}
+
+		if (!edits || edits.length === 0) {
+			return false;
+		}
+
+		if (isCodeEditor(editorOrModel)) {
+			// use editor to apply edits
+			FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
+
+			if (mode !== FormattingMode.Silent) {
+				alertFormattingEdits(edits);
+				editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
+			}
+
+		} else {
+			// use model to apply edits
+			const [{ range }] = edits;
+			const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+			model.pushEditOperations([initialSelection], edits.map(edit => {
+				return {
+					text: edit.text,
+					range: Range.lift(edit.range),
+					forceMoveMarkers: true
+				};
+			}), undoEdits => {
+				for (const { range } of undoEdits) {
+					if (Range.areIntersectingOrTouching(range, initialSelection)) {
+						return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
+					}
+				}
+				return null;
+			});
+		}
+
+		return true;
+	} finally {
+		completed = true;
+	}
 }
 
 export async function getDocumentRangeFormattingEditsUntilResult(
