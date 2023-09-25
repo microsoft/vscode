@@ -179,7 +179,7 @@ export class WorkbenchToolBar extends ToolBar {
 		// coalesce turns Array<IAction|undefined> into IAction[]
 		coalesceInPlace(primary);
 		coalesceInPlace(extraSecondary);
-		super.setActions(<IAction[]>primary, Separator.join(<IAction[]>extraSecondary, secondary));
+		super.setActions(primary, Separator.join(extraSecondary, secondary));
 
 		// add context menu for toggle actions
 		if (toggleActions.length > 0) {
