@@ -22,12 +22,14 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private _bufferTracker: BufferContentTracker,
+		customHelp: () => string,
 		@IModelService _modelService: IModelService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
+		this.options.customHelp = customHelp;
 	}
 
 	onClose() {
