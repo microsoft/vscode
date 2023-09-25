@@ -1019,16 +1019,25 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
 		},
-		[NotebookSetting.cellExecutionScroll]: {
-			markdownDescription: nls.localize('notebook.revealNextOnExecuteBehavior.description', "How far to scroll when revealing the next cell upon exectuting {0}.", 'notebook.cell.executeAndSelectBelow'),
+		[NotebookSetting.scrollToRevealCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.revealCellBehavior.description', "How far to scroll when revealing the selected, e.g. when exectuting {0}.", 'notebook.cell.executeAndSelectBelow'),
 			type: 'string',
 			enum: ['fullCell', 'firstLine', 'none'],
 			markdownEnumDescriptions: [
-				nls.localize('notebook.revealNextOnExecuteBehavior.fullCell.description', 'Scroll to fully reveal the next cell.'),
-				nls.localize('notebook.revealNextOnExecuteBehavior.firstLine.description', 'Scroll to reveal the first line of the next cell.'),
-				nls.localize('notebook.revealNextOnExecuteBehavior.nonedescription', 'Do not scroll to reveal the next cell.'),
+				nls.localize('notebook.scrolling.revealCellBehavior.fullCell.description', 'Scroll to fully reveal the selected cell.'),
+				nls.localize('notebook.scrolling.revealCellBehavior.firstLine.description', 'Scroll to reveal the first line of the selected cell.'),
+				nls.localize('notebook.scrolling.revealCellBehavior.nonedescription', 'Do not scroll to reveal the selected cell.'),
 			],
 			default: 'fullCell'
+		},
+		[NotebookSetting.anchorToFocusedCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.anchorToFocusedCell.description', "Keep the focused cell steady while surrounding cells change size"),
+			type: 'string',
+			enum: ['auto', 'true', 'false'],
+			markdownEnumDescriptions: [
+				nls.localize('notebook.scrolling.anchorToFocusedCell.auto.description', "Anchor to the focused cell unless {0} is set to {1}", 'notebook.scrolling.revealCellBehavior', 'none')
+			],
+			default: 'auto'
 		}
 	}
 });

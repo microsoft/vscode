@@ -56,7 +56,10 @@ suite('Notebook Symbols', function () {
 					id: textmodelId,
 					getVersionId() { return version; }
 				}
-			}
+			},
+			resolveTextModel() {
+				return this.model.textModel as unknown;
+			},
 		} as ICellViewModel;
 	}
 
@@ -74,7 +77,7 @@ suite('Notebook Symbols', function () {
 		const entryFactory = new NotebookOutlineEntryFactory(executionService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell.model.textModel!, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(cell, 0);
 
 		assert.equal(entries.length, 2, 'wrong number of outline entries');
@@ -95,7 +98,7 @@ suite('Notebook Symbols', function () {
 		const entryFactory = new NotebookOutlineEntryFactory(executionService);
 		const cell = createCellViewModel();
 
-		await entryFactory.cacheSymbols(cell.model.textModel!, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
 		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 5, 'wrong number of outline entries');
@@ -118,8 +121,8 @@ suite('Notebook Symbols', function () {
 
 		const cell1 = createCellViewModel(1, '$1');
 		const cell2 = createCellViewModel(1, '$2');
-		await entryFactory.cacheSymbols(cell1.model.textModel!, outlineModelService, CancellationToken.None);
-		await entryFactory.cacheSymbols(cell2.model.textModel!, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell1, outlineModelService, CancellationToken.None);
+		await entryFactory.cacheSymbols(cell2, outlineModelService, CancellationToken.None);
 
 		const entries1 = entryFactory.getOutlineEntries(createCellViewModel(1, '$1'), 0);
 		const entries2 = entryFactory.getOutlineEntries(createCellViewModel(1, '$2'), 0);

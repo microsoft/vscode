@@ -3574,10 +3574,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@25.8.1:
-  version "25.8.1"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-25.8.1.tgz#092fab5a833db4d9240d4d6f36218cf7ca954f86"
-  integrity sha512-GtcP1nMrROZfFg0+mhyj1hamrHvukfF6of2B/pcWxmWkd5FVY1NJib0tlhiorFZRzQN5Z+APLPr7aMolt7i2AQ==
+electron@25.8.2:
+  version "25.8.2"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-25.8.2.tgz#5e8ea742b68a7d1427bf78902ec40a5b7231a58b"
+  integrity sha512-AM1ra6b16EQuO1bJtiA8ZiWqqFLLgVfxD56ykiy+EA5C63Hkx8OmIbe+5JAsLiTwRVvBZ4oCAj6wa2qT+iq8ww==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^18.11.18"
@@ -10878,10 +10878,10 @@ yargs@^7.1.0:
     y18n "^3.2.1"
     yargs-parser "5.0.0-security.0"
 
-yaserver@^0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/yaserver/-/yaserver-0.2.0.tgz#56393027dc13f3c1bb89d20e0bd17269aa927802"
-  integrity sha512-onsELrl7Y42M4P3T9R0N/ZJNJRu4cGwzhDyOWIFRMJvPUIrGKInYGh+DJBefrbr1qoyDu7DSCLl9BL5hSSVfDA==
+yaserver@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/yaserver/-/yaserver-0.4.0.tgz#71b5fc53fb14c0f241d2dcfb3910707feeb619da"
+  integrity sha512-98Vj4sgqB1fLcpf2wK7h3dFCaabISHU9CXZHaAx3QLkvTTCD31MzMcNbw5V5jZFBK7ffkFqfWig6B20KQt4wtA==
 
 yauzl@^2.10.0, yauzl@^2.4.2, yauzl@^2.9.2:
   version "2.10.0"
