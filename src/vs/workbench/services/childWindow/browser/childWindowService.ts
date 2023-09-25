@@ -6,7 +6,6 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Dimension, EventHelper, EventType, addDisposableListener, copyAttributes, getClientArea, isHTMLElement, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
 import { assertIsDefined } from 'vs/base/common/types';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -116,17 +115,6 @@ export class ChildWindowService implements IChildWindowService {
 		for (const element of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 			childWindow.document.head.appendChild(element.cloneNode(true));
 		}
-
-		// Apply stylesheets with `url()` that do not get inlined
-		const styleSheetsWithUrl = document.createElement('style');
-		styleSheetsWithUrl.textContent = `
-			@font-face {
-				font-family: 'codicon';
-				font-display: block;
-				src: url('${FileAccess.asBrowserUri('vs/base/browser/ui/codicons/codicon/codicon.ttf')}?5d4d76ab2ce5108968ad644d591a16a6') format('truetype');
-			}
-			`;
-		childWindow.document.head.appendChild(styleSheetsWithUrl);
 
 		// Running out of sources: listen to new stylesheets as they
 		// are being added to the main window and apply to child window
