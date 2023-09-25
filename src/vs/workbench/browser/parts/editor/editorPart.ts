@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener, isHTMLElement } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -855,7 +855,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
-		assertType(isHTMLElement(container));
+		assertType(container instanceof HTMLElement);
 
 		return this.instantiationService.createInstance(EditorDropTarget, this.groupsView, container, delegate);
 	}

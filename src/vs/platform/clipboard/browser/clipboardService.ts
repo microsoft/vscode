@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument, isHTMLElement } from 'vs/base/browser/dom';
+import { $, addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -110,7 +110,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 		activeDocument.execCommand('copy');
 
-		if (isHTMLElement(activeElement)) {
+		if (activeElement instanceof HTMLElement) {
 			activeElement.focus();
 		}
 

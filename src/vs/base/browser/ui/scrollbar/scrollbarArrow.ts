@@ -88,7 +88,7 @@ export class ScrollbarArrow extends Widget {
 	}
 
 	private _arrowPointerDown(e: PointerEvent): void {
-		if (!e.target || !dom.isElement(e.target)) {
+		if (!e.target || !(e.target instanceof Element)) {
 			return;
 		}
 		const scheduleRepeater = () => {

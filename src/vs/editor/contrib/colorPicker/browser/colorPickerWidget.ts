@@ -252,7 +252,7 @@ class SaturationBox extends Disposable {
 	}
 
 	private onPointerDown(e: PointerEvent): void {
-		if (!e.target || !dom.isElement(e.target)) {
+		if (!e.target || !(e.target instanceof Element)) {
 			return;
 		}
 		this.monitor = this._register(new GlobalPointerMoveMonitor());
@@ -374,7 +374,7 @@ abstract class Strip extends Disposable {
 	}
 
 	private onPointerDown(e: PointerEvent): void {
-		if (!e.target || !dom.isElement(e.target)) {
+		if (!e.target || !(e.target instanceof Element)) {
 			return;
 		}
 		const monitor = this._register(new GlobalPointerMoveMonitor());

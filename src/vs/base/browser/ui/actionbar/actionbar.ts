@@ -327,7 +327,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 
 		// by element
-		if (DOM.isHTMLElement(indexOrElement)) {
+		if (indexOrElement instanceof HTMLElement) {
 			while (indexOrElement.parentElement !== this.actionsList) {
 				if (!indexOrElement.parentElement) {
 					return undefined;

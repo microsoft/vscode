@@ -1230,7 +1230,7 @@ class InnerMinimap extends Disposable {
 	}
 
 	private _startSliderDragging(e: PointerEvent, initialPosY: number, initialSliderState: MinimapLayout): void {
-		if (!e.target || !dom.isElement(e.target)) {
+		if (!e.target || !(e.target instanceof Element)) {
 			return;
 		}
 		const initialPosX = e.pageX;

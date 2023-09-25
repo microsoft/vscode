@@ -271,7 +271,7 @@ export class ContextView extends Disposable {
 		let around: IView;
 
 		// Get the element's position and size (to anchor the view)
-		if (DOM.isHTMLElement(anchor)) {
+		if (anchor instanceof HTMLElement) {
 			const elementPosition = DOM.getDomNodePagePosition(anchor);
 
 			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element

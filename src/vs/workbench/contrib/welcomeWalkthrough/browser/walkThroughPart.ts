@@ -32,7 +32,7 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { addDisposableListener, Dimension, isHTMLElement, safeInnerHtml, size } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -141,12 +141,12 @@ export class WalkThroughPart extends EditorPane {
 		}));
 		this.disposables.add(this.addEventListener(this.content, 'focusin', (e: FocusEvent) => {
 			// Work around scrolling as side-effect of setting focus on the offscreen zone widget (#18929)
-			if (isHTMLElement(e.target) && e.target.classList.contains('zone-widget-container')) {
+			if (e.target instanceof HTMLElement && e.target.classList.contains('zone-widget-container')) {
 				const scrollPosition = this.scrollbar.getScrollPosition();
 				this.content.scrollTop = scrollPosition.scrollTop;
 				this.content.scrollLeft = scrollPosition.scrollLeft;
 			}
-			if (isHTMLElement(e.target)) {
+			if (e.target instanceof HTMLElement) {
 				this.lastFocus = e.target;
 			}
 		}));

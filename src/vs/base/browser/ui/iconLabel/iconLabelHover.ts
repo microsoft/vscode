@@ -87,7 +87,7 @@ class UpdatableHoverWidget implements IDisposable {
 		}
 
 		let resolvedContent;
-		if (content === undefined || isString(content) || dom.isHTMLElement(content)) {
+		if (content === undefined || isString(content) || content instanceof HTMLElement) {
 			resolvedContent = content;
 		} else if (!isFunction(content.markdown)) {
 			resolvedContent = content.markdown ?? content.markdownNotSupportedFallback;
@@ -208,7 +208,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			// track the mouse position
 			const onMouseMove = (e: MouseEvent) => {
 				target.x = e.x + 10;
-				if ((dom.isHTMLElement(e.target)) && e.target.classList.contains('action-label')) {
+				if ((e.target instanceof HTMLElement) && e.target.classList.contains('action-label')) {
 					hideHover(true, true);
 				}
 			};

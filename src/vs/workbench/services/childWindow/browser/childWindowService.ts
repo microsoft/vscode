@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, copyAttributes, getClientArea, isHTMLElement, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, copyAttributes, getClientArea, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -123,7 +123,7 @@ export class ChildWindowService implements IChildWindowService {
 				for (const mutation of mutations) {
 					if (mutation.type === 'childList') {
 						for (const node of mutation.addedNodes) {
-							if (isHTMLElement(node) && node.tagName === 'STYLE') {
+							if (node instanceof HTMLElement && node.tagName.toLowerCase() === 'style') {
 								childWindow.document.head.appendChild(node.cloneNode(true));
 							}
 						}

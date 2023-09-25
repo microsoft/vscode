@@ -233,7 +233,7 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	private _sliderPointerDown(e: PointerEvent): void {
-		if (!e.target || !dom.isElement(e.target)) {
+		if (!e.target || !(e.target instanceof Element)) {
 			return;
 		}
 		const initialPointerPosition = this._sliderPointerPosition(e);

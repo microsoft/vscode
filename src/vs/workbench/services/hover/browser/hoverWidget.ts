@@ -142,7 +142,7 @@ export class HoverWidget extends Widget {
 			contentsElement.textContent = options.content;
 			contentsElement.style.whiteSpace = 'pre-wrap';
 
-		} else if (dom.isHTMLElement(options.content)) {
+		} else if (options.content instanceof HTMLElement) {
 			contentsElement.appendChild(options.content);
 			contentsElement.classList.add('html-hover-contents');
 
