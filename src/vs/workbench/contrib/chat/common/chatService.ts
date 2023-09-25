@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -52,8 +53,22 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
+export type IDocumentContext = {
+	uri: URI;
+	version: number;
+	ranges: IRange[];
+};
+
+export type IUsedContext = {
+	documents: IDocumentContext[];
+};
+
 export type IChatProgress =
-	{ content: string | IMarkdownString } | { requestId: string } | { treeData: IChatResponseProgressFileTreeData } | { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> };
+	| { content: string | IMarkdownString }
+	| { requestId: string }
+	| { treeData: IChatResponseProgressFileTreeData }
+	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
+	| IUsedContext;
 
 export interface IPersistedChatState { }
 export interface IChatProvider {

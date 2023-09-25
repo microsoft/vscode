@@ -62,7 +62,7 @@ import { Mutable, isUndefined } from 'vs/base/common/types';
 import { Action, ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
 import { isWeb } from 'vs/base/common/platform';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, getAllCodicons } from 'vs/base/common/codicons';
 import { Barrier } from 'vs/base/common/async';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
@@ -82,7 +82,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
-	readonly shortName?: string;
 	readonly icon?: string;
 	readonly settings?: string;
 	readonly keybindings?: string;
@@ -97,7 +96,6 @@ function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTem
 
 	return !!(candidate && typeof candidate === 'object'
 		&& (candidate.name && typeof candidate.name === 'string')
-		&& (isUndefined(candidate.shortName) || typeof candidate.shortName === 'string')
 		&& (isUndefined(candidate.icon) || typeof candidate.icon === 'string')
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
@@ -340,6 +338,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (isUserDataProfileTemplate(source) && source.icon) {
 			icon = ThemeIcon.fromId(source.icon);
 		}
+		if (icon.id !== DEFAULT_ICON.id && !ICONS.some(({ id }) => id === icon.id) && !getAllCodicons().some(({ id }) => id === icon.id)) {
+			icon = DEFAULT_ICON;
+		}
 		let result: { name: string; items: ReadonlyArray<IQuickPickItem>; icon?: string | null } | undefined;
 		disposables.add(Event.any(quickPick.onDidCustom, quickPick.onDidAccept)(() => {
 			const name = quickPick.value.trim();
@@ -564,7 +565,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	private async createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void> {
 		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, profile);
 		try {
-			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, undefined);
+			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, options?.icon);
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
 				delay: 500,
@@ -912,7 +913,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileName);
 		if (profile) {
 			if (temp) {
-				return this.userDataProfilesService.createNamedProfile(`${profileName} ${this.getProfileNameIndex(profileName)}`, { ...options, shortName: profileTemplate.shortName, transient: temp });
+				return this.userDataProfilesService.createNamedProfile(`${profileName} ${this.getProfileNameIndex(profileName)}`, { ...options, transient: temp });
 			}
 
 			enum ImportProfileChoice {
@@ -963,7 +964,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 			return this.userDataProfilesService.createNamedProfile(name);
 		} else {
-			return this.userDataProfilesService.createNamedProfile(profileName, { ...options, shortName: profileTemplate.shortName, transient: temp });
+			return this.userDataProfilesService.createNamedProfile(profileName, { ...options, transient: temp });
 		}
 	}
 
@@ -1281,7 +1282,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		return this.roots.some(root => this.isSelected(root));
 	}
 
-	async getProfileTemplate(name: string, shortName: string | undefined): Promise<IUserDataProfileTemplate> {
+	async getProfileTemplate(name: string, icon: string | undefined): Promise<IUserDataProfileTemplate> {
 		const roots = await this.getRoots();
 		let settings: string | undefined;
 		let keybindings: string | undefined;
@@ -1310,7 +1311,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 
 		return {
 			name,
-			shortName,
+			icon,
 			settings,
 			keybindings,
 			tasks,
@@ -1439,7 +1440,7 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			}
 		}
 
-		return super.getProfileTemplate(name, this.profile.shortName);
+		return super.getProfileTemplate(name, this.profile.icon);
 	}
 
 }
@@ -1527,7 +1528,7 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 	}
 
 	async getProfileTemplateToImport(): Promise<IUserDataProfileTemplate> {
-		return this.getProfileTemplate(this.profile.name, this.profile.shortName);
+		return this.getProfileTemplate(this.profile.name, this.profile.icon);
 	}
 
 }
