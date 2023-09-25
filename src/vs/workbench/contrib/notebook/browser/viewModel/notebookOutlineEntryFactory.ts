@@ -72,8 +72,7 @@ export class NotebookOutlineEntryFactory {
 				// So symbols need to be precached before this function is called to get the full list.
 				if (cachedEntries) {
 					cachedEntries.forEach((cached) => {
-						const position = { ...cached.range, endLineNumber: cached.range.startLineNumber, endColumn: cached.range.startColumn };
-						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, position, cached.range, cached.kind));
+						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.range, cached.kind));
 					});
 				}
 			}

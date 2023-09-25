@@ -11,7 +11,6 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IRange } from 'vs/editor/common/core/range';
 import { SymbolKind, SymbolKinds } from 'vs/editor/common/languages';
 
-
 export interface IOutlineMarkerInfo {
 	readonly count: number;
 	readonly topSev: MarkerSeverity;
@@ -38,7 +37,6 @@ export class OutlineEntry {
 		readonly label: string,
 		readonly isExecuting: boolean,
 		readonly isPaused: boolean,
-		readonly position?: IRange,
 		readonly range?: IRange,
 		readonly symbolKind?: SymbolKind,
 	) { }
@@ -58,6 +56,13 @@ export class OutlineEntry {
 
 	get markerInfo(): IOutlineMarkerInfo | undefined {
 		return this._markerInfo;
+	}
+
+	get position() {
+		if (this.range) {
+			return { startLineNumber: this.range.startLineNumber, startColumn: this.range.startColumn };
+		}
+		return undefined;
 	}
 
 	updateMarkers(markerService: IMarkerService): void {
