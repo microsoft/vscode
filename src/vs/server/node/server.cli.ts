@@ -271,6 +271,9 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 && "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}
 			if (runningInWSL2()) {
+				if (verbose) {
+					console.log(`Using pipes for output.`);
+				}
 				const cp = _cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit', 'pipe', 'pipe'] });
 				cp.stdout.on('data', data => process.stdout.write(data));
 				cp.stderr.on('data', data => process.stderr.write(data));
@@ -339,7 +342,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 function runningInWSL2(): boolean {
 	if (!!process.env['WSL_DISTRO_NAME']) {
 		try {
-			return !_cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
+			return _cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
 		} catch (_e) {
 			// Ignore
 		}
