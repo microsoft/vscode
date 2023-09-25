@@ -373,6 +373,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const updateIcon = (updated: ThemeIcon | undefined) => {
 			icon = updated ?? DEFAULT_ICON;
 			profileIconElement.className = `profile-icon ${ThemeIcon.asClassName(icon)}`;
+			profileIconElement.ariaLabel = localize('select icon', "Icon: {0}", icon.id);
 		};
 		disposables.add(iconSelectBox.onDidSelect(selectedIcon => {
 			if (icon.id !== selectedIcon.id) {
