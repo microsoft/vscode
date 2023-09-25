@@ -411,7 +411,7 @@ export class AccessibleView extends Disposable {
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || this._currentProvider?.actions;
 			if (verbose && !showAccessibleViewHelp && hasActions) {
-				actionsHint = localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
+				actionsHint = provider.options.positionBottom ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
 			}
 			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "Accessibility Help") : localize('accessible-view', "Accessible View");
 			this._title.textContent = ariaLabel;
