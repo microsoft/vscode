@@ -182,7 +182,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private getSeparatorConfig(folderUri: uri | undefined): string {
 
 		// get pathSeparator setting value from explorer config
-		const sep = this._context.getConfigurationValue(folderUri, 'explorer.pathSeparator');
+		const sep = this._context.getConfigurationValue(folderUri, 'task.pathSeparator');
 		if (sep === '\\' || sep === '/') {
 			return sep;
 		}

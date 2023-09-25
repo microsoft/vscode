@@ -1256,6 +1256,7 @@ export namespace KeyedTaskIdentifier {
 }
 
 export const enum TaskSettingId {
+	PathSeparator = 'task.pathSeparator',
 	AutoDetect = 'task.autoDetect',
 	SaveBeforeRun = 'task.saveBeforeRun',
 	ShowDecorations = 'task.showDecorations',

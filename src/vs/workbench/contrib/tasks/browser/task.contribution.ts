@@ -553,5 +553,20 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'always',
 		},
+		[TaskSettingId.PathSeparator]: {
+			type: 'string',
+			enum: [
+				'/',
+				'\\',
+				'auto'
+			],
+			enumDescriptions: [
+				nls.localize('pathSeparator.slash', "Use slash as path separation character."),
+				nls.localize('pathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('pathSeparator.auto', "Uses operating system specific path separation character."),
+			],
+			description: nls.localize('pathSeparator', "The path separation character used for variables in tasks. Valid values are 'auto', '\\' or '/'."),
+			default: 'auto'
+		},
 	}
 });
