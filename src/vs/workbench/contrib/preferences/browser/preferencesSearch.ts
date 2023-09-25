@@ -354,7 +354,7 @@ class RemoteSearchKeysProvider {
 
 export class RemoteSearchProvider implements ISearchProvider {
 	private static readonly AI_RELATED_INFORMATION_THRESHOLD = 0.73;
-	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 10;
+	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 5;
 
 	private readonly _keysProvider: RemoteSearchKeysProvider;
 	private _filter: string = '';
