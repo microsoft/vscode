@@ -180,7 +180,7 @@ export class UserDataSyncDataViews extends Disposable {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,
-			name: { value: name, original: name },
+			name: { value: name, original: 'Sync Activity (Developer)' },
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			when: CONTEXT_ENABLE_ACTIVITY_VIEWS,
 			canToggleVisibility: true,
