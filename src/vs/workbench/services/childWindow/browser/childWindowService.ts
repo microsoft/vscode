@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventType, addDisposableListener, getClientArea, registerWindow } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, copyAttributes, getClientArea, isHTMLElement, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { assertIsDefined } from 'vs/base/common/types';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { isWeb } from 'vs/base/common/platform';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const IChildWindowService = createDecorator<IChildWindowService>('childWindowService');
 
@@ -34,29 +37,23 @@ export class ChildWindowService implements IChildWindowService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
 	create(): IChildWindow {
 		const disposables = new DisposableStore();
 
-		const onDidResize = disposables.add(new Emitter<Dimension>());
-		const onDidClose = disposables.add(new Emitter<void>());
-
 		const childWindow = assertIsDefined(window.open('about:blank')?.window);
 		disposables.add(registerWindow(childWindow));
 		disposables.add(toDisposable(() => childWindow.close()));
 
-		disposables.add(addDisposableListener(childWindow, 'unload', () => {
-			onDidClose.fire();
-			disposables.dispose();
-		}));
-		disposables.add(addDisposableListener(childWindow, EventType.RESIZE, () => onDidResize.fire(getClientArea(childWindow.document.body))));
-
 		this.applyMeta(childWindow);
-		this.applyCSS(childWindow);
+		this.applyCSS(childWindow, disposables);
 
-		const container = this.createContainer(childWindow);
+		const container = this.applyHTML(childWindow, disposables);
+
+		const { onDidResize, onDidClose } = this.registerListeners(childWindow, container, disposables);
 
 		return {
 			container,
@@ -66,89 +63,58 @@ export class ChildWindowService implements IChildWindowService {
 		};
 	}
 
+	private registerListeners(childWindow: Window & typeof globalThis, container: HTMLElement, disposables: DisposableStore) {
+		const onDidClose = disposables.add(new Emitter<void>());
+		disposables.add(addDisposableListener(childWindow, 'unload', () => {
+			onDidClose.fire();
+			disposables.dispose();
+		}));
+
+		disposables.add(addDisposableListener(childWindow, 'unhandledrejection', e => {
+			onUnexpectedError(e.reason);
+			e.preventDefault();
+		}));
+
+		const onDidResize = disposables.add(new Emitter<Dimension>());
+		disposables.add(addDisposableListener(childWindow, EventType.RESIZE, () => {
+			const dimension = getClientArea(childWindow.document.body);
+			position(container, 0, 0, 0, 0, 'relative');
+			size(container, dimension.width, dimension.height);
+
+			onDidResize.fire(dimension);
+		}));
+
+		if (isWeb) {
+			disposables.add(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true))); // Prevent default navigation on drop
+			disposables.add(addDisposableListener(container, EventType.WHEEL, e => e.preventDefault(), { passive: false })); // Prevent the back/forward gestures in macOS
+			disposables.add(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true))); // Prevent native context menus in web
+		} else {
+			for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
+				disposables.add(addDisposableListener(childWindow.document.body, event, (e: DragEvent) => {
+					EventHelper.stop(e);
+				}));
+			}
+		}
+
+		return { onDidResize, onDidClose };
+	}
+
 	private applyMeta(childWindow: Window): void {
 		const metaCharset = childWindow.document.head.appendChild(document.createElement('meta'));
 		metaCharset.setAttribute('charset', 'utf-8');
 
-		const csp = childWindow.document.head.appendChild(document.createElement('meta'));
-		csp.setAttribute('http-equiv', 'Content-Security-Policy');
-		csp.setAttribute('content', `
-			default-src
-				'none'
-				;
-				img-src
-					'self'
-					data:
-					blob:
-					vscode-remote-resource:
-					vscode-managed-remote-resource:
-					https:
-				;
-				media-src
-					'self'
-				;
-				frame-src
-					'self'
-					vscode-webview:
-				;
-				script-src
-					'self'
-					'unsafe-eval'
-					blob:
-				;
-				style-src
-					'self'
-					'unsafe-inline'
-				;
-				connect-src
-					'self'
-					https:
-					ws:
-				;
-				font-src
-					'self'
-					vscode-remote-resource:
-					vscode-managed-remote-resource:
-				;
-				require-trusted-types-for
-					'script'
-				;
-				trusted-types
-					amdLoader
-					cellRendererEditorText
-					defaultWorkerFactory
-					diffEditorWidget
-					diffReview
-					domLineBreaksComputer
-					dompurify
-					editorGhostText
-					editorViewLayer
-					notebookRenderer
-					stickyScrollViewLayer
-					tokenizeToString
-				;`
-		);
+		const originalCSPMetaTag = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+		if (originalCSPMetaTag) {
+			const csp = childWindow.document.head.appendChild(document.createElement('meta'));
+			copyAttributes(originalCSPMetaTag, csp);
+		}
 	}
 
-	private applyCSS(childWindow: Window): void {
+	private applyCSS(childWindow: Window, disposables: DisposableStore): void {
 
-		// Copy over all stylesheets (TODO@bpasero is there a better way?)
-		for (const styleSheet of document.styleSheets) {
-			try {
-				const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
-				const style = document.createElement('style');
-
-				style.textContent = cssRules;
-				childWindow.document.head.appendChild(style);
-			} catch (e) {
-				const link = document.createElement('link');
-
-				link.rel = 'stylesheet';
-				link.type = styleSheet.type;
-				link.media = styleSheet.media.mediaText;
-				link.href = styleSheet.href!;
-				childWindow.document.head.appendChild(link);
-			}
+		// Clone all style elements and stylesheet links from the window to the child window
+		for (const element of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+			childWindow.document.head.appendChild(element.cloneNode(true));
 		}
 
 		// Apply stylesheets with `url()` that do not get inlined
@@ -161,23 +127,37 @@ export class ChildWindowService implements IChildWindowService {
 			}
 			`;
 		childWindow.document.head.appendChild(styleSheetsWithUrl);
+
+		// Running out of sources: listen to new stylesheets as they
+		// are being added to the main window and apply to child window
+		if (!this.environmentService.isBuilt) {
+			const observer = new MutationObserver(mutations => {
+				for (const mutation of mutations) {
+					if (mutation.type === 'childList') {
+						for (const node of mutation.addedNodes) {
+							if (isHTMLElement(node) && node.tagName === 'STYLE') {
+								childWindow.document.head.appendChild(node.cloneNode(true));
+							}
+						}
+					}
+				}
+			});
+
+			observer.observe(document.head, { childList: true });
+			disposables.add(toDisposable(() => observer.disconnect()));
+		}
 	}
 
-	private createContainer(childWindow: Window): HTMLElement {
-
-		// TODO@bpasero what if the global classes change?
-
-		// Copy over global classes
-		for (const className of window.document.body.className.split(' ')) {
-			childWindow.document.body.classList.add(className);
-		}
+	private applyHTML(childWindow: Window, disposables: DisposableStore): HTMLElement {
 
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
-		for (const className of this.layoutService.container.className.split(' ')) {
-			container.classList.add(className);
-		}
 		childWindow.document.body.append(container);
+
+		// Track attributes
+		disposables.add(trackAttributes(document.documentElement, childWindow.document.documentElement));
+		disposables.add(trackAttributes(document.body, childWindow.document.body));
+		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
 
 		return container;
 	}

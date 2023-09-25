@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -1977,4 +1977,59 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
+interface IObserver extends IDisposable {
+	readonly onDidChangeAttribute: event.Event<string>;
+}
+
+function observeAttributes(element: Element, filter?: string[]): IObserver {
+	const onDidChangeAttribute = new event.Emitter<string>();
+
+	const observer = new MutationObserver(mutations => {
+		for (const mutation of mutations) {
+			if (mutation.type === 'attributes' && mutation.attributeName) {
+				onDidChangeAttribute.fire(mutation.attributeName);
+			}
+		}
+	});
+
+	observer.observe(element, {
+		attributes: true,
+		attributeFilter: filter
+	});
+
+	return {
+		onDidChangeAttribute: onDidChangeAttribute.event,
+		dispose: () => {
+			observer.disconnect();
+			onDidChangeAttribute.dispose();
+		}
+	};
+}
+
+export function copyAttributes(from: Element, to: Element): void {
+	for (const { name, value } of from.attributes) {
+		to.setAttribute(name, value);
+	}
+}
+
+function copyAttribute(from: Element, to: Element, name: string): void {
+	const value = from.getAttribute(name);
+	if (value) {
+		to.setAttribute(name, value);
+	} else {
+		to.removeAttribute(name);
+	}
+}
+
+export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
+	copyAttributes(from, to);
+
+	const observer = observeAttributes(from, filter);
+
+	return combinedDisposable(
+		observer,
+		observer.onDidChangeAttribute(name => copyAttribute(from, to, name))
+	);
 }

@@ -41,6 +41,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 		const partContainer = document.createElement('div');
 		partContainer.classList.add('part', 'editor');
+		partContainer.setAttribute('role', 'main');
 		childWindow.container.appendChild(partContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this));
