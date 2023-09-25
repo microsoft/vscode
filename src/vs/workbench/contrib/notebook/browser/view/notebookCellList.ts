@@ -1205,10 +1205,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const focused = this.getFocus();
 		const focus = focused.length ? focused[0] : null;
 
+		if (this.view.elementTop(index) >= this.view.getScrollTop()) {
+			return this.view.updateElementHeight(index, size, index);
+		}
+
 		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
 		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
-		const anchorToFocusedCell = anchorFocusedSetting === 'true' || (allowScrolling && anchorFocusedSetting !== 'false');
-		if (focused && anchorToFocusedCell) {
+		const scrollHeuristic = allowScrolling && anchorFocusedSetting === 'auto' && this.view.elementTop(index) < this.view.getScrollTop();
+		if (focused && (anchorFocusedSetting === 'true' || scrollHeuristic)) {
 			this.view.updateElementHeight(index, size, focus);
 		}
 

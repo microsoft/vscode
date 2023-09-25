@@ -2384,6 +2384,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					this.revealInView(cell);
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.firstLine) {
 					this.revealFirstLineIfOutsideViewport(cell);
+				} else if (options?.revealBehavior === ScrollToRevealBehavior.fullCell) {
+					this.revealInView(cell);
 				} else {
 					this.revealInCenterIfOutsideViewport(cell);
 				}
