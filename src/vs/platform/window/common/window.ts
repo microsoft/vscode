@@ -141,7 +141,7 @@ export interface IWindowSettings {
 }
 
 export interface IDensitySettings {
-	editorTabHeight: 'default' | 'compact';
+	readonly editorTabHeight: 'default' | 'compact';
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
