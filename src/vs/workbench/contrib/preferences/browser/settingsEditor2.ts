@@ -194,7 +194,7 @@ export class SettingsEditor2 extends EditorPane {
 	private _searchResultModel: SearchResultModel | null = null;
 	private searchResultLabel: string | null = null;
 	private lastSyncedLabel: string | null = null;
-	private settingsIndex: Map<string, number> | null = null;
+	private settingsOrderByTocIndex: Map<string, number> | null = null;
 
 	private tocRowFocused: IContextKey<boolean>;
 	private settingRowFocused: IContextKey<boolean>;
@@ -1242,7 +1242,7 @@ export class SettingsEditor2 extends EditorPane {
 		return undefined;
 	}
 
-	private createSettingsIndex(resolvedSettingsRoot: ITOCEntry<ISetting>): Map<string, number> {
+	private createSettingsOrderByTocIndex(resolvedSettingsRoot: ITOCEntry<ISetting>): Map<string, number> {
 		const index = new Map<string, number>();
 		function indexSettings(resolvedSettingsRoot: ITOCEntry<ISetting>, counter = 0): number {
 			if (resolvedSettingsRoot.settings) {
@@ -1266,7 +1266,7 @@ export class SettingsEditor2 extends EditorPane {
 	private refreshModels(resolvedSettingsRoot: ITOCEntry<ISetting>) {
 		this.settingsTreeModel.update(resolvedSettingsRoot);
 		this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root;
-		this.settingsIndex = this.createSettingsIndex(resolvedSettingsRoot);
+		this.settingsOrderByTocIndex = this.createSettingsOrderByTocIndex(resolvedSettingsRoot);
 	}
 
 	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
@@ -1582,7 +1582,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * Return a fake SearchResultModel which can hold a flat list of all settings, to be filtered (@modified etc)
 	 */
 	private createFilterModel(): SearchResultModel {
-		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
+		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 		const fullResult: ISearchResult = {
 			filterMatches: []
@@ -1686,7 +1686,7 @@ export class SettingsEditor2 extends EditorPane {
 			return null;
 		}
 		if (!this.searchResultModel) {
-			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
+			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 			// Must be called before this.renderTree()
 			// to make sure the search results count is set.
 			this.searchResultModel.setResult(type, result);

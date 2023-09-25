@@ -858,13 +858,13 @@ export class SearchResultModel extends SettingsTreeModel {
 	private cachedUniqueSearchResults: ISearchResult | null = null;
 	private newExtensionSearchResults: ISearchResult | null = null;
 	private searchResultCount: number | null = null;
-	private settingsOrderIndex: Map<string, number> | null;
+	private settingsOrderByTocIndex: Map<string, number> | null;
 
 	readonly id = 'searchResultModel';
 
 	constructor(
 		viewState: ISettingsEditorViewState,
-		settingsIndex: Map<string, number> | null,
+		settingsOrderByTocIndex: Map<string, number> | null,
 		isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -873,21 +873,21 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IProductService productService: IProductService
 	) {
 		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
-		this.settingsOrderIndex = settingsIndex;
+		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 
 	private sortResults(filterMatches: ISettingMatch[]): ISettingMatch[] {
-		if (this.settingsOrderIndex) {
+		if (this.settingsOrderByTocIndex) {
 			for (const match of filterMatches) {
-				match.setting.internalOrder = this.settingsOrderIndex.get(match.setting.key);
+				match.setting.internalOrder = this.settingsOrderByTocIndex.get(match.setting.key);
 			}
 		}
 
 		const tocHiddenDuringSearch = this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide';
 		if (!tocHiddenDuringSearch) {
 			// Sort the settings according to internal order if indexed.
-			if (this.settingsOrderIndex) {
+			if (this.settingsOrderByTocIndex) {
 				filterMatches.sort((a, b) => compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder));
 			}
 			return filterMatches;
