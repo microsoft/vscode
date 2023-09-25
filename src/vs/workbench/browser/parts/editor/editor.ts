@@ -81,7 +81,7 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 	}
 
 	const windowConfig = configurationService.getValue<IWindowsConfiguration>();
-	if (windowConfig?.window?.density?.editorTabHeight !== undefined) {
+	if (windowConfig?.window?.density?.editorTabHeight) {
 		options.tabHeight = windowConfig.window.density.editorTabHeight;
 	}
 
