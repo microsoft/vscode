@@ -74,7 +74,7 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		return !kb ? format(noKbMsg, commandId) : format(msg, kb);
 	}
 
-	public provideContent(): string {
+	provideContent(): string {
 		const content = [];
 		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {

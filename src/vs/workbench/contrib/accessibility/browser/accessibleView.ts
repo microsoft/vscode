@@ -511,9 +511,7 @@ export class AccessibleView extends Disposable {
 		currentProvider.options = Object.assign({}, currentProvider.options);
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
 			provideContent: () => currentProvider.options.customHelp ? currentProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-			onClose: () => {
-				this.show(currentProvider);
-			},
+			onClose: () => this.show(currentProvider),
 			options: { type: AccessibleViewType.Help },
 			verbositySettingKey: this._currentProvider.verbositySettingKey
 		};
