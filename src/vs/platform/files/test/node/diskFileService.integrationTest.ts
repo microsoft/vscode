@@ -1815,7 +1815,14 @@ flakySuite('Disk File Service', function () {
 	test('writeFile - buffered (atomic)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
 
-		return testWriteFile(true);
+		let e;
+		try {
+			await testWriteFile(true);
+		} catch (error) {
+			e = error;
+		}
+
+		assert.ok(e);
 	});
 
 	test('writeFile - unbuffered (atomic)', async () => {
@@ -1866,7 +1873,14 @@ flakySuite('Disk File Service', function () {
 	test('writeFile (large file) - buffered (atomic)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
 
-		return testWriteFileLarge(true);
+		let e;
+		try {
+			await testWriteFileLarge(true);
+		} catch (error) {
+			e = error;
+		}
+
+		assert.ok(e);
 	});
 
 	test('writeFile (large file) - unbuffered (atomic)', async () => {
