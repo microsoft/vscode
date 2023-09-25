@@ -307,14 +307,12 @@ function joinCloseConsecutiveMoves(moves: LineRangeMapping[]): LineRangeMapping[
 function removeMovesInSameDiff(changes: DetailedLineRangeMapping[], moves: LineRangeMapping[]) {
 	const changesMonotonous = new MonotonousArray(changes);
 	moves = moves.filter(m => {
-		const diffBeforeOriginalMove = changesMonotonous.findLastMonotonous(c => c.original.endLineNumberExclusive <= m.original.startLineNumber)
+		const diffBeforeEndOfMoveOriginal = changesMonotonous.findLastMonotonous(c => c.original.endLineNumberExclusive < m.original.endLineNumberExclusive)
 			|| new LineRangeMapping(new LineRange(1, 1), new LineRange(1, 1));
+		const diffBeforeEndOfMoveModified = findLastMonotonous(changes, c => c.modified.endLineNumberExclusive < m.modified.endLineNumberExclusive);
 
-		const modifiedDistToPrevDiff = m.modified.startLineNumber - diffBeforeOriginalMove.modified.endLineNumberExclusive;
-		const originalDistToPrevDiff = m.original.startLineNumber - diffBeforeOriginalMove.original.endLineNumberExclusive;
-
-		const differentDistances = modifiedDistToPrevDiff !== originalDistToPrevDiff;
-		return differentDistances;
+		const differentDiffs = diffBeforeEndOfMoveOriginal !== diffBeforeEndOfMoveModified;
+		return differentDiffs;
 	});
 	return moves;
 }
