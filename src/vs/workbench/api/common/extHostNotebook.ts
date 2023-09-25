@@ -33,9 +33,8 @@ import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileS
 import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { CellSearchModel, ICellSearchModel, NotebookDataCache } from 'vs/workbench/api/common/notebookSearchExtHost';
+import { CellSearchModel, ICellSearchModel } from 'vs/workbench/api/common/notebookSearchExtHost';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
@@ -49,7 +48,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
-	private readonly _notebookDataCache: NotebookDataCache;
 
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>({ onListenerError: onUnexpectedExternalError });
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
@@ -85,7 +83,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
 		this._notebookEditorsProxy = mainContext.getProxy(MainContext.MainThreadNotebookEditors);
 		this._commandsConverter = commands.converter;
-		this._notebookDataCache = new NotebookDataCache(_extHostFileSystem);
 
 		commands.registerArgumentProcessor({
 			// Serialized INotebookCellActionContext
@@ -431,10 +428,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					limitHit = true;
 					return;
 				}
-				const notebook = await this._notebookDataCache.getNotebookData(uri, async (data: VSBuffer) => {
-					return await this.$dataToNotebook(handle, data, token);
-				});
-				const cells = notebook.cells;
+				const notebook = this._documents.get(uri);
+				if (!notebook) {
+					return;
+				}
+				const cells = notebook.apiNotebook.getCells();
 
 				if (token.isCancellationRequested) {
 					return;
@@ -442,7 +440,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 				cells.forEach((cell, index) => {
 					const target = textQuery.contentPattern.pattern;
-					const cellModel: ICellSearchModel = cell instanceof NotebookCellTextModel ? new CellSearchModel('', cell.textBuffer, cell.outputs.flatMap(value => value.outputs)) : new CellSearchModel(cell.source, undefined, cell.outputs.flatMap(value => value.outputs));
+					const cellModel: ICellSearchModel = new CellSearchModel(cell.document.getText(), undefined, cell.outputs.flatMap(value => value.items));
 
 					const inputMatches = cellModel.findInInputs(target);
 					const outputMatches = cellModel.findInOutputs(target);
