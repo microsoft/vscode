@@ -29,8 +29,9 @@
 .monaco-editor .inline-chat .body .content {
 	display: flex;
 	box-sizing: border-box;
+	outline: 1px solid var(--vscode-inlineChatInput-border);
+	outline-offset: -1px;
 	border-radius: 2px;
-	border: 1px solid var(--vscode-inlineChatInput-border);
 }
 
 .monaco-editor .inline-chat .body .content.synthetic-focus {
@@ -38,9 +39,10 @@
 }
 
 .monaco-editor .inline-chat .body .content .input {
-	padding: 2px 2px 2px 4px;
-	border-top-left-radius: 2px;
-	border-bottom-left-radius: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 2px 2px 2px 6px;
 	background-color: var(--vscode-inlineChatInput-background);
 	cursor: text;
 }
@@ -52,7 +54,6 @@
 .monaco-editor .inline-chat .body .content .input .editor-placeholder {
 	position: absolute;
 	z-index: 1;
-	padding: 3px 0 0 0;
 	color: var(--vscode-inlineChatInput-placeholderForeground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -98,14 +99,14 @@
 /* status */
 
 .monaco-editor .inline-chat .status {
-	margin-top: 3px;
+	margin-top: 4px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 }
 
 .monaco-editor .inline-chat .status.actions {
-	margin-top: 6px;
+	margin-top: 4px;
 }
 
 .monaco-editor .inline-chat .status .actions.hidden {

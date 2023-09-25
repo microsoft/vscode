@@ -13,25 +13,25 @@ import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewD
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { generateUuid } from 'vs/base/common/uuid';
 import { compare } from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const viewContainerIdPrefix = 'testViewContainer';
-const sidebarContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-const panelContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
+const sidebarContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+const panelContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
 
 suite('ViewDescriptorService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
 		disposables.add(instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables));
-		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(IContextKeyService, disposables.add(instantiationService.createInstance(ContextKeyService)));
 	});
 
 	teardown(() => {
@@ -40,7 +40,6 @@ suite('ViewDescriptorService', () => {
 				ViewsRegistry.deregisterViews(ViewsRegistry.getViews(viewContainer), viewContainer);
 			}
 		}
-		disposables.clear();
 	});
 
 	function aViewDescriptorService(): ViewDescriptorService {
@@ -222,7 +221,6 @@ suite('ViewDescriptorService', () => {
 
 		let expectedSequence = '';
 		let actualSequence = '';
-		const disposables = [];
 
 		const containerMoveString = (view: IViewDescriptor, from: ViewContainer, to: ViewContainer) => {
 			return `Moved ${view.id} from ${from.id} to ${to.id}\n`;
@@ -231,13 +229,13 @@ suite('ViewDescriptorService', () => {
 		const locationMoveString = (view: IViewDescriptor, from: ViewContainerLocation, to: ViewContainerLocation) => {
 			return `Moved ${view.id} from ${from === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'} to ${to === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'}\n`;
 		};
-		disposables.push(testObject.onDidChangeContainer(({ views, from, to }) => {
+		disposables.add(testObject.onDidChangeContainer(({ views, from, to }) => {
 			views.forEach(view => {
 				actualSequence += containerMoveString(view, from, to);
 			});
 		}));
 
-		disposables.push(testObject.onDidChangeLocation(({ views, from, to }) => {
+		disposables.add(testObject.onDidChangeLocation(({ views, from, to }) => {
 			views.forEach(view => {
 				actualSequence += locationMoveString(view, from, to);
 			});
@@ -331,7 +329,7 @@ suite('ViewDescriptorService', () => {
 
 	test('initialize with custom locations', async function () {
 		const storageService = instantiationService.get(IStorageService);
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
@@ -390,7 +388,7 @@ suite('ViewDescriptorService', () => {
 	test('storage change', async function () {
 		const testObject = aViewDescriptorService();
 
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 
 		const viewDescriptors: IViewDescriptor[] = [
@@ -525,7 +523,7 @@ suite('ViewDescriptorService', () => {
 
 	test('custom locations take precedence when default view container of views change', async function () {
 		const storageService = instantiationService.get(IStorageService);
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
@@ -587,7 +585,7 @@ suite('ViewDescriptorService', () => {
 
 	test('view containers with not existing views are not removed from customizations', async function () {
 		const storageService = instantiationService.get(IStorageService);
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
@@ -637,7 +635,7 @@ suite('ViewDescriptorService', () => {
 		};
 		storageService.store('views.customizations', JSON.stringify(viewsCustomizations), StorageScope.PROFILE, StorageTarget.USER);
 
-		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptors: IViewDescriptor[] = [
 			{
 				id: 'view1',
@@ -669,7 +667,7 @@ suite('ViewDescriptorService', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const testObject = aViewDescriptorService();
 
-		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptors: IViewDescriptor[] = [
 			{
 				id: 'view1',

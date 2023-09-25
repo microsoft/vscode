@@ -4,25 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatFollowup, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 //#region extension point
 
 const slashItem: IJSONSchema = {
 	type: 'object',
-	required: ['name', 'detail'],
+	required: ['command', 'detail'],
 	properties: {
-		name: {
+		command: {
 			type: 'string',
-			markdownDescription: localize('name', "The name of the slash command which will be used as prefix.")
+			markdownDescription: localize('command', "The name of the slash command which will be used as prefix.")
 		},
 		detail: {
 			type: 'string',
@@ -42,7 +47,7 @@ const slashItems: IJSONSchema = {
 	]
 };
 
-export const slashesExtPoint = ExtensionsRegistry.registerExtensionPoint<IChatSlashData[]>({
+export const slashesExtPoint = ExtensionsRegistry.registerExtensionPoint<IChatSlashData | IChatSlashData[]>({
 	extensionPoint: 'slashes',
 	jsonSchema: slashItems
 });
@@ -50,38 +55,120 @@ export const slashesExtPoint = ExtensionsRegistry.registerExtensionPoint<IChatSl
 //#region slash service, commands etc
 
 export interface IChatSlashData {
-	id: string;
-	name: string;
+	command: string;
 	detail: string;
+	sortText?: string;
+
+	/**
+	 * Whether the command should execute as soon
+	 * as it is entered. Defaults to `false`.
+	 */
+	executeImmediately?: boolean;
+}
+
+function isChatSlashData(data: any): data is IChatSlashData {
+	return typeof data === 'object' && data &&
+		typeof data.command === 'string' &&
+		typeof data.detail === 'string' &&
+		(typeof data.sortText === 'undefined' || typeof data.sortText === 'string') &&
+		(typeof data.executeImmediately === 'undefined' || typeof data.executeImmediately === 'boolean');
 }
 
 export interface IChatSlashFragment {
-	content: string;
+	content: string | { treeData: IChatResponseProgressFileTreeData };
 }
 
-export type IChatSlashCallback = { (prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void> };
+export type IChatSlashCallback = { (prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> };
 
 export const IChatSlashCommandService = createDecorator<IChatSlashCommandService>('chatSlashCommandService');
 
 export interface IChatSlashCommandService {
 	_serviceBrand: undefined;
+	readonly onDidChangeCommands: Event<void>;
 	registerSlashData(data: IChatSlashData): IDisposable;
 	registerSlashCallback(id: string, command: IChatSlashCallback): IDisposable;
-	executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void>;
+	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable;
+	executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void>;
 	getCommands(): Array<IChatSlashData>;
 	hasCommand(id: string): boolean;
 }
 
 type Tuple = { data: IChatSlashData; command?: IChatSlashCallback };
 
-export class ChatSlashCommandService implements IChatSlashCommandService {
+export class ChatSlashCommandService extends Disposable implements IChatSlashCommandService {
 
 	declare _serviceBrand: undefined;
 
 	private readonly _commands = new Map<string, Tuple>();
 
-	constructor(@IExtensionService private readonly _extensionService: IExtensionService) {
+	private readonly _onDidChangeCommands = this._register(new Emitter<void>());
+	readonly onDidChangeCommands: Event<void> = this._onDidChangeCommands.event;
 
+	constructor(@IExtensionService private readonly _extensionService: IExtensionService) {
+		super();
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._commands.clear();
+	}
+
+	registerSlashData(data: IChatSlashData): IDisposable {
+		if (this._commands.has(data.command)) {
+			throw new Error(`Already registered a command with id ${data.command}}`);
+		}
+		this._commands.set(data.command, { data });
+		this._onDidChangeCommands.fire();
+
+		return toDisposable(() => {
+			if (this._commands.delete(data.command)) {
+				this._onDidChangeCommands.fire();
+			}
+		});
+	}
+
+	registerSlashCallback(id: string, command: IChatSlashCallback): IDisposable {
+		const data = this._commands.get(id);
+		if (!data) {
+			throw new Error(`No command with id ${id} registered`);
+		}
+		data.command = command;
+		return toDisposable(() => data.command = undefined);
+	}
+
+	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable {
+		return combinedDisposable(
+			this.registerSlashData(data),
+			this.registerSlashCallback(data.command, command)
+		);
+	}
+
+	getCommands(): Array<IChatSlashData> {
+		return Array.from(this._commands.values(), v => v.data);
+	}
+
+	hasCommand(id: string): boolean {
+		return this._commands.has(id);
+	}
+
+	async executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void> {
+		const data = this._commands.get(id);
+		if (!data) {
+			throw new Error('No command with id ${id} NOT registered');
+		}
+		if (!data.command) {
+			await this._extensionService.activateByEvent(`onSlash:${id}`);
+		}
+		if (!data.command) {
+			throw new Error(`No command with id ${id} NOT resolved`);
+		}
+
+		return await data.command(prompt, progress, history, token);
+	}
+}
+
+class ChatSlashCommandContribution implements IWorkbenchContribution {
+	constructor(@IChatSlashCommandService slashCommandService: IChatSlashCommandService) {
 		const contributions = new DisposableStore();
 
 		slashesExtPoint.setHandler(extensions => {
@@ -96,53 +183,17 @@ export class ChatSlashCommandService implements IChatSlashCommandService {
 				const { value } = entry;
 
 				for (const candidate of Iterable.wrap(value)) {
-					contributions.add(this.registerSlashData({ ...candidate, id: candidate.name }));
+
+					if (!isChatSlashData(candidate)) {
+						entry.collector.error(localize('invalid', "Invalid {0}: {1}", slashesExtPoint.name, JSON.stringify(candidate)));
+						continue;
+					}
+
+					contributions.add(slashCommandService.registerSlashData({ ...candidate }));
 				}
 			}
 		});
 	}
-
-	dispose(): void {
-		this._commands.clear();
-	}
-
-	registerSlashData(data: IChatSlashData): IDisposable {
-		if (this._commands.has(data.id)) {
-			throw new Error(`Already registered a command with id ${data.id}}`);
-		}
-		this._commands.set(data.id, { data });
-		return toDisposable(() => this._commands.delete(data.id));
-	}
-
-	registerSlashCallback(id: string, command: IChatSlashCallback): IDisposable {
-		const data = this._commands.get(id);
-		if (!data) {
-			throw new Error(`No command with id ${id} registered`);
-		}
-		data.command = command;
-		return toDisposable(() => data.command = undefined);
-	}
-
-	getCommands(): Array<IChatSlashData> {
-		return Array.from(this._commands.values(), v => v.data);
-	}
-
-	hasCommand(id: string): boolean {
-		return this._commands.has(id);
-	}
-
-	async executeCommand(id: string, prompt: string, progress: IProgress<IChatSlashFragment>, history: IChatMessage[], token: CancellationToken): Promise<void> {
-		const data = this._commands.get(id);
-		if (!data) {
-			throw new Error('No command with id ${id} NOT registered');
-		}
-		if (!data.command) {
-			await this._extensionService.activateByEvent(`onSlash:${id}`);
-		}
-		if (!data.command) {
-			throw new Error(`No command with id ${id} NOT resolved`);
-		}
-
-		await data.command(prompt, progress, history, token);
-	}
 }
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ChatSlashCommandContribution, LifecyclePhase.Restored);

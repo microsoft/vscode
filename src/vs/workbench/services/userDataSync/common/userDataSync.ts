@@ -26,7 +26,6 @@ export interface IUserDataSyncWorkbenchService {
 	readonly enabled: boolean;
 	readonly authenticationProviders: IAuthenticationProvider[];
 
-	readonly all: IUserDataSyncAccount[];
 	readonly current: IUserDataSyncAccount | undefined;
 
 	readonly accountStatus: AccountStatus;
@@ -44,6 +43,9 @@ export interface IUserDataSyncWorkbenchService {
 
 	showConflicts(conflictToOpen?: IResourcePreview): Promise<void>;
 	accept(resource: IUserDataSyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
+
+	getAllLogResources(): Promise<URI[]>;
+	downloadSyncActivity(location: URI): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {
@@ -60,7 +62,6 @@ export function getSyncAreaLabel(source: SyncResource): string {
 }
 
 export const enum AccountStatus {
-	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
 	Available = 'available',
 }
@@ -69,6 +70,7 @@ export interface IUserDataSyncConflictsView extends IView {
 	open(conflict: IResourcePreview): Promise<void>;
 }
 
+export const SYNC_ORIGINAL_TITLE = 'Settings Sync';
 export const SYNC_TITLE = localize('sync category', "Settings Sync");
 
 export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));
@@ -76,7 +78,7 @@ export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sy
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
 export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
-export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
+export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Unavailable);
 export const CONTEXT_ENABLE_ACTIVITY_VIEWS = new RawContextKey<boolean>(`enableSyncActivityViews`, false);
 export const CONTEXT_ENABLE_SYNC_CONFLICTS_VIEW = new RawContextKey<boolean>(`enableSyncConflictsView`, false);
 export const CONTEXT_HAS_CONFLICTS = new RawContextKey<boolean>('hasConflicts', false);

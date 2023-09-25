@@ -5,12 +5,14 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
@@ -18,13 +20,13 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	private readonly _providerRegistrations = this._register(new DisposableMap<number>());
-	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (DeferredPromise<string> | void)>();
+	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IChatProgress) => (DeferredPromise<string | IMarkdownString> | void)>();
 	private readonly _stateEmitters = new Map<number, Emitter<any>>();
 
 	private readonly _proxy: ExtHostChatShape;
 
 	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | { treeData: IChatResponseProgressFileTreeData }>>();
+	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -38,24 +40,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._register(this._chatService.onDidPerformUserAction(e => {
 			this._proxy.$onDidPerformUserAction(e);
 		}));
-	}
-
-	async $registerSlashCommandProvider(handle: number, chatProviderId: string): Promise<void> {
-		const unreg = this._chatService.registerSlashCommandProvider({
-			chatProviderId,
-			provideSlashCommands: async token => {
-				return this._proxy.$provideProviderSlashCommands(handle, token);
-			},
-			resolveSlashCommand: async (command, token) => {
-				return this._proxy.$resolveSlashCommand(handle, command, token);
-			}
-		});
-
-		this._providerRegistrations.set(handle, unreg);
-	}
-
-	async $unregisterSlashCommandProvider(handle: number): Promise<void> {
-		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
 	$transferChatSession(sessionId: number, toWorkspace: UriComponents): void {
@@ -118,6 +102,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 				try {
 					const requestDto: IChatRequestDto = {
 						message: request.message,
+						variables: request.variables
 					};
 					const dto = await this._proxy.$provideReply(handle, request.session.id, requestDto, token);
 					return <IChatResponse>{
@@ -150,7 +135,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 		if ('placeholder' in progress) {
 			const responsePartId = `${id}_${++this._responsePartHandlePool}`;
-			const deferredContentPromise = new DeferredPromise<string | { treeData: IChatResponseProgressFileTreeData }>();
+			const deferredContentPromise = new DeferredPromise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }>();
 			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
 			this._activeRequestProgressCallbacks.get(id)?.({ ...progress, resolvedContent: deferredContentPromise.p });
 			return this._responsePartHandlePool;
@@ -158,7 +143,7 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${id}_${responsePartHandle}`;
 			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
-			if (deferredContentPromise && 'treeData' in progress) {
+			if (deferredContentPromise && isCompleteInteractiveProgressTreeData(progress)) {
 				const withRevivedUris = revive<{ treeData: IChatResponseProgressFileTreeData }>(progress);
 				deferredContentPromise.complete(withRevivedUris);
 				this._activeResponsePartPromises.delete(responsePartId);
@@ -169,8 +154,20 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
-		// No need to support standalone tree data that's not attached to a placeholder
-		if ('treeData' in progress) {
+		// No need to support standalone tree data that's not attached to a placeholder in API
+		if (isCompleteInteractiveProgressTreeData(progress)) {
+			return;
+		}
+
+		if ('documents' in progress) {
+			const usedContext = {
+				documents: progress.documents.map(({ uri, version, ranges }) => ({
+					uri: URI.revive(uri),
+					version,
+					ranges,
+				})),
+			};
+			this._activeRequestProgressCallbacks.get(id)?.(usedContext); // FIXME@ulugbekna: is this a correct thing to do?
 			return;
 		}
 

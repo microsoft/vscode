@@ -21,8 +21,8 @@
 					"modifiedRange": "[53,6 -> 53,45]"
 				},
 				{
-					"originalRange": "[52,77 -> 55,53]",
-					"modifiedRange": "[53,98 -> 65,66]"
+					"originalRange": "[52,77 -> 56,1 EOL]",
+					"modifiedRange": "[53,98 -> 66,1 EOL]"
 				}
 			]
 		}

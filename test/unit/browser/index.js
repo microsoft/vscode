@@ -14,8 +14,12 @@ const createStatsCollector = require('../../../node_modules/mocha/lib/stats-coll
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
+const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
+const yaserver = require('yaserver');
+const http = require('http');
+const { randomBytes } = require('crypto');
 
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -59,7 +63,8 @@ const withReporter = (function () {
 })();
 
 const outdir = argv.build ? 'out-build' : 'out';
-const out = path.join(__dirname, `../../../${outdir}`);
+const rootDir = path.resolve(__dirname, '..', '..', '..');
+const out = path.join(rootDir, `${outdir}`);
 
 function ensureIsArray(a) {
 	return Array.isArray(a) ? a : [a];
@@ -125,19 +130,74 @@ function consoleLogFn(msg) {
 	return console.log;
 }
 
+async function createServer() {
+	// Demand a prefix to avoid issues with other services on the
+	// machine being able to access the test server.
+	const prefix = '/' + randomBytes(16).toString('hex');
+	const serveStatic = await yaserver.createServer({ rootDir });
+
+	/** Handles a request for a remote method call, invoking `fn` and returning the result */
+	const remoteMethod = async (/** @type {http.IncomingMessage} */ req, /** @type {http.ServerResponse} */ response, fn) => {
+		const params = await new Promise((resolve, reject) => {
+			const body = [];
+			req.on('data', chunk => body.push(chunk));
+			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
+			req.on('error', reject);
+		});
+
+		const result = await fn(...params);
+		response.writeHead(200, { 'Content-Type': 'application/json' });
+		response.end(JSON.stringify(result));
+	};
+
+	const server = http.createServer((request, response) => {
+		if (!request.url?.startsWith(prefix)) {
+			return response.writeHead(404).end();
+		}
+
+		// rewrite the URL so the static server can handle the request correctly
+		request.url = request.url.slice(prefix.length);
+
+		switch (request.url) {
+			case '/remoteMethod/__readFileInTests':
+				return remoteMethod(request, response, p => fs.promises.readFile(p, 'utf-8'));
+			case '/remoteMethod/__writeFileInTests':
+				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(p, contents));
+			case '/remoteMethod/__readDirInTests':
+				return remoteMethod(request, response, p => fs.promises.readdir(p));
+			case '/remoteMethod/__unlinkInTests':
+				return remoteMethod(request, response, p => fs.promises.unlink(p));
+			case '/remoteMethod/__mkdirPInTests':
+				return remoteMethod(request, response, p => fs.promises.mkdir(p, { recursive: true }));
+			default:
+				return serveStatic.handle(request, response);
+		}
+	});
+
+	return new Promise((resolve, reject) => {
+		server.listen(0, 'localhost', () => {
+			resolve({
+				dispose: () => server.close(),
+				// @ts-ignore
+				url: `http://localhost:${server.address().port}${prefix}`
+			});
+		});
+		server.on('error', reject);
+	});
+}
+
 async function runTestsInBrowser(testModules, browserType) {
+	const server = await createServer();
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), devtools: Boolean(argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	const target = new URL(server.url + '/test/unit/browser/renderer.html');
+	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
 	if (argv.build) {
-		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-			target.search = `?build=true&ci=true`;
-		} else {
-			target.search = `?build=true`;
-		}
-	} else if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-		target.search = `?ci=true`;
+		target.searchParams.set('build', 'true');
+	}
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		target.searchParams.set('ci', 'true');
 	}
 
 	const emitter = new events.EventEmitter();
@@ -180,6 +240,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	} catch (err) {
 		console.error(err);
 	}
+	server.dispose();
 	await browser.close();
 
 	if (failingTests.length > 0) {

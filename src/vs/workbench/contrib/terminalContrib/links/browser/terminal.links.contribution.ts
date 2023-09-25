@@ -10,11 +10,12 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessInfo, ITerminalProcessManager, TerminalCommandId, isTerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
@@ -40,8 +41,8 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	private _linkResolver: TerminalLinkResolver;
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
-		private readonly _processManager: ITerminalProcessManager,
+		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
+		private readonly _processManager: ITerminalProcessManager | ITerminalProcessInfo,
 		private readonly _widgetManager: TerminalWidgetManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService
@@ -52,18 +53,24 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		const linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager, this._instance.capabilities, this._linkResolver);
-		this._processManager.onProcessReady(() => {
+		if (isTerminalProcessManager(this._processManager)) {
+			this._processManager.onProcessReady(() => {
+				linkManager.setWidgetManager(this._widgetManager);
+			});
+		} else {
 			linkManager.setWidgetManager(this._widgetManager);
-		});
+		}
 		this._linkManager = this.add(linkManager);
 
 		// Attach the link provider(s) to the instance and listen for changes
-		for (const linkProvider of this._terminalLinkProviderService.linkProviders) {
-			this._linkManager.registerExternalLinkProvider(linkProvider.provideLinks.bind(linkProvider, this._instance));
+		if (!isDetachedTerminalInstance(this._instance)) {
+			for (const linkProvider of this._terminalLinkProviderService.linkProviders) {
+				this._linkManager.registerExternalLinkProvider(linkProvider.provideLinks.bind(linkProvider, this._instance));
+			}
+			this.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
+				linkManager.registerExternalLinkProvider(e.provideLinks.bind(e, this._instance as ITerminalInstance));
+			}));
 		}
-		this.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
-			linkManager.registerExternalLinkProvider(e.provideLinks.bind(e, this._instance));
-		}));
 		// TODO: Currently only a single link provider is supported; the one registered by the ext host
 		this.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(e => {
 			linkManager.dispose();
@@ -97,7 +104,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	}
 }
 
-registerTerminalContribution(TerminalLinkContribution.ID, TerminalLinkContribution);
+registerTerminalContribution(TerminalLinkContribution.ID, TerminalLinkContribution, true);
 
 const category = terminalStrings.actionCategory;
 
@@ -107,11 +114,16 @@ registerActiveInstanceAction({
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
-	keybinding: {
+	keybinding: [{
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.accessibleBufferFocus)
+		when: TerminalContextKeys.focus
+	}, {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))
 	},
+	],
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.showLinkQuickpick()
 });
 registerActiveInstanceAction({

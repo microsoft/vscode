@@ -11,6 +11,7 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface IFileMatchWithCells extends IFileMatch {
 	cellResults: ICellMatch[];
@@ -29,6 +30,14 @@ export function isIFileMatchWithCells(object: IFileMatch): object is IFileMatchW
 // to text search results
 
 export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], cell: ICellViewModel | CellSearchModel): ITextSearchMatch[] {
+	return genericCellMatchesToTextSearchMatches(
+		contentMatches,
+		cell instanceof CellSearchModel ? cell.inputTextBuffer : cell.textBuffer,
+		cell
+	);
+}
+
+export function genericCellMatchesToTextSearchMatches(contentMatches: FindMatch[], buffer: IReadonlyTextBuffer, cell: ICellViewModel | CellSearchModel) {
 	let previousEndLine = -1;
 	const contextGroupings: FindMatch[][] = [];
 	let currentContextGrouping: FindMatch[] = [];
@@ -54,7 +63,7 @@ export function contentMatchesToTextSearchMatches(contentMatches: FindMatch[], c
 		const firstLine = grouping[0].range.startLineNumber;
 		const lastLine = grouping[grouping.length - 1].range.endLineNumber;
 		for (let i = firstLine; i <= lastLine; i++) {
-			lineTexts.push(cell.textBuffer.getLineContent(i));
+			lineTexts.push(buffer.getLineContent(i));
 		}
 		return new TextSearchMatch(
 			lineTexts.join('\n') + '\n',
@@ -79,9 +88,15 @@ export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFin
 
 // experimental
 
+interface RawOutputFindMatch {
+	textBuffer: IReadonlyTextBuffer;
+	matches: FindMatch[];
+}
+
 export const rawCellPrefix = 'rawCell#';
 export class CellSearchModel extends Disposable {
-	constructor(readonly _source: string, private _textBuffer: IReadonlyTextBuffer | undefined, private _uri: URI, private _cellIndex: number) {
+	private _outputTextBuffers: IReadonlyTextBuffer[] | undefined = undefined;
+	constructor(readonly _source: string, private _inputTextBuffer: IReadonlyTextBuffer | undefined, private _outputs: IOutputItemDto[], private _uri: URI, private _cellIndex: number) {
 		super();
 	}
 
@@ -93,40 +108,75 @@ export class CellSearchModel extends Disposable {
 		return this._uri;
 	}
 
-	public getFullModelRange(): Range {
-		const lineCount = this.textBuffer.getLineCount();
-		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
+	private _getFullModelRange(buffer: IReadonlyTextBuffer): Range {
+		const lineCount = buffer.getLineCount();
+		return new Range(1, 1, lineCount, this._getLineMaxColumn(buffer, lineCount));
 	}
 
-	public getLineMaxColumn(lineNumber: number): number {
-		if (lineNumber < 1 || lineNumber > this.textBuffer.getLineCount()) {
+	private _getLineMaxColumn(buffer: IReadonlyTextBuffer, lineNumber: number): number {
+		if (lineNumber < 1 || lineNumber > buffer.getLineCount()) {
 			throw new Error('Illegal value for lineNumber');
 		}
-		return this.textBuffer.getLineLength(lineNumber) + 1;
+		return buffer.getLineLength(lineNumber) + 1;
 	}
 
-	get textBuffer() {
-		if (this._textBuffer) {
-			return this._textBuffer;
+	get inputTextBuffer(): IReadonlyTextBuffer {
+		if (!this._inputTextBuffer) {
+			const builder = new PieceTreeTextBufferBuilder();
+			builder.acceptChunk(this._source);
+			const bufferFactory = builder.finish(true);
+			const { textBuffer, disposable } = bufferFactory.create(DefaultEndOfLine.LF);
+			this._inputTextBuffer = textBuffer;
+			this._register(disposable);
 		}
 
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(this._source);
-		const bufferFactory = builder.finish(true);
-		const { textBuffer, disposable } = bufferFactory.create(DefaultEndOfLine.LF);
-		this._textBuffer = textBuffer;
-		this._register(disposable);
-
-		return this._textBuffer;
+		return this._inputTextBuffer;
 	}
 
-	find(target: string): FindMatch[] {
+	get outputTextBuffers(): IReadonlyTextBuffer[] {
+		if (!this._outputTextBuffers) {
+			this._outputTextBuffers = this._outputs.map((output) => {
+				const builder = new PieceTreeTextBufferBuilder();
+				builder.acceptChunk(output.data.toString());
+				const bufferFactory = builder.finish(true);
+				const { textBuffer, disposable } = bufferFactory.create(DefaultEndOfLine.LF);
+				this._register(disposable);
+				return textBuffer;
+			});
+		}
+		return this._outputTextBuffers;
+	}
+
+	findInInputs(target: string): FindMatch[] {
 		const searchParams = new SearchParams(target, false, false, null);
 		const searchData = searchParams.parseSearchRequest();
 		if (!searchData) {
 			return [];
 		}
-		const fullRange = this.getFullModelRange();
-		return this.textBuffer.findMatchesLineByLine(fullRange, searchData, true, 5000);
+		const fullInputRange = this._getFullModelRange(this.inputTextBuffer);
+		return this.inputTextBuffer.findMatchesLineByLine(fullInputRange, searchData, true, 5000);
+	}
+
+	findInOutputs(target: string): RawOutputFindMatch[] {
+		const searchParams = new SearchParams(target, false, false, null);
+		const searchData = searchParams.parseSearchRequest();
+		if (!searchData) {
+			return [];
+		}
+		return this.outputTextBuffers.map(buffer => {
+			const matches = buffer.findMatchesLineByLine(
+				this._getFullModelRange(buffer),
+				searchData,
+				true,
+				5000
+			);
+			if (matches.length === 0) {
+				return undefined;
+			}
+			return {
+				textBuffer: buffer,
+				matches
+			};
+		}).filter((item): item is RawOutputFindMatch => !!item);
 	}
 }

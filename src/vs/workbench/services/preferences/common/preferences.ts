@@ -134,12 +134,13 @@ export interface IFilterResult {
 /**
  * The ways a setting could match a query,
  * sorted in increasing order of relevance.
- * For now, ignore description and value matches.
  */
 export enum SettingMatchType {
 	None = 0,
-	WholeWordMatch = 1 << 0,
-	KeyMatch = 1 << 1
+	LanguageTagSettingMatch = 1 << 0,
+	RemoteMatch = 1 << 1,
+	DescriptionOrValueMatch = 1 << 2,
+	KeyMatch = 1 << 3
 }
 
 export interface ISettingMatch {

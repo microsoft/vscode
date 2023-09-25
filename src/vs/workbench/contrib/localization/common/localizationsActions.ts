@@ -36,6 +36,7 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		const installedLanguages = await languagePackService.getInstalledLanguages();
 
 		const qp = quickInputService.createQuickPick<ILanguagePackItem>();
+		qp.matchOnDescription = true;
 		qp.placeholder = localize('chooseLocale', "Select Display Language");
 
 		if (installedLanguages?.length) {
@@ -64,9 +65,11 @@ export class ConfigureDisplayLanguageAction extends Action2 {
 		});
 
 		disposables.add(qp.onDidAccept(async () => {
-			const selectedLanguage = qp.activeItems[0];
-			qp.hide();
-			await localeService.setLocale(selectedLanguage);
+			const selectedLanguage = qp.activeItems[0] as ILanguagePackItem | undefined;
+			if (selectedLanguage) {
+				qp.hide();
+				await localeService.setLocale(selectedLanguage);
+			}
 		}));
 
 		disposables.add(qp.onDidTriggerItemButton(async e => {

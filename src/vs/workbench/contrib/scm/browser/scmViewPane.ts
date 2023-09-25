@@ -96,6 +96,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
+import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -111,7 +112,7 @@ interface ActionButtonTemplate {
 	readonly templateDisposable: IDisposable;
 }
 
-class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton, FuzzyScore, ActionButtonTemplate> {
+export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton, FuzzyScore, ActionButtonTemplate> {
 	static readonly DEFAULT_HEIGHT = 30;
 
 	static readonly TEMPLATE_ID = 'actionButton';
@@ -220,6 +221,8 @@ class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 		}
 		return uris;
 	}
+
+	dispose(): void { }
 }
 
 interface InputTemplate {
@@ -452,7 +455,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	static readonly TEMPLATE_ID = 'resource';
 	get templateId(): string { return ResourceRenderer.TEMPLATE_ID; }
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private renderedResources = new Map<ResourceTemplate, RenderedResourceData>();
 
 	constructor(
@@ -1035,7 +1038,7 @@ class RepositoryVisibilityActionController {
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
 	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		@ISCMViewService private scmViewService: ISCMViewService,
@@ -1177,12 +1180,12 @@ class ViewModel {
 	}
 
 	private items = new Map<ISCMRepository, IRepositoryItem>();
-	private visibilityDisposables = new DisposableStore();
+	private readonly visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private alwaysShowRepositories = false;
 	private showActionButton = false;
 	private firstVisible = true;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	private modeContextKey: IContextKey<ViewModelMode>;
 	private sortKeyContextKey: IContextKey<ViewModelSortKey>;
@@ -1351,7 +1354,6 @@ class ViewModel {
 
 	setVisible(visible: boolean): void {
 		if (visible) {
-			this.visibilityDisposables = new DisposableStore();
 			this.scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this.visibilityDisposables);
 			this._onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
 
@@ -1365,7 +1367,7 @@ class ViewModel {
 		} else {
 			this.updateViewState();
 
-			this.visibilityDisposables.dispose();
+			this.visibilityDisposables.clear();
 			this._onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
 			this.scrollTop = this.tree.scrollTop;
 		}
@@ -1806,11 +1808,11 @@ class SCMInputWidget {
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
 	private repositoryIdContextKey: IContextKey<string | undefined>;
-	private repositoryDisposables = new DisposableStore();
+	private readonly repositoryDisposables = new DisposableStore();
 
 	private validation: IInputValidation | undefined;
 	private validationDisposable: IDisposable = Disposable.None;
@@ -1836,8 +1838,7 @@ class SCMInputWidget {
 		this.clearValidation();
 		this.editorContainer.classList.remove('synthetic-focus');
 
-		this.repositoryDisposables.dispose();
-		this.repositoryDisposables = new DisposableStore();
+		this.repositoryDisposables.clear();
 		this.repositoryIdContextKey.set(input?.repository.id);
 
 		if (!input) {
@@ -2025,6 +2026,7 @@ class SCMInputWidget {
 			quickSuggestions: false,
 			scrollbar: { alwaysConsumeMouseWheel: false },
 			overflowWidgetsDomNode,
+			formatOnType: true,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true }
 		};
@@ -2045,6 +2047,7 @@ class SCMInputWidget {
 				SuggestController.ID,
 				InlineCompletionsController.ID,
 				CodeActionController.ID,
+				FormatOnType.ID
 			])
 		};
 
@@ -2077,7 +2080,7 @@ class SCMInputWidget {
 		this.disposables.add(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputEditor._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const lastLineCol = viewModel.getLineLength(lastLineNumber) + 1;
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
 			firstLineKey.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);

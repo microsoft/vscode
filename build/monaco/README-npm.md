@@ -10,4 +10,5 @@ The Monaco Editor is the code editor that powers [VS Code](https://github.com/mi
 This npm module contains the core editor functionality, as it comes from the [vscode repository](https://github.com/microsoft/vscode).
 
 ## License
+
 [MIT](https://github.com/microsoft/vscode/blob/main/LICENSE.txt)

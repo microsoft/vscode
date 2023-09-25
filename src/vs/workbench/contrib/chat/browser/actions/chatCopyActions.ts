@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CONTEXT_IN_CHAT_LIST } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export function registerChatCopyActions() {
@@ -57,14 +60,23 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext
+				},
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+					when: CONTEXT_IN_CHAT_LIST
 				}
 			});
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
+			let item = args[0];
 			if (!isRequestVM(item) && !isResponseVM(item)) {
-				return;
+				const widgetService = accessor.get(IChatWidgetService);
+				item = widgetService.lastFocusedWidget?.getFocus();
+				if (!isRequestVM(item) && !isResponseVM(item)) {
+					return;
+				}
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
@@ -76,5 +88,5 @@ export function registerChatCopyActions() {
 
 function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel): string {
 	return isRequestVM(item) ?
-		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.value}`;
+		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.asString()}`;
 }

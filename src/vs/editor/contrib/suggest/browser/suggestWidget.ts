@@ -209,7 +209,7 @@ export class SuggestWidget implements IDisposable {
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
-		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor);
+		const details = this._disposables.add(instantiationService.createInstance(SuggestDetailsWidget, this.editor));
 		details.onDidClose(this.toggleDetails, this, this._disposables);
 		this._details = new SuggestDetailsOverlay(details, this.editor);
 
@@ -399,10 +399,12 @@ export class SuggestWidget implements IDisposable {
 					}
 				}, 250);
 				const sub = token.onCancellationRequested(() => loading.dispose());
-				const result = await item.resolve(token);
-				loading.dispose();
-				sub.dispose();
-				return result;
+				try {
+					return await item.resolve(token);
+				} finally {
+					loading.dispose();
+					sub.dispose();
+				}
 			});
 
 			this._currentSuggestionDetails.then(() => {
@@ -785,7 +787,7 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this.element.domNode.ownerDocument.body);
 		const info = this.getLayoutInfo();
 
 		if (!size) {

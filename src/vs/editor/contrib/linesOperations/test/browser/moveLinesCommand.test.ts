@@ -2,7 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -13,23 +14,45 @@ import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/move
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
-function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+function testMoveLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	const disposables = new DisposableStore();
+	if (!languageConfigurationService) {
+		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	}
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Advanced, languageConfigurationService!), expectedLines, expectedSelection);
+	disposables.dispose();
 }
 
-function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced, languageConfigurationService), expectedLines, expectedSelection);
+function testMoveLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	const disposables = new DisposableStore();
+	if (!languageConfigurationService) {
+		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	}
+	testCommand(lines, null, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Advanced, languageConfigurationService!), expectedLines, expectedSelection);
+	disposables.dispose();
 }
 
-function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+function testMoveLinesDownWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	const disposables = new DisposableStore();
+	if (!languageConfigurationService) {
+		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	}
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, true, EditorAutoIndentStrategy.Full, languageConfigurationService!), expectedLines, expectedSelection);
+	disposables.dispose();
 }
 
-function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService = new TestLanguageConfigurationService()): void {
-	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full, languageConfigurationService), expectedLines, expectedSelection);
+function testMoveLinesUpWithIndentCommand(languageId: string, lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection, languageConfigurationService?: ILanguageConfigurationService): void {
+	const disposables = new DisposableStore();
+	if (!languageConfigurationService) {
+		languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+	}
+	testCommand(lines, languageId, selection, (accessor, sel) => new MoveLinesCommand(sel, false, EditorAutoIndentStrategy.Full, languageConfigurationService!), expectedLines, expectedSelection);
+	disposables.dispose();
 }
 
 suite('Editor Contrib - Move Lines Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('move first up / last down disabled', function () {
 		testMoveLinesUpCommand(
@@ -277,6 +300,9 @@ class IndentRulesMode extends Disposable {
 }
 
 suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const indentRules = {
 		decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 		increaseIndentPattern: /(\{[^}"'`]*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
@@ -309,6 +335,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 
 		mode.dispose();
 		languageService.dispose();
+		languageConfigurationService.dispose();
 	});
 
 	// https://github.com/microsoft/vscode/issues/28552#issuecomment-307867717
@@ -342,6 +369,7 @@ suite('Editor contrib - Move Lines Command honors Indentation Rules', () => {
 
 		mode.dispose();
 		languageService.dispose();
+		languageConfigurationService.dispose();
 	});
 
 
@@ -390,6 +418,8 @@ class EnterRulesMode extends Disposable {
 
 suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #54829. move block across block', () => {
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
@@ -425,5 +455,6 @@ suite('Editor - contrib - Move Lines Command honors onEnter Rules', () => {
 
 		mode.dispose();
 		languageService.dispose();
+		languageConfigurationService.dispose();
 	});
 });

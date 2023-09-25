@@ -147,10 +147,17 @@ export interface ICommonCellInfo {
 	readonly executionId?: string;
 }
 
+export enum ScrollToRevealBehavior {
+	fullCell,
+	firstLine
+}
+
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 	readonly focusEditorLine?: number;
-	readonly minimalScrolling?: boolean;
+	readonly revealBehavior?: ScrollToRevealBehavior | undefined;
+	readonly outputId?: string;
+	readonly altOutputId?: string;
 }
 
 //#endregion
@@ -323,7 +330,8 @@ export const enum CellRevealSyncType {
 	Default = 1,
 	Top = 2,
 	Center = 3,
-	CenterIfOutsideViewport = 4
+	CenterIfOutsideViewport = 4,
+	FirstLineIfOutsideViewport = 5
 }
 
 export enum CellRevealRangeType {
@@ -548,6 +556,11 @@ export interface INotebookEditor {
 	 * Update the output in webview layer with latest content. It will delegate to `createOutput` is the output is not rendered yet
 	 */
 	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
+
+	/**
+	 * Copy the image in the specific cell output to the clipboard
+	 */
+	copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void>;
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
@@ -796,6 +809,13 @@ export enum CursorAtBoundary {
 	None,
 	Top,
 	Bottom,
+	Both
+}
+
+export enum CursorAtLineBoundary {
+	None,
+	Start,
+	End,
 	Both
 }
 

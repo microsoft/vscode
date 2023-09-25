@@ -801,7 +801,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			const translations = URI.isUri(nlsURL) ? await this.getTranslations(nlsURL) : nlsURL;
 			const fallbackTranslations = URI.isUri(fallbackNLS) ? await this.getTranslations(fallbackNLS) : fallbackNLS;
 			if (translations) {
-				manifest = localizeManifest(manifest, translations, fallbackTranslations);
+				manifest = localizeManifest(this.logService, manifest, translations, fallbackTranslations);
 			}
 		} catch (error) { /* ignore */ }
 		return manifest;

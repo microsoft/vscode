@@ -43,6 +43,7 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -130,6 +131,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -247,7 +249,8 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			disposables.clear();
 			this.onDidRegisterExtensions();
 			this.compositeBar.onDidChange(() => this.saveCachedViewContainers(), this, disposables);
-			this.storageService.onDidChangeValue(StorageScope.PROFILE, ActivitybarPart.PINNED_VIEW_CONTAINERS, disposables)(e => this.onDidStorageValueChange(e), this, disposables);
+			this.storageService.onDidChangeValue(StorageScope.PROFILE, ActivitybarPart.PINNED_VIEW_CONTAINERS, disposables)(e => this.onDidPinnedViewContainersStorageValueChange(e), this, disposables);
+			this.storageService.onDidChangeValue(StorageScope.PROFILE, AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, disposables)(() => this.toggleAccountsActivity(), this, disposables);
 		}));
 
 		// Register for configuration changes
@@ -522,10 +525,11 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			preventLoopNavigation: true
 		}));
 
-		this.globalActivityAction = this._register(new ActivityAction({
-			id: 'workbench.actions.manage',
-			name: localize('manage', "Manage"),
-			classNames: ThemeIcon.asClassNameArray(ActivitybarPart.GEAR_ICON),
+		this.globalActivityAction = this._register(new ActivityAction(this.createGlobalActivity()));
+		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (this.globalActivityAction) {
+				this.globalActivityAction.activity = this.createGlobalActivity();
+			}
 		}));
 
 		if (this.accountsVisibilityPreference) {
@@ -539,6 +543,14 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
+	}
+
+	private createGlobalActivity(): IActivity {
+		return {
+			id: 'workbench.actions.manage',
+			name: localize('manage', "Manage"),
+			classNames: ThemeIcon.asClassNameArray(this.userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(this.userDataProfileService.currentProfile.icon) : ActivitybarPart.GEAR_ICON),
+		};
 	}
 
 	private toggleAccountsActivity() {
@@ -807,7 +819,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		return this.viewDescriptorService.getViewContainersByLocation(this.location);
 	}
 
-	private onDidStorageValueChange(e: IProfileStorageValueChangeEvent): void {
+	private onDidPinnedViewContainersStorageValueChange(e: IProfileStorageValueChangeEvent): void {
 		if (this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
 			this._pinnedViewContainersValue = undefined;
 			this._cachedViewContainers = undefined;
@@ -839,10 +851,6 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 			}
 
 			this.compositeBar.setCompositeBarItems(newCompositeItems);
-		}
-
-		if (e.key === AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY && e.scope === StorageScope.PROFILE) {
-			this.toggleAccountsActivity();
 		}
 	}
 

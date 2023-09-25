@@ -21,6 +21,8 @@ import './mainThreadLocalization';
 import './mainThreadBulkEdits';
 import './mainThreadChatProvider';
 import './mainThreadChatSlashCommands';
+import './mainThreadChatAgents';
+import './mainThreadChatVariables';
 import './mainThreadCodeInsets';
 import './mainThreadCLICommands';
 import './mainThreadClipboard';
@@ -41,7 +43,6 @@ import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystem';
 import './mainThreadFileSystemEventService';
-import './mainThreadKeytar';
 import './mainThreadLanguageFeatures';
 import './mainThreadLanguages';
 import './mainThreadLogService';
@@ -86,7 +87,8 @@ import './mainThreadTesting';
 import './mainThreadSecretState';
 import './mainThreadShare';
 import './mainThreadProfilContentHandlers';
-import './mainThreadSemanticSimilarity';
+import './mainThreadAiRelatedInformation';
+import './mainThreadAiEmbeddingVector';
 import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {

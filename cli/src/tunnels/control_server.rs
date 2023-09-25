@@ -278,8 +278,8 @@ fn make_socket_rpc(
 	port_forwarding: Option<PortForwarding>,
 	requires_auth: AuthRequired,
 	platform: Platform,
+	http_requests: HttpRequestsMap,
 ) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
-	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 	let server_bridges = ServerMultiplexer::new();
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
 		did_update: Arc::new(AtomicBool::new(false)),
@@ -377,7 +377,10 @@ fn make_socket_rpc(
 	);
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
+			trace!(c.log, "got {} response for req {}", p.status_code, p.req_id);
 			req.initial_response(p.status_code, p.headers);
+		} else {
+			warning!(c.log, "got response for unknown req {}", p.req_id);
 		}
 		Ok(EmptyObject {})
 	});
@@ -388,6 +391,7 @@ fn make_socket_rpc(
 				req.body(p.segment);
 			}
 			if p.complete {
+				trace!(c.log, "delegated request {} completed", p.req_id);
 				reqs.remove(&p.req_id);
 			}
 		}
@@ -441,6 +445,7 @@ async fn process_socket(
 		port_forwarding,
 		requires_auth,
 		platform,
+		http_requests.clone(),
 	);
 
 	{
@@ -497,6 +502,7 @@ async fn process_socket(
 					}),
 				})
 				.unwrap();
+
 				http_requests.lock().unwrap().insert(id, r);
 
 				tx_counter += serialized.len();
@@ -771,6 +777,8 @@ async fn handle_update(
 	let latest_release = updater.get_current_release().await?;
 	let up_to_date = updater.is_up_to_date_with(&latest_release);
 
+	let _ = updater.cleanup_old_update();
+
 	if !params.do_update || up_to_date {
 		return Ok(UpdateResult {
 			up_to_date,
@@ -1020,6 +1028,9 @@ where
 	if let Some(cwd) = &params.cwd {
 		p.current_dir(cwd);
 	}
+
+	#[cfg(target_os = "windows")]
+	p.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
 
 	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
 

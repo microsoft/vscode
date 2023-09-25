@@ -58,7 +58,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 			logger.info(l10n.t('Skipped found git in: "{0}"', gitPath));
 		}
 		return !skip;
-	});
+	}, logger);
 
 	let ipcServer: IPCServer | undefined = undefined;
 
