@@ -179,7 +179,7 @@ export class CodeActionModel extends Disposable {
 
 	private _settingEnabledNearbyQuickfixes(): boolean {
 		const model = this._editor?.getModel();
-		return this._configurationService ? this._configurationService.getValue('editor.codeActionWidget.showInlineQuickfixes', { resource: model?.uri }) : false;
+		return this._configurationService ? this._configurationService.getValue('editor.codeActionWidget.includeNearbyQuickfixes', { resource: model?.uri }) : false;
 	}
 
 	private _update(): void {
