@@ -208,7 +208,7 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewCurrentProviderId.reset();
 	}
 
-	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean): void {
+	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, lineNumber?: number): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
@@ -227,6 +227,15 @@ export class AccessibleView extends Disposable {
 			}
 		};
 		this._contextViewService.showContextView(delegate);
+
+		if (lineNumber) {
+			// Context view takes time to show up, so we need to wait for it to show up before we can set the position
+			setTimeout(() => {
+				this._editorWidget.revealLine(lineNumber);
+				this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+			}, 50);
+		}
+
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
@@ -324,9 +333,7 @@ export class AccessibleView extends Disposable {
 		if (lineNumber === undefined) {
 			return;
 		}
-		this.show(provider);
-		this._editorWidget.revealLine(lineNumber);
-		this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		this.show(provider, undefined, undefined, lineNumber);
 		this._updateContextKeys(provider, true);
 	}
 
