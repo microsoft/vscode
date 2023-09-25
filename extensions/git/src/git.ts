@@ -2402,7 +2402,7 @@ export class Repository {
 			args.push('--ignore-case');
 		}
 
-		if (/^refs\/(head|remotes)\//i.test(name)) {
+		if (/^refs\/(heads|remotes)\//i.test(name)) {
 			args.push(name);
 		} else {
 			args.push(`refs/heads/${name}`, `refs/remotes/${name}`);
