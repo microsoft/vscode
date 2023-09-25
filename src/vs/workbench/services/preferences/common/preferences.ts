@@ -93,15 +93,15 @@ export interface ISetting {
 	editPresentation?: EditPresentationTypes;
 	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
 	isLanguageTagSetting?: boolean;
-	categoryOrder?: number;
 	categoryLabel?: string;
 
-	// For ExtensionToggle settings
+	// Internal properties
 	displayExtensionId?: string;
 	stableExtensionId?: string;
 	prereleaseExtensionId?: string;
 	title?: string;
 	extensionGroupTitle?: string;
+	internalOrder?: number;
 }
 
 export interface IExtensionSetting extends ISetting {
