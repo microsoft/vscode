@@ -11,7 +11,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { isEqual } from 'vs/base/common/extpath';
-import { DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase, joinPath, basename as resourcesBasename, dirname as resourcesDirname } from 'vs/base/common/resources';
@@ -255,9 +255,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		// Ensure to create locks for all resources involved
 		// since atomic write involves mutiple disk operations
 		// and resources.
-		const [resourceLock, tempResourceLock] = await Promise.all([this.createResourceLock(resource), this.createResourceLock(tempResource)]);
+
+		const locks = new DisposableStore();
 
 		try {
+			locks.add(await this.createResourceLock(resource));
+			locks.add(await this.createResourceLock(tempResource));
+
 			// Write to temp resource first
 			await this.doWriteFile(tempResource, content, opts, true /* disable write lock */);
 
@@ -278,7 +282,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				throw error;
 			}
 		} finally {
-			dispose([resourceLock, tempResourceLock]);
+			locks.dispose();
 		}
 	}
 
@@ -765,13 +769,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const locks = new DisposableStore();
 
 		try {
-			const [fromLock, toLock] = await Promise.all([
-				this.createResourceLock(from),
-				this.createResourceLock(to)
-			]);
-
-			locks.add(fromLock);
-			locks.add(toLock);
+			locks.add(await this.createResourceLock(from));
+			locks.add(await this.createResourceLock(to));
 
 			if (mkdir) {
 				await Promises.mkdir(dirname(toFilePath), { recursive: true });
