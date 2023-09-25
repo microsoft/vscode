@@ -17,7 +17,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { EditorCommandsContextActionRunner, IToolbarActions, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -55,7 +55,6 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorPinnedAndUnpinnedTabsContext } from 'vs/workbench/common/contextkeys';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -102,8 +101,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private static readonly MOUSE_WHEEL_EVENT_THRESHOLD = 150;
 	private static readonly MOUSE_WHEEL_DISTANCE_THRESHOLD = 1.5;
-
-	private editorPinnedAndUnpinnedTabsContext: IContextKey<boolean>;
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
@@ -163,8 +160,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
-
-		this.editorPinnedAndUnpinnedTabsContext = EditorPinnedAndUnpinnedTabsContext.bindTo(contextKeyService);
 	}
 
 	protected override create(parent: HTMLElement): void {
@@ -460,9 +455,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				anchor = new StandardMouseEvent(e);
 			}
 
-			// Update context before menu opens. Reset afterwards.
-			this.editorPinnedAndUnpinnedTabsContext.set(this.groupView.stickyCount > 0 && this.groupView.stickyCount < this.groupView.count);
-
 			// Show it
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
@@ -471,11 +463,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				menuActionOptions: { shouldForwardArgs: true },
 				getActionsContext: () => ({ groupId: this.groupView.id }),
 				getKeyBinding: action => this.getKeybinding(action),
-				onHide: () => {
-					this.editorPinnedAndUnpinnedTabsContext.set(false);
-
-					this.groupView.focus();
-				}
+				onHide: () => this.groupView.focus()
 			});
 		};
 
