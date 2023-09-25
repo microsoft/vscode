@@ -1455,11 +1455,47 @@ export class Repository implements Disposable {
 
 		// Upstream
 		if (branch.upstream) {
-			return this.getBranch(`refs/remotes/${branch.upstream.remote}/${branch.upstream.name}`);
+			return await this.getBranch(`refs/remotes/${branch.upstream.remote}/${branch.upstream.name}`);
+		}
+
+		// Reflog
+		const branchFromReflog = await this.getBranchBaseFromReflog(ref);
+		if (branchFromReflog) {
+			return branchFromReflog;
 		}
 
 		// Default branch
 		return await this.getDefaultBranch();
+	}
+
+	private async getBranchBaseFromReflog(ref: string): Promise<Branch | undefined> {
+		try {
+			const reflogEntries = await this.repository.reflog(ref, 'branch: Created from *.');
+			if (reflogEntries.length !== 1) {
+				return undefined;
+			}
+
+			// Branch created from an explicit branch
+			const match = reflogEntries[0].match(/branch: Created from (?<name>.*)$/);
+			if (match && match.length === 2 && match[1] !== 'HEAD') {
+				return await this.getBranch(match[1]);
+			}
+
+			// Branch created from HEAD
+			const headReflogEntries = await this.repository.reflog('HEAD', `checkout: moving from .* to ${ref.replace('refs/heads/', '')}`);
+			if (headReflogEntries.length === 0) {
+				return undefined;
+			}
+
+			const match2 = headReflogEntries[headReflogEntries.length - 1].match(/checkout: moving from ([^\s]+)\s/);
+			if (match2 && match2.length === 2) {
+				return await this.getBranch(match2[1]);
+			}
+
+		}
+		catch (err) { }
+
+		return undefined;
 	}
 
 	private async getDefaultBranch(): Promise<Branch | undefined> {
