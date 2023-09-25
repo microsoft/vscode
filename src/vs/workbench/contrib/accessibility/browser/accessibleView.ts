@@ -392,7 +392,7 @@ export class AccessibleView extends Disposable {
 			}
 		}
 		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
-		const exitThisDialogHint = verbose ? localize('exit', '\n\nExit this dialog (Escape).') : '';
+		const exitThisDialogHint = verbose && !provider.options.positionBottom ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
 		this._updateContextKeys(provider, true);
 
