@@ -455,8 +455,8 @@ export class MenuItemAction implements IAction {
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
 
-		if (item.description) {
-			this.description = isLocalizedString(item.description.description) ? item.description.description : { value: item.description.description, original: item.description.description };
+		if (item.metadata) {
+			this.description = isLocalizedString(item.metadata.description) ? item.metadata.description : { value: item.metadata.description, original: item.metadata.description };
 		}
 
 		let icon: ThemeIcon | undefined;
@@ -576,7 +576,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	disposables.add(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: command.description,
+		metadata: command.metadata,
 	}));
 
 	// menu

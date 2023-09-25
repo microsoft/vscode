@@ -35,10 +35,10 @@ export interface ICommandHandler {
 export interface ICommand {
 	id: string;
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+	metadata?: ICommandMetadata | null;
 }
 
-export interface ICommandHandlerDescription {
+export interface ICommandMetadata {
 	/**
 	 * NOTE: Please use an ILocalizedString. string is in the type for backcompat for now.
 	 * A short summary of what the command does. This will be used in:
@@ -87,9 +87,9 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		}
 
 		// add argument validation if rich command metadata is provided
-		if (idOrCommand.description && Array.isArray(idOrCommand.description.args)) {
+		if (idOrCommand.metadata && Array.isArray(idOrCommand.metadata.args)) {
 			const constraints: Array<TypeConstraint | undefined> = [];
-			for (const arg of idOrCommand.description.args) {
+			for (const arg of idOrCommand.metadata.args) {
 				constraints.push(arg.constraint);
 			}
 			const actualHandler = idOrCommand.handler;

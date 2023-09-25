@@ -923,18 +923,18 @@ class KeybindingsJsonSchema {
 
 		const allCommands = CommandsRegistry.getCommands();
 		for (const [commandId, command] of allCommands) {
-			const commandDescription = command.description;
+			const commandMetadata = command.metadata;
 
-			addKnownCommand(commandId, commandDescription?.description);
+			addKnownCommand(commandId, commandMetadata?.description);
 
-			if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+			if (!commandMetadata || !commandMetadata.args || commandMetadata.args.length !== 1 || !commandMetadata.args[0].schema) {
 				continue;
 			}
 
-			const argsSchema = commandDescription.args[0].schema;
+			const argsSchema = commandMetadata.args[0].schema;
 			const argsRequired = (
-				(typeof commandDescription.args[0].isOptional !== 'undefined')
-					? (!commandDescription.args[0].isOptional)
+				(typeof commandMetadata.args[0].isOptional !== 'undefined')
+					? (!commandMetadata.args[0].isOptional)
 					: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
 			);
 			const addition = {

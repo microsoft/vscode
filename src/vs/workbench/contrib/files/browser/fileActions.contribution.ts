@@ -189,13 +189,13 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, icon: Th
 
 // Menu registration - command palette
 
-export function appendToCommandPalette({ id, title, category, description }: ICommandAction, when?: ContextKeyExpression): void {
+export function appendToCommandPalette({ id, title, category, metadata }: ICommandAction, when?: ContextKeyExpression): void {
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id,
 			title,
 			category,
-			description
+			metadata
 		},
 		when
 	});
@@ -264,7 +264,7 @@ appendToCommandPalette({
 	id: NEW_FOLDER_COMMAND_ID,
 	title: { value: NEW_FOLDER_LABEL, original: 'New Folder' },
 	category: Categories.File,
-	description: {
+	metadata: {
 		description: { value: nls.localize('newFolderDescription', "Create a new folder or directory"), original: 'Create a new folder or directory' }
 	}
 }, WorkspaceFolderCountContext.notEqualsTo('0'));

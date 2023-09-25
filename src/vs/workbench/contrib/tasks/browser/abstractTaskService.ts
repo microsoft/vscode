@@ -434,7 +434,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					await this._runTaskCommand(arg);
 				}
 			},
-			description: {
+			metadata: {
 				description: 'Run Task',
 				args: [{
 					name: 'args',
