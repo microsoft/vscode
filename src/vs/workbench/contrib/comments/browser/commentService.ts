@@ -417,7 +417,10 @@ export class CommentService extends Disposable implements ICommentService {
 	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string }): PendingCommentThread | undefined {
 		const pendingComments = this._continueOnComments.get(pendingComment.owner);
 		if (pendingComments) {
-			return pendingComments.splice(pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range)), 1)[0];
+			const commentIndex = pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range));
+			if (commentIndex > -1) {
+				return pendingComments.splice(commentIndex, 1)[0];
+			}
 		}
 		return undefined;
 	}
