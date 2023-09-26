@@ -11,7 +11,6 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Event } from 'vs/base/common/event';
 import type { ISearchOptions } from 'xterm-addon-search';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -86,7 +85,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			// trigger highlight all matches
 			this._findPreviousWithEvent(xterm, inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
 				this.updateButtons(foundMatch);
-				this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
 			});
 		}
 		this.updateButtons(false);
@@ -128,7 +126,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerBlur() {
-		this._instance.xterm?.clearActiveSearchDecoration();
 		this._findWidgetFocused.reset();
 	}
 
@@ -153,14 +150,12 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	private async _findNextWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
 		return xterm.findNext(term, options).then(foundMatch => {
-			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
 			return foundMatch;
 		});
 	}
 
 	private async _findPreviousWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
 		return xterm.findPrevious(term, options).then(foundMatch => {
-			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
 			return foundMatch;
 		});
 	}

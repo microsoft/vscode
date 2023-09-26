@@ -518,10 +518,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._searchAddon?.clearDecorations();
 	}
 
-	clearActiveSearchDecoration(): void {
-		this._searchAddon?.clearActiveDecoration();
-	}
-
 	getFont(): ITerminalFont {
 		return this._configHelper.getFont(this._core);
 	}

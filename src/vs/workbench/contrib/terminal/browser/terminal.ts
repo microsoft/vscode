@@ -1126,11 +1126,6 @@ export interface IXtermTerminal extends IDisposable {
 	clearSearchDecorations(): void;
 
 	/**
-	 * Clears the active search result decorations
-	 */
-	clearActiveSearchDecoration(): void;
-
-	/**
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
