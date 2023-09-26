@@ -11,6 +11,9 @@ const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my curr
 const sendWorkspaceInfoLabel = escape(localize('sendWorkspaceInfo', "Include my workspace metadata"));
 const sendExtensionsLabel = escape(localize('sendExtensions', "Include my enabled extensions"));
 const sendExperimentsLabel = escape(localize('sendExperiments', "Include A/B experiment info"));
+const issueTypeLabel = escape(localize('issueTypeLabel', "This is a"));
+const issueSourceLabel = escape(localize('issueSourceLabel', "File on"));
+const issueTitleLabel = escape(localize('issueTitleLabel', "Title"));
 const reviewGuidanceLabel = localize( // intentionally not escaped because of its embedded tags
 	{
 		key: 'reviewGuidanceLabel',
@@ -30,15 +33,15 @@ export default (): string => `
 
 	<div class="section">
 		<div class="input-group">
-			<label class="inline-label" for="issue-type">${escape(localize('issueTypeLabel', "This is a"))}</label>
-			<select id="issue-type" class="inline-form-control">
+			<label class="inline-label" for="issue-type">${issueTypeLabel}</label>
+			<select id="issue-type" class="inline-form-control" aria-label="${issueTypeLabel}">
 				<!-- To be dynamically filled -->
 			</select>
 		</div>
 
 		<div class="input-group" id="problem-source">
-			<label class="inline-label" for="issue-source">${escape(localize('issueSourceLabel', "File on"))} <span class="required-input">*</span></label>
-			<select id="issue-source" class="inline-form-control" required>
+			<label class="inline-label" for="issue-source">${issueSourceLabel} <span class="required-input">*</span></label>
+			<select id="issue-source" class="inline-form-control" required aria-label="${issueSourceLabel}">
 				<!-- To be dynamically filled -->
 			</select>
 			<div id="issue-source-empty-error" class="validation-error hidden" role="alert">${escape(localize('issueSourceEmptyValidation', "An issue source is required."))}</div>
@@ -60,8 +63,8 @@ export default (): string => `
 		</div>
 
 		<div id="issue-title-container" class="input-group">
-			<label class="inline-label" for="issue-title">${escape(localize('issueTitleLabel', "Title"))} <span class="required-input">*</span></label>
-			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required>
+			<label class="inline-label" for="issue-title">${issueTitleLabel} <span class="required-input">*</span></label>
+			<input id="issue-title" type="text" class="inline-form-control" placeholder="${escape(localize('issueTitleRequired', "Please enter a title."))}" required aria-label="${issueTitleLabel}">
 			<div id="issue-title-empty-error" class="validation-error hidden" role="alert">${escape(localize('titleEmptyValidation', "A title is required."))}</div>
 			<div id="issue-title-length-validation-error" class="validation-error hidden" role="alert">${escape(localize('titleLengthValidation', "The title is too long."))}</div>
 			<small id="similar-issues">

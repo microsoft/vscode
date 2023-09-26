@@ -728,6 +728,8 @@ export class IssueReporter extends Disposable {
 			return;
 		}
 
+		const stepsToReproduce = localize('stepsToReproduce', "Steps to Reproduce");
+
 		if (issueType === IssueType.Bug) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
@@ -738,8 +740,9 @@ export class IssueReporter extends Disposable {
 				}
 			}
 
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, stepsToReproduce + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			descriptionTextArea.ariaLabel = stepsToReproduce;
 		} else if (issueType === IssueType.PerformanceIssue) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
@@ -755,11 +758,14 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 
-			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
+			reset(descriptionTitle, stepsToReproduce + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			descriptionTextArea.ariaLabel = stepsToReproduce;
 		} else if (issueType === IssueType.FeatureRequest) {
-			reset(descriptionTitle, localize('description', "Description") + ' ', $('span.required-input', undefined, '*'));
+			const description = localize('description', "Description");
+			reset(descriptionTitle, description + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			descriptionTextArea.ariaLabel = description;
 		}
 	}
 
