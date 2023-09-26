@@ -28,6 +28,10 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly secondary?: boolean;
 }
 
+export interface IThing {
+	readonly label: string;
+}
+
 export interface IButtonStyles {
 	readonly buttonBackground: string | undefined;
 	readonly buttonHoverBackground: string | undefined;
