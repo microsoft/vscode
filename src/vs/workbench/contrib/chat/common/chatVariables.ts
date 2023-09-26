@@ -9,6 +9,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestVariablePart, IParsedChatRequest, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export interface IChatVariableData {
 	name: string;
@@ -33,12 +34,13 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
+	hasVariable(name: string): boolean;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
 
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
+	resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
 }
 
 interface IChatData {
@@ -59,40 +61,29 @@ export class ChatVariablesService implements IChatVariablesService {
 	constructor() {
 	}
 
-	async resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
+	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
 		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
 		const jobs: Promise<any>[] = [];
 
-		// TODO have a separate parser that is also used for decorations
-		const regex = /(^|\s)@(\w+)(:\w+)?(?=\s|$|\b)/ig;
-
-		let lastMatch = 0;
 		const parsedPrompt: string[] = [];
-		let match: RegExpMatchArray | null;
-		while (match = regex.exec(prompt)) {
-			const [fullMatch, leading, varName, arg] = match;
-			const data = this._resolver.get(varName.toLowerCase());
-			if (data) {
-				if (!arg || data.data.canTakeArgument) {
-					parsedPrompt.push(prompt.substring(lastMatch, match.index!));
-					parsedPrompt.push('');
-					lastMatch = match.index! + fullMatch.length;
-					const varIndex = parsedPrompt.length - 1;
-					const argWithoutColon = arg?.slice(1);
-					const fullVarName = varName + (arg ?? '');
-					jobs.push(data.resolver(prompt, argWithoutColon, model, token).then(value => {
-						if (value) {
-							resolvedVariables[fullVarName] = value;
-							parsedPrompt[varIndex] = `${leading}[@${fullVarName}](values:${fullVarName})`;
-						} else {
-							parsedPrompt[varIndex] = fullMatch;
-						}
-					}).catch(onUnexpectedExternalError));
+		prompt.parts
+			.forEach((varPart, i) => {
+				if (varPart instanceof ChatRequestVariablePart) {
+					const data = this._resolver.get(varPart.variableName.toLowerCase());
+					if (data) {
+						jobs.push(data.resolver(prompt.text, varPart.variableArg, model, token).then(value => {
+							if (value) {
+								resolvedVariables[varPart.variableName] = value;
+								parsedPrompt[i] = `[${chatVariableLeader}${varPart.variableName}](values:${varPart.variableName})`;
+							} else {
+								parsedPrompt[i] = varPart.text;
+							}
+						}).catch(onUnexpectedExternalError));
+					}
+				} else {
+					parsedPrompt[i] = varPart.text;
 				}
-			}
-		}
-
-		parsedPrompt.push(prompt.substring(lastMatch));
+			});
 
 		await Promise.allSettled(jobs);
 
@@ -100,6 +91,10 @@ export class ChatVariablesService implements IChatVariablesService {
 			variables: resolvedVariables,
 			prompt: parsedPrompt.join('')
 		};
+	}
+
+	hasVariable(name: string): boolean {
+		return this._resolver.has(name.toLowerCase());
 	}
 
 	getVariables(): Iterable<Readonly<IChatVariableData>> {

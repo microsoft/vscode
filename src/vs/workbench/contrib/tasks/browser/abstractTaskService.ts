@@ -62,7 +62,6 @@ import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDe
 
 import { raceTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { once } from 'vs/base/common/functional';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
 import { Schemas } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -231,6 +230,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
 	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
 	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
+	public get isReconnected(): boolean { return this._tasksReconnected; }
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -339,7 +339,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}));
 		this._waitForAllSupportedExecutions = new Promise(resolve => {
-			once(this._onDidRegisterAllSupportedExecutions.event)(() => resolve());
+			Event.once(this._onDidRegisterAllSupportedExecutions.event)(() => resolve());
 		});
 		if (this._terminalService.getReconnectedTerminals('Task')?.length) {
 			this._attemptTaskReconnection();
@@ -349,6 +349,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					this._attemptTaskReconnection();
 				} else {
 					this._tasksReconnected = true;
+					this._onDidReconnectToTasks.fire();
 				}
 			});
 		}

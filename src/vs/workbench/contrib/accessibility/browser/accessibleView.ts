@@ -101,6 +101,8 @@ export interface IAccessibleViewOptions {
 	 */
 	language?: string;
 	type: AccessibleViewType;
+	positionBottom?: boolean;
+	customHelp?: () => string;
 }
 
 export class AccessibleView extends Disposable {
@@ -207,7 +209,7 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewCurrentProviderId.reset();
 	}
 
-	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean): void {
+	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, lineNumber?: number): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
@@ -226,6 +228,15 @@ export class AccessibleView extends Disposable {
 			}
 		};
 		this._contextViewService.showContextView(delegate);
+
+		if (lineNumber) {
+			// Context view takes time to show up, so we need to wait for it to show up before we can set the position
+			setTimeout(() => {
+				this._editorWidget.revealLine(lineNumber);
+				this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+			}, 50);
+		}
+
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
@@ -323,9 +334,7 @@ export class AccessibleView extends Disposable {
 		if (lineNumber === undefined) {
 			return;
 		}
-		this.show(provider);
-		this._editorWidget.revealLine(lineNumber);
-		this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		this.show(provider, undefined, undefined, lineNumber);
 		this._updateContextKeys(provider, true);
 	}
 
@@ -362,7 +371,7 @@ export class AccessibleView extends Disposable {
 			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey.replaceAll('accessibility.verbosity.', ''));
 		}
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
-		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nPress H now to open a browser window with more information related to accessibility.\n\n") : '';
+		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
 		let disableHelpHint = '';
 		if (provider.options.type === AccessibleViewType.Help && !!value) {
 			disableHelpHint = this._getDisableVerbosityHint(provider.verbositySettingKey);
@@ -383,7 +392,9 @@ export class AccessibleView extends Disposable {
 				message += '\n';
 			}
 		}
-		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint;
+		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
+		const exitThisDialogHint = verbose && !provider.options.positionBottom ? localize('exit', '\n\nExit this dialog (Escape).') : '';
+		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
 		this._updateContextKeys(provider, true);
 
 		this._getTextModel(URI.from({ path: `accessible-view-${provider.verbositySettingKey}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
@@ -401,7 +412,7 @@ export class AccessibleView extends Disposable {
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || this._currentProvider?.actions;
 			if (verbose && !showAccessibleViewHelp && hasActions) {
-				actionsHint = localize('ariaAccessibleViewActions', "Use Shift+Tab to explore actions such as disabling this hint.");
+				actionsHint = provider.options.positionBottom ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
 			}
 			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "Accessibility Help") : localize('accessible-view', "Accessible View");
 			this._title.textContent = ariaLabel;
@@ -412,6 +423,14 @@ export class AccessibleView extends Disposable {
 			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
+			if (this._currentProvider?.options.positionBottom) {
+				const lastLine = this.editorWidget.getModel()?.getLineCount();
+				const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
+				if (position) {
+					this._editorWidget.setPosition(position);
+					this._editorWidget.revealLine(position.lineNumber);
+				}
+			}
 		});
 		this._updateToolbar(provider.actions, provider.options.type);
 
@@ -496,9 +515,10 @@ export class AccessibleView extends Disposable {
 
 		}
 		const currentProvider = Object.assign({}, this._currentProvider);
+		currentProvider.provideContent = this._currentProvider.provideContent.bind(currentProvider);
 		currentProvider.options = Object.assign({}, currentProvider.options);
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
-			provideContent: () => this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+			provideContent: () => currentProvider.options.customHelp ? currentProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 			onClose: () => this.show(currentProvider),
 			options: { type: AccessibleViewType.Help },
 			verbositySettingKey: this._currentProvider.verbositySettingKey
@@ -511,7 +531,7 @@ export class AccessibleView extends Disposable {
 	private _getAccessibleViewHelpDialogContent(providerHasSymbols?: boolean): string {
 		const navigationHint = this._getNavigationHint();
 		const goToSymbolHint = this._getGoToSymbolHint(providerHasSymbols);
-		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab))");
+		const toolbarHint = localize('toolbar', "Navigate to the toolbar (Shift+Tab)).");
 
 		let hint = localize('intro', "In the accessible view, you can:\n");
 		if (navigationHint) {
@@ -531,9 +551,9 @@ export class AccessibleView extends Disposable {
 		const nextKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.ShowNext)?.getAriaLabel();
 		const previousKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.ShowPrevious)?.getAriaLabel();
 		if (nextKeybinding && previousKeybinding) {
-			hint = localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item", nextKeybinding, previousKeybinding);
+			hint = localize('accessibleViewNextPreviousHint', "Show the next ({0}) or previous ({1}) item.", nextKeybinding, previousKeybinding);
 		} else {
-			hint = localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item by configuring keybindings for the Show Next & Previous in Accessible View commands");
+			hint = localize('chatAccessibleViewNextPreviousHintNoKb', "Show the next or previous item by configuring keybindings for the Show Next & Previous in Accessible View commands.");
 		}
 		return hint;
 	}
@@ -544,9 +564,9 @@ export class AccessibleView extends Disposable {
 		let hint = '';
 		const disableKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.DisableVerbosityHint, this._contextKeyService)?.getAriaLabel();
 		if (disableKeybinding) {
-			hint = localize('acessibleViewDisableHint', "Disable accessibility verbosity for this feature ({0}). This will disable the hint to open the accessible view for example.\n", disableKeybinding);
+			hint = localize('acessibleViewDisableHint', "\n\nDisable accessibility verbosity for this feature ({0}).", disableKeybinding);
 		} else {
-			hint = localize('accessibleViewDisableHintNoKb', "Add a keybinding for the command Disable Accessible View Hint, which disables accessibility verbosity for this feature.\n");
+			hint = localize('accessibleViewDisableHintNoKb', "\n\nAdd a keybinding for the command Disable Accessible View Hint, which disables accessibility verbosity for this feature.s");
 		}
 		return hint;
 	}

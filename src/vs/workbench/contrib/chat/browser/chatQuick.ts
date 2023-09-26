@@ -14,11 +14,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
@@ -211,7 +212,7 @@ class QuickChat extends Disposable {
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
 					inputEditorBackground: inputBackground,
-					resultEditorBackground: quickInputBackground
+					resultEditorBackground: editorBackground
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
@@ -271,7 +272,7 @@ class QuickChat extends Disposable {
 		for (const request of this.model.getRequests()) {
 			if (request.response?.response.value || request.response?.errorDetails) {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
-					request.message as string,
+					request.message as IParsedChatRequest,
 					{
 						message: request.response.response.value,
 						errorDetails: request.response.errorDetails,

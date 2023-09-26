@@ -62,7 +62,7 @@ import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsL
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, ISettingListChangeEvent, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -409,12 +409,6 @@ export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], tar
 	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilter, configurationService).isConfigured);
 }
 
-function compareNullableIntegers(a?: number, b?: number) {
-	const firstElem = a ?? Number.MAX_SAFE_INTEGER;
-	const secondElem = b ?? Number.MAX_SAFE_INTEGER;
-	return firstElem - secondElem;
-}
-
 export async function createTocTreeForExtensionSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
 	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
 	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
@@ -452,9 +446,10 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const extensionRootEntry of extGroupTree.values()) {
 			for (const child of extensionRootEntry.children!) {
-				// Sort the individual settings of the child.
+				// Sort the individual settings of the child by order.
+				// Leave the undefined order settings untouched.
 				child.settings?.sort((a, b) => {
-					return compareNullableIntegers(a.order, b.order);
+					return compareTwoNullableNumbers(a.order, b.order);
 				});
 			}
 
@@ -468,8 +463,9 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 				});
 			} else {
 				// Sort the categories.
+				// Leave the undefined order categories untouched.
 				extensionRootEntry.children!.sort((a, b) => {
-					return compareNullableIntegers(a.order, b.order);
+					return compareTwoNullableNumbers(a.order, b.order);
 				});
 
 				// If there is a category that matches the setting name,

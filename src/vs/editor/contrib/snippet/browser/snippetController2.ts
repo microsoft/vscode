@@ -62,7 +62,7 @@ export class SnippetController2 implements IEditorContribution {
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
-	private _snippetListener = new DisposableStore();
+	private readonly _snippetListener = new DisposableStore();
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
 

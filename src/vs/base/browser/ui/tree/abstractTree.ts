@@ -22,7 +22,7 @@ import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { Delayer, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { SetMap } from 'vs/base/common/collections';
+import { SetMap } from 'vs/base/common/map';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -61,6 +61,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
 	private autoExpandDisposable: IDisposable = Disposable.None;
+	private disposables = new DisposableStore();
 
 	constructor(private modelProvider: () => ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
 
@@ -103,7 +104,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 				}
 
 				this.autoExpandNode = undefined;
-			}, 500);
+			}, 500, this.disposables);
 		}
 
 		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined' || result.feedback) {
@@ -143,6 +144,11 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	onDragEnd(originalEvent: DragEvent): void {
 		this.dnd.onDragEnd?.(originalEvent);
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+		this.dnd.dispose();
 	}
 }
 
@@ -1027,7 +1033,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	private readonly _onDidChangeOpenState = new Emitter<boolean>();
 	readonly onDidChangeOpenState = this._onDidChangeOpenState.event;
 
-	private enabledDisposables = new DisposableStore();
+	private readonly enabledDisposables = new DisposableStore();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -1085,8 +1091,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		this._history = this.widget.getHistory();
 		this.widget = undefined;
 
-		this.enabledDisposables.dispose();
-		this.enabledDisposables = new DisposableStore();
+		this.enabledDisposables.clear();
 
 		this.previousPattern = this.pattern;
 		this.onDidChangeValue('');

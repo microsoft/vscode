@@ -20,6 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewsService } from 'vs/workbench/common/views';
+import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChat, IChatProgress, IChatProvider, IChatRequest, IChatResponse, IPersistedChatState, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
@@ -81,6 +82,7 @@ suite('Chat', () => {
 		instantiationService.stub(IChatContributionService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 	});
 
 	test('retrieveSession', async () => {
@@ -92,11 +94,11 @@ suite('Chat', () => {
 
 		const session1 = testDisposables.add(testService.startSession('provider1', CancellationToken.None));
 		await session1.waitForInitialization();
-		session1!.addRequest('request 1');
+		session1!.addRequest({ parts: [], text: 'request 1' });
 
 		const session2 = testDisposables.add(testService.startSession('provider2', CancellationToken.None));
 		await session2.waitForInitialization();
-		session2!.addRequest('request 2');
+		session2!.addRequest({ parts: [], text: 'request 2' });
 
 		assert.strictEqual(provider1.lastInitialState, undefined);
 		assert.strictEqual(provider2.lastInitialState, undefined);

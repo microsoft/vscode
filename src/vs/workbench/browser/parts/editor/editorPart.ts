@@ -14,7 +14,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -80,7 +80,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor, IEditorDropService {
+export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsView, IEditorDropService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -625,7 +625,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.doUpdateMostRecentActive(group, true);
 
 			// Mark previous one as inactive
-			previousActiveGroup?.setActive(false);
+			if (previousActiveGroup && !previousActiveGroup.disposed) {
+				previousActiveGroup.setActive(false);
+			}
 
 			// Mark group as new active
 			group.setActive(true);

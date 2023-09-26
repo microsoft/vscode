@@ -11,7 +11,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -45,7 +45,7 @@ import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/commo
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
 import { ExtensionHostStarter } from 'vs/platform/extensions/electron-main/extensionHostStarter';
-import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-main/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -1310,7 +1310,7 @@ export class CodeApplication extends Disposable {
 			try {
 				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
-				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
+				Event.once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
 			} catch (error) {
 				this.logService.error(error);
 			}

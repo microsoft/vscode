@@ -34,7 +34,7 @@ import { Color } from 'vs/base/common/color';
 import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 import { MinimapPosition, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { SectionHeader, SectionHeaderLocationProvider } from 'vs/editor/browser/viewParts/minimap/sectionHeaderLocationProvider';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
@@ -149,7 +149,7 @@ class MinimapOptions {
 		this.sectionHeaderFontSize = minimapLayout.minimapSectionHeaderFontSize;
 		this.sectionHeaderFontColor = MinimapOptions._getSectionHeaderColor(theme, tokensColorTracker.getColor(ColorId.DefaultForeground));
 
-		this.charRenderer = once(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
+		this.charRenderer = createSingleCallFunction(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
 		this.defaultBackgroundColor = tokensColorTracker.getColor(ColorId.DefaultBackground);
 		this.backgroundColor = MinimapOptions._getMinimapBackground(theme, this.defaultBackgroundColor);
 		this.foregroundAlpha = MinimapOptions._getMinimapForegroundOpacity(theme);

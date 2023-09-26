@@ -38,7 +38,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ISelection } from 'vs/editor/common/core/selection';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export const enum State {
@@ -64,7 +64,7 @@ const enum Message {
 	RERUN_INPUT = 1 << 6,
 }
 
-export interface InlineChatRunOptions {
+export abstract class InlineChatRunOptions {
 	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
@@ -72,6 +72,19 @@ export interface InlineChatRunOptions {
 	existingSession?: Session;
 	isUnstashed?: boolean;
 	position?: IPosition;
+
+	static isInteractiveEditorOptions(options: any): options is InlineChatRunOptions {
+		const { initialSelection, initialRange, message, autoSend, position } = options;
+		if (
+			typeof message !== 'undefined' && typeof message !== 'string'
+			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
+			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)
+			|| typeof initialSelection !== 'undefined' && !Selection.isISelection(initialSelection)
+			|| typeof position !== 'undefined' && !Position.isIPosition(position)) {
+			return false;
+		}
+		return true;
+	}
 }
 
 export class InlineChatController implements IEditorContribution {
@@ -580,7 +593,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.APPLY_RESPONSE](): Promise<State.SHOW_RESPONSE | State.ACCEPT> {
+	private async [State.APPLY_RESPONSE](): Promise<State.SHOW_RESPONSE | State.CANCEL> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -591,7 +604,7 @@ export class InlineChatController implements IEditorContribution {
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
-				return State.ACCEPT;
+				return State.CANCEL;
 			}
 		}
 		return State.SHOW_RESPONSE;
@@ -630,7 +643,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.ACCEPT> {
+	private async [State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.CANCEL> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -692,7 +705,7 @@ export class InlineChatController implements IEditorContribution {
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
-				return State.ACCEPT;
+				return State.CANCEL;
 			}
 			status = this._configurationService.getValue('accessibility.verbosity.inlineChat') === true ? localize('editResponseMessage', "Use tab to navigate to the diff editor and review proposed changes.") : '';
 			await this._strategy.renderChanges(response);

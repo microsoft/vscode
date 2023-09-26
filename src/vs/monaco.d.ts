@@ -419,28 +419,28 @@ declare namespace monaco {
 		 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
 		 */
 		IntlBackslash = 97,
-		Numpad0 = 98,
-		Numpad1 = 99,
-		Numpad2 = 100,
-		Numpad3 = 101,
-		Numpad4 = 102,
-		Numpad5 = 103,
-		Numpad6 = 104,
-		Numpad7 = 105,
-		Numpad8 = 106,
-		Numpad9 = 107,
-		NumpadMultiply = 108,
-		NumpadAdd = 109,
-		NUMPAD_SEPARATOR = 110,
-		NumpadSubtract = 111,
-		NumpadDecimal = 112,
-		NumpadDivide = 113,
+		Numpad0 = 98,// VK_NUMPAD0, 0x60, Numeric keypad 0 key
+		Numpad1 = 99,// VK_NUMPAD1, 0x61, Numeric keypad 1 key
+		Numpad2 = 100,// VK_NUMPAD2, 0x62, Numeric keypad 2 key
+		Numpad3 = 101,// VK_NUMPAD3, 0x63, Numeric keypad 3 key
+		Numpad4 = 102,// VK_NUMPAD4, 0x64, Numeric keypad 4 key
+		Numpad5 = 103,// VK_NUMPAD5, 0x65, Numeric keypad 5 key
+		Numpad6 = 104,// VK_NUMPAD6, 0x66, Numeric keypad 6 key
+		Numpad7 = 105,// VK_NUMPAD7, 0x67, Numeric keypad 7 key
+		Numpad8 = 106,// VK_NUMPAD8, 0x68, Numeric keypad 8 key
+		Numpad9 = 107,// VK_NUMPAD9, 0x69, Numeric keypad 9 key
+		NumpadMultiply = 108,// VK_MULTIPLY, 0x6A, Multiply key
+		NumpadAdd = 109,// VK_ADD, 0x6B, Add key
+		NUMPAD_SEPARATOR = 110,// VK_SEPARATOR, 0x6C, Separator key
+		NumpadSubtract = 111,// VK_SUBTRACT, 0x6D, Subtract key
+		NumpadDecimal = 112,// VK_DECIMAL, 0x6E, Decimal key
+		NumpadDivide = 113,// VK_DIVIDE, 0x6F,
 		/**
 		 * Cover all key codes when IME is processing input.
 		 */
 		KEY_IN_COMPOSITION = 114,
-		ABNT_C1 = 115,
-		ABNT_C2 = 116,
+		ABNT_C1 = 115,// Brazilian (ABNT) Keyboard
+		ABNT_C2 = 116,// Brazilian (ABNT) Keyboard
 		AudioVolumeMute = 117,
 		AudioVolumeUp = 118,
 		AudioVolumeDown = 119,
@@ -7637,6 +7637,13 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface PendingCommentThread {
+		body: string;
+		range: IRange;
+		uri: Uri;
+		owner: string;
+	}
+
 	export interface CodeLens {
 		range: IRange;
 		id?: string;
@@ -7721,14 +7728,15 @@ declare namespace monaco.languages {
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 	}
 
-	export interface RelatedContextItem {
+	export interface DocumentContextItem {
 		readonly uri: Uri;
-		readonly range: IRange;
+		readonly version: number;
+		readonly ranges: IRange[];
 	}
 
 	export interface MappedEditsContext {
-		selections: ISelection[];
-		related: RelatedContextItem[];
+		/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
+		documents: DocumentContextItem[][];
 	}
 
 	export interface MappedEditsProvider {
