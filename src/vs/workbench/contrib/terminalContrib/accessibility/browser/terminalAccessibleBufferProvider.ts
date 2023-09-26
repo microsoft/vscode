@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IXtermTerminal, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
@@ -19,6 +20,9 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
+	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
+	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
+
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private _bufferTracker: BufferContentTracker,
@@ -30,7 +34,10 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	) {
 		super();
 		this.options.customHelp = customHelp;
+		this.add(this._instance.onDidRequestFocus(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
 	}
+
+
 
 	onClose() {
 		this._instance.focus();
