@@ -9,7 +9,7 @@ import { Repository, Resource } from './repository';
 import { IDisposable } from './util';
 import { toGitUri } from './uri';
 import { SyncActionButton } from './actionButton';
-import { Status } from './api/git';
+import { RefType, Status } from './api/git';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
@@ -142,9 +142,23 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return this.currentHistoryItemGroup.upstream;
 		}
 
-		// Default branch
-		const defaultBranch = await this.repository.getDefaultBranch();
-		return defaultBranch.name ? { id: `refs/heads/${defaultBranch.name}`, label: defaultBranch.name } : undefined;
+		// Branch base
+		const branchBase = await this.repository.getBranchBase(historyItemGroupId);
+
+		if (branchBase?.name && branchBase?.type === RefType.Head) {
+			return {
+				id: `refs/heads/${branchBase.name}`,
+				label: branchBase.name
+			};
+		}
+		if (branchBase?.name && branchBase.remote && branchBase?.type === RefType.RemoteHead) {
+			return {
+				id: `refs/remotes/${branchBase.remote}/${branchBase.name}`,
+				label: `${branchBase.remote}/${branchBase.name}`
+			};
+		}
+
+		return undefined;
 	}
 
 	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
