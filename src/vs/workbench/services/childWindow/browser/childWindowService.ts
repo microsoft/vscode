@@ -13,6 +13,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export const IChildWindowService = createDecorator<IChildWindowService>('childWindowService');
 
@@ -37,7 +38,8 @@ export class ChildWindowService implements IChildWindowService {
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) { }
 
 	create(): IChildWindow {
@@ -46,6 +48,7 @@ export class ChildWindowService implements IChildWindowService {
 		const childWindow = assertIsDefined(window.open('about:blank')?.window);
 		disposables.add(registerWindow(childWindow));
 		disposables.add(toDisposable(() => childWindow.close()));
+		disposables.add(this.lifecycleService.onDidShutdown(() => childWindow.close()));
 
 		this.blockMethods(childWindow);
 
