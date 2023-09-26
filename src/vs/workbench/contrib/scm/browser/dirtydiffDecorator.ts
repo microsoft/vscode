@@ -1674,9 +1674,11 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		}
 
 		for (const [uri, item] of this.items) {
-			if (!this.editorService.isOpened({ resource: uri, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
-				dispose(item.values());
-				this.items.delete(uri);
+			for (const editorId of item.keys()) {
+				if (!this.editorService.visibleTextEditorControls.find(editor => isCodeEditor(editor) && editor.getModel()?.uri.toString() === uri.toString() && editor.getId() === editorId)) {
+					dispose(item.values());
+					this.items.delete(uri);
+				}
 			}
 		}
 	}
