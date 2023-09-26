@@ -217,7 +217,7 @@
 	"config.autoStash": "Stash any changes before pulling and restore them after successful pull.",
 	"config.allowForcePush": "Controls whether force push (with or without lease) is enabled.",
 	"config.useForcePushWithLease": "Controls whether force pushing uses the safer force-with-lease variant.",
-	"config.useForcePushIfIncludes": "Controls whether force pushing uses the safer force-if-includes variant.",
+	"config.useForcePushIfIncludes": "Controls whether force pushing uses the safer force-if-includes variant. **Note:** Requires Git version `2.30.0` or later.",
 	"config.confirmForcePush": "Controls whether to ask for confirmation before force-pushing.",
 	"config.allowNoVerifyCommit": "Controls whether commits without running pre-commit and commit-msg hooks are allowed.",
 	"config.confirmNoVerifyCommit": "Controls whether to ask for confirmation before committing without verification.",
