@@ -53,6 +53,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(Event.once(childWindow.onDidClose)(() => disposables.dispose()));
 		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
 
+		this._onDidAddGroup.fire(editorPart.activeGroup);
+
 		return editorPart;
 	}
 
@@ -74,6 +76,11 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	private registerEditorPartListeners(part: EditorPart, disposables: DisposableStore): void {
+		disposables.add(part.onDidFocus(() => {
+			if (this.parts.size > 1) {
+				this._onDidActiveGroupChange.fire(this.activeGroup); // this can only happen when we have more than 1 editor part
+			}
+		}));
 		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));

@@ -127,7 +127,6 @@ export class OpenEditorsView extends ViewPane {
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
 					case GroupModelChangeKind.EDITOR_ACTIVE:
-					case GroupModelChangeKind.GROUP_ACTIVE:
 						this.focusActiveEditor();
 						break;
 					case GroupModelChangeKind.GROUP_INDEX:
@@ -160,6 +159,7 @@ export class OpenEditorsView extends ViewPane {
 			updateWholeList();
 		}));
 		this._register(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
+		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.focusActiveEditor()));
 		this._register(this.editorGroupService.onDidRemoveGroup(group => {
 			dispose(groupDisposables.get(group.id));
 			updateWholeList();

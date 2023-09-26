@@ -88,6 +88,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 	//#region Events
 
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
+
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
@@ -573,11 +576,11 @@ export class EditorPart extends Part implements IEditorPart {
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.groupsView, this.groupsLabel, this.count, this.instantiationService);
+			groupView = EditorGroupView.createCopy(from, this, this.groupsLabel, this.count, this.instantiationService);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.groupsView, this.groupsLabel, this.count, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this, this.groupsLabel, this.count, this.instantiationService);
 		} else {
-			groupView = EditorGroupView.createNew(this.groupsView, this.groupsLabel, this.count, this.instantiationService);
+			groupView = EditorGroupView.createNew(this, this.groupsLabel, this.count, this.instantiationService);
 		}
 
 		// Keep in map
@@ -587,6 +590,8 @@ export class EditorPart extends Part implements IEditorPart {
 		const groupDisposables = new DisposableStore();
 		groupDisposables.add(groupView.onDidFocus(() => {
 			this.doSetGroupActive(groupView);
+
+			this._onDidFocus.fire();
 		}));
 
 		// Track group changes
