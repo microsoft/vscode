@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate, IContextMenuEvent } from 'vs/base/browser/contextmenu';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
@@ -54,7 +54,7 @@ export class ContextMenuService implements IContextMenuService {
 
 		// Native context menu: otherwise
 		else {
-			this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService, configurationService);
+			this.impl = new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService);
 		}
 	}
 
@@ -77,28 +77,14 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 	private readonly _onDidHideContextMenu = this._store.add(new Emitter<void>());
 	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
 
-	private useNativeContextMenuLocation = false;
-
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-
-		this.updateUseNativeContextMenuLocation();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.experimental.nativeContextMenuLocation')) {
-				this.updateUseNativeContextMenuLocation();
-			}
-		}));
-	}
-
-	private updateUseNativeContextMenuLocation(): void {
-		this.useNativeContextMenuLocation = this.configurationService.getValue<boolean>('window.experimental.nativeContextMenuLocation') === true;
 	}
 
 	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
@@ -107,7 +93,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 		const actions = delegate.getActions();
 		if (actions.length) {
-			const onHide = once(() => {
+			const onHide = createSingleCallFunction(() => {
 				delegate.onHide?.(false);
 
 				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
@@ -173,13 +159,8 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				x = anchor.x;
 				y = anchor.y;
 			} else {
-				if (this.useNativeContextMenuLocation) {
-					// We leave x/y undefined in this case which will result in
-					// Electron taking care of opening the menu at the cursor position.
-				} else {
-					x = anchor.posx + 1; // prevent first item from being selected automatically under mouse
-					y = anchor.posy;
-				}
+				// We leave x/y undefined in this case which will result in
+				// Electron taking care of opening the menu at the cursor position.
 			}
 
 			if (typeof x === 'number') {

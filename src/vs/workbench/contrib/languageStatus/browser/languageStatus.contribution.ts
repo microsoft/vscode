@@ -72,7 +72,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	private _model?: LanguageStatusViewModel;
 	private _combinedEntry?: IStatusbarEntryAccessor;
 	private _dedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
-	private _renderDisposables = new DisposableStore();
+	private readonly _renderDisposables = new DisposableStore();
 
 	constructor(
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,

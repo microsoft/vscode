@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -68,7 +68,7 @@ abstract class AbstractSplitEditorAction extends Action2 {
 
 export class SplitEditorAction extends AbstractSplitEditorAction {
 
-	static readonly ID = 'workbench.action.splitEditor';
+	static readonly ID = SPLIT_EDITOR;
 
 	constructor() {
 		super({
@@ -2263,8 +2263,27 @@ abstract class AbstractCreateEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		editorGroupService.addGroup(editorGroupService.activeGroup, this.direction, { activate: true });
+		// We are about to create a new empty editor group. We make an opiniated
+		// decision here whether to focus that new editor group or not based
+		// on what is currently focused. If focus is outside the editor area not
+		// in the <body>, we do not focus, with the rationale that a user might
+		// have focus on a tree/list with the intention to pick an element to
+		// open in the new group from that tree/list.
+		//
+		// If focus is inside the editor area, we want to prevent the situation
+		// of an editor having keyboard focus in an inactive editor group
+		// (see https://github.com/microsoft/vscode/issues/189256)
+
+		const focusNewGroup = layoutService.hasFocus(Parts.EDITOR_PART) || document.activeElement === document.body;
+
+		const group = editorGroupService.addGroup(editorGroupService.activeGroup, this.direction);
+		editorGroupService.activateGroup(group);
+
+		if (focusNewGroup) {
+			group.focus();
+		}
 	}
 }
 

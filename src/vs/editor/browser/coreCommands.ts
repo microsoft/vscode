@@ -29,6 +29,7 @@ import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/co
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -315,9 +316,9 @@ abstract class EditorOrNativeTextInputCommand {
 		// 2. handle case when focus is in some other `input` / `textarea`.
 		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: unknown) => {
 			// Only if focused on an element that allows for entering text
-			const activeElement = <HTMLElement>document.activeElement;
+			const activeElement = getActiveElement();
 			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-				this.runDOMCommand();
+				this.runDOMCommand(activeElement);
 				return true;
 			}
 			return false;
@@ -343,7 +344,7 @@ abstract class EditorOrNativeTextInputCommand {
 		return true;
 	}
 
-	public abstract runDOMCommand(): void;
+	public abstract runDOMCommand(activeElement: Element): void;
 	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void>;
 }
 
@@ -1875,13 +1876,13 @@ export namespace CoreNavigationCommands {
 		constructor() {
 			super(SelectAllCommand);
 		}
-		public runDOMCommand(): void {
+		public runDOMCommand(activeElement: Element): void {
 			if (isFirefox) {
-				(<HTMLInputElement>document.activeElement).focus();
-				(<HTMLInputElement>document.activeElement).select();
+				(<HTMLInputElement>activeElement).focus();
+				(<HTMLInputElement>activeElement).select();
 			}
 
-			document.execCommand('selectAll');
+			activeElement.ownerDocument.execCommand('selectAll');
 		}
 		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 			const viewModel = editor._getViewModel();
@@ -2090,8 +2091,8 @@ export namespace CoreEditingCommands {
 		constructor() {
 			super(UndoCommand);
 		}
-		public runDOMCommand(): void {
-			document.execCommand('undo');
+		public runDOMCommand(activeElement: Element): void {
+			activeElement.ownerDocument.execCommand('undo');
 		}
 		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
@@ -2105,8 +2106,8 @@ export namespace CoreEditingCommands {
 		constructor() {
 			super(RedoCommand);
 		}
-		public runDOMCommand(): void {
-			document.execCommand('redo');
+		public runDOMCommand(activeElement: Element): void {
+			activeElement.ownerDocument.execCommand('redo');
 		}
 		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: unknown): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {

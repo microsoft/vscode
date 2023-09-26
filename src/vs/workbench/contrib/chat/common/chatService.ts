@@ -5,11 +5,14 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChat {
@@ -50,8 +53,22 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
+export type IDocumentContext = {
+	uri: URI;
+	version: number;
+	ranges: IRange[];
+};
+
+export type IUsedContext = {
+	documents: IDocumentContext[];
+};
+
 export type IChatProgress =
-	{ content: string } | { requestId: string } | { placeholder: string; resolvedContent: Promise<string | { treeData: IChatResponseProgressFileTreeData }> };
+	| { content: string | IMarkdownString }
+	| { requestId: string }
+	| { treeData: IChatResponseProgressFileTreeData }
+	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
+	| IUsedContext;
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -89,6 +106,11 @@ export interface ISlashCommand {
 	 * Has no effect if `shouldRepopulate` is `false`.
 	 */
 	followupPlaceholder?: string;
+	/**
+	 * The slash command(s) that this command wants to be
+	 * deprioritized in favor of.
+	 */
+	yieldsTo?: ReadonlyArray<{ readonly command: string }>;
 }
 
 export interface IChatReplyFollowup {
@@ -177,8 +199,9 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string;
+	message: string | (IMarkdownString | IChatResponseProgressFileTreeData)[];
 	errorDetails?: IChatResponseErrorDetails;
+	followups?: IChatFollowup[];
 }
 
 export interface IChatDetail {
@@ -217,10 +240,10 @@ export interface IChatService {
 	sendRequest(sessionId: string, message: string | IChatReplyFollowup, usedSlashCommand?: ISlashCommand): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
-	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[] | undefined>;
+	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[]>;
 	clearSession(sessionId: string): void;
 	addRequest(context: any): void;
-	addCompleteRequest(sessionId: string, message: string, response: IChatCompleteResponse): void;
+	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
 	removeHistoryEntry(sessionId: string): void;

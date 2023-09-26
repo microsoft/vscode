@@ -533,6 +533,16 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		}));
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.focusExtensionsView',
+			title: { value: localize('focusExtensions', "Focus on Extensions View"), original: 'Focus on Extensions View' },
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			run: async (accessor: ServicesAccessor) => {
+				await accessor.get(IPaneCompositePartService).openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+			}
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
 			title: { value: localize('installExtensions', "Install Extensions"), original: 'Install Extensions' },
 			category: ExtensionsLocalizedLabel,
@@ -1421,7 +1431,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('isDefaultApplicationScopedExtension').negate(), ContextKeyExpr.has('isBuiltinExtension').negate()),
 				order: 3
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {

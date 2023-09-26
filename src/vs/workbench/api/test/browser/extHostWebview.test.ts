@@ -4,43 +4,71 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadWebviewManager } from 'vs/workbench/api/browser/mainThreadWebviewManager';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/contrib/webview/common/webview';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import type * as vscode from 'vscode';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 
 suite('ExtHostWebview', () => {
-
+	let disposables: DisposableStore;
 	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
 
 	setup(() => {
+		disposables = new DisposableStore();
+
 		const shape = createNoopMainThreadWebviews();
 		rpcProtocol = SingleProxyRPCProtocol(shape);
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
+		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, {
+			authority: remoteAuthority,
+			isRemote: !!remoteAuthority,
+		}, undefined, new NullLogService(), NullApiDeprecationService));
+
+		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
+
+		return disposables.add(extHostWebviewPanels.createWebviewPanel({
+			extensionLocation: URI.from({
+				scheme: remoteAuthority ? Schemas.vscodeRemote : Schemas.file,
+				authority: remoteAuthority,
+				path: '/ext/path',
+			})
+		} as IExtensionDescription, 'type', 'title', 1, {}));
+	}
+
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService);
+		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService));
 
-		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
+		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
 		class NoopSerializer implements vscode.WebviewPanelSerializer {
-			async deserializeWebviewPanel(_webview: vscode.WebviewPanel, _state: any): Promise<void> {
+			async deserializeWebviewPanel(webview: vscode.WebviewPanel, _state: any): Promise<void> {
 				lastInvokedDeserializer = this;
+				disposables.add(webview);
 			}
 		}
 
@@ -61,12 +89,12 @@ suite('ExtHostWebview', () => {
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
-			() => extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB),
+			() => disposables.add(extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB)),
 			'Should throw when registering two serializers for the same view');
 
 		serializerARegistration.dispose();
 
-		extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB);
+		disposables.add(extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB));
 
 		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, {
 			title: 'title',
@@ -169,30 +197,12 @@ suite('ExtHostWebview', () => {
 	});
 });
 
-function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {
-	const extHostWebviews = new ExtHostWebviews(rpcProtocol!, {
-		authority: remoteAuthority,
-		isRemote: !!remoteAuthority,
-	}, undefined, new NullLogService(), NullApiDeprecationService);
-
-	const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
-
-	const webview = extHostWebviewPanels.createWebviewPanel({
-		extensionLocation: URI.from({
-			scheme: remoteAuthority ? Schemas.vscodeRemote : Schemas.file,
-			authority: remoteAuthority,
-			path: '/ext/path',
-		})
-	} as IExtensionDescription, 'type', 'title', 1, {});
-	return webview;
-}
-
 
 function createNoopMainThreadWebviews() {
 	return new class extends mock<MainThreadWebviewManager>() {
+		$disposeWebview() { /* noop */ }
 		$createWebviewPanel() { /* noop */ }
 		$registerSerializer() { /* noop */ }
 		$unregisterSerializer() { /* noop */ }
 	};
 }
-

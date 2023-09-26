@@ -89,7 +89,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (commandDetectionCapability) {
 			this._registerCommandHandlers();
 		} else {
-			this._register(this._capabilities.onDidAddCapability(c => {
+			this._register(this._capabilities.onDidAddCapabilityType(c => {
 				if (c === TerminalCapability.CommandDetection) {
 					this._registerCommandHandlers();
 				}
@@ -283,7 +283,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 
-			const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
+			const parentElement = e.closest('.xterm') as HTMLElement;
 			if (!parentElement) {
 				return;
 			}

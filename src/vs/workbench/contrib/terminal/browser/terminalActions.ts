@@ -61,6 +61,7 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
+import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -364,7 +365,6 @@ export function registerTerminalActions() {
 		keybinding: [
 			{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
 				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
@@ -478,6 +478,11 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.Focus,
 		title: terminalStrings.focus,
+		keybinding: {
+			when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, accessibleViewOnLastLine, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)),
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+			weight: KeybindingWeight.WorkbenchContrib
+		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: async (c) => {
 			const instance = c.service.activeInstance || await c.service.createTerminal({ location: TerminalLocation.Panel });
@@ -485,7 +490,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			return c.groupService.showPanel(true);
+			focusActiveTerminal(instance, c);
 		}
 	});
 

@@ -17,7 +17,7 @@ export interface IChatExecuteActionContext {
 	inputValue?: string;
 }
 
-function isExecuteActionContext(thing: unknown): thing is IChatExecuteActionContext {
+export function isExecuteActionContext(thing: unknown): thing is IChatExecuteActionContext {
 	return typeof thing === 'object' && thing !== null && 'widget' in thing;
 }
 

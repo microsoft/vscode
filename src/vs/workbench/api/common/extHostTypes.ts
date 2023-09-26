@@ -30,15 +30,19 @@ import type * as vscode from 'vscode';
  * */
 function es5ClassCompat(target: Function): any {
 	const interceptFunctions = {
-		apply: function () {
-			const args = arguments.length === 1 ? [] : arguments[1];
-			return Reflect.construct(target, args, arguments[0].constructor);
-		},
-		call: function () {
-			if (arguments.length === 0) {
+		apply: function (...args: any[]): any {
+			if (args.length === 0) {
 				return Reflect.construct(target, []);
 			} else {
-				const [thisArg, ...restArgs] = arguments;
+				const argsList = args.length === 1 ? [] : args[1];
+				return Reflect.construct(target, argsList, args[0].constructor);
+			}
+		},
+		call: function (...args: any[]): any {
+			if (args.length === 0) {
+				return Reflect.construct(target, []);
+			} else {
+				const [thisArg, ...restArgs] = args;
 				return Reflect.construct(target, restArgs, thisArg.constructor);
 			}
 		}
@@ -1393,16 +1397,6 @@ export class CodeActionKind {
 	}
 }
 
-export class NotebookCodeActionKind extends CodeActionKind {
-	public static override Notebook: CodeActionKind;
-
-	constructor(
-		public override readonly value: string
-	) {
-		super(value);
-	}
-}
-
 CodeActionKind.Empty = new CodeActionKind('');
 CodeActionKind.QuickFix = CodeActionKind.Empty.append('quickfix');
 CodeActionKind.Refactor = CodeActionKind.Empty.append('refactor');
@@ -1865,6 +1859,24 @@ export namespace TextEditorSelectionChangeKind {
 			case 'api': return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
+	}
+}
+
+export enum SyntaxTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 3
+}
+export namespace SyntaxTokenType {
+	export function toString(v: SyntaxTokenType | unknown): 'other' | 'comment' | 'string' | 'regex' {
+		switch (v) {
+			case SyntaxTokenType.Other: return 'other';
+			case SyntaxTokenType.Comment: return 'comment';
+			case SyntaxTokenType.String: return 'string';
+			case SyntaxTokenType.RegEx: return 'regex';
+		}
+		return 'other';
 	}
 }
 

@@ -24,6 +24,7 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 import type { ILink, Terminal } from 'xterm';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -55,6 +56,8 @@ class TestLinkManager extends TerminalLinkManager {
 }
 
 suite('TerminalLinkManager', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
@@ -75,17 +78,17 @@ suite('TerminalLinkManager', () => {
 		themeService = new TestThemeService();
 		viewDescriptorService = new TestViewDescriptorService();
 
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
+		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
-		linkManager = instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
+		linkManager = store.add(instantiationService.createInstance(TestLinkManager, xterm, upcastPartial<ITerminalProcessManager>({
 			get initialCwd() {
 				return '';
 			}
@@ -93,11 +96,7 @@ suite('TerminalLinkManager', () => {
 			get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
 				return undefined;
 			}
-		} as Partial<ITerminalCapabilityStore> as any, instantiationService.createInstance(TerminalLinkResolver));
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
+		} as Partial<ITerminalCapabilityStore> as any, instantiationService.createInstance(TerminalLinkResolver)));
 	});
 
 	suite('getLinks and open recent link', () => {

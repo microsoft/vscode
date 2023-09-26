@@ -69,6 +69,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
 import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 
 // Editor Contribution
+import 'vs/workbench/contrib/notebook/browser/contrib/editorHint/emptyCellEditorHint';
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFind';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
@@ -118,7 +119,6 @@ import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/c
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-
 /*--------------------------------------------------------------------------------------------- */
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -455,7 +455,7 @@ class CellInfoContentProvider {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
 
 		const mode = this._languageService.createById('json');
-		const op = cell.outputs.find(op => op.outputId === data.outputId);
+		const op = cell.outputs.find(op => op.outputId === data.outputId || op.alternativeOutputId === data.outputId);
 		const streamOutputData = this.parseStreamOutput(op);
 		if (streamOutputData) {
 			result = streamOutputData;
@@ -491,7 +491,7 @@ class CellInfoContentProvider {
 		}
 
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
+		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId || op.alternativeOutputId === data.outputId));
 
 		if (!cell) {
 			ref.dispose();
@@ -964,10 +964,14 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Experimental. Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `source.fixAll: true`"),
+			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `source.fixAll: true`"),
 			type: 'object',
 			additionalProperties: {
-				type: 'boolean'
+				type: 'string',
+				enum: ['explicit', 'never'],
+				// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
+				// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
+				enumDescriptions: [nls.localize('never', 'Never triggers Code Actions on save.'), nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.')],
 			},
 			default: {}
 		},
@@ -1014,6 +1018,26 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks in Remote environment. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
 			type: 'boolean',
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
+		},
+		[NotebookSetting.scrollToRevealCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.revealCellBehavior.description', "How far to scroll when revealing the selected, e.g. when exectuting {0}.", 'notebook.cell.executeAndSelectBelow'),
+			type: 'string',
+			enum: ['fullCell', 'firstLine', 'none'],
+			markdownEnumDescriptions: [
+				nls.localize('notebook.scrolling.revealCellBehavior.fullCell.description', 'Scroll to fully reveal the selected cell.'),
+				nls.localize('notebook.scrolling.revealCellBehavior.firstLine.description', 'Scroll to reveal the first line of the selected cell.'),
+				nls.localize('notebook.scrolling.revealCellBehavior.nonedescription', 'Do not scroll to reveal the selected cell.'),
+			],
+			default: 'fullCell'
+		},
+		[NotebookSetting.anchorToFocusedCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.anchorToFocusedCell.description', "Keep the focused cell steady while surrounding cells change size"),
+			type: 'string',
+			enum: ['auto', 'true', 'false'],
+			markdownEnumDescriptions: [
+				nls.localize('notebook.scrolling.anchorToFocusedCell.auto.description', "Anchor to the focused cell when the resized cell is partially visible unless {0} is set to {1}", 'notebook.scrolling.revealCellBehavior', 'none')
+			],
+			default: 'auto'
 		}
 	}
 });

@@ -8,18 +8,21 @@ import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor.contribution';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { EmbeddedDiffEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { AccessibleDiffViewerNext, AccessibleDiffViewerPrev } from 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -37,7 +40,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 
 		this._register(createScreenReaderHelp());
 
-		const isEmbeddedDiffEditor = (this._diffEditor instanceof EmbeddedDiffEditorWidget) || (this._diffEditor instanceof EmbeddedDiffEditorWidget2);
+		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
 
 		if (!isEmbeddedDiffEditor) {
 			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());
@@ -86,11 +89,12 @@ function createScreenReaderHelp(): IDisposable {
 		const editorService = accessor.get(IEditorService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const keybindingService = accessor.get(IKeybindingService);
+		const contextKeyService = accessor.get(IContextKeyService);
 
 		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
 		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
 
-		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget2)) {
+		if (!(editorService.activeTextEditorControl instanceof DiffEditorWidget)) {
 			return;
 		}
 
@@ -100,23 +104,35 @@ function createScreenReaderHelp(): IDisposable {
 		}
 
 		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
-
+		const content = [
+			localize('msg1', "You are in a diff editor."),
+			localize('msg2', "View the next {0} or previous {1} diff in diff review mode that is optimized for screen readers.", next, previous),
+			localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
+		];
+		const commentCommandInfo = getCommentCommandInfo(keybindingService, contextKeyService, codeEditor);
+		if (commentCommandInfo) {
+			content.push(commentCommandInfo);
+		}
 		accessibleViewService.show({
 			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
-			provideContent: () => [
-				localize('msg1', "You are in a diff editor."),
-				localize('msg2', "Press {0} or {1} to view the next or previous diff in the diff review mode that is optimized for screen readers.", next, previous),
-				localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
-			].join('\n'),
+			provideContent: () => content.join('\n\n'),
 			onClose: () => {
 				codeEditor.focus();
 			},
 			options: { type: AccessibleViewType.Help }
 		});
-	}, ContextKeyExpr.and(
-		ContextKeyEqualsExpr.create('diffEditorVersion', 2),
-		ContextKeyEqualsExpr.create('isInDiffEditor', true)
-	));
+	}, ContextKeyEqualsExpr.create('isInDiffEditor', true));
 }
 
 registerDiffEditorContribution(DiffEditorHelperContribution.ID, DiffEditorHelperContribution);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'diffEditor.experimental.collapseUnchangedRegions',
+		migrateFn: (value, accessor) => {
+			return [
+				['diffEditor.hideUnchangedRegions.enabled', { value }],
+				['diffEditor.experimental.collapseUnchangedRegions', { value: undefined }]
+			];
+		}
+	}]);

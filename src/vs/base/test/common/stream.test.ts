@@ -8,6 +8,7 @@ import { timeout } from 'vs/base/common/async';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { consumeReadable, consumeStream, isReadable, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from 'vs/base/common/stream';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Stream', () => {
 
@@ -514,4 +515,6 @@ suite('Stream', () => {
 		}
 		assert.ok(error);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

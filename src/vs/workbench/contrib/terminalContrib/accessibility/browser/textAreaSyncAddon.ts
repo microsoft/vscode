@@ -74,9 +74,10 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 
 		if (this._cursorX !== textArea.selectionStart) {
-			textArea.selectionStart = this._cursorX ?? 0;
-			textArea.selectionEnd = this._cursorX ?? 0;
-			this._logService.debug(`TextAreaSyncAddon#syncTextArea: selection start/end changed to ${this._cursorX}`);
+			const selection = !this._cursorX || this._cursorX < 0 ? 0 : this._cursorX;
+			textArea.selectionStart = selection;
+			textArea.selectionEnd = selection;
+			this._logService.debug(`TextAreaSyncAddon#syncTextArea: selection start/end changed to ${selection}`);
 		}
 	}
 
@@ -91,23 +92,22 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		const buffer = this._terminal.buffer.active;
-		const line = buffer.getLine(buffer.cursorY)?.translateToString(true);
-		if (!line) {
+		const lineNumber = currentCommand.commandStartMarker?.line;
+		if (!lineNumber) {
+			return;
+		}
+		const commandLine = buffer.getLine(lineNumber)?.translateToString(true);
+		if (!commandLine) {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
 		if (currentCommand.commandStartX !== undefined) {
-			// Left prompt
-			this._currentCommand = line.substring(currentCommand.commandStartX);
+			this._currentCommand = commandLine.substring(currentCommand.commandStartX);
 			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
-		} else if (currentCommand.commandRightPromptStartX !== undefined) {
-			// Right prompt
-			this._currentCommand = line.substring(0, currentCommand.commandRightPromptStartX);
-			this._cursorX = buffer.cursorX;
 		} else {
 			this._currentCommand = undefined;
 			this._cursorX = undefined;
-			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: neither commandStartX nor commandRightPromptStartX`);
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no commandStartX`);
 		}
 	}
 }

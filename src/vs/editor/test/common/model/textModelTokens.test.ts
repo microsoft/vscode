@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { RangePriorityQueueImpl } from 'vs/editor/common/model/textModelTokens';
 
 suite('RangePriorityQueueImpl', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('addRange', () => {
 		const ranges: OffsetRange[] = [];

@@ -59,7 +59,7 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 
 		const commandExecution = new DeferredPromise<void>();
 		token.onCancellationRequested(() => commandExecution.complete());
-		setTimeout(() => commandExecution.complete(), 3 * 1000);
+		setTimeout(() => commandExecution.complete(), 10 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(data.extension, commandExecution.p);
 
 		const task = data.command(
@@ -67,16 +67,26 @@ export class ExtHostChatSlashCommands implements ExtHostChatSlashCommandsShape {
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.SlashResponse>(p => {
 				throwIfDone();
-				this._proxy.$handleProgressChunk(requestId, { content: p.message.value });
+				this._proxy.$handleProgressChunk(requestId, { content: isInteractiveProgressFileTree(p.message) ? p.message : p.message.value });
 			}),
 			token
 		);
 
 		try {
-			await raceCancellation(Promise.resolve(task), token);
+			return await raceCancellation(Promise.resolve(task).then((v) => {
+				if (v && 'followUp' in v) {
+					const convertedFollowup = v?.followUp?.map(f => typeConvert.ChatFollowup.from(f));
+					return { followUp: convertedFollowup };
+				}
+				return undefined;
+			}), token);
 		} finally {
 			done = true;
 			commandExecution.complete();
 		}
 	}
+}
+
+function isInteractiveProgressFileTree(thing: unknown): thing is vscode.InteractiveProgressFileTree {
+	return !!thing && typeof thing === 'object' && 'treeData' in thing;
 }

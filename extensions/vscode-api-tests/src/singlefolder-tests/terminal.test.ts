@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, doesNotThrow, equal, ok, strictEqual, throws } from 'assert';
-import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, GlobalEnvironmentVariableCollection, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
+import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
@@ -387,7 +387,8 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', function (done) {
+			// still flaky with retries, skipping https://github.com/microsoft/vscode/issues/193505
+			test.skip('should listen to all future terminal data events', function (done) {
 				// This test has been flaky in the past but it's not clear why, possibly because
 				// events from previous tests polluting the event recording in this test. Retries
 				// was added so we continue to have coverage of the onDidWriteTerminalData API.
@@ -912,8 +913,7 @@ import { assertNoRpc, poll } from '../utils';
 			});
 
 			test('get and forEach should work (scope)', () => {
-				// TODO: Remove cast once `envCollectionWorkspace` API is finalized.
-				const collection = extensionContext.environmentVariableCollection as GlobalEnvironmentVariableCollection;
+				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
 				const scope = { workspaceFolder: { uri: Uri.file('workspace1'), name: 'workspace1', index: 0 } };
 				const scopedCollection = collection.getScoped(scope);

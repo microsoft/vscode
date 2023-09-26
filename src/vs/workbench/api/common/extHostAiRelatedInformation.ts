@@ -5,7 +5,7 @@
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostAiRelatedInformationShape, IMainContext, MainContext, MainThreadAiRelatedInformationShape } from 'vs/workbench/api/common/extHost.protocol';
-import type { CancellationToken, RelatedInformationProvider, RelatedInformationResult, RelatedInformationType } from 'vscode';
+import type { CancellationToken, RelatedInformationProvider, RelatedInformationType, RelatedInformationResult } from 'vscode';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 
 export class ExtHostRelatedInformation implements ExtHostAiRelatedInformationShape {
@@ -18,18 +18,17 @@ export class ExtHostRelatedInformation implements ExtHostAiRelatedInformationSha
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAiRelatedInformation);
 	}
 
-	async $provideAiRelatedInformation(handle: number, query: string, types: RelatedInformationType[], token: CancellationToken): Promise<RelatedInformationResult[]> {
+	async $provideAiRelatedInformation(handle: number, query: string, token: CancellationToken): Promise<RelatedInformationResult[]> {
 		if (this._relatedInformationProviders.size === 0) {
-			throw new Error('No semantic similarity providers registered');
+			throw new Error('No related information providers registered');
 		}
 
 		const provider = this._relatedInformationProviders.get(handle);
 		if (!provider) {
-			throw new Error('Semantic similarity provider not found');
+			throw new Error('related information provider not found');
 		}
 
-		// TODO: should this return undefined or an empty array?
-		const result = await provider.provideRelatedInformation(query, types, token) ?? [];
+		const result = await provider.provideRelatedInformation(query, token) ?? [];
 		return result;
 	}
 
@@ -37,11 +36,11 @@ export class ExtHostRelatedInformation implements ExtHostAiRelatedInformationSha
 		return this._proxy.$getAiRelatedInformation(query, types);
 	}
 
-	registerRelatedInformationProvider(extension: IExtensionDescription, types: RelatedInformationType[], provider: RelatedInformationProvider): Disposable {
+	registerRelatedInformationProvider(extension: IExtensionDescription, type: RelatedInformationType, provider: RelatedInformationProvider): Disposable {
 		const handle = this._nextHandle;
 		this._nextHandle++;
 		this._relatedInformationProviders.set(handle, provider);
-		this._proxy.$registerAiRelatedInformationProvider(handle, types);
+		this._proxy.$registerAiRelatedInformationProvider(handle, type);
 		return new Disposable(() => {
 			this._proxy.$unregisterAiRelatedInformationProvider(handle);
 			this._relatedInformationProviders.delete(handle);

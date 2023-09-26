@@ -11,8 +11,16 @@ import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Notifications', () => {
+
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
 
 	test('Items', () => {
 
@@ -25,8 +33,8 @@ suite('Notifications', () => {
 		const item2 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
 		const item3 = NotificationViewItem.create({ severity: Severity.Info, message: 'Info Message' })!;
 		const item4 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', source: 'Source' })!;
-		const item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } })!;
-		const item6 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] }, progress: { infinite: true } })!;
+		const item5 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [disposables.add(new Action('id', 'label'))] } })!;
+		const item6 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message', actions: { primary: [disposables.add(new Action('id', 'label'))] }, progress: { infinite: true } })!;
 
 		assert.strictEqual(item1.equals(item1), true);
 		assert.strictEqual(item2.equals(item2), true);
@@ -55,9 +63,9 @@ suite('Notifications', () => {
 
 		// Events
 		let called = 0;
-		item1.onDidChangeExpansion(() => {
+		disposables.add(item1.onDidChangeExpansion(() => {
 			called++;
-		});
+		}));
 
 		item1.expand();
 		item1.expand();
@@ -67,11 +75,11 @@ suite('Notifications', () => {
 		assert.strictEqual(called, 2);
 
 		called = 0;
-		item1.onDidChangeContent(e => {
+		disposables.add(item1.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.PROGRESS) {
 				called++;
 			}
-		});
+		}));
 
 		item1.progress.infinite();
 		item1.progress.done();
@@ -79,38 +87,38 @@ suite('Notifications', () => {
 		assert.strictEqual(called, 2);
 
 		called = 0;
-		item1.onDidChangeContent(e => {
+		disposables.add(item1.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.MESSAGE) {
 				called++;
 			}
-		});
+		}));
 
 		item1.updateMessage('message update');
 
 		called = 0;
-		item1.onDidChangeContent(e => {
+		disposables.add(item1.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.SEVERITY) {
 				called++;
 			}
-		});
+		}));
 
 		item1.updateSeverity(Severity.Error);
 
 		called = 0;
-		item1.onDidChangeContent(e => {
+		disposables.add(item1.onDidChangeContent(e => {
 			if (e.kind === NotificationViewItemContentChangeKind.ACTIONS) {
 				called++;
 			}
-		});
+		}));
 
-		item1.updateActions({ primary: [new Action('id2', 'label')] });
+		item1.updateActions({ primary: [disposables.add(new Action('id2', 'label'))] });
 
 		assert.strictEqual(called, 1);
 
 		called = 0;
-		item1.onDidChangeVisibility(e => {
+		disposables.add(item1.onDidChangeVisibility(e => {
 			called++;
-		});
+		}));
 
 		item1.updateVisibility(true);
 		item1.updateVisibility(false);
@@ -119,15 +127,15 @@ suite('Notifications', () => {
 		assert.strictEqual(called, 2);
 
 		called = 0;
-		item1.onDidClose(() => {
+		disposables.add(item1.onDidClose(() => {
 			called++;
-		});
+		}));
 
 		item1.close();
 		assert.strictEqual(called, 1);
 
 		// Error with Action
-		const item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', [new Action('id', 'label')]) })!;
+		const item7 = NotificationViewItem.create({ severity: Severity.Error, message: createErrorWithActions('Hello Error', [disposables.add(new Action('id', 'label'))]) })!;
 		assert.strictEqual(item7.actions!.primary!.length, 1);
 
 		// Filter
@@ -142,15 +150,19 @@ suite('Notifications', () => {
 
 		const item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, NotificationsFilter.ERROR)!;
 		assert.strictEqual(item11.priority, NotificationPriority.SILENT);
+
+		for (const item of [item1, item2, item3, item4, item5, item6, itemId1, itemId2, item7, item8, item9, item10, item11]) {
+			item.close();
+		}
 	});
 
 	test('Items - does not fire changed when message did not change (content, severity)', async () => {
 		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
 
 		let fired = false;
-		item1.onDidChangeContent(() => {
+		disposables.add(item1.onDidChangeContent(() => {
 			fired = true;
-		});
+		}));
 
 		item1.updateMessage('Error Message');
 		await timeout(0);
@@ -159,22 +171,26 @@ suite('Notifications', () => {
 		item1.updateSeverity(Severity.Error);
 		await timeout(0);
 		assert.ok(!fired, 'Expected onDidChangeContent to not be fired');
+
+		for (const item of [item1]) {
+			item.close();
+		}
 	});
 
 	test('Model', () => {
-		const model = new NotificationsModel();
+		const model = disposables.add(new NotificationsModel());
 
 		let lastNotificationEvent!: INotificationChangeEvent;
-		model.onDidChangeNotification(e => {
+		disposables.add(model.onDidChangeNotification(e => {
 			lastNotificationEvent = e;
-		});
+		}));
 
 		let lastStatusMessageEvent!: IStatusMessageChangeEvent;
-		model.onDidChangeStatusMessage(e => {
+		disposables.add(model.onDidChangeStatusMessage(e => {
 			lastStatusMessageEvent = e;
-		});
+		}));
 
-		const item1: INotification = { severity: Severity.Error, message: 'Error Message', actions: { primary: [new Action('id', 'label')] } };
+		const item1: INotification = { severity: Severity.Error, message: 'Error Message', actions: { primary: [disposables.add(new Action('id', 'label'))] } };
 		const item2: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
 		const item2Duplicate: INotification = { severity: Severity.Warning, message: 'Warning Message', source: 'Some Source' };
 		const item3: INotification = { severity: Severity.Info, message: 'Info Message' };
@@ -207,7 +223,7 @@ suite('Notifications', () => {
 		assert.strictEqual(lastNotificationEvent.index, 0);
 		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.ADD);
 
-		model.addNotification(item3);
+		const item3Handle = model.addNotification(item3);
 		assert.strictEqual(lastNotificationEvent.item.severity, item3.severity);
 		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item3.message);
 		assert.strictEqual(lastNotificationEvent.index, 0);
@@ -216,9 +232,9 @@ suite('Notifications', () => {
 		assert.strictEqual(model.notifications.length, 3);
 
 		let called = 0;
-		item1Handle.onDidClose(() => {
+		disposables.add(item1Handle.onDidClose(() => {
 			called++;
-		});
+		}));
 
 		item1Handle.close();
 		assert.strictEqual(called, 1);
@@ -228,7 +244,7 @@ suite('Notifications', () => {
 		assert.strictEqual(lastNotificationEvent.index, 2);
 		assert.strictEqual(lastNotificationEvent.kind, NotificationChangeType.REMOVE);
 
-		model.addNotification(item2Duplicate);
+		const item2DuplicateHandle = model.addNotification(item2Duplicate);
 		assert.strictEqual(model.notifications.length, 2);
 		assert.strictEqual(lastNotificationEvent.item.severity, item2Duplicate.severity);
 		assert.strictEqual(lastNotificationEvent.item.message.linkedText.toString(), item2Duplicate.message);
@@ -266,22 +282,26 @@ suite('Notifications', () => {
 
 		disposable3.dispose();
 		assert.ok(!model.statusMessage);
+
+		item2DuplicateHandle.close();
+		item3Handle.close();
 	});
 
 	test('Service', async () => {
-		const service = new NotificationService(new TestStorageService());
+		const service = disposables.add(new NotificationService(disposables.add(new TestStorageService())));
 
 		let addNotificationCount = 0;
 		let notification!: INotification;
-		service.onDidAddNotification(n => {
+		disposables.add(service.onDidAddNotification(n => {
 			addNotificationCount++;
 			notification = n;
-		});
+		}));
 		service.info('hello there');
 		assert.strictEqual(addNotificationCount, 1);
 		assert.strictEqual(notification.message, 'hello there');
 		assert.strictEqual(notification.priority, NotificationPriority.DEFAULT);
 		assert.strictEqual(notification.source, undefined);
+		service.model.notifications[0].close();
 
 		let notificationHandle = service.notify({ message: 'important message', severity: Severity.Warning });
 		assert.strictEqual(addNotificationCount, 2);
@@ -289,10 +309,10 @@ suite('Notifications', () => {
 		assert.strictEqual(notification.severity, Severity.Warning);
 
 		let removeNotificationCount = 0;
-		service.onDidRemoveNotification(n => {
+		disposables.add(service.onDidRemoveNotification(n => {
 			removeNotificationCount++;
 			notification = n;
-		});
+		}));
 		notificationHandle.close();
 		assert.strictEqual(removeNotificationCount, 1);
 		assert.strictEqual(notification.message, 'important message');
@@ -303,5 +323,8 @@ suite('Notifications', () => {
 		assert.strictEqual(notification.priority, NotificationPriority.SILENT);
 		notificationHandle.close();
 		assert.strictEqual(removeNotificationCount, 2);
+		notificationHandle.close();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

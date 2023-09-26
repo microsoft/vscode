@@ -152,12 +152,13 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extensionId, this.productService.version));
 			}
 
-			const result = await this.installExtensions([{ manifest, extension: location, options }]);
-			if (result[0]?.local) {
-				return result[0]?.local;
+			const results = await this.installExtensions([{ manifest, extension: location, options }]);
+			const result = results.find(({ identifier }) => areSameExtensions(identifier, { id: extensionId }));
+			if (result?.local) {
+				return result.local;
 			}
-			if (result[0]?.error) {
-				throw result[0].error;
+			if (result?.error) {
+				throw result.error;
 			}
 			throw toExtensionManagementError(new Error(`Unknown error while installing extension ${extensionId}`));
 		} finally {

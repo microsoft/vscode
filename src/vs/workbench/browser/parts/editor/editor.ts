@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -15,6 +15,7 @@ import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isObject } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
@@ -31,6 +32,8 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
+	pinnedTabsOnSeparateRow: false,
+	tabHeight: 'default',
 	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
@@ -48,7 +51,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
-	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');
+	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme') || event.affectsConfiguration('window.density');
 }
 
 export function getEditorPartOptions(configurationService: IConfigurationService, themeService: IThemeService): IEditorPartOptions {
@@ -77,10 +80,15 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		}
 	}
 
+	const windowConfig = configurationService.getValue<IWindowsConfiguration>();
+	if (windowConfig?.window?.density?.editorTabHeight) {
+		options.tabHeight = windowConfig.window.density.editorTabHeight;
+	}
+
 	return options;
 }
 
-export interface IEditorGroupsAccessor {
+export interface IEditorGroupsView {
 
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
@@ -96,7 +104,7 @@ export interface IEditorGroupsAccessor {
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -117,7 +125,7 @@ export interface IEditorGroupTitleHeight {
 	/**
 	 * The height offset to e.g. use when drawing drop overlays.
 	 * This number may be smaller than `height` if the title control
-	 * decides to have an `offset` that is within the title area
+	 * decides to have an `offset` that is within the title control
 	 * (e.g. when breadcrumbs are enabled).
 	 */
 	offset: number;
@@ -145,6 +153,8 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	setActive(isActive: boolean): void;
 
 	notifyIndexChanged(newIndex: number): void;
+
+	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
 	relayout(): void;
 }
@@ -198,6 +208,11 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * opened in one of the sides.
 	 */
 	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+
+	/**
+	 * When set to `true`, pass DOM focus into the tab control.
+	 */
+	focusTabControl?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
@@ -214,7 +229,7 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	context?: EditorCloseContext;
 }
 
-export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {
+export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
 
 	/**
 	 * Whether to close the editor at the source or keep it.

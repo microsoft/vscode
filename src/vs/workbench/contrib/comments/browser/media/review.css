@@ -382,7 +382,6 @@
 }
 
 .review-widget .body .edit-textarea {
-	height: 90px;
 	margin: 5px 0 10px 0;
 	margin-right: 12px;
 }
@@ -487,21 +486,12 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-thread-range,
-.monaco-editor .comment-thread-range-current {
-	border-width: 1px;
-	border-style: solid;
-	box-sizing: border-box;
-}
-
 .monaco-editor .comment-thread-range {
 	background-color: var(--vscode-editorCommentsWidget-rangeBackground);
-	border-color: var(--vscode-editorCommentsWidget-rangeBorder);
 }
 
 .monaco-editor .comment-thread-range-current {
 	background-color: var(--vscode-editorCommentsWidget-rangeActiveBackground);
-	border-color: var(--vscode-editorCommentsWidget-rangeActiveBorder);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,

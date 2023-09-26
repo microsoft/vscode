@@ -18,8 +18,9 @@ import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/lang
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { getCodeActions } from './codeAction';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -135,6 +136,7 @@ const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 	hasAutoFix: false
 });
 
+
 export class CodeActionModel extends Disposable {
 
 	private readonly _codeActionOracle = this._register(new MutableDisposable<CodeActionOracle>());
@@ -152,7 +154,8 @@ export class CodeActionModel extends Disposable {
 		private readonly _registry: LanguageFeatureRegistry<CodeActionProvider>,
 		private readonly _markerService: IMarkerService,
 		contextKeyService: IContextKeyService,
-		private readonly _progressService?: IEditorProgressService
+		private readonly _progressService?: IEditorProgressService,
+		private readonly _configurationService?: IConfigurationService,
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -172,6 +175,11 @@ export class CodeActionModel extends Disposable {
 
 		super.dispose();
 		this.setState(CodeActionsState.Empty, true);
+	}
+
+	private _settingEnabledNearbyQuickfixes(): boolean {
+		const model = this._editor?.getModel();
+		return this._configurationService ? this._configurationService.getValue('editor.codeActionWidget.includeNearbyQuickfixes', { resource: model?.uri }) : false;
 	}
 
 	private _update(): void {
@@ -197,12 +205,75 @@ export class CodeActionModel extends Disposable {
 					return;
 				}
 
-				const actions = createCancelablePromise(token => getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token));
+				const startPosition = trigger.selection.getStartPosition();
+
+				const actions = createCancelablePromise(async token => {
+					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
+						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+
+						if (token.isCancellationRequested) {
+							return emptyCodeActionSet;
+						}
+
+						// Search for quickfixes in the curret code action set.
+						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
+
+						if (!foundQuickfix) {
+							const allMarkers = this._markerService.read({ resource: model.uri });
+
+							// If markers exists, and there are no quickfixes found or length is zero, check for quickfixes on that line.
+							if (allMarkers.length > 0) {
+								const currPosition = trigger.selection.getPosition();
+								let trackedPosition = currPosition;
+								let distance = Number.MAX_VALUE;
+								let toBeModified = false;
+
+								for (const marker of allMarkers) {
+									const col = marker.endColumn;
+									const row = marker.endLineNumber;
+									const startRow = marker.startLineNumber;
+
+									// Found quickfix on the same line and check relative distance to other markers
+									if ((row === currPosition.lineNumber || startRow === currPosition.lineNumber) && Math.abs(currPosition.column - col) < distance) {
+										distance = Math.abs(currPosition.column - col);
+										toBeModified = true;
+										trackedPosition = new Position(row, col);
+									}
+								}
+
+								// Only retriggers if actually found quickfix on the same line as cursor
+								if (toBeModified) {
+									const newCodeActionTrigger: CodeActionTrigger = {
+										type: trigger.trigger.type,
+										triggerAction: trigger.trigger.triggerAction,
+										filter: { include: trigger.trigger.filter?.include ? trigger.trigger.filter?.include : CodeActionKind.QuickFix },
+										autoApply: trigger.trigger.autoApply,
+										context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
+									};
+
+									const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
+									const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
+									const currentActions = [...codeActionSet.validActions];
+									if (actionsAtMarker.validActions.length !== 0) {
+										actionsAtMarker.validActions.forEach(action => {
+											action.highlightRange = action.action.isPreferred;
+										});
+										// Already filtered through to only get quickfixes, so no need to filter again.
+										currentActions.push(...actionsAtMarker.validActions);
+									}
+									return { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
+								}
+							}
+						}
+					}
+					// temporarilly hiding here as this is enabled/disabled behind a setting.
+					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+				});
+
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
-
-				this.setState(new CodeActionsState.Triggered(trigger.trigger, trigger.selection.getStartPosition(), actions));
+				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {

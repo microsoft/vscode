@@ -21,6 +21,7 @@ import { hostname, homedir } from 'os';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isString } from 'vs/base/common/types';
 import { StreamSplitter } from 'vs/base/node/nodeStreams';
+import { joinPath } from 'vs/base/common/resources';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -93,7 +94,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
-		this._logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
+		this._logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 		this._startTunnelProcessDelayer = new Delayer(100);
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));

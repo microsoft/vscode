@@ -16,29 +16,31 @@ export enum RelatedInformationType {
 	SettingInformation = 4
 }
 
-export interface RelatedInformationResult {
+interface RelatedInformationBaseResult {
 	type: RelatedInformationType;
 	weight: number;
 }
 
-export interface CommandInformationResult extends RelatedInformationResult {
+export interface CommandInformationResult extends RelatedInformationBaseResult {
 	type: RelatedInformationType.CommandInformation;
 	command: string;
 }
 
-export interface SettingInformationResult extends RelatedInformationResult {
+export interface SettingInformationResult extends RelatedInformationBaseResult {
 	type: RelatedInformationType.SettingInformation;
 	setting: string;
 }
+
+export type RelatedInformationResult = CommandInformationResult | SettingInformationResult;
 
 export interface IAiRelatedInformationService {
 	readonly _serviceBrand: undefined;
 
 	isEnabled(): boolean;
 	getRelatedInformation(query: string, types: RelatedInformationType[], token: CancellationToken): Promise<RelatedInformationResult[]>;
-	registerAiRelatedInformationProvider(types: RelatedInformationType[], provider: IAiRelatedInformationProvider): IDisposable;
+	registerAiRelatedInformationProvider(type: RelatedInformationType, provider: IAiRelatedInformationProvider): IDisposable;
 }
 
 export interface IAiRelatedInformationProvider {
-	provideAiRelatedInformation(query: string, types: RelatedInformationType[], token: CancellationToken): Promise<RelatedInformationResult[]>;
+	provideAiRelatedInformation(query: string, token: CancellationToken): Promise<RelatedInformationResult[]>;
 }

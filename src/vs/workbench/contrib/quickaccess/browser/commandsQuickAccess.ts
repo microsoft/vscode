@@ -33,16 +33,16 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	private static SEMANTIC_SIMILARITY_MAX_PICKS = 3;
-	private static SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
-	private static SEMANTIC_SIMILARITY_DEBOUNCE = 200;
+	private static AI_RELATED_INFORMATION_MAX_PICKS = 5;
+	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
+	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
 	// If extensions are not yet registered, we wait for a little moment to give them
 	// a chance to register so that the complete set of commands shows up as result
@@ -50,7 +50,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	// functional.
 	private readonly extensionRegistrationRace = raceTimeout(this.extensionService.whenInstalledExtensionsRegistered(), 800);
 
-	private useSemanticSimilarity = false;
+	private useAiRelatedInfo = false;
 
 	protected get activeTextEditorControl(): IEditor | undefined { return this.editorService.activeTextEditorControl; }
 
@@ -75,7 +75,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IProductService private readonly productService: IProductService,
-		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
 		@IAiRelatedInformationService private readonly aiRelatedInformationService: IAiRelatedInformationService,
 		@IChatService private readonly chatService: IChatService
 	) {
@@ -110,7 +109,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			? new Set(this.productService.commandPaletteSuggestedCommandIds)
 			: undefined;
 		this.options.suggestedCommandIds = suggestedCommandIds;
-		this.useSemanticSimilarity = config.experimental.useSemanticSimilarity;
+		this.useAiRelatedInfo = config.experimental.enableNaturalLanguageSearch;
 	}
 
 	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
@@ -140,10 +139,10 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	protected hasAdditionalCommandPicks(filter: string, token: CancellationToken): boolean {
 		if (
-			!this.useSemanticSimilarity
+			!this.useAiRelatedInfo
 			|| token.isCancellationRequested
 			|| filter === ''
-			|| !(this.semanticSimilarityService.isEnabled() || this.aiRelatedInformationService.isEnabled())
+			|| !this.aiRelatedInformationService.isEnabled()
 		) {
 			return false;
 		}
@@ -160,21 +159,10 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		try {
 			// Wait a bit to see if the user is still typing
-			await timeout(CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_DEBOUNCE, token);
-			additionalPicks = this.aiRelatedInformationService.isEnabled()
-				? await this.getRelatedInformationPicks(allPicks, picksSoFar, filter, token)
-				: this.semanticSimilarityService.isEnabled()
-					? await this.getSemanticSimilarityPicks(allPicks, picksSoFar, filter, token)
-					: [];
+			await timeout(CommandsQuickAccessProvider.AI_RELATED_INFORMATION_DEBOUNCE, token);
+			additionalPicks = await this.getRelatedInformationPicks(allPicks, picksSoFar, filter, token);
 		} catch (e) {
 			return [];
-		}
-
-		if (additionalPicks.length) {
-			additionalPicks.unshift({
-				type: 'separator',
-				label: localize('semanticSimilarity', "similar commands")
-			});
 		}
 
 		if (picksSoFar.length || additionalPicks.length) {
@@ -187,38 +175,9 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		if (info) {
 			additionalPicks.push({
 				label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
-				commandId: ASK_QUICK_QUESTION_ACTION_ID,
+				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
 				args: [filter]
 			});
-		}
-
-		return additionalPicks;
-	}
-
-	private async getSemanticSimilarityPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken) {
-		const format = allPicks.map(p => p.commandId);
-		const scores = await this.semanticSimilarityService.getSimilarityScore(filter, format, token);
-
-		if (token.isCancellationRequested) {
-			return [];
-		}
-
-		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
-		const setOfPicksSoFar = new Set(picksSoFar.map(p => p.commandId));
-		const additionalPicks = new Array<ICommandQuickPick | IQuickPickSeparator>();
-
-		let numOfSmartPicks = 0;
-		for (const i of sortedIndices) {
-			const score = scores[i];
-			if (score < CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_THRESHOLD || numOfSmartPicks === CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
-				break;
-			}
-
-			const pick = allPicks[i];
-			if (!setOfPicksSoFar.has(pick.commandId)) {
-				additionalPicks.push(pick);
-				numOfSmartPicks++;
-			}
 		}
 
 		return additionalPicks;
@@ -238,7 +197,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const additionalPicks = new Array<ICommandQuickPick | IQuickPickSeparator>();
 
 		for (const info of relatedInformation) {
-			if (info.weight < CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_THRESHOLD || additionalPicks.length === CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
+			if (info.weight < CommandsQuickAccessProvider.AI_RELATED_INFORMATION_THRESHOLD || additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
 			const pick = allPicks.find(p => p.commandId === info.command && !setOfPicksSoFar.has(p.commandId));

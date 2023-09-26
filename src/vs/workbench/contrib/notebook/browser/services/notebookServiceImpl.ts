@@ -290,13 +290,13 @@ export class NotebookProviderInfoStore extends Disposable {
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 		this._memento.saveMemento();
 
-		return toDisposable(() => {
+		return this._register(toDisposable(() => {
 			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
 			this._memento.saveMemento();
 			editorRegistration?.dispose();
 			this._contributedEditors.delete(info.id);
-		});
+		}));
 	}
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {

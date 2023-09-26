@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
@@ -32,7 +32,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -331,14 +331,15 @@ export abstract class MenubarControl extends Disposable {
 			openable = { fileUri: uri };
 		}
 
-		const ret: IAction = new Action(commandId, unmnemonicLabel(label), undefined, undefined, event => {
-			const browserEvent = event as KeyboardEvent;
-			const openInNewWindow = event && ((!isMacintosh && (browserEvent.ctrlKey || browserEvent.shiftKey)) || (isMacintosh && (browserEvent.metaKey || browserEvent.altKey)));
+		const ret = toAction({
+			id: commandId, label: unmnemonicLabel(label), run: (browserEvent: KeyboardEvent) => {
+				const openInNewWindow = browserEvent && ((!isMacintosh && (browserEvent.ctrlKey || browserEvent.shiftKey)) || (isMacintosh && (browserEvent.metaKey || browserEvent.altKey)));
 
-			return this.hostService.openWindow([openable], {
-				forceNewWindow: !!openInNewWindow,
-				remoteAuthority: remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
-			});
+				return this.hostService.openWindow([openable], {
+					forceNewWindow: !!openInNewWindow,
+					remoteAuthority: remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+				});
+			}
 		});
 
 		return Object.assign(ret, { uri, remoteAuthority });
@@ -440,7 +441,7 @@ export class CustomMenubarControl extends MenubarControl {
 						id: `workbench.actions.menubar.focus`,
 						title: { value: localize('focusMenu', "Focus Application Menu"), original: 'Focus Application Menu' },
 						keybinding: {
-							primary: KeyCode.F10,
+							primary: KeyMod.Alt | KeyCode.F10,
 							weight: KeybindingWeight.WorkbenchContrib,
 							when: IsWebContext
 						},
