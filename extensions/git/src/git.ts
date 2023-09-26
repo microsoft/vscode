@@ -1917,7 +1917,7 @@ export class Repository {
 
 		if (forcePushMode === ForcePushMode.ForceWithLease || forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes) {
 			args.push('--force-with-lease');
-			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes) {
+			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && this._git.compareGitVersionTo('2.30')) {
 				args.push('--force-if-includes');
 			}
 		} else if (forcePushMode === ForcePushMode.Force) {
