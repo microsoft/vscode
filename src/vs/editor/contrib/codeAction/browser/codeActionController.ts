@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -31,12 +33,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Color } from 'vs/base/common/color';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 
 interface IActionShowOptions {
@@ -282,6 +283,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (action && action.highlightRange && action.action.diagnostics) {
 					const decorations: IModelDeltaDecoration[] = [{ range: action.action.diagnostics[0], options: CodeActionController.DECORATION }];
 					currentDecorations.set(decorations);
+					const diagnostic = action.action.diagnostics[0];
+					const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
+					aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
 				} else {
 					currentDecorations.clear();
 				}
