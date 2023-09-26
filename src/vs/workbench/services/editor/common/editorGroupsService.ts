@@ -37,8 +37,8 @@ export const enum GroupLocation {
 }
 
 export interface IFindGroupScope {
-	direction?: GroupDirection;
-	location?: GroupLocation;
+	readonly direction?: GroupDirection;
+	readonly location?: GroupLocation;
 }
 
 export const enum GroupsArrangement {
@@ -69,13 +69,13 @@ export interface GroupLayoutArgument {
 	 * If provided, their sum must be 1 to be applied
 	 * per row or column.
 	 */
-	size?: number;
+	readonly size?: number;
 
 	/**
 	 * Editor groups  will be laid out orthogonal to the
 	 * parent orientation.
 	 */
-	groups?: GroupLayoutArgument[];
+	readonly groups?: GroupLayoutArgument[];
 }
 
 export interface EditorGroupLayout {
@@ -83,12 +83,12 @@ export interface EditorGroupLayout {
 	/**
 	 * The initial orientation of the editor groups at the root.
 	 */
-	orientation: GroupOrientation;
+	readonly orientation: GroupOrientation;
 
 	/**
 	 * The editor groups at the root of the layout.
 	 */
-	groups: GroupLayoutArgument[];
+	readonly groups: GroupLayoutArgument[];
 }
 
 export const enum MergeGroupMode {
@@ -98,34 +98,34 @@ export const enum MergeGroupMode {
 
 export interface IMergeGroupOptions {
 	mode?: MergeGroupMode;
-	index?: number;
+	readonly index?: number;
 }
 
 export interface ICloseEditorOptions {
-	preserveFocus?: boolean;
+	readonly preserveFocus?: boolean;
 }
 
 export type ICloseEditorsFilter = {
-	except?: EditorInput;
-	direction?: CloseDirection;
-	savedOnly?: boolean;
-	excludeSticky?: boolean;
+	readonly except?: EditorInput;
+	readonly direction?: CloseDirection;
+	readonly savedOnly?: boolean;
+	readonly excludeSticky?: boolean;
 };
 
 export interface ICloseAllEditorsOptions {
-	excludeSticky?: boolean;
+	readonly excludeSticky?: boolean;
 }
 
 export interface IEditorReplacement {
-	editor: EditorInput;
-	replacement: EditorInput;
-	options?: IEditorOptions;
+	readonly editor: EditorInput;
+	readonly replacement: EditorInput;
+	readonly options?: IEditorOptions;
 
 	/**
 	 * Skips asking the user for confirmation and doesn't
 	 * save the document. Only use this if you really need to!
 	 */
-	forceReplaceDirty?: boolean;
+	readonly forceReplaceDirty?: boolean;
 }
 
 export function isEditorReplacement(replacement: unknown): replacement is IEditorReplacement {

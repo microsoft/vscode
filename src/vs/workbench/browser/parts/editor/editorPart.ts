@@ -15,7 +15,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorGroupsView, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -142,7 +142,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
-		private readonly groupsView: IEditorGroupsView,
+		private readonly editorPartsView: IEditorPartsView,
 		id: string,
 		readonly groupsLabel: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -847,7 +847,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
-			groupView = this.groupsView.getGroup(group);
+			groupView = this.editorPartsView.getGroup(group);
 		} else {
 			groupView = group;
 		}
@@ -862,7 +862,7 @@ export class EditorPart extends Part implements IEditorPart {
 	createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
 		assertType(container instanceof HTMLElement);
 
-		return this.instantiationService.createInstance(EditorDropTarget, this.groupsView, container, delegate);
+		return this.instantiationService.createInstance(EditorDropTarget, container, delegate);
 	}
 
 	//#region Part

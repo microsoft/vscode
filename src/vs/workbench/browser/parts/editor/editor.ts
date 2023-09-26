@@ -18,7 +18,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 
 export interface IEditorPartCreationOptions {
-	restorePreviousState: boolean;
+	readonly restorePreviousState: boolean;
 }
 
 export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
@@ -115,12 +115,16 @@ export interface IEditorGroupsView {
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
 }
 
+export interface IEditorPartsView {
+	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
+}
+
 export interface IEditorGroupTitleHeight {
 
 	/**
 	 * The overall height of the editor group title control.
 	 */
-	total: number;
+	readonly total: number;
 
 	/**
 	 * The height offset to e.g. use when drawing drop overlays.
@@ -128,7 +132,7 @@ export interface IEditorGroupTitleHeight {
 	 * decides to have an `offset` that is within the title control
 	 * (e.g. when breadcrumbs are enabled).
 	 */
-	offset: number;
+	readonly offset: number;
 }
 
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
@@ -195,7 +199,7 @@ export interface IInternalEditorTitleControlOptions {
 	 * A hint to defer updating the title control for perf reasons.
 	 * The caller must ensure to update the title control then.
 	 */
-	skipTitleUpdate?: boolean;
+	readonly skipTitleUpdate?: boolean;
 }
 
 export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {
@@ -207,12 +211,12 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * not be considered as matching, even if the editor is
 	 * opened in one of the sides.
 	 */
-	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 
 	/**
 	 * When set to `true`, pass DOM focus into the tab control.
 	 */
-	focusTabControl?: boolean;
+	readonly focusTabControl?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
@@ -221,12 +225,12 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * A hint that the editor is closed due to an error opening. This can be
 	 * used to optimize how error toasts are appearing if any.
 	 */
-	fromError?: boolean;
+	readonly fromError?: boolean;
 
 	/**
 	 * Additional context as to why an editor is closed.
 	 */
-	context?: EditorCloseContext;
+	readonly context?: EditorCloseContext;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
@@ -234,5 +238,5 @@ export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
 	/**
 	 * Whether to close the editor at the source or keep it.
 	 */
-	keepCopy?: boolean;
+	readonly keepCopy?: boolean;
 }
