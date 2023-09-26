@@ -476,6 +476,7 @@ export class SCMSyncViewPane extends ViewPane {
 				compressionEnabled: true,
 				horizontalScrolling: false,
 				autoExpandSingleChildren: true,
+				multipleSelectionSupport: false,
 				collapseByDefault: (e) => !ResourceTree.isResourceNode(e),
 				accessibilityProvider: this.instantiationService.createInstance(SCMSyncViewPaneAccessibilityProvider),
 				identityProvider: this.instantiationService.createInstance(SCMSyncViewPaneTreeIdentityProvider),
