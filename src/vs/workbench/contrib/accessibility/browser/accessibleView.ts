@@ -102,6 +102,7 @@ export interface IAccessibleViewOptions {
 	language?: string;
 	type: AccessibleViewType;
 	positionBottom?: boolean;
+	customHelp?: () => string;
 }
 
 export class AccessibleView extends Disposable {
@@ -506,9 +507,10 @@ export class AccessibleView extends Disposable {
 
 		}
 		const currentProvider = Object.assign({}, this._currentProvider);
+		currentProvider.provideContent = this._currentProvider.provideContent.bind(currentProvider);
 		currentProvider.options = Object.assign({}, currentProvider.options);
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
-			provideContent: () => this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+			provideContent: () => currentProvider.options.customHelp ? currentProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 			onClose: () => this.show(currentProvider),
 			options: { type: AccessibleViewType.Help },
 			verbositySettingKey: this._currentProvider.verbositySettingKey
