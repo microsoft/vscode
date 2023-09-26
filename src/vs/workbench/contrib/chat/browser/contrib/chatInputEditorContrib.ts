@@ -26,7 +26,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -496,7 +496,7 @@ function computeCompletionRanges(model: ITextModel, position: Position, reg: Reg
 
 class VariableCompletions extends Disposable {
 
-	private static readonly VariableNameDef = /@\w*/g; // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
 
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
@@ -508,7 +508,7 @@ class VariableCompletions extends Disposable {
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatVariables',
-			triggerCharacters: ['@'],
+			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
@@ -527,19 +527,19 @@ class VariableCompletions extends Disposable {
 				// TODO@roblourens work out a real API for this- maybe it can be part of the two-step flow that @file will probably use
 				const historyVariablesEnabled = this.configurationService.getValue('chat.experimental.historyVariables');
 				const historyItems = historyVariablesEnabled ? history.map((h, i): CompletionItem => ({
-					label: `@response:${i + 1}`,
+					label: `${chatVariableLeader}response:${i + 1}`,
 					detail: h.response.asString(),
-					insertText: `@response:${String(i + 1).padStart(String(history.length).length, '0')} `,
+					insertText: `${chatVariableLeader}response:${String(i + 1).padStart(String(history.length).length, '0')} `,
 					kind: CompletionItemKind.Text,
 					range,
 				})) : [];
 
 				const variableItems = Array.from(this.chatVariablesService.getVariables()).map(v => {
-					const withAt = `@${v.name}`;
+					const withLeader = `${chatVariableLeader}${v.name}`;
 					return <CompletionItem>{
-						label: withAt,
+						label: withLeader,
 						range,
-						insertText: withAt + ' ',
+						insertText: withLeader + ' ',
 						detail: v.description,
 						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 					};

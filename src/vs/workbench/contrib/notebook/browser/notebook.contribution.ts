@@ -1035,7 +1035,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['auto', 'true', 'false'],
 			markdownEnumDescriptions: [
-				nls.localize('notebook.scrolling.anchorToFocusedCell.auto.description', "Anchor to the focused cell unless {0} is set to {1}", 'notebook.scrolling.revealCellBehavior', 'none')
+				nls.localize('notebook.scrolling.anchorToFocusedCell.auto.description', "Anchor to the focused cell when the resized cell is partially visible unless {0} is set to {1}", 'notebook.scrolling.revealCellBehavior', 'none')
 			],
 			default: 'auto'
 		}

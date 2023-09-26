@@ -16,7 +16,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
@@ -2043,14 +2043,15 @@ export interface DocumentOnDropEditProvider {
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
 }
 
-export interface RelatedContextItem {
+export interface DocumentContextItem {
 	readonly uri: URI;
-	readonly range: IRange;
+	readonly version: number;
+	readonly ranges: IRange[];
 }
 
 export interface MappedEditsContext {
-	selections: ISelection[];
-	related: RelatedContextItem[];
+	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
+	documents: DocumentContextItem[][];
 }
 
 export interface MappedEditsProvider {
