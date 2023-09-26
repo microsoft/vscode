@@ -27,6 +27,7 @@ import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -279,7 +280,7 @@ export async function showRunRecentQuickPick(
 		showWithPinnedItems(storageService, runRecentStorageKey, quickPick, true);
 		quickPick.onDidHide(() => {
 			terminalInRunCommandPicker.set(false);
-			accessibleViewService.showLastProvider();
+			accessibleViewService.showLastProvider(AccessibleViewProviderId.Terminal);
 			r();
 		});
 	});

@@ -12,6 +12,7 @@ import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browse
 import type { ILink } from 'xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 
@@ -96,7 +97,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 			disposables.add(pick.onDidHide(() => {
 				disposables.dispose();
 				if (pick.selectedItems.length === 0) {
-					this._accessibleViewService.showLastProvider();
+					this._accessibleViewService.showLastProvider(AccessibleViewProviderId.Terminal);
 				}
 				r();
 			}));

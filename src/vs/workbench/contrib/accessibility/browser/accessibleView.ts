@@ -63,6 +63,9 @@ export interface IAccessibleContentProvider {
 	 * When the language is markdown, this is provided by default.
 	 */
 	getSymbols?(): IAccessibleViewSymbol[];
+	/**
+	 * Note that this will only take effect if the provider has an ID.
+	 */
 	onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>;
 }
 
@@ -71,7 +74,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(provider: IAccessibleContentProvider): void;
-	showLastProvider(): void;
+	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
 	next(): void;
 	previous(): void;
@@ -104,8 +107,19 @@ export interface IAccessibleViewOptions {
 	 */
 	language?: string;
 	type: AccessibleViewType;
+	/**
+	 * By default, places the cursor on the last line of the accessible view.
+	 */
 	positionBottom?: boolean;
+	/**
+	 * @returns a string that will be used as the content of the help dialog
+	 * instead of the one provided by default.
+	 */
 	customHelp?: () => string;
+	/**
+	 * If this provider might want to request to be shown again, provide an ID.
+	 */
+	id?: AccessibleViewProviderId;
 }
 
 export class AccessibleView extends Disposable {
@@ -214,8 +228,8 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewCurrentProviderId.reset();
 	}
 
-	showLastProvider(): void {
-		if (!this._lastProvider) {
+	showLastProvider(id: AccessibleViewProviderId): void {
+		if (!this._lastProvider || this._lastProvider.options.id !== id) {
 			return;
 		}
 		this.show(this._lastProvider);
@@ -254,11 +268,16 @@ export class AccessibleView extends Disposable {
 			this.showSymbol(this._currentProvider, symbol);
 		}
 		if (provider.onDidRequestClearLastProvider) {
-			this._register(provider.onDidRequestClearLastProvider(() => {
-				this._lastProvider = undefined;
+			this._register(provider.onDidRequestClearLastProvider((id) => {
+				if (this._lastProvider?.options.id === id) {
+					this._lastProvider = undefined;
+				}
 			}));
 		}
-		this._lastProvider = provider;
+		if (provider.options.id) {
+			// only cache a provider with an ID so that it will eventually be cleared.
+			this._lastProvider = provider;
+		}
 	}
 
 	previous(): void {
@@ -631,8 +650,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		}
 		this._accessibleView.show(provider);
 	}
-	showLastProvider(): void {
-		this._accessibleView?.showLastProvider();
+	showLastProvider(id: AccessibleViewProviderId): void {
+		this._accessibleView?.showLastProvider(id);
 	}
 	next(): void {
 		this._accessibleView?.next();
