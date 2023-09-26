@@ -2571,7 +2571,7 @@
         "git.useForcePushIfIncludes": {
           "type": "boolean",
           "default": true,
-          "description": "%config.useForcePushIfIncludes%"
+          "markdownDescription": "%config.useForcePushIfIncludes%"
         },
         "git.confirmForcePush": {
           "type": "boolean",
