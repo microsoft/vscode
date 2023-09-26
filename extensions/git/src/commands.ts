@@ -3669,7 +3669,7 @@ export class CommandCenter {
 						message = l10n.t('Can\'t force push refs to remote. Check if force push is not prohibited by remote.');
 						break;
 					case GitErrorCodes.SaferForcePushRejected:
-						message = l10n.t('Can\'t force push refs to remote. Check if force push is not prohibited by remote or rebase to the latest remote branch first.');
+						message = l10n.t('Can\'t force push refs to remote. Check if force push is not prohibited by the remote or pull the latest changes from the remote branch first.');
 						break;
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');
