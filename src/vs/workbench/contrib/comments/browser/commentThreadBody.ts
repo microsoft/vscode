@@ -76,7 +76,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._register(dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
+			if ((event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) && (!this._focusedComment || !this._commentElements[this._focusedComment].isEditing)) {
 				const moveFocusWithinBounds = (change: number): number => {
 					if (this._focusedComment === undefined && change >= 0) { return 0; }
 					if (this._focusedComment === undefined && change < 0) { return this._commentElements.length - 1; }
