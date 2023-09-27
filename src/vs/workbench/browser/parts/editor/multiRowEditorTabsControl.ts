@@ -61,6 +61,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		if (didChange) {
 			// HACK: To render all editor tabs on startup, otherwise only one row gets rendered
 			otherTabController.openEditors([]);
+
+			this.handleOpenedEditors();
 		}
 		return didChange;
 	}
@@ -72,7 +74,17 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const didChangeOpenEditorsSticky = this.stickyEditorTabsControl.openEditors(stickyEditors);
 		const didChangeOpenEditorsUnSticky = this.unstickyEditorTabsControl.openEditors(unstickyEditors);
 
-		return didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky;
+		const didChange = didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky;
+
+		if (didChange) {
+			this.handleOpenedEditors();
+		}
+
+		return didChange;
+	}
+
+	private handleOpenedEditors(): void {
+		this.handlePinnedTabsSeparateRowToolbars();
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
