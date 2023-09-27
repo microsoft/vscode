@@ -37,7 +37,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			type: 'object',
 			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
-				type: 'string',
+				type: 'string'
 			},
 		},
 		{
