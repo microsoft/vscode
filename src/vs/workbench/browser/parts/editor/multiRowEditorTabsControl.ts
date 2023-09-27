@@ -173,7 +173,11 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 		const stickyDimensions = this.stickyEditorTabsControl.layout(dimensions);
-		const unstickyDimensions = this.unstickyEditorTabsControl.layout(dimensions);
+		const unstickyAvailableDimensions = {
+			container: dimensions.container,
+			available: new Dimension(dimensions.available.width, dimensions.available.height - stickyDimensions.height)
+		};
+		const unstickyDimensions = this.unstickyEditorTabsControl.layout(unstickyAvailableDimensions);
 
 		return new Dimension(
 			dimensions.container.width,
