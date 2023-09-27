@@ -94,7 +94,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 2,
 			lineDecorationsWidth: 0,
