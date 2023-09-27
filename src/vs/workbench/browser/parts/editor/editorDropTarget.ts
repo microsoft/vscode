@@ -62,7 +62,7 @@ class DropOverlay extends Themable {
 	private readonly enableDropIntoEditor: boolean;
 
 	constructor(
-		private groupView: IEditorGroupView,
+		private readonly groupView: IEditorGroupView,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -578,7 +578,7 @@ export class EditorDropTarget extends Themable {
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 
 	constructor(
-		private container: HTMLElement,
+		private readonly container: HTMLElement,
 		private readonly delegate: IEditorDropTargetDelegate,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IThemeService themeService: IThemeService,

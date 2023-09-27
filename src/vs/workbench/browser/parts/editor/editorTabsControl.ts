@@ -121,10 +121,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
-		private parent: HTMLElement,
-		protected groupsView: IEditorGroupsView,
-		protected groupView: IEditorGroupView,
-		protected tabsModel: IReadonlyEditorGroupModel,
+		private readonly parent: HTMLElement,
+		protected readonly groupsView: IEditorGroupsView,
+		protected readonly groupView: IEditorGroupView,
+		protected readonly tabsModel: IReadonlyEditorGroupModel,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,

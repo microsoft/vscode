@@ -5,7 +5,7 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsView, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
@@ -21,19 +21,20 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	private readonly unstickyEditorTabsControl: IEditorTabsControl;
 
 	constructor(
-		private parent: HTMLElement,
-		private groupsView: IEditorGroupsView,
-		private groupView: IEditorGroupView,
-		private model: IReadonlyEditorGroupModel,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		private readonly parent: HTMLElement,
+		editorPartsView: IEditorPartsView,
+		private readonly groupsView: IEditorGroupsView,
+		private readonly groupView: IEditorGroupView,
+		private readonly model: IReadonlyEditorGroupModel,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
 		const stickyModel = this._register(new StickyEditorGroupModel(this.model));
 		const unstickyModel = this._register(new UnstickyEditorGroupModel(this.model));
 
-		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.groupsView, this.groupView, stickyModel));
-		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.groupsView, this.groupView, unstickyModel));
+		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel));
+		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel));
 
 		this.handlePinnedTabsSeparateRowToolbars();
 	}

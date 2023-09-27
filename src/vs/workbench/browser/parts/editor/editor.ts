@@ -116,6 +116,9 @@ export interface IEditorGroupsView {
 }
 
 export interface IEditorPartsView {
+
+	readonly groups: IEditorGroupView[];
+
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 }
 
