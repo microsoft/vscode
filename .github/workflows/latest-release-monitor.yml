@@ -3,9 +3,6 @@ valid inputs are ['token', 'storageKey']
 Run ./actions/latest-release-monitor
 4
 /home/runner/work/vscode/vscode/actions/node_modules/@actions/core/lib/core.js:118
-
-
-Error: Input required and not supplied: token
      if any error: fix error for better performance
     at Object.getInput (/home/runner/work/vscode/vscode/actions/node_modules/@actions/core/lib/core.js:118:15)
     at getRequiredInput (/home/runner/work/vscode/vscode/actions/common/utils.js:15:41)

@@ -7,6 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: octokit/request-action@v2.x
+764e0f1dd44b5850e4a917ee060ec00b
+        id: get_permission
+
 
         route: GET /repos/microsoft/vscode/collaborators/{username}/permission
 
@@ -25,7 +28,6 @@ GET /repos/microsoft/vscode/collaborators/{username}/permission
 > mediaType: [object Object]
         id: get_permissions
         with:
-=======
 
 Run octokit/request-action@v2.x
 
