@@ -1176,7 +1176,7 @@ class DirtyDiffDecorator extends Disposable {
 		});
 
 		if (!this.decorationsCollection) {
-			this.codeEditor.createDecorationsCollection(decorations);
+			this.decorationsCollection = this.codeEditor.createDecorationsCollection(decorations);
 		} else {
 			this.decorationsCollection.set(decorations);
 		}
