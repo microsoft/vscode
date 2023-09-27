@@ -193,7 +193,8 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fit.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fixed.sticky-shrink {
-	position: static; /** disable sticky positions for sticky compact/shrink/fixed tabs if the available space is too little */
+	position: relative; /** disable sticky positions for sticky compact/shrink/fixed tabs if the available space is too little */
+	left: 0 !important;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
