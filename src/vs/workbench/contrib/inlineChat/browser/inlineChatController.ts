@@ -248,6 +248,8 @@ export class InlineChatController implements IEditorContribution {
 			if (!needsMargin) {
 				this._zone.value.setWidgetMargins(widgetPosition, 0);
 			}
+		}
+		if (this._activeSession) {
 			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
 		this._zone.value.show(widgetPosition);
@@ -371,10 +373,12 @@ export class InlineChatController implements IEditorContribution {
 			this._messages.fire(msg);
 		}));
 
+		const altVersionNow = this._editor.getModel()?.getAlternativeVersionId();
+
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
 			if (!this._ignoreModelContentChanged && this._strategy?.hasFocus()) {
-				this._ctxUserDidEdit.set(true);
+				this._ctxUserDidEdit.set(altVersionNow !== this._editor.getModel()?.getAlternativeVersionId());
 			}
 
 			if (this._ignoreModelContentChanged || this._strategy?.hasFocus()) {
@@ -465,7 +469,12 @@ export class InlineChatController implements IEditorContribution {
 			const { lastExchange } = this._activeSession;
 			this._activeSession.addInput(lastExchange.prompt.retry());
 			if (lastExchange.response instanceof EditResponse) {
-				await this._strategy.undoChanges(lastExchange.response);
+				try {
+					this._ignoreModelContentChanged = true;
+					await this._strategy.undoChanges(lastExchange.response);
+				} finally {
+					this._ignoreModelContentChanged = false;
+				}
 			}
 			return State.MAKE_REQUEST;
 		}
