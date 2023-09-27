@@ -29,6 +29,7 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -119,7 +120,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
@@ -164,6 +166,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const trusted = options?.trusted
+			|| this.productService.trustedExtensionProtocolHandlers?.includes(extensionId)
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
