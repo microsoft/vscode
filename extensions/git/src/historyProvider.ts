@@ -98,7 +98,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			};
 		}));
 
-		console.log(historyItems);
 		return historyItems;
 	}
 
