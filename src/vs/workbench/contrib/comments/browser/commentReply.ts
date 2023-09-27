@@ -28,7 +28,7 @@ import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentSe
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
+import { LayoutableEditor, STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
 
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
@@ -50,6 +50,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	constructor(
 		readonly owner: string,
 		container: HTMLElement,
+		private readonly _parentEditor: LayoutableEditor,
 		private _commentThread: languages.CommentThread<T>,
 		private _scopedInstatiationService: IInstantiationService,
 		private _contextKeyService: IContextKeyService,
@@ -117,7 +118,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private calculateEditorHeight(): boolean {
-		const newEditorHeight = calculateEditorHeight(this.commentEditor, this._editorHeight);
+		const newEditorHeight = calculateEditorHeight(this._parentEditor, this.commentEditor, this._editorHeight);
 		if (newEditorHeight !== this._editorHeight) {
 			this._editorHeight = newEditorHeight;
 			return true;

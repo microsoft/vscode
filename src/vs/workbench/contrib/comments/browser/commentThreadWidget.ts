@@ -35,6 +35,7 @@ import { localize } from 'vs/nls';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -60,6 +61,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 	constructor(
 		readonly container: HTMLElement,
+		readonly _parentEditor: LayoutableEditor,
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
@@ -126,6 +128,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}));
 		this._body = this._scopedInstantiationService.createInstance(
 			CommentThreadBody,
+			this._parentEditor,
 			this._owner,
 			this._parentResourceUri,
 			bodyElement,
@@ -286,6 +289,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			CommentReply,
 			this._owner,
 			this._body.container,
+			this._parentEditor,
 			this._commentThread,
 			this._scopedInstantiationService,
 			this._contextKeyService,

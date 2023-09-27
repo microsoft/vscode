@@ -31,6 +31,10 @@ export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditor
 export const STARTING_EDITOR_HEIGHT = 5 * 18;
 export const MAX_EDITOR_HEIGHT = 25 * 18;
 
+export interface LayoutableEditor {
+	getLayoutInfo(): { height: number };
+}
+
 export class SimpleCommentEditor extends CodeEditorWidget {
 	private _parentThread: ICommentThreadWidget;
 	private _commentEditorFocused: IContextKey<boolean>;
@@ -113,14 +117,15 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 	}
 }
 
-export function calculateEditorHeight(editor: ICodeEditor, currentHeight: number): number {
+export function calculateEditorHeight(parentEditor: LayoutableEditor, editor: ICodeEditor, currentHeight: number): number {
 	const layoutInfo = editor.getLayoutInfo();
 	const lineHeight = editor.getOption(EditorOption.lineHeight);
 	const contentHeight = (editor.getModel()?.getLineCount()! * lineHeight) ?? editor.getContentHeight(); // Can't just call getContentHeight() because it returns an incorrect, large, value when the editor is first created.
 	if ((contentHeight > layoutInfo.height) ||
 		(contentHeight < layoutInfo.height && currentHeight > STARTING_EDITOR_HEIGHT)) {
 		const linesToAdd = Math.ceil((contentHeight - layoutInfo.height) / lineHeight);
-		const newEditorHeight = Math.min(MAX_EDITOR_HEIGHT, layoutInfo.height + (lineHeight * linesToAdd));
+		const maxCommentEditorHeight = Math.max(Math.min(MAX_EDITOR_HEIGHT, parentEditor.getLayoutInfo().height - 90), STARTING_EDITOR_HEIGHT);
+		const newEditorHeight = Math.min(maxCommentEditorHeight, layoutInfo.height + (lineHeight * linesToAdd));
 		return newEditorHeight;
 	}
 	return currentHeight;
