@@ -76,9 +76,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		const optionsRef = options.limit.id;
+		const historyItemGroupIdRef = await this.repository.revParse(historyItemGroupId) ?? '';
+
 		const [commits, summary] = await Promise.all([
-			this.repository.log({ range: `${optionsRef}..${historyItemGroupId}`, sortByAuthorDate: true }),
-			this.getSummaryHistoryItem(optionsRef, historyItemGroupId)
+			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, sortByAuthorDate: true }),
+			this.getSummaryHistoryItem(optionsRef, historyItemGroupIdRef)
 		]);
 
 		const historyItems = commits.length === 0 ? [] : [summary];

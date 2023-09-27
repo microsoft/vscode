@@ -2555,6 +2555,18 @@ export class Repository {
 		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
 	}
 
+	async revParse(ref: string): Promise<string | undefined> {
+		try {
+			const result = await this.exec(['rev-parse', ref]);
+			if (result.stderr) {
+				return undefined;
+			}
+			return result.stdout.trim();
+		} catch (err) {
+			return undefined;
+		}
+	}
+
 	async updateSubmodules(paths: string[]): Promise<void> {
 		const args = ['submodule', 'update'];
 
