@@ -965,7 +965,7 @@ export const NotebookSetting = {
 	remoteSaving: 'notebook.experimental.remoteSave',
 	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
 	scrollToRevealCell: 'notebook.scrolling.revealCellBehavior',
-	anchorToFocusedCell: 'notebook.scrolling.anchorToFocusedCell'
+	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell'
 } as const;
 
 export const enum CellStatusbarAlignment {
