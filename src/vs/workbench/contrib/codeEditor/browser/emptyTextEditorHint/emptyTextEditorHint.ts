@@ -69,7 +69,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
+		@IProductService protected readonly productService: IProductService,
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
