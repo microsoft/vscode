@@ -37,7 +37,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			type: 'object',
 			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
-				type: 'string'
+				type: 'string',
 			},
 		},
 		{
@@ -48,9 +48,10 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run CodeActions for the editor on save. CodeActions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
 	type: 'object',
 	additionalProperties: {
-		type: 'string'
+		type: 'string',
+		enum: ['always', 'never', 'explicit'],
 	},
-	default: {},
+	default: { 'source.fixAll': 'never', 'source.organizeImports': 'never', },
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 };
 
