@@ -183,6 +183,10 @@
 	padding: 0 12px;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.multiple.active .action-label {
+	background-color: inherit;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:only-child {
 	margin-left: 0; /* no margin if there is only the command center, without nav buttons */
 }

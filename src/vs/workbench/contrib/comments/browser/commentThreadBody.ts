@@ -20,6 +20,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IRange } from 'vs/editor/common/core/range';
+import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 
 export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
 	private _commentsElement!: HTMLElement;
@@ -42,6 +43,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 
 	constructor(
+		private readonly _parentEditor: LayoutableEditor,
 		readonly owner: string,
 		readonly parentResourceUri: URI,
 		readonly container: HTMLElement,
@@ -254,6 +256,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 	private createNewCommentNode(comment: languages.Comment): CommentNode<T> {
 		const newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
+			this._parentEditor,
 			this._commentThread,
 			comment,
 			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread!] : undefined,

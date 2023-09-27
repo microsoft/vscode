@@ -47,7 +47,7 @@ fi
 
 # Apply EnvironmentVariableCollections if needed
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
-	IFS=':' read -ra ADDR <<<"$VSCODE_ENV_REPLACE"
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
@@ -56,7 +56,7 @@ if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	builtin unset VSCODE_ENV_REPLACE
 fi
 if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
-	IFS=':' read -ra ADDR <<<"$VSCODE_ENV_PREPEND"
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
@@ -65,7 +65,7 @@ if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	builtin unset VSCODE_ENV_PREPEND
 fi
 if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
-	IFS=':' read -ra ADDR <<<"$VSCODE_ENV_APPEND"
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
 		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
@@ -95,52 +95,13 @@ __vsc_get_trap() {
 	builtin printf '%s' "${terms[2]:-}"
 }
 
-__vsc_command_available() {
-	builtin local trash
-	trash=$(builtin command -v "$1" 2>&1)
-	builtin return $?
-}
-
-# We provide two faster escaping functions here.
-# The first one escapes each byte 0xab into '\xab', which is most scalable and has promising runtime
-# efficiency, except that it relies on external commands od and tr.
-# The second one is much faster and has zero dependency, except that it escapes only
-# '\\' -> '\\\\' and ';' -> '\x3b' and scales up badly when more patterns are needed.
-# We default to use the first function if od and tr are available, and fallback to the second otherwise.
-if __vsc_command_available od && __vsc_command_available tr; then
-	__vsc_escape_value_fast() {
-		builtin local out
-		# -An removes line number
-		# -v do not use * to mark line suppression
-		# -tx1 prints each byte as two-digit hex
-		# tr -d '\n' concats all output lines
-		out=$(od -An -vtx1 <<<"$1" | tr -d '\n')
-		out=${out// /\\x}
-		# <<<"$1" prepends a trailing newline already, so we don't need to printf '%s\n'
-		builtin printf '%s' "${out}"
-	}
-else
-	__vsc_escape_value_fast() {
-		builtin local LC_ALL=C out
-		out=${1//\\/\\\\}
-		out=${out//;/\\x3b}
-		builtin printf '%s\n' "${out}"
-	}
-fi
-
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
-	# If the input being too large, switch to the faster function
-	if [ "${#1}" -ge 2000 ]; then
-		__vsc_escape_value_fast "$1"
-		builtin return
-	fi
-
 	# Process text byte by byte, not by codepoint.
 	builtin local LC_ALL=C str="${1}" i byte token out=''
 
-	for ((i = 0; i < "${#str}"; ++i)); do
+	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
 
 		# Escape backslashes and semi-colons

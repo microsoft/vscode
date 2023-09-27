@@ -1606,6 +1606,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
 	}
 
+	async revParse(ref: string): Promise<string | undefined> {
+		return await this.run(Operation.RevParse, () => this.repository.revParse(ref));
+	}
+
 	async reset(treeish: string, hard?: boolean): Promise<void> {
 		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
 	}

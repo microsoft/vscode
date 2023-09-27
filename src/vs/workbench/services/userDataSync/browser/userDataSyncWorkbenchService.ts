@@ -19,7 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { URI } from 'vs/base/common/uri';
@@ -39,6 +39,8 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IFileService } from 'vs/platform/files/common/files';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -115,6 +117,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IEditorService private readonly editorService: IEditorService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@IFileService private readonly fileService: IFileService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 	) {
 		super();
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
@@ -477,15 +481,50 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.viewsService.openViewContainer(SYNC_VIEW_CONTAINER_ID);
 	}
 
-	async downloadSyncActivity(location: URI): Promise<void> {
-		await Promise.all([
-			this.userDataSyncService.saveRemoteActivityData(this.uriIdentityService.extUri.joinPath(location, 'remoteActivity.json')),
-			(async () => {
-				const logResources = await this.getAllLogResources();
-				await Promise.all(logResources.map(async logResource => this.fileService.copy(logResource, this.uriIdentityService.extUri.joinPath(location, 'logs', `${this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(logResource))}.log`))));
-			})(),
-			this.fileService.copy(this.environmentService.userDataSyncHome, this.uriIdentityService.extUri.joinPath(location, 'localActivity')),
-		]);
+	async downloadSyncActivity(): Promise<URI | undefined> {
+		const result = await this.fileDialogService.showOpenDialog({
+			title: localize('download sync activity dialog title', "Select folder to download Settings Sync activity"),
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			openLabel: localize('download sync activity dialog open label', "Save"),
+		});
+
+		if (!result?.[0]) {
+			return;
+		}
+
+		return this.progressService.withProgress({ location: ProgressLocation.Window }, async () => {
+			const machines = await this.userDataSyncMachinesService.getMachines();
+			const currentMachine = machines.find(m => m.isCurrent);
+			const name = (currentMachine ? currentMachine.name + ' - ' : '') + 'Settings Sync Activity';
+			const stat = await this.fileService.resolve(result[0]);
+
+			const nameRegEx = new RegExp(`${escapeRegExpCharacters(name)}\\s(\\d+)`);
+			const indexes: number[] = [];
+			for (const child of stat.children ?? []) {
+				if (child.name === name) {
+					indexes.push(0);
+				} else {
+					const matches = nameRegEx.exec(child.name);
+					if (matches) {
+						indexes.push(parseInt(matches[1]));
+					}
+				}
+			}
+			indexes.sort((a, b) => a - b);
+
+			const folder = this.uriIdentityService.extUri.joinPath(result[0], indexes[0] !== 0 ? name : `${name} ${indexes[indexes.length - 1] + 1}`);
+			await Promise.all([
+				this.userDataSyncService.saveRemoteActivityData(this.uriIdentityService.extUri.joinPath(folder, 'remoteActivity.json')),
+				(async () => {
+					const logResources = await this.getAllLogResources();
+					await Promise.all(logResources.map(async logResource => this.fileService.copy(logResource, this.uriIdentityService.extUri.joinPath(folder, 'logs', `${this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(logResource))}.log`))));
+				})(),
+				this.fileService.copy(this.environmentService.userDataSyncHome, this.uriIdentityService.extUri.joinPath(folder, 'localActivity')),
+			]);
+			return folder;
+		});
 	}
 
 	private async waitForActiveSyncViews(): Promise<void> {
