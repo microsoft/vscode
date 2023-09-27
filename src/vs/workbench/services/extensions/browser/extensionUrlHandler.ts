@@ -26,7 +26,6 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -120,8 +119,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
@@ -166,7 +164,6 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const trusted = options?.trusted
-			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {

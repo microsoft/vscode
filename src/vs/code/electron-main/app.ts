@@ -41,8 +41,6 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
-import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
 import { ExtensionHostStarter } from 'vs/platform/extensions/electron-main/extensionHostStarter';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-main/externalTerminal';
@@ -968,9 +966,6 @@ export class CodeApplication extends Disposable {
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
-		// Extension URL Trust
-		services.set(IExtensionUrlTrustService, new SyncDescriptor(ExtensionUrlTrustService));
-
 		// Extension Host Starter
 		services.set(IExtensionHostStarter, new SyncDescriptor(ExtensionHostStarter));
 
@@ -1117,10 +1112,6 @@ export class CodeApplication extends Disposable {
 		// URL handling
 		const urlChannel = ProxyChannel.fromService(accessor.get(IURLService), disposables);
 		mainProcessElectronServer.registerChannel('url', urlChannel);
-
-		// Extension URL Trust
-		const extensionUrlTrustChannel = ProxyChannel.fromService(accessor.get(IExtensionUrlTrustService), disposables);
-		mainProcessElectronServer.registerChannel('extensionUrlTrust', extensionUrlTrustChannel);
 
 		// Webview Manager
 		const webviewChannel = ProxyChannel.fromService(accessor.get(IWebviewManagerService), disposables);
