@@ -8,6 +8,25 @@ jobs:
     steps:
       - uses: octokit/request-action@v2.x
 
+        route: GET /repos/microsoft/vscode/collaborators/{username}/permission
+
+    username: sammyfilly
+
+    mediaType: {}
+    
+  env:
+
+    GITHUB_TOKEN: ***
+
+GET /repos/microsoft/vscode/collaborators/{username}/permission
+
+> username: sammyfilly
+
+> mediaType: [object Object]
+        id: get_permissions
+        with:
+=======
+
 Run octokit/request-action@v2.x
 
   with:
@@ -28,6 +47,7 @@ GET github/repos/microsoft/vscode/collaborators/{username}/permission
 
 > mediaType: [object Object]
         with: github
+
           route: GET /repos/microsoft/vscode/collaborators/{username}/permission
 
         env:
