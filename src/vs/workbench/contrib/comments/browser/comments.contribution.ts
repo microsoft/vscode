@@ -20,6 +20,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
+import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
@@ -69,7 +70,9 @@ registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
 
 export namespace CommentAccessibilityHelpNLS {
 	export const intro = nls.localize('intro', "The editor contains commentable range(s). Some useful commands include:");
-	export const introWidget = nls.localize('introWidget', "Some useful comment commands include:");
+	export const introWidget = nls.localize('introWidget', "This widget contains a text area, for composition of new comments, and actions, that can be tabbed to once tab moves focus mode has been enabled ({0}).");
+	export const introWidgetNoKb = nls.localize('introWidgetNoKb', "This widget contains a text area, for composition of new comments, and actions, that can be tabbed to once tab moves focus mode has been enabled with the command Toggle Tab Key Moves Focus, which is currently not triggerable via keybinding.");
+	export const commentCommands = nls.localize('commentCommands', "Some useful comment commands include:");
 	export const escape = nls.localize('escape', "- Dismiss Comment (Escape)");
 	export const nextRange = nls.localize('next', "- Navigate to the next commenting range ({0})");
 	export const nextRangeNoKb = nls.localize('nextNoKb', "- Go to Next Commenting Range, which is currently not triggerable via keybinding.");
@@ -116,7 +119,8 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 	provideContent(): string {
 		this._element = document.activeElement as HTMLElement;
 		const content: string[] = [];
-		content.push(CommentAccessibilityHelpNLS.introWidget);
+		content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, CommentAccessibilityHelpNLS.introWidget, CommentAccessibilityHelpNLS.introWidgetNoKb) + '\n');
+		content.push(CommentAccessibilityHelpNLS.commentCommands);
 		content.push(CommentAccessibilityHelpNLS.escape);
 		content.push(this._descriptionForCommand(CommentCommandId.Add, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb));
 		content.push(this._descriptionForCommand(CommentCommandId.Submit, CommentAccessibilityHelpNLS.submitComment, CommentAccessibilityHelpNLS.submitCommentNoKb));
