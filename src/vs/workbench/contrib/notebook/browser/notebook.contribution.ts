@@ -1020,13 +1020,13 @@ configurationRegistry.registerConfiguration({
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
 		},
 		[NotebookSetting.scrollToRevealCell]: {
-			markdownDescription: nls.localize('notebook.scrolling.revealCellBehavior.description', "How far to scroll when revealing the selected, e.g. when exectuting {0}.", 'notebook.cell.executeAndSelectBelow'),
+			markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),
 			type: 'string',
 			enum: ['fullCell', 'firstLine', 'none'],
 			markdownEnumDescriptions: [
-				nls.localize('notebook.scrolling.revealCellBehavior.fullCell.description', 'Scroll to fully reveal the selected cell.'),
-				nls.localize('notebook.scrolling.revealCellBehavior.firstLine.description', 'Scroll to reveal the first line of the selected cell.'),
-				nls.localize('notebook.scrolling.revealCellBehavior.nonedescription', 'Do not scroll to reveal the selected cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.fullCell.description', 'Scroll to fully reveal the next cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.firstLine.description', 'Scroll to reveal the first line of the next cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.none.description', 'Do not scroll.'),
 			],
 			default: 'fullCell'
 		},
