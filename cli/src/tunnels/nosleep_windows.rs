@@ -28,7 +28,7 @@ impl Request {
 		let mut context = REASON_CONTEXT {
 			Version: POWER_REQUEST_CONTEXT_VERSION,
 			Flags: POWER_REQUEST_CONTEXT_SIMPLE_STRING,
-			..Default::default()
+			Reason: unsafe { std::mem::zeroed() },
 		};
 		unsafe { *context.Reason.SimpleReasonString_mut() = reason.as_mut_ptr() };
 
