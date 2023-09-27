@@ -119,7 +119,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this._bufferTracker = this._register(this._instantiationService.createInstance(BufferContentTracker, this._xterm));
 		}
 		if (!this._bufferProvider) {
-			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
+			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker, () => {
+				return this._register(this._instantiationService.createInstance(TerminalAccessibleContentProvider, this._instance, this._xterm!)).provideContent();
+			}));
 		}
 		this._accessibleViewService.show(this._bufferProvider);
 	}

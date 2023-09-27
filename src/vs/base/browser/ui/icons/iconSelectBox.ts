@@ -45,6 +45,7 @@ export class IconSelectBox extends Disposable {
 
 	protected inputBox: InputBox | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
+	private iconsContainer: HTMLElement | undefined;
 	private iconIdElement: HighlightedLabel | undefined;
 	private readonly iconContainerWidth = 36;
 	private readonly iconContainerHeight = 36;
@@ -70,8 +71,7 @@ export class IconSelectBox extends Disposable {
 			inputBoxStyles: this.options.inputBoxStyles,
 		}));
 
-		const iconsContainer = dom.$('.icon-select-icons-container', { id: `${this.domId}_icons` });
-		iconsContainer.style.paddingRight = '10px';
+		const iconsContainer = this.iconsContainer = dom.$('.icon-select-icons-container', { id: `${this.domId}_icons` });
 		iconsContainer.role = 'listbox';
 		iconsContainer.tabIndex = 0;
 		this.scrollableElement = disposables.add(new DomScrollableElement(iconsContainer, {
@@ -218,16 +218,22 @@ export class IconSelectBox extends Disposable {
 		this.domNode.style.width = `${dimension.width}px`;
 		this.domNode.style.height = `${dimension.height}px`;
 
-		const iconsContainerWidth = dimension.width - 40;
+		const iconsContainerWidth = dimension.width - 30;
 		this.numberOfElementsPerRow = Math.floor(iconsContainerWidth / this.iconContainerWidth);
 		if (this.numberOfElementsPerRow === 0) {
 			throw new Error('Insufficient width');
 		}
 
 		const extraSpace = iconsContainerWidth % this.iconContainerWidth;
-		const margin = Math.floor(extraSpace / this.numberOfElementsPerRow);
+		const iconElementMargin = Math.floor(extraSpace / this.numberOfElementsPerRow);
 		for (const { element } of this.renderedIcons) {
-			element.style.marginRight = `${margin}px`;
+			element.style.marginRight = `${iconElementMargin}px`;
+		}
+
+		const containerPadding = extraSpace % this.numberOfElementsPerRow;
+		if (this.iconsContainer) {
+			this.iconsContainer.style.paddingLeft = `${Math.floor(containerPadding / 2)}px`;
+			this.iconsContainer.style.paddingRight = `${Math.ceil(containerPadding / 2)}px`;
 		}
 
 		if (this.scrollableElement) {
