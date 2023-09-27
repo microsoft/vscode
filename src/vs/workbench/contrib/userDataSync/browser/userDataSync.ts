@@ -58,6 +58,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IFileService } from 'vs/platform/files/common/files';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { isWeb } from 'vs/base/common/platform';
 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
@@ -1148,6 +1150,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				const fileService = accessor.get(IFileService);
 				const userDataSyncMachinesService = accessor.get(IUserDataSyncMachinesService);
 				const notificationService = accessor.get(INotificationService);
+				const hostService = accessor.get(INativeHostService);
 
 				const result = await fileDialogService.showOpenDialog({
 					title: localize('download sync activity dialog title', "Select folder to download Settings Sync activity"),
@@ -1161,7 +1164,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					return;
 				}
 
-				await progressService.withProgress({ location: ProgressLocation.Window }, async () => {
+				const folder = await progressService.withProgress({ location: ProgressLocation.Window }, async () => {
 					const machines = await userDataSyncMachinesService.getMachines();
 					const currentMachine = machines.find(m => m.isCurrent);
 					const name = (currentMachine ? currentMachine.name + ' - ' : '') + 'Settings Sync Activity';
@@ -1181,10 +1184,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 					indexes.sort((a, b) => a - b);
 
-					return userDataSyncWorkbenchService.downloadSyncActivity(uriIdentityService.extUri.joinPath(result[0], indexes[0] !== 0 ? name : `${name} ${indexes[indexes.length - 1] + 1}`));
+					const folder = uriIdentityService.extUri.joinPath(result[0], indexes[0] !== 0 ? name : `${name} ${indexes[indexes.length - 1] + 1}`);
+					await userDataSyncWorkbenchService.downloadSyncActivity(folder);
+					return folder;
 				});
 
-				notificationService.info(localize('download sync activity complete', "Successfully downloaded Settings Sync activity."));
+				notificationService.prompt(Severity.Info, localize('download sync activity complete', "Successfully downloaded Settings Sync activity."),
+					isWeb ? [] : [{
+						label: localize('open', "Open Folder"),
+						run: () => hostService.showItemInFolder(folder.fsPath)
+					}]);
 			}
 
 		}));
