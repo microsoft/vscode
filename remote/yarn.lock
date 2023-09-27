@@ -677,10 +677,10 @@ xterm-addon-image@0.6.0-beta.21:
   resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.6.0-beta.21.tgz#e3708bc504c56a23ff31f12a2eeb335331a92aac"
   integrity sha512-8/PTaXVPa4kQ0xzVeuZZk10OpbZBj2cgfwhM2B0ChSPvwrk0lX+ksnXdtDKH3tg+JYvo7fIhNXtkr4NwWt7VJQ==
 
-xterm-addon-search@0.14.0-beta.26:
-  version "0.14.0-beta.26"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.14.0-beta.26.tgz#2b5b8af31613c896d354c4799624090b11cd601c"
-  integrity sha512-CghsGO7fJa0efClbgZH20lh/JUaQYgJ1AJTPm8luc/eDc6DWOJblU0MxIABclLgT8lagv9+sOQfO0VIkAITxig==
+xterm-addon-search@0.14.0-beta.27:
+  version "0.14.0-beta.27"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.14.0-beta.27.tgz#b6f81eac5047253a5c664349c47498a81b6ec168"
+  integrity sha512-T4Exwf/rqoLHqGUUIta5Pw/i9PljvroZwLxc7RnVyDqpNsTifDn3675kS54CxwqPlv4owFhxujTDzJPCUEkM2A==
 
 xterm-addon-serialize@0.12.0-beta.26:
   version "0.12.0-beta.26"
