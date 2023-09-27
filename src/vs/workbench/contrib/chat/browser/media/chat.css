@@ -437,7 +437,7 @@
 
 /* #endregion */
 
-.interactive-response-progress-tree .monaco-tl-row:hover {
+.interactive-response-progress-tree .monaco-list-row:not(.selected) .monaco-tl-row:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
