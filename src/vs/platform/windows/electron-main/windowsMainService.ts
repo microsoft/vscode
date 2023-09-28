@@ -13,7 +13,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from 'vs/base/common/extpath';
 import { getPathLabel } from 'vs/base/common/labels';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
@@ -182,9 +182,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly _onDidOpenWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onDidOpenWindow = this._onDidOpenWindow.event;
-
-	private readonly _onWillLoadWindow = this._register(new Emitter<ICodeWindow>());
-	readonly onWillLoadWindow = this._onWillLoadWindow.event;
 
 	private readonly _onDidSignalReadyWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onDidSignalReadyWindow = this._onDidSignalReadyWindow.event;
@@ -1464,11 +1461,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() - 1, newCount: this.getWindowCount() });
 
 			// Window Events
-			Event.once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
-			Event.once(createdWindow.onWillLoad)(() => this._onWillLoadWindow.fire(createdWindow));
-			Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
-			Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
-			createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y }));
+			const disposables = new DisposableStore();
+			disposables.add(createdWindow.onDidSignalReady(() => this._onDidSignalReadyWindow.fire(createdWindow)));
+			disposables.add(Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow, disposables)));
+			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow)));
+			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
@@ -1585,7 +1582,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? defaultProfile;
 	}
 
-	private onWindowClosed(window: ICodeWindow): void {
+	private onWindowClosed(window: ICodeWindow, disposables: IDisposable): void {
 
 		// Remove from our list so that Electron can clean it up
 		const index = WindowsMainService.WINDOWS.indexOf(window);
@@ -1593,6 +1590,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Emit
 		this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
+
+		// Clean up
+		disposables.dispose();
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {
@@ -1625,7 +1625,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	sendToOpeningWindow(channel: string, ...args: any[]): void {
-		this._register(Event.once(this.onWillLoadWindow)(window => {
+		this._register(Event.once(this.onDidSignalReadyWindow)(window => {
 			window.sendWhenReady(channel, CancellationToken.None, ...args);
 		}));
 	}
