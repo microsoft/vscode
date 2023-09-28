@@ -177,7 +177,7 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
-		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
+		if (this.configurationService.getValue<boolean>('files.trimFinalNewlines')) {
 			this.doTrimFinalNewLines(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
