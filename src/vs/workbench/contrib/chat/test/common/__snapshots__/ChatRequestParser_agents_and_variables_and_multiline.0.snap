@@ -17,7 +17,8 @@
           description: "",
           subCommands: [ { name: "subCommand" } ]
         }
-      }
+      },
+      kind: "agent"
     },
     {
       range: {
@@ -30,7 +31,8 @@
         endLineNumber: 2,
         endColumn: 4
       },
-      text: " Please \ndo "
+      text: " Please \ndo ",
+      kind: "text"
     },
     {
       range: {
@@ -43,7 +45,8 @@
         endLineNumber: 2,
         endColumn: 15
       },
-      command: { name: "subCommand" }
+      command: { name: "subCommand" },
+      kind: "subcommand"
     },
     {
       range: {
@@ -56,7 +59,8 @@
         endLineNumber: 2,
         endColumn: 21
       },
-      text: " with "
+      text: " with ",
+      kind: "text"
     },
     {
       range: {
@@ -70,7 +74,8 @@
         endColumn: 31
       },
       variableName: "selection",
-      variableArg: ""
+      variableArg: "",
+      kind: "var"
     },
     {
       range: {
@@ -83,7 +88,8 @@
         endLineNumber: 3,
         endColumn: 5
       },
-      text: "\nand "
+      text: "\nand ",
+      kind: "text"
     },
     {
       range: {
@@ -97,7 +103,8 @@
         endColumn: 18
       },
       variableName: "debugConsole",
-      variableArg: ""
+      variableArg: "",
+      kind: "var"
     }
   ],
   text: "@agent Please \ndo /subCommand with #selection\nand #debugConsole"
