@@ -158,5 +158,8 @@
 		"vscode-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/api/common/extHostTypes.ts"
-	]
+	],
+	"editor.tabCompletion": "on",
+	"diffEditor.codeLens": true,
+	"github.copilot.inlineSuggest.enable": true
 }

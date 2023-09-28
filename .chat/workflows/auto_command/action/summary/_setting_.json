@@ -1,0 +1,15 @@
+{
+	"name": "summary",
+	"description": "Get summary of specified file or direcotry in workspace",
+	"type": ["project"],
+	"action": "summary",
+	"args": [
+		{
+			"name": "path",
+			"description": "The relative path of the specified file or folder, for example, /hello.py, represents the hello.py file in the root directory. This arg is required.",
+			"type": "string",
+			"from": "content.content.path"
+		}
+	],
+	"handler": ["${PythonVirtualEnv}", "${CurDir}/handler.py", "${path}"]
+}

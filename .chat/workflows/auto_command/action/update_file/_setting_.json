@@ -1,0 +1,23 @@
+{
+	"name": "update_file",
+	"description": "replace selections of file with specified content",
+	"type": ["update"],
+	"args": [{
+			"name": "fileName",
+			"description": "target file name to update",
+			"type": "string",
+			"from": "content.fileName"
+		}, {
+			"name": "old_content",
+			"description": "old content to replaced",
+			"type": "string",
+			"from": "content.content.old"
+		}, {
+			"name": "content",
+			"description": "content to write to file",
+			"type": "string",
+			"from": "content.content.new"
+		}],
+	"action": "update_file",
+	"handler": ["python", "${CurDir}/handler.py", "${fileName}", "${old_content}", "${content}"]
+}

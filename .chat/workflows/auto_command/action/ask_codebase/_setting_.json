@@ -1,0 +1,13 @@
+{
+	"name": "ask_codebase",
+	"description": "Ask question about codebase.",
+	"type": ["question"],
+	"args": [{
+			"name": "question",
+			"description": "selected question",
+			"type": "string",
+			"from": "content.content.question"
+		}],
+	"action": "ask_codebase",
+	"handler": ["${PythonVirtualEnv}", "${CurDir}/handler.py", "${question}"]
+}

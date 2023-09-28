@@ -1,0 +1,23 @@
+{
+	"name": "search_text",
+	"description": "Search text in all files within project. Search text with match whole word. Text search is an alternative to finding symbol references, mainly for scenarios where symbol references cannot be used, such as searching for references to a specific string.",
+	"type": ["none"],
+	"args": [{
+			"name": "text",
+			"description": "text to search",
+			"type": "string",
+			"from": "content.content.text"
+		}, {
+			"name": "include_files",
+			"description": "search text within setting include files, support multi pattern. The parameter format is based on the corresponding configuration in vscode search.",
+			"type": "string",
+			"from": "content.content.include_files"
+		}, {
+			"name": "exclude_files",
+			"description": "search text not within setting exclude files, support multi pattern. The parameter format is based on the corresponding configuration in vscode search.",
+			"type": "string",
+			"from": "content.content.exclude_files"
+		}],
+	"action": "search_text",
+	"handler": ["python", "${CurDir}/handler.py", "${text}", "${include_files}", "${exclude_files}"]
+}

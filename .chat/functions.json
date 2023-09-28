@@ -1,0 +1,289 @@
+[
+    {
+        "name": "symbol_ref",
+        "description": "\n\t\tFunction Purpose: This function retrieves the reference information for a given symbol.\n\t\tInput: The symbol should not be in string format or in 'a.b' format. To find the reference of 'a.b', simply refer to 'b'.\n\t\tOutput: The function returns a dictionary with the following keys:\n\t\t'exitCode': If 'exitCode' is 0, the function execution was successful. If 'exitCode' is not 0, the function execution failed.\n\t\t'stdout': If the function executes successfully, 'stdout' is a list of JSON strings. Each JSON string contains:\n\t\t'path': The file path.\n\t\t'ref_line': The ref line of the symbol.\n\t\t'content': The source code related to the reference.\n\t\t'parentDefine': The parent symbol name of the reference, which is always a function name or class name.\n\t\t'parentDefineStartLine': The start line of the parent symbol name of the reference.\n\t\t'stderr': Error output if any.\n\t\tError Handling: If the function execution fails, 'exitCode' will not be 0 and 'stderr' will contain the error information.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "The symbol variable specifies the symbol for which reference information is to be retrieved."
+                },
+                "line": {
+                    "type": "number",
+                    "description": "The line variable specifies the line number of the symbol for which reference information is to be retrieved."
+                },
+                "file": {
+                    "type": "string",
+                    "description": "File contain that symbol."
+                }
+            },
+            "required": [
+                "symbol",
+                "line",
+                "file"
+            ]
+        }
+    },
+    {
+        "name": "symbol_def",
+        "description": "\n        Function Purpose: This function retrieves the definition information for a given symbol.\n        Input: The symbol should not be in string format or in 'a.b' format. To find the definition of 'a.b', simply refer to 'b'.\n        Output: The function returns a dictionary with the following keys:\n        'exitCode': If 'exitCode' is 0, the function execution was successful. If 'exitCode' is not 0, the function execution failed.\n        'stdout': If the function executes successfully, 'stdout' is a list of JSON strings. Each JSON string contains:\n        'path': The file path.\n        'start_line': The start line of the content.\n        'end_line': The end line of the content.\n        'content': The source code related to the definition.\n        'stderr': Error output if any.\n        Error Handling: If the function execution fails, 'exitCode' will not be 0 and 'stderr' will contain the error information.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "symbol": {
+                    "type": "string",
+                    "description": "The symbol variable specifies the symbol for which definition information is to be retrieved."
+                },
+                "line": {
+                    "type": "number",
+                    "description": "The line variable specifies the line number of the symbol for which definition information is to be retrieved."
+                },
+                "file": {
+                    "type": "string",
+                    "description": "File contain that symbol."
+                }
+            },
+            "required": [
+                "symbol",
+                "line",
+                "file"
+            ]
+        }
+    },
+    {
+        "name": "ask_input",
+        "description": "Ask user a question to when you need the user to input something",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "The question you asked."
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "symbol_in_file",
+        "description": "Retrieve definitions in file",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "type": "string",
+                    "description": "Specify which file to load."
+                }
+            },
+            "required": [
+                "file"
+            ]
+        }
+    },
+    {
+        "name": "current_document",
+        "description": "Get current active document",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "select_text",
+        "description": "Selected text in active document, only include text user selected.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "select_block",
+        "description": "Select block in active document. For example, select a function name, then return the whole function.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "run_vscode_command",
+        "description": "Run VSCode command",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "VSCode command to run."
+                },
+                "args": {
+                    "type": "string",
+                    "description": "Arguments for the command, separated by comma."
+                }
+            },
+            "required": [
+                "command"
+            ]
+        }
+    },
+    {
+        "name": "ask_codebase",
+        "description": "Ask question about codebase.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "selected question"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "finish_task",
+        "description": "Flag task as finished",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "get_project_tree",
+        "description": "Get project file list.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
+    {
+        "name": "load_file",
+        "description": "Load text file content.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "fileName": {
+                    "type": "string",
+                    "description": "Specify the file, which content will be loaded"
+                },
+                "startLine": {
+                    "type": "string",
+                    "description": "Specify the start line of content. It is not required if load the whole file."
+                },
+                "endLine": {
+                    "type": "string",
+                    "description": "Specify the end line of content. It is not required if load the whole file."
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "new_file",
+        "description": "create new file or replace file with new content",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "fileName": {
+                    "type": "string",
+                    "description": "target file name to create"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "content to write to file"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "run_shell",
+        "description": "run shell script",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "script": {
+                    "type": "string",
+                    "description": "shell command to run, for example: [\"ls\", \"/tmp\"]"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "run_shell_file",
+        "description": "run shell script file",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "script_file": {
+                    "type": "string",
+                    "description": "shell script file to run"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "search_text",
+        "description": "Search text in all files within project. Search text with match whole word. Text search is an alternative to finding symbol references, mainly for scenarios where symbol references cannot be used, such as searching for references to a specific string.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "text to search"
+                },
+                "include_files": {
+                    "type": "string",
+                    "description": "search text within setting include files, support multi pattern. The parameter format is based on the corresponding configuration in vscode search."
+                },
+                "exclude_files": {
+                    "type": "string",
+                    "description": "search text not within setting exclude files, support multi pattern. The parameter format is based on the corresponding configuration in vscode search."
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "summary",
+        "description": "Get summary of specified file or direcotry in workspace",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "The relative path of the specified file or folder, for example, /hello.py, represents the hello.py file in the root directory. This arg is required."
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "update_file",
+        "description": "replace selections of file with specified content",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "fileName": {
+                    "type": "string",
+                    "description": "target file name to update"
+                },
+                "old_content": {
+                    "type": "string",
+                    "description": "old content to replaced"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "content to write to file"
+                }
+            },
+            "required": []
+        }
+    }
+]

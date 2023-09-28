@@ -1,0 +1,19 @@
+{
+	"name": "run_shell",
+	"description": "run shell script",
+	"type": [
+		"shell-singleline"
+	],
+	"args": [
+		{
+			"name": "script",
+			"description": "shell command to run, for example: [\"ls\", \"/tmp\"]",
+			"type": "string",
+			"from": "content.content"
+		}
+	],
+	"action": "run_shell",
+	"handler": [
+		"${script}"
+	]
+}

@@ -1,0 +1,24 @@
+{
+	"name": "new_file",
+	"description": "create new file or replace file with new content",
+	"type": [
+		"*"
+	],
+	"args": [
+		{
+			"name": "fileName",
+			"description": "target file name to create",
+			"type": "string",
+			"from": "content.fileName"
+		},
+		{
+			"name": "content",
+			"description": "content to write to file",
+			"type": "string",
+			"as": "file",
+			"from": "content.content"
+		}
+	],
+	"action": "new_file",
+	"handler": ["python", "${CurDir}/handler.py", "${content}", "${fileName}"]
+}

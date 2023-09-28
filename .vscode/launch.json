@@ -8,7 +8,9 @@
 			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
 			"stopOnEntry": true,
 			"args": [
-				"hygiene"
+				"hygiene",
+				"--disable-extensions"
+
 			]
 		},
 		{

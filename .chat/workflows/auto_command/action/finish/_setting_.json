@@ -1,0 +1,14 @@
+{
+	"name": "finish_task",
+	"description": "Flag task as finished",
+	"type": [
+		"task"
+	],
+	"args": [
+	],
+	"action": "finish_task",
+	"handler": [
+		"echo",
+		"Task finished"
+	]
+}

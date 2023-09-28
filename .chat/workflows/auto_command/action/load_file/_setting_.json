@@ -1,0 +1,27 @@
+{
+	"name": "load_file",
+	"description": "Load text file content.",
+	"type": ["file"],
+	"action": "load_file",
+	"args": [
+		{
+			"name": "fileName",
+			"description": "Specify the file, which content will be loaded",
+			"type": "string",
+			"from": "content.content.fileName"
+		},
+		{
+			"name": "startLine",
+			"description": "Specify the start line of content. It is not required if load the whole file.",
+			"type": "string",
+			"from": "content.content.startLine"
+		},
+		{
+			"name": "endLine",
+			"description": "Specify the end line of content. It is not required if load the whole file.",
+			"type": "string",
+			"from": "content.content.endLine"
+		}
+	],
+	"handler": ["python", "${CurDir}/handler.py", "${fileName}", "${startLine}", "${endLine}"]
+}
