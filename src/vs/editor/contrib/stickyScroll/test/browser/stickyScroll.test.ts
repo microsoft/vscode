@@ -28,6 +28,7 @@ suite('Sticky Scroll Tests', () => {
 
 	const disposables = new DisposableStore();
 
+
 	const serviceCollection = new ServiceCollection(
 		[ILanguageFeaturesService, new LanguageFeaturesService()],
 		[ILogService, new NullLogService()],

@@ -51,7 +51,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 		type: 'string',
 		enum: ['always', 'never', 'explicit'],
 	},
-	default: { 'source.fixAll': 'never', 'source.organizeImports': 'never', },
+	default: {},
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 };
 
