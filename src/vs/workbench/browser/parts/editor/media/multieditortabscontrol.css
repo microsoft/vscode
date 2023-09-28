@@ -193,7 +193,15 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fit.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-shrink.sticky-shrink,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container.disable-sticky-tabs > .tab.sizing-fixed.sticky-shrink {
-	position: static; /** disable sticky positions for sticky compact/shrink/fixed tabs if the available space is too little */
+
+	/**
+	 * If sticky tabs are explicitly disabled, because width is too little, make sure
+	 * to reset all styles associated with sticky tabs. This includes position, z-index
+	 * and left property (which is set on the element itself, hence important is needed).
+	 */
+	position: relative;
+	z-index: unset;
+	left: unset !important;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left::after,
