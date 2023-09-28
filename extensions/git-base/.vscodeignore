@@ -1,7 +1,0 @@
-src/**
-build/**
-cgmanifest.json
-extension.webpack.config.js
-extension-browser.webpack.config.js
-tsconfig.json
-

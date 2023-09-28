@@ -1,9 +1,0 @@
-swagger: '2.0'
-info:
-  description: 'The API Management Service API defines an updated and refined version
-    of the concepts currently known as Developer, APP, and API Product in Edge. Of
-    note is the introduction of the API concept, missing previously from Edge
-
-    '
-  title: API Management Service API
-  version: initial
