@@ -11,7 +11,7 @@ This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Stu
 ## Visual Studio Code
 
 <p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
+  <img alt="VS Code in action" src="https://github.com/azedeveloper/vscode/assets/98660020/548d83f8-de35-4fdf-b0eb-3fd18e3c8399">
 </p>
 
 [Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
