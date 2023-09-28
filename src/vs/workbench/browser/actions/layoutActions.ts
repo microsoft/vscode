@@ -504,14 +504,15 @@ abstract class BaseToggleBooleanSettingAction extends Action2 {
 // --- Toggle Tabs Visibility
 
 export class ToggleTabsVisibilityAction extends BaseToggleBooleanSettingAction {
+
 	static readonly ID = 'workbench.action.toggleTabsVisibility';
 
 	constructor() {
 		super({
 			id: ToggleTabsVisibilityAction.ID,
 			title: {
-				value: localize('toggleTabs', "Toggle Tab Visibility"),
-				original: 'Toggle Tab Visibility'
+				value: localize('toggleTabs', "Toggle Editor Tab Visibility"),
+				original: 'Toggle Editor Tab Visibility'
 			},
 			category: Categories.View,
 			f1: true
