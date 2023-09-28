@@ -521,21 +521,26 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
-		return requests.map((raw: ISerializableChatRequestData) => {
-			const parsedRequest = typeof raw.message === 'string' ? this.getParsedRequestFromString(raw.message) :
-				reviveParsedChatRequest(raw.message);
-			const request = new ChatRequestModel(this, parsedRequest, raw.providerRequestId);
-			if (raw.response || raw.responseErrorDetails) {
-				const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
-				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
-			}
-			return request;
-		});
+		try {
+			return requests.map((raw: ISerializableChatRequestData) => {
+				const parsedRequest = typeof raw.message === 'string' ? this.getParsedRequestFromString(raw.message) :
+					reviveParsedChatRequest(raw.message);
+				const request = new ChatRequestModel(this, parsedRequest, raw.providerRequestId);
+				if (raw.response || raw.responseErrorDetails) {
+					const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+				}
+				return request;
+			});
+		} catch (error) {
+			this.logService.error('Failed to parse chat data', error);
+			return [];
+		}
 	}
 
 	private getParsedRequestFromString(message: string): IParsedChatRequest {
 		// TODO These offsets won't be used, but chat replies need to go through the parser as well
-		const parts = [new ChatRequestTextPart(new OffsetRange(1, message.length), { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, message)];
+		const parts = [new ChatRequestTextPart(new OffsetRange(0, message.length), { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, message)];
 		return {
 			text: message,
 			parts
