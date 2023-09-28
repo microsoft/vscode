@@ -177,6 +177,13 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				default: true,
 				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS, a reload of the window is required after turning this off.)"),
 				restricted: true
+			},
+			'http.experimental.systemCertificatesV2': {
+				type: 'boolean',
+				tags: ['experimental'],
+				default: false,
+				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
+				restricted: true
 			}
 		}
 	};
