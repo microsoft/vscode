@@ -54,6 +54,11 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 	}
 
 	protected override _shouldRenderHint(): boolean {
+		// TODO@rebornix, remove this when we have a better way to present the editor hints in empty cells
+		if (this.productService.quality === 'stable') {
+			return false;
+		}
+
 		const shouldRenderHint = super._shouldRenderHint();
 		if (!shouldRenderHint) {
 			return false;

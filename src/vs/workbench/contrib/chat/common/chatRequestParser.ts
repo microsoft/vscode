@@ -8,11 +8,12 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-const variableOrAgentReg = /^@([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // An @-variable with an optional numeric : arg (@response:2)
+const agentReg = /^@([\w_\-]+)(?=(\s|$|\b))/i; // An @-agent
+const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
 const slashReg = /\/([\w_-]+)(?=(\s|$|\b))/i; // A / command
 
 export class ChatRequestParser {
@@ -31,8 +32,10 @@ export class ChatRequestParser {
 			const previousChar = message.charAt(i - 1);
 			const char = message.charAt(i);
 			let newPart: IParsedChatRequestPart | undefined;
-			if (char === '@' && (previousChar === ' ' || i === 0)) {
-				newPart = this.tryToParseVariableOrAgent(message.slice(i), i, new Position(lineNumber, column), parts);
+			if (char === chatVariableLeader && (previousChar === ' ' || i === 0)) {
+				newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts);
+			} else if (char === '@' && (previousChar === ' ' || i === 0)) {
+				newPart = this.tryToParseAgent(message.slice(i), i, new Position(lineNumber, column), parts);
 			} else if (char === '/' && (previousChar === ' ' || i === 0)) {
 				// TODO try to make this sync
 				newPart = await this.tryToParseSlashCommand(sessionId, message.slice(i), i, new Position(lineNumber, column), parts);
@@ -64,10 +67,12 @@ export class ChatRequestParser {
 
 		const lastPart = parts.at(-1);
 		const lastPartEnd = lastPart?.range.endExclusive ?? 0;
-		parts.push(new ChatRequestTextPart(
-			new OffsetRange(lastPartEnd, message.length),
-			new Range(lastPart?.editorRange.endLineNumber ?? 1, lastPart?.editorRange.endColumn ?? 1, lineNumber, column),
-			message.slice(lastPartEnd, message.length)));
+		if (lastPartEnd < message.length) {
+			parts.push(new ChatRequestTextPart(
+				new OffsetRange(lastPartEnd, message.length),
+				new Range(lastPart?.editorRange.endLineNumber ?? 1, lastPart?.editorRange.endColumn ?? 1, lineNumber, column),
+				message.slice(lastPartEnd, message.length)));
+		}
 
 		return {
 			parts,
@@ -75,8 +80,31 @@ export class ChatRequestParser {
 		};
 	}
 
-	private tryToParseVariableOrAgent(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
-		const nextVariableMatch = message.match(variableOrAgentReg);
+	private tryToParseAgent(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+		const nextVariableMatch = message.match(agentReg);
+		if (!nextVariableMatch) {
+			return;
+		}
+
+		const [full, name] = nextVariableMatch;
+		const varRange = new OffsetRange(offset, offset + full.length);
+		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
+
+		let agent: IChatAgentData | undefined;
+		if ((agent = this.agentService.getAgent(name))) {
+			if (parts.some(p => p instanceof ChatRequestAgentPart)) {
+				// Only one agent allowed
+				return;
+			} else {
+				return new ChatRequestAgentPart(varRange, varEditorRange, agent);
+			}
+		}
+
+		return;
+	}
+
+	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+		const nextVariableMatch = message.match(variableReg);
 		if (!nextVariableMatch) {
 			return;
 		}
@@ -86,15 +114,7 @@ export class ChatRequestParser {
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		let agent: IChatAgentData | undefined;
-		if ((agent = this.agentService.getAgent(name)) && !variableArg) {
-			if (parts.some(p => p instanceof ChatRequestAgentPart)) {
-				// Only one agent allowed
-				return;
-			} else {
-				return new ChatRequestAgentPart(varRange, varEditorRange, agent);
-			}
-		} else if (this.variableService.hasVariable(name)) {
+		if (this.variableService.hasVariable(name)) {
 			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg);
 		}
 

@@ -505,7 +505,7 @@ export class MenuBar extends Disposable {
 
 
 		// If below minimium menu threshold, show the overflow menu only as hamburger menu
-		if (this.numMenusShown - 1 <= showableMenus.length / 2) {
+		if (this.numMenusShown - 1 <= showableMenus.length / 4) {
 			for (const menuBarMenu of showableMenus) {
 				menuBarMenu.buttonElement.style.visibility = 'hidden';
 			}

@@ -11,7 +11,8 @@
         endLineNumber: 1,
         endColumn: 15
       },
-      text: "Are you there "
+      text: "Are you there ",
+      kind: "text"
     },
     {
       range: {
@@ -30,7 +31,8 @@
           description: "",
           subCommands: [ { name: "subCommand" } ]
         }
-      }
+      },
+      kind: "agent"
     },
     {
       range: {
@@ -43,7 +45,8 @@
         endLineNumber: 1,
         endColumn: 22
       },
-      text: "?"
+      text: "?",
+      kind: "text"
     }
   ],
   text: "Are you there @agent?"
