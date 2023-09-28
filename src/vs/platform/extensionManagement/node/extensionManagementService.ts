@@ -317,7 +317,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {
 		if (removed) {
-			for (const identifier of removed.extensions) {
+			const removedExtensions = added && this.uriIdentityService.extUri.isEqual(removed.profileLocation, added.profileLocation)
+				? removed.extensions.filter(e => added.extensions.every(identifier => !areSameExtensions(identifier, e)))
+				: removed.extensions;
+			for (const identifier of removedExtensions) {
 				this.logService.info('Extensions removed from another source', identifier.id, removed.profileLocation.toString());
 				this._onDidUninstallExtension.fire({ identifier, profileLocation: removed.profileLocation });
 			}

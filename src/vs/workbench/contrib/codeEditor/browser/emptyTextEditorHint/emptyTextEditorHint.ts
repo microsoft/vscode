@@ -66,10 +66,10 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
+		@IInlineChatSessionService private readonly inlineChatSessionService: IInlineChatSessionService,
 		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
+		@IProductService protected readonly productService: IProductService,
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
@@ -105,6 +105,10 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		const model = this.editor.getModel();
 		const languageId = model?.getLanguageId();
 		if (!model || languageId === OUTPUT_MODE_ID || languageId === LOG_MODE_ID || languageId === SEARCH_RESULT_LANGUAGE_ID) {
+			return false;
+		}
+
+		if (this.inlineChatSessionService.getSession(this.editor, model.uri)) {
 			return false;
 		}
 

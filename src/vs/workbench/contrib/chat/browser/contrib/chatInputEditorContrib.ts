@@ -76,7 +76,8 @@ class InputEditorDecorations extends Disposable {
 		const theme = this.themeService.getColorTheme();
 		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
 			color: theme.getColor(chatSlashCommandForeground)?.toString(),
-			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString()
+			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
+			borderRadius: '3px'
 		});
 		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
 			color: theme.getColor(chatSlashCommandForeground)?.toString(),
