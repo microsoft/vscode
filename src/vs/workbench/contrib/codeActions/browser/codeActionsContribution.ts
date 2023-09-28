@@ -21,7 +21,7 @@ const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	return {
 		type: 'string',
 		enum: ['always', 'never', 'explicit'],
-		enumDescriptions: [nls.localize('alwaysSave', 'Always triggers Code Actions on save'), nls.localize('neverSave', 'Never triggers Code Actions on save'), nls.localize('explicitSave', 'Triggers Code Actions only when explicitly saved')],
+		enumDescriptions: [nls.localize('alwaysSave', 'Triggers Code Actions on explicit saves and auto saves triggered by window or focus changes.'), nls.localize('neverSave', 'Never triggers Code Actions on save'), nls.localize('explicitSave', 'Triggers Code Actions only when explicitly saved')],
 		default: 'explicit',
 		description: description
 	};
