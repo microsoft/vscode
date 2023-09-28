@@ -183,6 +183,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onDidOpenWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onDidOpenWindow = this._onDidOpenWindow.event;
 
+	private readonly _onWillLoadWindow = this._register(new Emitter<ICodeWindow>());
+	readonly onWillLoadWindow = this._onWillLoadWindow.event;
+
 	private readonly _onDidSignalReadyWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onDidSignalReadyWindow = this._onDidSignalReadyWindow.event;
 
@@ -1129,9 +1132,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			addUNCHostToAllowlist(uri.authority);
 
 			if (checkboxChecked) {
-				this._register(Event.once(this.onDidOpenWindow)(window => {
-					window.sendWhenReady('vscode:configureAllowedUNCHost', CancellationToken.None, uri.authority);
-				}));
+				this.sendToOpeningWindow('vscode:configureAllowedUNCHost', uri.authority);
 			}
 
 			return this.doResolveFilePath(path, options, true /* do not handle UNC error again */);
@@ -1464,6 +1465,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Window Events
 			Event.once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
+			Event.once(createdWindow.onWillLoad)(() => this._onWillLoadWindow.fire(createdWindow));
 			Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
 			Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
 			createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y }));
@@ -1620,6 +1622,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		focusedWindow?.sendWhenReady(channel, CancellationToken.None, ...args);
+	}
+
+	sendToOpeningWindow(channel: string, ...args: any[]): void {
+		this._register(Event.once(this.onWillLoadWindow)(window => {
+			window.sendWhenReady(channel, CancellationToken.None, ...args);
+		}));
 	}
 
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {
