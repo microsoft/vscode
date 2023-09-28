@@ -528,14 +528,14 @@ registerAction2(ToggleTabsVisibilityAction);
 
 export class ToggleSeparatePinnedTabsAction extends BaseToggleBooleanSettingAction {
 
-	static readonly ID = 'workbench.action.toggleSeparatePinnedTabs';
+	static readonly ID = 'workbench.action.toggleSeparatePinnedEditorTabs';
 
 	constructor() {
 		super({
 			id: ToggleSeparatePinnedTabsAction.ID,
 			title: {
-				value: localize('toggleSeparatePinnedTabs', "Separate Pinned Tabs"),
-				original: 'Separate Pinned Tabs'
+				value: localize('toggleSeparatePinnedEditorTabs', "Separate Pinned Editor Tabs"),
+				original: 'Separate Pinned Editor Tabs'
 			},
 			category: Categories.View,
 			precondition: ContextKeyExpr.has('config.workbench.editor.showTabs'),
