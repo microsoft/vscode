@@ -252,8 +252,7 @@ export class CodeActionModel extends Disposable {
 									};
 
 									const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
-									const selectionAsPositionFromStart = trigger.selection.setStartPosition(trackedPosition.lineNumber, 1);
-									const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPositionFromStart, newCodeActionTrigger, Progress.None, token);
+									const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
 									const currentActions = [...codeActionSet.validActions];
 									if (actionsAtMarker.validActions.length !== 0) {
 										actionsAtMarker.validActions.forEach(action => {
