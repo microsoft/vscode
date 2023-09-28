@@ -1031,7 +1031,7 @@ configurationRegistry.registerConfiguration({
 			default: 'fullCell'
 		},
 		[NotebookSetting.anchorToFocusedCell]: {
-			markdownDescription: nls.localize('notebook.scrolling.anchorToFocusedCell.description', "Keep the focused cell steady while surrounding cells change size."),
+			markdownDescription: nls.localize('notebook.scrolling.anchorToFocusedCell.description', "Experimental. Keep the focused cell steady while surrounding cells change size."),
 			type: 'string',
 			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
