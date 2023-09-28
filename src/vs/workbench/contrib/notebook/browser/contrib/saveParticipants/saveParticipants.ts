@@ -328,7 +328,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		const notebookModel = workingCopy.model.notebookModel;
 
-		const setting = this.configurationService.getValue<{ [kind: string]: string }>(NotebookSetting.codeActionsOnSave);
+		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean }>(NotebookSetting.codeActionsOnSave);
 		if (!setting) {
 			return undefined;
 		}
@@ -341,9 +341,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		const allCodeActions = this.createCodeActionsOnSave(settingItems);
 		const excludedActions = allCodeActions
-			.filter(x => setting[x.value] === 'never');
+			.filter(x => setting[x.value] === 'never' || setting[x.value] === false);
 		const includedActions = allCodeActions
-			.filter(x => setting[x.value] === saveTrigger);
+			.filter(x => setting[x.value] === saveTrigger || setting[x.value] === true);
 
 		const editorCodeActionsOnSave = includedActions.filter(x => !CodeActionKind.Notebook.contains(x));
 		const notebookCodeActionsOnSave = includedActions.filter(x => CodeActionKind.Notebook.contains(x));
