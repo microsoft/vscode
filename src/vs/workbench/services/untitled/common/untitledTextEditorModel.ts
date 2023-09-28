@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -273,16 +273,14 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	async revert(): Promise<void> {
 
+		// Reset contents to be empty
+		this.updateTextEditorModel(createTextBufferFactory(''));
+
 		// No longer dirty
 		this.setDirty(false);
 
 		// Emit as event
 		this._onDidRevert.fire();
-
-		// A reverted untitled model is invalid because it has
-		// no actual source on disk to revert to. As such we
-		// dispose the model.
-		this.dispose();
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {

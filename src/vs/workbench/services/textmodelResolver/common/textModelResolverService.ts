@@ -102,9 +102,9 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
-		// untitled and inMemory are bound to a different lifecycle
+		// inMemory is bound to a different lifecycle
 		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
+		if (resource.scheme === Schemas.inMemory) {
 			return;
 		}
 

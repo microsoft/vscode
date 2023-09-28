@@ -21,8 +21,9 @@ import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IReference } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export const ITextEditorService = createDecorator<ITextEditorService>('textEditorService');
 
@@ -68,7 +69,8 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super();
 
@@ -151,12 +153,17 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				// Factory function for new untitled editor
 				const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
 
+				let ref: IReference<IResolvedTextEditorModel>;
+				this.textModelService.createModelReference(untitledModel.resource).then(reference => {
+					ref = reference;
+				});
+
 				// We dispose the untitled model once the editor
 				// is being disposed. Even though we may have not
 				// created the model initially, the lifecycle for
 				// untitled is tightly coupled with the editor
 				// lifecycle for now.
-				Event.once(input.onWillDispose)(() => untitledModel.dispose());
+				Event.once(input.onWillDispose)(() => ref.dispose());
 
 				return input;
 			});
