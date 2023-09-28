@@ -9,9 +9,10 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/commo
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
@@ -347,7 +348,7 @@ export interface ISerializableChatAgentData {
 
 export interface ISerializableChatRequestData {
 	providerRequestId: string | undefined;
-	message: string;
+	message: string | IParsedChatRequest;
 	response: (IMarkdownString | IChatResponseProgressFileTreeData)[] | undefined;
 	agent?: ISerializableChatAgentData;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -494,6 +495,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		public readonly providerId: string,
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		@ILogService private readonly logService: ILogService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -519,15 +521,25 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
 		}
 
-		return [];
-		// return requests.map((raw: ISerializableChatRequestData) => {
-		// 	const request = new ChatRequestModel(this, raw.message, raw.providerRequestId);
-		// 	if (raw.response || raw.responseErrorDetails) {
-		// 		const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
-		// 		request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
-		// 	}
-		// 	return request;
-		// });
+		return requests.map((raw: ISerializableChatRequestData) => {
+			const parsedRequest = typeof raw.message === 'string' ? this.getParsedRequestFromString(raw.message) :
+				reviveParsedChatRequest(raw.message);
+			const request = new ChatRequestModel(this, parsedRequest, raw.providerRequestId);
+			if (raw.response || raw.responseErrorDetails) {
+				const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
+				request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+			}
+			return request;
+		});
+	}
+
+	private getParsedRequestFromString(message: string): IParsedChatRequest {
+		// TODO These offsets won't be used, but chat replies need to go through the parser as well
+		const parts = [new ChatRequestTextPart(new OffsetRange(1, message.length), { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, message)];
+		return {
+			text: message,
+			parts
+		};
 	}
 
 	startReinitialize(): void {
@@ -679,7 +691,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
 					providerRequestId: r.providerRequestId,
-					message: typeof r.message === 'string' ? r.message : '',
+					message: 'text' in r.message ? r.message : r.message.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups,
