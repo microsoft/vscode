@@ -62,14 +62,6 @@ export interface IChatResponseModel {
 	setVote(vote: InteractiveSessionVoteDirection): void;
 }
 
-export function isRequest(item: unknown): item is IChatRequestModel {
-	return !!item && typeof (item as IChatRequestModel).message !== 'undefined';
-}
-
-export function isResponse(item: unknown): item is IChatResponseModel {
-	return !isRequest(item);
-}
-
 export class ChatRequestModel implements IChatRequestModel {
 	private static nextId = 0;
 
