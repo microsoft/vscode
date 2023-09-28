@@ -11,7 +11,8 @@
         endLineNumber: 1,
         endColumn: 11
       },
-      text: "What does "
+      text: "What does ",
+      kind: "text"
     },
     {
       range: {
@@ -25,7 +26,8 @@
         endColumn: 21
       },
       variableName: "selection",
-      variableArg: ""
+      variableArg: "",
+      kind: "var"
     },
     {
       range: {
@@ -38,8 +40,9 @@
         endLineNumber: 1,
         endColumn: 27
       },
-      text: " mean?"
+      text: " mean?",
+      kind: "text"
     }
   ],
-  text: "What does @selection mean?"
+  text: "What does #selection mean?"
 }

@@ -137,6 +137,11 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly density: IDensitySettings;
+}
+
+export interface IDensitySettings {
+	readonly editorTabHeight: 'default' | 'compact';
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {

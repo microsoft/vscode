@@ -35,7 +35,6 @@ export class CommandCenterControl {
 		hoverDelegate: IHoverDelegate,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this.element.classList.add('command-center');
 
@@ -83,7 +82,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 	) {
-		super(undefined, _submenu.actions[0], options);
+		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 	}
 
 	override render(container: HTMLElement): void {

@@ -544,9 +544,9 @@ graphql-tag@^2.10.3:
     tslib "^2.1.0"
 
 graphql@^16.0.0:
-  version "16.6.0"
-  resolved "https://registry.yarnpkg.com/graphql/-/graphql-16.6.0.tgz#c2dcffa4649db149f6282af726c8c83f1c7c5fdb"
-  integrity sha512-KPIBPDlW7NxrbT/eh4qPXz5FiFdL5UbaA0XUNz2Rp3Z3hqBSkbj0GVjwFDztsWVauZUWsbKHgMg++sk8UX0bkw==
+  version "16.8.1"
+  resolved "https://registry.yarnpkg.com/graphql/-/graphql-16.8.1.tgz#1930a965bef1170603702acdb68aedd3f3cf6f07"
+  integrity sha512-59LZHPdGZVh695Ud9lRzPBVTtlX9ZCV150Er2W43ro37wVof0ctenSaskPPjN7lVTIN8mSZt8PHUNKZuNQUuxw==
 
 has@^1.0.3:
   version "1.0.3"

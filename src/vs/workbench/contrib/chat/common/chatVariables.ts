@@ -9,7 +9,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestVariablePart, IParsedChatRequest, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export interface IChatVariableData {
 	name: string;
@@ -74,7 +74,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						jobs.push(data.resolver(prompt.text, varPart.variableArg, model, token).then(value => {
 							if (value) {
 								resolvedVariables[varPart.variableName] = value;
-								parsedPrompt[i] = `[@${varPart.variableName}](values:${varPart.variableName})`;
+								parsedPrompt[i] = `[${chatVariableLeader}${varPart.variableName}](values:${varPart.variableName})`;
 							} else {
 								parsedPrompt[i] = varPart.text;
 							}

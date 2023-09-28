@@ -14,7 +14,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/base/common/performance';
-import { basename, dirname, extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath, joinPath } from 'vs/base/common/resources';
+import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -408,17 +408,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// write file: buffered
 			else {
-				const contents = bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream;
-
-				// atomic write
-				if (writeFileOptions?.atomic !== false && writeFileOptions?.atomic?.postfix) {
-					await this.doWriteBufferedAtomic(provider, resource, joinPath(dirname(resource), `${basename(resource)}${writeFileOptions.atomic.postfix}`), writeFileOptions, contents);
-				}
-
-				// non-atomic write
-				else {
-					await this.doWriteBuffered(provider, resource, writeFileOptions, contents);
-				}
+				await this.doWriteBuffered(provider, resource, writeFileOptions, bufferOrReadableOrStreamOrBufferedStream instanceof VSBuffer ? bufferToReadable(bufferOrReadableOrStreamOrBufferedStream) : bufferOrReadableOrStreamOrBufferedStream);
 			}
 
 			// events
@@ -442,7 +432,11 @@ export class FileService extends Disposable implements IFileService {
 		const atomic = !!options?.atomic;
 		if (atomic) {
 			if (!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite)) {
-				throw new Error(localize('writeFailedAtomicUnsupported', "Unable to atomically write file '{0}' because provider does not support it.", this.resourceForError(resource)));
+				throw new Error(localize('writeFailedAtomicUnsupported1', "Unable to atomically write file '{0}' because provider does not support it.", this.resourceForError(resource)));
+			}
+
+			if (!(provider.capabilities & FileSystemProviderCapabilities.FileReadWrite)) {
+				throw new Error(localize('writeFailedAtomicUnsupported2', "Unable to atomically write file '{0}' because provider does not support unbuffered writes.", this.resourceForError(resource)));
 			}
 
 			if (unlock) {
@@ -1182,28 +1176,6 @@ export class FileService extends Disposable implements IFileService {
 	//#region Helpers
 
 	private readonly writeQueue = this._register(new ResourceQueue());
-
-	private async doWriteBufferedAtomic(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, tempResource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
-
-		// Write to temp resource first
-		await this.doWriteBuffered(provider, tempResource, options, readableOrStreamOrBufferedStream);
-
-		try {
-
-			// Rename over existing to ensure atomic replace
-			await provider.rename(tempResource, resource, { overwrite: true });
-		} catch (error) {
-
-			// Cleanup in case of rename error
-			try {
-				await provider.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
-			} catch (error) {
-				// ignore - we want the outer error to bubble up
-			}
-
-			throw error;
-		}
-	}
 
 	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
 		return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
