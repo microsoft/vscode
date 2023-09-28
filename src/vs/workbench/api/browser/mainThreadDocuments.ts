@@ -267,15 +267,17 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
-		const model = await this._textFileService.untitled.resolve({
+		const model = this._textFileService.untitled.create({
 			associatedResource,
 			languageId,
 			initialValue
 		});
 		const resource = model.resource;
+		const ref = await this._textModelResolverService.createModelReference(resource);
 		if (!this._modelTrackers.has(resource)) {
 			throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 		}
+		this._modelReferenceCollection.add(resource, ref, ref.object.textEditorModel.getValueLength());
 		this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
 		return resource;
 	}
