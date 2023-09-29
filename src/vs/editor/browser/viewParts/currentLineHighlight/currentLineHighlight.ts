@@ -175,7 +175,7 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 
 	protected _renderOne(ctx: RenderingContext): string {
 		const className = 'current-line' + (this._shouldRenderOther() ? ' current-line-both' : '');
-		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px; height:${this._lineHeight}px;"></div>`;
+		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
 		return this._shouldRenderInContent();

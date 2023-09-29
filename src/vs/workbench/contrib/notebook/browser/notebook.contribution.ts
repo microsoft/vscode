@@ -1043,5 +1043,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-

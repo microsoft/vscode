@@ -12,6 +12,7 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from 'vs/editor/common/viewModel';
 import { ContentSizeChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
+import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
@@ -163,7 +164,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public readonly onDidScroll: Event<ScrollEvent>;
 	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent>;
 
-	constructor(configuration: IEditorConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(configuration: IEditorConfiguration, lineCount: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable, decorations: ViewModelDecorations) {
 		super();
 
 		this._configuration = configuration;
@@ -171,7 +172,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		const padding = options.get(EditorOption.padding);
 
-		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
+		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom, decorations);
 		this._maxLineWidth = 0;
 		this._overlayWidgetsMinWidth = 0;
 

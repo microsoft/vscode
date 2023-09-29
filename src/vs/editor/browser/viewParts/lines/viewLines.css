@@ -20,7 +20,10 @@
 }
 
 .mtkoverflow {
-	background-color: var(--vscode-button-background, var(--vscode-editor-background));
+	background-color: var(
+		--vscode-button-background,
+		var(--vscode-editor-background)
+	);
 	color: var(--vscode-button-foreground, var(--vscode-editor-foreground));
 	border-width: 1px;
 	border-style: solid;
@@ -61,6 +64,11 @@
 .monaco-editor .view-line {
 	position: absolute;
 	width: 100%;
+}
+
+.monaco-editor .view-line > span {
+	bottom: 0;
+	position: absolute;
 }
 
 .monaco-editor .mtkw {

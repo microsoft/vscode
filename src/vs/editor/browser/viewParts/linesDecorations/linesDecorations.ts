@@ -77,12 +77,13 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 			const d = decorations[i];
 			const linesDecorationsClassName = d.options.linesDecorationsClassName;
 			const zIndex = d.options.zIndex;
+			const lineHeight = d.options.lineHeight;
 			if (linesDecorationsClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName, zIndex);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, linesDecorationsClassName, zIndex, lineHeight);
 			}
 			const firstLineDecorationClassName = d.options.firstLineDecorationClassName;
 			if (firstLineDecorationClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.startLineNumber, firstLineDecorationClassName, zIndex);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.startLineNumber, firstLineDecorationClassName, zIndex, lineHeight);
 			}
 		}
 		return r;

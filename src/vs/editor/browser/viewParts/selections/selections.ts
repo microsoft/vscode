@@ -255,12 +255,12 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return linesVisibleRanges;
 	}
 
-	private _createSelectionPiece(top: number, height: string, className: string, left: number, width: number): string {
+	private _createSelectionPiece(bottom: number, height: string, className: string, left: number, width: number): string {
 		return (
 			'<div class="cslr '
 			+ className
-			+ '" style="top:'
-			+ top.toString()
+			+ '" style="bottom:'
+			+ bottom.toString()
 			+ 'px;left:'
 			+ left.toString()
 			+ 'px;width:'
@@ -289,7 +289,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 
 			const lineHeight = hasMultipleSelections ? (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight) : fullLineHeight;
-			const top = hasMultipleSelections ? (lineNumber === firstLineNumber ? 1 : 0) : 0;
+			const bottom = hasMultipleSelections ? (lineNumber === firstLineNumber ? -1 : 0) : 0;
 
 			let innerCornerOutput = '';
 			let restOfSelectionOutput = '';
@@ -304,7 +304,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						// Reverse rounded corner to the left
 
 						// First comes the selection (blue layer)
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 
 						// Second comes the background (white layer) with inverse border radius
 						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
@@ -314,13 +314,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						if (startStyle.bottom === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
 						}
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, className, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 					}
 					if (endStyle.top === CornerStyle.INTERN || endStyle.bottom === CornerStyle.INTERN) {
 						// Reverse rounded corner to the right
 
 						// First comes the selection (blue layer)
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 
 						// Second comes the background (white layer) with inverse border radius
 						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
@@ -330,7 +330,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						if (endStyle.bottom === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_LEFT;
 						}
-						innerCornerOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, className, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 					}
 				}
 
@@ -351,7 +351,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
 					}
 				}
-				restOfSelectionOutput += this._createSelectionPiece(top, lineHeight, className, visibleRange.left, visibleRange.width);
+				restOfSelectionOutput += this._createSelectionPiece(bottom, lineHeight, className, visibleRange.left, visibleRange.width);
 			}
 
 			output2[lineIndex][0] += innerCornerOutput;

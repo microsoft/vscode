@@ -458,6 +458,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterContentClassName: string | undefined;
 	public glyphMarginClassName: string | undefined;
 	public isWholeLine: boolean;
+	public lineHeight?: number;
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 	public beforeInjectedText: InjectedTextOptions | undefined;
@@ -518,6 +519,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 		const options = providerArgs.options;
 		this.isWholeLine = Boolean(options.isWholeLine);
+		this.lineHeight = options.lineHeight;
 		this.stickiness = options.rangeBehavior;
 
 		const lightOverviewRulerColor = options.light && options.light.overviewRulerColor || options.overviewRulerColor;
@@ -547,6 +549,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 			className: this.className,
 			glyphMarginClassName: this.glyphMarginClassName,
 			isWholeLine: this.isWholeLine,
+			lineHeight: this.lineHeight,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
 			before: this.beforeInjectedText,

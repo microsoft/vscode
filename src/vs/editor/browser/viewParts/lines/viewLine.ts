@@ -151,7 +151,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
 			return false;
@@ -222,7 +222,7 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
-		sb.appendString(String(this._options.lineHeight));
+		sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');

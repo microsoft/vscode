@@ -8,33 +8,40 @@
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-editor-selectionHighlightBorder);
 }
-.monaco-editor.hc-black .focused .selectionHighlight, .monaco-editor.hc-light .focused .selectionHighlight {
+.monaco-editor.hc-black .focused .selectionHighlight,
+.monaco-editor.hc-light .focused .selectionHighlight {
 	border-style: dotted;
 }
 
 .monaco-editor .wordHighlight {
 	background-color: var(--vscode-editor-wordHighlightBackground);
+	bottom: 0;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-editor-wordHighlightBorder);
 }
-.monaco-editor.hc-black .wordHighlight, .monaco-editor.hc-light .wordHighlight {
+.monaco-editor.hc-black .wordHighlight,
+.monaco-editor.hc-light .wordHighlight {
 	border-style: dotted;
 }
 
 .monaco-editor .wordHighlightStrong {
 	background-color: var(--vscode-editor-wordHighlightStrongBackground);
+	bottom: 0;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-editor-wordHighlightStrongBorder);
 }
-.monaco-editor.hc-black .wordHighlightStrong, .monaco-editor.hc-light .wordHighlightStrong {
+.monaco-editor.hc-black .wordHighlightStrong,
+.monaco-editor.hc-light .wordHighlightStrong {
 	border-style: dotted;
 }
 
 .monaco-editor .wordHighlightText {
 	background-color: var(--vscode-editor-wordHighlightTextBackground);
+	bottom: 0;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-editor-wordHighlightTextBorder);
 }
-.monaco-editor.hc-black .wordHighlightText, .monaco-editor.hc-light .wordHighlightText {
+.monaco-editor.hc-black .wordHighlightText,
+.monaco-editor.hc-light .wordHighlightText {
 	border-style: dotted;
 }

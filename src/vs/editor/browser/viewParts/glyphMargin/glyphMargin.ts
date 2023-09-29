@@ -26,12 +26,14 @@ export class DecorationToRender {
 	public endLineNumber: number;
 	public className: string;
 	public readonly zIndex: number;
+	public lineHeight?: number;
 
-	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex: number | undefined) {
+	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex: number | undefined, lineHeight: number | undefined) {
 		this.startLineNumber = +startLineNumber;
 		this.endLineNumber = +endLineNumber;
 		this.className = String(className);
 		this.zIndex = zIndex ?? 0;
+		this.lineHeight = lineHeight;
 	}
 }
 
@@ -42,6 +44,7 @@ export class LineDecorationToRender {
 	constructor(
 		public readonly className: string,
 		public readonly zIndex: number,
+		public readonly lineHeight: number | undefined
 	) { }
 }
 
@@ -95,6 +98,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			const d = decorations[i];
 			const className = d.className;
 			const zIndex = d.zIndex;
+			const lineHeight = d.lineHeight;
 			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
 			const endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
 
@@ -108,7 +112,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].add(new LineDecorationToRender(className, zIndex));
+				output[i].add(new LineDecorationToRender(className, zIndex, lineHeight));
 			}
 		}
 

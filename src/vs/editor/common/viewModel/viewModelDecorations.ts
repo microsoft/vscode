@@ -10,7 +10,7 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IDecorationsViewportData {
@@ -31,6 +31,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly configuration: IEditorConfiguration;
 	private readonly _linesCollection: IViewModelLines;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
+	private readonly _lineHeight: number;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
@@ -46,6 +47,7 @@ export class ViewModelDecorations implements IDisposable {
 		this._decorationsCache = Object.create(null);
 		this._cachedModelDecorationsResolver = null;
 		this._cachedModelDecorationsResolverViewRange = null;
+		this._lineHeight = configuration.options.get(EditorOption.lineHeight);
 	}
 
 	private _clearCachedModelDecorationsResolver(): void {
@@ -113,6 +115,45 @@ export class ViewModelDecorations implements IDisposable {
 	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
 		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
+	}
+
+	// XXX The result can probably be cached to increase performance.
+	/**
+	 * Get an array where each index maps the line number to its line height.
+	 *
+	 * Index 0 is not an actual line number. It always contains the original line height.
+	 */
+	public getDecorationsLineHeightMap(): number[] {
+		const lineCount = this._linesCollection.getViewLineCount();
+		const lineHeights = Array.from({ length: lineCount + 1 }, () => this._lineHeight);
+		const viewRange = new Range(0, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
+
+		for (const decoration of modelDecorations) {
+			const range = decoration.range;
+			const decorationLineHeight = decoration.options.lineHeight;
+
+			if (!decorationLineHeight) {
+				continue;
+			}
+
+			for (let rangeLine = range.startLineNumber; rangeLine <= range.endLineNumber; rangeLine++) {
+				lineHeights[rangeLine - 1] = Math.max(lineHeights[rangeLine - 1], decorationLineHeight);
+			}
+		}
+
+		return lineHeights;
+	}
+
+	public getDecorationsOffset(lineNumber: number = this._linesCollection.getViewLineCount()): number {
+		const lineHeights = this.getDecorationsLineHeightMap();
+		let offset = 0;
+
+		for (let i = 1; i < lineNumber; i++) {
+			offset += lineHeights[i];
+		}
+
+		return offset;
 	}
 
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {

@@ -112,7 +112,9 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
-		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
+		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
+
+		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame, this._decorations));
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
@@ -131,8 +133,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._register(this.viewLayout.onDidContentSizeChange((e) => {
 			this._eventDispatcher.emitOutgoingEvent(e);
 		}));
-
-		this._decorations = new ViewModelDecorations(this._editorId, this.model, this._configuration, this._lines, this.coordinatesConverter);
 
 		this._registerModelEvents();
 
