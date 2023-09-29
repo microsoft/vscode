@@ -16,7 +16,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { LayoutableEditor, STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -72,7 +72,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditor: SimpleCommentEditor | null = null;
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
-	private _editorHeight = STARTING_EDITOR_HEIGHT;
+	private _editorHeight = MIN_EDITOR_HEIGHT;
 
 	private _isPendingLabel!: HTMLElement;
 	private _timestamp: HTMLElement | undefined;
