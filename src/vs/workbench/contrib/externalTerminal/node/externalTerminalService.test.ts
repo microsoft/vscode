@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, strictEqual } from 'assert';
 import { DEFAULT_TERMINAL_OSX, IExternalTerminalConfiguration } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 
 const mockConfig = Object.freeze<IExternalTerminalConfiguration>({
 	terminal: {

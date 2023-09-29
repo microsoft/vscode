@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ExtHostDebugServiceBase, ExtHostDebugSession } from 'vs/workbench/api/common/extHostDebugService';
