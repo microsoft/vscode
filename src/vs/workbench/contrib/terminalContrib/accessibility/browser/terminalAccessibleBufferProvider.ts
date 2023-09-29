@@ -12,17 +12,15 @@ import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/commo
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IXtermTerminal, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import type { Terminal } from 'xterm';
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
+	id = AccessibleViewProviderId.Terminal;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true, id: AccessibleViewProviderId.Terminal };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
-	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
-
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
@@ -42,11 +40,6 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 
 	onClose() {
 		this._instance.focus();
-	}
-	registerListeners(): void {
-		if (!this._xterm) {
-			return;
-		}
 	}
 
 	provideContent(): string {

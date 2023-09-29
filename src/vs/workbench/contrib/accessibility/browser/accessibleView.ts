@@ -47,6 +47,7 @@ const enum DIMENSIONS {
 }
 
 export interface IAccessibleContentProvider {
+	id: AccessibleViewProviderId;
 	verbositySettingKey: AccessibilityVerbositySettingId;
 	options: IAccessibleViewOptions;
 	/**
@@ -406,7 +407,7 @@ export class AccessibleView extends Disposable {
 		if (!showAccessibleViewHelp) {
 			// don't overwrite the current provider
 			this._currentProvider = provider;
-			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey.replaceAll('accessibility.verbosity.', ''));
+			this._accessibleViewCurrentProviderId.set(provider.id);
 		}
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
@@ -565,6 +566,7 @@ export class AccessibleView extends Disposable {
 		}
 
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
+			id: lastProvider.id,
 			provideContent: () => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 			onClose: () => this.show(lastProvider),
 			options: { type: AccessibleViewType.Help },
