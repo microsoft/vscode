@@ -16,7 +16,7 @@ import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -62,6 +62,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 }
 
 class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
+	id = AccessibleViewProviderId.Editor;
 	onClose() {
 		this._editor.focus();
 	}
@@ -148,6 +149,7 @@ export class HoverAccessibleViewContribution extends Disposable {
 			}
 			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
 			accessibleViewService.show({
+				id: AccessibleViewProviderId.Hover,
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },
 				onClose() {
@@ -169,6 +171,7 @@ export class HoverAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			accessibleViewService.show({
+				id: AccessibleViewProviderId.Hover,
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return extensionHoverContent; },
 				onClose() {
@@ -226,6 +229,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 				}
 				notification.onDidClose(() => accessibleViewService.next());
 				accessibleViewService.show({
+					id: AccessibleViewProviderId.Notification,
 					provideContent: () => {
 						return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
 					},
@@ -335,6 +339,7 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				}
 				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
 				accessibleViewService.show({
+					id: AccessibleViewProviderId.InlineCompletions,
 					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
 					provideContent() { return lineText + ghostText; },
 					onClose() {
@@ -354,8 +359,6 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				return true;
 			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 			return show();
-		},
-		)
-		);
+		}));
 	}
 }
