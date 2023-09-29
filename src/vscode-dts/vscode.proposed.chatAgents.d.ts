@@ -8,6 +8,7 @@ declare module 'vscode' {
 	export interface ChatAgentContext {
 		sessionId: string;
 		requestId: string;
+		variables: Record<string, ChatVariableValue[]>;
 		history: ChatMessage[];
 	}
 
@@ -37,7 +38,13 @@ declare module 'vscode' {
 
 	export interface ChatAgent {
 		// Make this a named method in case we have to add other methods.
-		// eg seems like a gap that there is nothing like `prepareSession` on the agent
+		// eg seems like a gap that there is nothing like `prepareSession` on the agent.
+		// What happens to the agent/subcommand string in the prompt?
+		// - Leave them in, and the agent has to know the syntax and parse them
+		// - Strip them out, and add `subCommand` to the context object
+		// - Use a special syntax similar to variables
+		// - Use an array of objects that indicate the parts of the query
+		// The agent name and subcommand can be used in different places in the query, and this could change how they are interpreted (?) or maybe we have to force them to be at the start of the query
 		(prompt: ChatMessage, context: ChatAgentContext, progress: Progress<ChatAgentResponse>, token: CancellationToken): Thenable<ChatAgentResult | void>;
 	}
 
