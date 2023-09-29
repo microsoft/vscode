@@ -774,7 +774,7 @@ class APSIS {
 	mobility: NASC;
 	government: NASC;
 	hr: NASC;
-	business: NASC;
+	business: NASC; // converting business requirements into code requirements - use automated meeting to text too structured to email to jira/atlassian/project management tool - use ai based automated intelligent tools from online
 	reportingmanager: NASC;
 	performance: NASC;
 	attendance: NASC;
