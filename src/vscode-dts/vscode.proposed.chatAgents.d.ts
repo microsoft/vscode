@@ -7,6 +7,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentContext {
 		sessionId: string;
+		requestId: string;
 		history: ChatMessage[];
 	}
 
