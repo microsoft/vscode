@@ -17,7 +17,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ResourceMap } from 'vs/base/common/map';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -275,9 +275,11 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		const resource = model.resource;
 		const ref = await this._textModelResolverService.createModelReference(resource);
 		if (!this._modelTrackers.has(resource)) {
+			ref.dispose();
 			throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 		}
 		this._modelReferenceCollection.add(resource, ref, ref.object.textEditorModel.getValueLength());
+		Event.once(model.onDidRevert)(() => this._modelReferenceCollection.remove(resource));
 		this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
 		return resource;
 	}
