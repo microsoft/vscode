@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { SetMap, groupBy } from 'vs/base/common/collections';
+import { groupBy } from 'vs/base/common/collections';
+import { SetMap } from './map';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { Iterable } from 'vs/base/common/iterator';
 

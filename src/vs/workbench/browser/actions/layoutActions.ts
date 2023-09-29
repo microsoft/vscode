@@ -485,9 +485,25 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 
 registerAction2(ToggleStatusbarVisibilityAction);
 
+// --- Bse Class Toggle Boolean Setting Action
+
+abstract class BaseToggleBooleanSettingAction extends Action2 {
+
+	protected abstract get settingId(): string;
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const oldettingValue = configurationService.getValue<string>(this.settingId);
+		const newSettingValue = !oldettingValue;
+
+		return configurationService.updateValue(this.settingId, newSettingValue);
+	}
+}
+
 // --- Toggle Tabs Visibility
 
-export class ToggleTabsVisibilityAction extends Action2 {
+export class ToggleTabsVisibilityAction extends BaseToggleBooleanSettingAction {
 
 	static readonly ID = 'workbench.action.toggleTabsVisibility';
 
@@ -495,24 +511,44 @@ export class ToggleTabsVisibilityAction extends Action2 {
 		super({
 			id: ToggleTabsVisibilityAction.ID,
 			title: {
-				value: localize('toggleTabs', "Toggle Tab Visibility"),
-				original: 'Toggle Tab Visibility'
+				value: localize('toggleTabs', "Toggle Editor Tab Visibility"),
+				original: 'Toggle Editor Tab Visibility'
 			},
 			category: Categories.View,
 			f1: true
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const visibility = configurationService.getValue<string>('workbench.editor.showTabs');
-		const newVisibilityValue = !visibility;
-
-		return configurationService.updateValue('workbench.editor.showTabs', newVisibilityValue);
+	protected override get settingId(): string {
+		return 'workbench.editor.showTabs';
 	}
 }
 registerAction2(ToggleTabsVisibilityAction);
+
+// --- Toggle Pinned Tabs On Separate Row
+
+export class ToggleSeparatePinnedTabsAction extends BaseToggleBooleanSettingAction {
+
+	static readonly ID = 'workbench.action.toggleSeparatePinnedEditorTabs';
+
+	constructor() {
+		super({
+			id: ToggleSeparatePinnedTabsAction.ID,
+			title: {
+				value: localize('toggleSeparatePinnedEditorTabs', "Separate Pinned Editor Tabs"),
+				original: 'Separate Pinned Editor Tabs'
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.has('config.workbench.editor.showTabs'),
+			f1: true
+		});
+	}
+
+	protected override get settingId(): string {
+		return 'workbench.editor.pinnedTabsOnSeparateRow';
+	}
+}
+registerAction2(ToggleSeparatePinnedTabsAction);
 
 // --- Toggle Zen Mode
 

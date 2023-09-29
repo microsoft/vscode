@@ -193,8 +193,8 @@ export class UserDataSyncDataViews extends Disposable {
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.actions.sync.extractActivity`,
-					title: localize('workbench.actions.sync.extractActivity', "Extract Sync Activity"),
+					id: `workbench.actions.sync.loadActivity`,
+					title: localize('workbench.actions.sync.loadActivity', "Load Sync Activity"),
 					icon: Codicon.cloudUpload,
 					menu: {
 						id: MenuId.ViewTitle,

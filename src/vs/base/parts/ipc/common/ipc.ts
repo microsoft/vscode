@@ -1129,7 +1129,11 @@ export namespace ProxyChannel {
 						}
 					}
 
-					return target.apply(handler, args);
+					let res = target.apply(handler, args);
+					if (!(res instanceof Promise)) {
+						res = Promise.resolve(res);
+					}
+					return res;
 				}
 
 				throw new ErrorNoTelemetry(`Method not found: ${command}`);

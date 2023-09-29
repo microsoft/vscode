@@ -54,4 +54,3 @@ export interface IDynamicReference {
 	// data: any; // File details for a file, something else for a different type of thing, is it typed?
 	data: URI;
 }
-

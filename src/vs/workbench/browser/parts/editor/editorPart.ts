@@ -625,7 +625,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.doUpdateMostRecentActive(group, true);
 
 			// Mark previous one as inactive
-			previousActiveGroup?.setActive(false);
+			if (previousActiveGroup && !previousActiveGroup.disposed) {
+				previousActiveGroup.setActive(false);
+			}
 
 			// Mark group as new active
 			group.setActive(true);

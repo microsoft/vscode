@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
 import { IChatAgentData, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
@@ -17,24 +17,31 @@ export interface IParsedChatRequest {
 }
 
 export interface IParsedChatRequestPart {
-	readonly range: OffsetRange;
+	readonly kind: string; // for serialization
+	readonly range: IOffsetRange;
 	readonly editorRange: IRange;
 	readonly text: string;
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
+	static readonly Kind = 'text';
+	readonly kind = ChatRequestTextPart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
 }
+
+export const chatVariableLeader = '#'; // warning, this also shows up in a regex in the parser
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
  */
 export class ChatRequestVariablePart implements IParsedChatRequestPart {
+	static readonly Kind = 'var';
+	readonly kind = ChatRequestVariablePart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly variableName: string, readonly variableArg: string) { }
 
 	get text(): string {
 		const argPart = this.variableArg ? `:${this.variableArg}` : '';
-		return `@${this.variableName}${argPart}`;
+		return `${chatVariableLeader}${this.variableName}${argPart}`;
 	}
 }
 
@@ -42,6 +49,8 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
  * An invocation of an agent that can be resolved by the agent service
  */
 export class ChatRequestAgentPart implements IParsedChatRequestPart {
+	static readonly Kind = 'agent';
+	readonly kind = ChatRequestAgentPart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
 
 	get text(): string {
@@ -53,6 +62,8 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
  * An invocation of an agent's subcommand
  */
 export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
+	static readonly Kind = 'subcommand';
+	readonly kind = ChatRequestAgentSubcommandPart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: IChatAgentCommand) { }
 
 	get text(): string {
@@ -64,6 +75,8 @@ export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
  * An invocation of a standalone slash command
  */
 export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
+	static readonly Kind = 'slash';
+	readonly kind = ChatRequestSlashCommandPart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
 
 	get text(): string {
@@ -75,6 +88,8 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
  * An invocation of a dynamic reference like '$file:'
  */
 export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
+	static readonly Kind = 'dynamic';
+	readonly kind = ChatRequestSlashCommandPart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string, readonly arg: string, readonly data: URI) { }
 
 	get referenceText(): string {
@@ -84,4 +99,46 @@ export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	get text(): string {
 		return `$${this.referenceText}`;
 	}
+}
+
+export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsedChatRequest {
+	return {
+		text: serialized.text,
+		parts: serialized.parts.map(part => {
+			if (part.kind === ChatRequestTextPart.Kind) {
+				return new ChatRequestTextPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					part.text
+				);
+			} else if (part.kind === ChatRequestVariablePart.Kind) {
+				return new ChatRequestVariablePart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestVariablePart).variableName,
+					(part as ChatRequestVariablePart).variableArg
+				);
+			} else if (part.kind === ChatRequestAgentPart.Kind) {
+				return new ChatRequestAgentPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestAgentPart).agent
+				);
+			} else if (part.kind === ChatRequestAgentSubcommandPart.Kind) {
+				return new ChatRequestAgentSubcommandPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestAgentSubcommandPart).command
+				);
+			} else if (part.kind === ChatRequestSlashCommandPart.Kind) {
+				return new ChatRequestSlashCommandPart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestSlashCommandPart).slashCommand
+				);
+			} else {
+				throw new Error(`Unknown chat request part: ${part.kind}`);
+			}
+		})
+	};
 }

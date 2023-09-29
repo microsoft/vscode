@@ -43,6 +43,7 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export const ID = 'editor.contrib.review';
 
@@ -343,7 +344,7 @@ class CommentingRangeDecorator {
 
 			return range;
 		}
-		return decorations[0].getActiveRange() ?? undefined;
+		return (decorations.length > 0 ? (decorations[0].getActiveRange() ?? undefined) : undefined);
 	}
 
 	public dispose(): void {
@@ -384,7 +385,8 @@ export class CommentController implements IEditorContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -724,6 +726,14 @@ export class CommentController implements IEditorContribution {
 			const position = reverse ? range.getEndPosition() : range.getStartPosition();
 			this.editor.setPosition(position);
 			this.editor.revealLineInCenterIfOutsideViewport(position.lineNumber);
+		}
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			const commentRangeStart = range?.getStartPosition().lineNumber;
+			const commentRangeEnd = range?.getEndPosition().lineNumber;
+			if (commentRangeStart && commentRangeEnd) {
+				const oneLine = commentRangeStart === commentRangeEnd;
+				oneLine ? status(nls.localize('commentRange', "Line {0}", commentRangeStart)) : status(nls.localize('commentRangeStart', "Lines {0} to {1}", commentRangeStart, commentRangeEnd));
+			}
 		}
 	}
 

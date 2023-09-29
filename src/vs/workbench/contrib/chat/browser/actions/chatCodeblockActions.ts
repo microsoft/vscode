@@ -11,7 +11,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
-import { RelatedContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -260,17 +260,37 @@ export function registerChatCodeBlockActions() {
 			if (mappedEditsProviders.length > 0) {
 				const mostRelevantProvider = mappedEditsProviders[0];
 
-				const selections = codeEditor.getSelections() ?? [];
-				const mappedEditsContext = {
-					selections,
-					related: [] as RelatedContextItem[], // TODO@ulugbekna: we do have not yet decided what to populate this with
-				};
+				// 0th sub-array - editor selections array if there are any selections
+				// 1st sub-array - array with documents used to get the chat reply
+				const docRefs: DocumentContextItem[][] = [];
+
+				if (codeEditor.hasModel()) {
+					const model = codeEditor.getModel();
+					const currentDocUri = model.uri;
+					const currentDocVersion = model.getVersionId();
+					const selections = codeEditor.getSelections();
+					if (selections.length > 0) {
+						docRefs.push([
+							{
+								uri: currentDocUri,
+								version: currentDocVersion,
+								ranges: selections,
+							}
+						]);
+					}
+				}
+
+				const usedDocuments = chatCodeBlockActionContext.element.response.usedContext?.documents;
+				if (usedDocuments) {
+					docRefs.push(usedDocuments);
+				}
+
 				const cancellationTokenSource = new CancellationTokenSource();
 
 				workspaceEdit = await mostRelevantProvider.provideMappedEdits(
 					activeModel,
 					[chatCodeBlockActionContext.code],
-					mappedEditsContext,
+					{ documents: docRefs },
 					cancellationTokenSource.token);
 			}
 

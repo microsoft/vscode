@@ -1100,7 +1100,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
 	pinnedTabsOnSeparateRow?: boolean;
-	tabHeight?: 'normal' | 'compact';
+	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;

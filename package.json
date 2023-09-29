@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.83.0",
-  "distro": "a06824e6c4c76374ec53ff47965dbb0fada8ae6c",
+  "distro": "e61050c5d43d2c66a196fafaa2b78d4f2a8c929a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -97,7 +97,7 @@
     "xterm": "5.4.0-beta.27",
     "xterm-addon-canvas": "0.6.0-beta.27",
     "xterm-addon-image": "0.6.0-beta.21",
-    "xterm-addon-search": "0.14.0-beta.26",
+    "xterm-addon-search": "0.14.0-beta.27",
     "xterm-addon-serialize": "0.12.0-beta.26",
     "xterm-addon-unicode11": "0.7.0-beta.26",
     "xterm-addon-webgl": "0.17.0-beta.26",

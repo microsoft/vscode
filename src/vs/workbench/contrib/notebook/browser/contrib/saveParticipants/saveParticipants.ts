@@ -45,8 +45,7 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-	) {
-	}
+	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
@@ -177,8 +176,8 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
-		if (this.configurationService.getValue<boolean>('files.trimTrailingWhitespace')) {
-			this.doTrimFinalNewLines(workingCopy, context.reason === SaveReason.AUTO, progress);
+		if (this.configurationService.getValue<boolean>('files.trimFinalNewlines')) {
+			await this.doTrimFinalNewLines(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
 
@@ -250,21 +249,29 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		if (this.configurationService.getValue('files.insertFinalNewline')) {
-			this.doInsertFinalNewLine(workingCopy, context, progress);
+			await this.doInsertFinalNewLine(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
 
-	private async doInsertFinalNewLine(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>): Promise<void> {
+	private async doInsertFinalNewLine(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, isAutoSaved: boolean, progress: IProgress<IProgressStep>): Promise<void> {
 		if (!workingCopy.model || !(workingCopy.model instanceof NotebookFileWorkingCopyModel)) {
 			return;
 		}
 
 		const disposable = new DisposableStore();
 		const notebook = workingCopy.model.notebookModel;
+
+		// get initial cursor positions
+		const activeCellEditor = getActiveCellCodeEditor(this.editorService);
+		let selections;
+		if (activeCellEditor) {
+			selections = activeCellEditor.getSelections() ?? [];
+		}
 
 		try {
 			const allCellEdits = await Promise.all(notebook.cells.map(async (cell) => {
@@ -285,6 +292,10 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 			const filteredEdits = allCellEdits.filter(edit => edit !== undefined) as ResourceEdit[];
 			await this.bulkEditService.apply(filteredEdits, { label: localize('insertFinalNewLine', "Insert Final New Line"), code: 'undoredo.insertFinalNewLine' });
 
+			// set cursor back to initial position after inserting final new line
+			if (activeCellEditor && selections) {
+				activeCellEditor.setSelections(selections);
+			}
 		} finally {
 			progress.report({ increment: 100 });
 			disposable.dispose();
@@ -328,7 +339,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		const notebookModel = workingCopy.model.notebookModel;
 
-		const setting = this.configurationService.getValue<{ [kind: string]: string }>(NotebookSetting.codeActionsOnSave);
+		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean }>(NotebookSetting.codeActionsOnSave);
 		if (!setting) {
 			return undefined;
 		}
@@ -341,9 +352,9 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 
 		const allCodeActions = this.createCodeActionsOnSave(settingItems);
 		const excludedActions = allCodeActions
-			.filter(x => setting[x.value] === 'never');
+			.filter(x => setting[x.value] === 'never' || setting[x.value] === false);
 		const includedActions = allCodeActions
-			.filter(x => setting[x.value] === saveTrigger);
+			.filter(x => setting[x.value] === saveTrigger || setting[x.value] === true);
 
 		const editorCodeActionsOnSave = includedActions.filter(x => !CodeActionKind.Notebook.contains(x));
 		const notebookCodeActionsOnSave = includedActions.filter(x => CodeActionKind.Notebook.contains(x));

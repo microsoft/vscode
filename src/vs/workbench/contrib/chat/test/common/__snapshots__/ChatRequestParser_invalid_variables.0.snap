@@ -11,8 +11,9 @@
         endLineNumber: 1,
         endColumn: 27
       },
-      text: "What does @selection mean?"
+      text: "What does #selection mean?",
+      kind: "text"
     }
   ],
-  text: "What does @selection mean?"
+  text: "What does #selection mean?"
 }
