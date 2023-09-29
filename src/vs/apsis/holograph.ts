@@ -66,7 +66,31 @@ class TaskQueue {
 
 
 }
-class Priority { }
+class Priority {
+
+	//priority score based on previous input
+
+	/*
+	impact: number;
+	complexity: number;
+	eta: number;
+	processors: number;
+	memories: number;
+*/
+
+	public score(): number {
+		//return (impact*impact*impact*complexity*complexity*eta);
+		return 1;
+	}
+
+	public percentagescore(totalscore: number, percent: number): number {
+		return 1;
+	}
+
+	public resourceallocate(resourcescore: number) {
+
+	}
+ }
 class APICount { }
 class AgentCount { }
 
@@ -78,22 +102,22 @@ class Core {
 
 
 	public watchers: Watcher[] = [
-		new Watcher('MOBILITYUNIT'),
-		new Watcher('ATTENDANCE'),
-		new Watcher('HR'),
-		new Watcher('CALENDAR'),
-		new Watcher('MEETING'),
-		new Watcher('EMAIL'),
-		new Watcher('CHAT'),
-		new Watcher('VCS'),
-		new Watcher('BUILDTESTER'),
-		new Watcher('PROJECTMANAGEMENTTOOL'),
-		new Watcher('CODEREVIEWTOOL'),
-		new Watcher('TECHNICALDOCUMENTATION')
+		new Watcher('MOBILITYUNIT', 100, 70, 50),
+		new Watcher('ATTENDANCE', 70, 50, 50),
+		new Watcher('HR', 60, 80, 80),
+		new Watcher('CALENDAR',90, 80, 80),
+		new Watcher('MEETING',80, 80, 80),
+		new Watcher('EMAIL',50, 60, 70),
+		new Watcher('CHAT',30, 30, 20),
+		new Watcher('VCS',50, 90, 90),
+		new Watcher('BUILDTESTER',40, 90, 90),
+		new Watcher('PROJECTMANAGEMENTTOOL',50, 80, 90),
+		new Watcher('CODEREVIEWTOOL',40, 60, 60),
+		new Watcher('TECHNICALDOCUMENTATION', 5, 20, 30)
 	  ];
 
-	public tasks = new TaskQueue();
-	public taskMaker = new TaskMaker();
+	//public tasks = new TaskQueue();
+	//public taskMaker = new TaskMaker();
 	public apsis = new APSIS();
 	public priorityqueue = new PriorityOrder();
 	public gui = new GUI("A","B");
@@ -227,10 +251,17 @@ class Core {
 		console.log(this.daemonInterval);
 	}
 
+	public updateLogBook(): void {
+
+
+	}
+
 	public UPDATE(): void {
 		this.updateAPSISNASC();
 		this.updatePriorityQueue();
+		this.updateLogBook();
 		this.updateGUI();
+
 	}
 
 	public daemon(): void {
@@ -252,7 +283,10 @@ class EngineMatrix {
 
 }
 
-class Tokenizer { }
+class Tokenizer {
+//grammar tool
+
+}
 
 class EngineGeneratorPerToken { }
 
@@ -377,14 +411,34 @@ class TextsToSpeechAndSpeechToTexts {
 }
 
 class Watcher {
-name : string;
-constructor(name: string) {
+public name : string;
+public interface : Interfaces;
+//public priority : Priority;
+public taskmaker : TaskMaker;
+public message : Message;
+public impact: number = 50; /*out of 100*/
+public processor: number = 30;//MAX out of 100
+public memory: number = 10;//Max out of 100
+constructor(name: string, impact: number, processor: number, memory: number) {
 	this.name = name;
+	this.interface = new Interfaces();
+	//this.priority = new Priority();
+	this.taskmaker = new TaskMaker();
+	this.message = new Message("A", "B");
 }
+
+public read(): void {
+
+}
+
+public makeTask(): void {
+
+}
+
 }
 
 class TaskMaker {
-
+//Tokenizers, Standardisers, Grammar Tools, Protocols and Butlers - Tasks need to be standardised before they are pushed to the priority queue - This needs to be thought out intelligently - which you already did need to put it down in code
 }
 
 
@@ -847,7 +901,42 @@ holograph();
 
 
 
+/*
 
+
+To structure a problem statement to remove ambiguity, follow these steps:
+
+Identify the key elements of the problem. What is the problem that you are trying to solve? What are the constraints and limitations? Who is affected by the problem?
+Define the problem clearly and concisely. Avoid using jargon or technical terms that your audience may not understand.
+Provide specific examples of the problem. This will help your audience to understand the problem and its impact.
+State the desired outcome. What do you hope to achieve by solving the problem?
+Here is an example of a well-structured problem statement:
+
+Problem statement:
+
+Key elements:
+Patients with chronic diseases often have difficulty managing their medications.
+This can lead to medication errors and adverse events.
+Patients may also have difficulty accessing information about their medications.
+Problem definition:
+Patients with chronic diseases need a system to help them manage their medications safely and effectively.
+Examples:
+One patient had to be hospitalized after taking the wrong medication.
+Another patient had to have surgery to correct an adverse event caused by a medication.
+Desired outcome:
+Develop a system that helps patients with chronic diseases manage their medications safely and effectively, and reduces the risk of medication errors and adverse events.
+This problem statement is clear, concise, and specific. It provides all of the information that is needed to understand the problem and its impact, and it states the desired outcome.
+
+Here are some tips for removing ambiguity from your problem statement:
+
+Avoid using vague or ambiguous language.
+Be specific and concrete.
+Provide examples to illustrate the problem.
+Define any key terms or concepts.
+Ask for feedback from others to make sure that your problem statement is clear and understandable.
+By following these tips, you can write a problem statement that is unambiguous and easy to understand. This will help you to get the support you need to solve the problem.
+
+*/
 
 
 
