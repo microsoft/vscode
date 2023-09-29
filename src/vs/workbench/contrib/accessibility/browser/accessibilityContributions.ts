@@ -56,12 +56,12 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 				await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
-			accessibleViewService.show(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
+			accessibleViewService.show(instantiationService.createInstance(EditorAccessibilityHelpProvider, codeEditor));
 		}, EditorContextKeys.focus));
 	}
 }
 
-class AccessibilityHelpProvider implements IAccessibleContentProvider {
+class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 	onClose() {
 		this._editor.focus();
 	}

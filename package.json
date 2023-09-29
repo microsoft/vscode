@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.83.0",
-  "distro": "e61050c5d43d2c66a196fafaa2b78d4f2a8c929a",
+  "version": "1.84.0",
+  "distro": "7df09ac7212a2c85067c0e2ef8c1ec89686483d2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -97,7 +97,7 @@
     "xterm": "5.4.0-beta.27",
     "xterm-addon-canvas": "0.6.0-beta.27",
     "xterm-addon-image": "0.6.0-beta.21",
-    "xterm-addon-search": "0.14.0-beta.26",
+    "xterm-addon-search": "0.14.0-beta.27",
     "xterm-addon-serialize": "0.12.0-beta.26",
     "xterm-addon-unicode11": "0.7.0-beta.26",
     "xterm-addon-webgl": "0.17.0-beta.26",
@@ -148,7 +148,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "25.8.2",
+    "electron": "25.8.4",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
