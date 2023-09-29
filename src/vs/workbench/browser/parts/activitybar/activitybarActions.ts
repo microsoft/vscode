@@ -43,6 +43,7 @@ import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { runWhenIdle } from 'vs/base/common/async';
 import { Lazy } from 'vs/base/common/lazy';
+import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -519,7 +520,12 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 			return;
 		}
 
-		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
+		if (!this.userDataProfileService.currentProfile.icon || this.userDataProfileService.currentProfile.icon === DEFAULT_ICON.id) {
+			this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
+			this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+			this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
+		}
+
 		show(this.profileBadge);
 	}
 

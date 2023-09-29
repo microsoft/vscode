@@ -47,6 +47,7 @@ export class DiffEditorSash extends Disposable {
 			const enabled = this._options.enableSplitViewResizing.read(reader);
 			this._sash.state = enabled ? SashState.Enabled : SashState.Disabled;
 			this.sashLeft.read(reader);
+			this._dimensions.height.read(reader);
 			this._sash.layout();
 		}));
 	}
@@ -55,6 +56,7 @@ export class DiffEditorSash extends Disposable {
 		this._sash.orthogonalEndSash = sashes.bottom;
 	}
 
+	/** @pure */
 	private _computeSashLeft(desiredRatio: number, reader: IReader | undefined): number {
 		const contentWidth = this._dimensions.width.read(reader);
 		const midPoint = Math.floor(this._options.splitViewDefaultRatio.read(reader) * contentWidth);

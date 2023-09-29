@@ -24,7 +24,7 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorGroupsView, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
@@ -39,7 +39,7 @@ import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsD
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export interface IToolbarActions {
 	readonly primary: IAction[];
@@ -74,7 +74,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 
 export interface IEditorTabsControl extends IDisposable {
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
-	openEditor(editor: EditorInput): boolean;
+	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): boolean;
 	openEditors(editors: EditorInput[]): boolean;
 	beforeCloseEditor(editor: EditorInput): void;
 	closeEditor(editor: EditorInput): void;
@@ -174,7 +174,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
-			overflowBehavior: { maxItems: 9, exempted: [CLOSE_EDITOR_COMMAND_ID] },
+			overflowBehavior: { maxItems: 9, exempted: EDITOR_CORE_NAVIGATION_COMMANDS },
 			highlightToggledItems: true,
 		}));
 

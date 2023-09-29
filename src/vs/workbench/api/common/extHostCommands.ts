@@ -123,7 +123,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			const internalArgs = apiCommand.args.map((arg, i) => {
 				if (!arg.validate(apiArgs[i])) {
-					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', received: ${apiArgs[i]}`);
+					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', received: ${typeof apiArgs[i] === 'object' ? JSON.stringify(apiArgs[i], null, '\t') : apiArgs[i]} `);
 				}
 				return arg.convert(apiArgs[i]);
 			});
@@ -238,7 +238,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
+					throw new Error(`Running the contributed command: '${id}' failed.Illegal argument '${description.args[i].name}' - ${description.args[i].description} `);
 				}
 			}
 		}
@@ -342,7 +342,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
-	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)}`;
+	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)} `;
 	private readonly _cache = new Map<string, vscode.Command>();
 	private _cachIdPool = 0;
 
@@ -387,7 +387,7 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
-			const id = `${command.command}/${++this._cachIdPool}`;
+			const id = `${command.command} /${++this._cachIdPool}`;
 			this._cache.set(id, command);
 			disposables.add(toDisposable(() => {
 				this._cache.delete(id);

@@ -25,7 +25,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_LIST, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
@@ -119,8 +119,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private lastSlashCommands: ISlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<ISlashCommand[] | undefined> | undefined;
 
-	private readonly chatListFocused: IContextKey<boolean>;
-
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly styles: IChatWidgetStyles,
@@ -134,7 +132,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
-		this.chatListFocused = CONTEXT_IN_CHAT_LIST.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
@@ -354,9 +351,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();
-			this.chatListFocused.set(this.tree.isDOMFocused());
 		}));
-		this._register(this.tree.onDidBlur(() => this.chatListFocused.set(false)));
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<ChatTreeItem | null>): void {

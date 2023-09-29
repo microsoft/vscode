@@ -8,8 +8,10 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
+import { intersection } from 'vs/base/common/collections';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -114,12 +116,12 @@ export class WorkbenchToolBar extends ToolBar {
 	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
 
 		this._sessionDisposables.clear();
-		const primary = _primary.slice();
+		const primary: Array<IAction | undefined> = _primary.slice(); // for hiding and overflow we set some items to undefined
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
 		let toggleActionsCheckedCount: number = 0;
 
-		const extraSecondary: IAction[] = [];
+		const extraSecondary: Array<IAction | undefined> = [];
 
 		let someAreHidden = false;
 		// unless disabled, move all hidden items to secondary group or ignore them
@@ -143,7 +145,7 @@ export class WorkbenchToolBar extends ToolBar {
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
 					someAreHidden = true;
-					primary[i] = undefined!;
+					primary[i] = undefined;
 					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
 						extraSecondary[i] = action;
 					}
@@ -154,8 +156,8 @@ export class WorkbenchToolBar extends ToolBar {
 		// count for max
 		if (this._options?.overflowBehavior !== undefined) {
 
-			const exempted = new Set(this._options.overflowBehavior.exempted);
-			const maxItems = this._options.overflowBehavior.maxItems - exempted.size;
+			const exemptedIds = intersection(new Set(this._options.overflowBehavior.exempted), Iterable.map(primary, a => a?.id));
+			const maxItems = this._options.overflowBehavior.maxItems - exemptedIds.size;
 
 			let count = 0;
 			for (let i = 0; i < primary.length; i++) {
@@ -164,16 +166,17 @@ export class WorkbenchToolBar extends ToolBar {
 					continue;
 				}
 				count++;
-				if (exempted.has(action.id)) {
+				if (exemptedIds.has(action.id)) {
 					continue;
 				}
 				if (count >= maxItems) {
-					primary[i] = undefined!;
+					primary[i] = undefined;
 					extraSecondary[i] = action;
 				}
 			}
 		}
 
+		// coalesce turns Array<IAction|undefined> into IAction[]
 		coalesceInPlace(primary);
 		coalesceInPlace(extraSecondary);
 		super.setActions(primary, Separator.join(extraSecondary, secondary));

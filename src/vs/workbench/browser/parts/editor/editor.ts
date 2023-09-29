@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -15,6 +15,7 @@ import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isObject } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
@@ -32,7 +33,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizingFixedMaxWidth: 160,
 	pinnedTabSizing: 'normal',
 	pinnedTabsOnSeparateRow: false,
-	tabHeight: 'normal',
+	tabHeight: 'default',
 	preventPinnedEditorClose: 'keyboardAndMouse',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
@@ -50,7 +51,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
-	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');
+	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme') || event.affectsConfiguration('window.density');
 }
 
 export function getEditorPartOptions(configurationService: IConfigurationService, themeService: IThemeService): IEditorPartOptions {
@@ -77,6 +78,11 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		} else {
 			options.autoLockGroups = undefined;
 		}
+	}
+
+	const windowConfig = configurationService.getValue<IWindowsConfiguration>();
+	if (windowConfig?.window?.density?.editorTabHeight) {
+		options.tabHeight = windowConfig.window.density.editorTabHeight;
 	}
 
 	return options;
@@ -148,6 +154,8 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	notifyIndexChanged(newIndex: number): void;
 
+	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
+
 	relayout(): void;
 }
 
@@ -200,6 +208,11 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * opened in one of the sides.
 	 */
 	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+
+	/**
+	 * When set to `true`, pass DOM focus into the tab control.
+	 */
+	focusTabControl?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {

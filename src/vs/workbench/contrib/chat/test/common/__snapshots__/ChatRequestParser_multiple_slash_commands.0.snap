@@ -11,7 +11,8 @@
         endLineNumber: 1,
         endColumn: 5
       },
-      slashCommand: { command: "fix" }
+      slashCommand: { command: "fix" },
+      kind: "slash"
     },
     {
       range: {
@@ -24,7 +25,8 @@
         endLineNumber: 1,
         endColumn: 10
       },
-      text: " /fix"
+      text: " /fix",
+      kind: "text"
     }
   ],
   text: "/fix /fix"

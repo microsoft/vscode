@@ -5,7 +5,7 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsView, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { IEditorPartOptions } from 'vs/workbench/common/editor';
@@ -55,12 +55,14 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		return this.model.isSticky(editor) ? this.stickyEditorTabsControl : this.unstickyEditorTabsControl;
 	}
 
-	openEditor(editor: EditorInput): boolean {
+	openEditor(editor: EditorInput, options: IInternalEditorOpenOptions): boolean {
 		const [editorTabController, otherTabController] = this.model.isSticky(editor) ? [this.stickyEditorTabsControl, this.unstickyEditorTabsControl] : [this.unstickyEditorTabsControl, this.stickyEditorTabsControl];
-		const didChange = editorTabController.openEditor(editor);
+		const didChange = editorTabController.openEditor(editor, options);
 		if (didChange) {
 			// HACK: To render all editor tabs on startup, otherwise only one row gets rendered
 			otherTabController.openEditors([]);
+
+			this.handleOpenedEditors();
 		}
 		return didChange;
 	}
@@ -72,7 +74,17 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const didChangeOpenEditorsSticky = this.stickyEditorTabsControl.openEditors(stickyEditors);
 		const didChangeOpenEditorsUnSticky = this.unstickyEditorTabsControl.openEditors(unstickyEditors);
 
-		return didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky;
+		const didChange = didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky;
+
+		if (didChange) {
+			this.handleOpenedEditors();
+		}
+
+		return didChange;
+	}
+
+	private handleOpenedEditors(): void {
+		this.handlePinnedTabsSeparateRowToolbars();
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
@@ -161,7 +173,11 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 		const stickyDimensions = this.stickyEditorTabsControl.layout(dimensions);
-		const unstickyDimensions = this.unstickyEditorTabsControl.layout(dimensions);
+		const unstickyAvailableDimensions = {
+			container: dimensions.container,
+			available: new Dimension(dimensions.available.width, dimensions.available.height - stickyDimensions.height)
+		};
+		const unstickyDimensions = this.unstickyEditorTabsControl.layout(unstickyAvailableDimensions);
 
 		return new Dimension(
 			dimensions.container.width,

@@ -73,6 +73,7 @@ export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherS
 export const DIFF_OPEN_SIDE = 'workbench.action.compareEditor.openSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
 
+export const SPLIT_EDITOR = 'workbench.action.splitEditor';
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
@@ -97,6 +98,13 @@ export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtInd
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
 export const API_OPEN_WITH_EDITOR_COMMAND_ID = '_workbench.openWith';
+
+export const EDITOR_CORE_NAVIGATION_COMMANDS = [
+	SPLIT_EDITOR,
+	CLOSE_EDITOR_COMMAND_ID,
+	UNPIN_EDITOR_COMMAND_ID,
+	UNLOCK_GROUP_COMMAND_ID
+];
 
 export interface ActiveEditorMoveCopyArguments {
 	to: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
@@ -1513,7 +1521,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 		if (focus) {
 			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
-			if (selection.length > 0) {
+			if (selection.length > 1) {
 				return selection.map(elementToContext);
 			}
 

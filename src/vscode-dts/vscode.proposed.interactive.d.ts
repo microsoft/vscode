@@ -142,7 +142,23 @@ declare module 'vscode' {
 		treeData: FileTreeData;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree | InteractiveContentReference;
+	export interface DocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	export interface InteractiveProgressUsedContext {
+		documents: DocumentContext[];
+	}
+
+	export type InteractiveProgress =
+		| InteractiveProgressContent
+		| InteractiveProgressId
+		| InteractiveProgressTask
+		| InteractiveProgressFileTree
+		| InteractiveProgressUsedContext
+		| InteractiveContentReference;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
