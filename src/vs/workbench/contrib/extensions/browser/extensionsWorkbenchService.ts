@@ -747,6 +747,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	readonly preferPreReleases = this.productService.quality !== 'stable';
 
 	private installing: IExtension[] = [];
+	get isInstalling() { return this.installing.length > 0; }
 	private tasksInProgress: CancelablePromise<any>[] = [];
 
 	readonly whenInitialized: Promise<void>;
