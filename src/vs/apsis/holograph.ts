@@ -412,7 +412,7 @@ class TextsToSpeechAndSpeechToTexts {
 
 class Watcher {
 public name : string;
-public interface : Interfaces;
+public interface : Interfaces[];
 //public priority : Priority;
 public taskmaker : TaskMaker;
 public message : Message;
@@ -421,7 +421,8 @@ public processor: number = 30;//MAX out of 100
 public memory: number = 10;//Max out of 100
 constructor(name: string, impact: number, processor: number, memory: number) {
 	this.name = name;
-	this.interface = new Interfaces();
+	this.interface = [];
+	//new Interfaces();
 	//this.priority = new Priority();
 	this.taskmaker = new TaskMaker();
 	this.message = new Message("A", "B");
@@ -517,7 +518,7 @@ class NASC {
 
 	order: Order;
 	butler: Butler;
-	protocol: Protocol;
+	protocol: Protocol[];
 
 	constructor() {
 		this.employees = []; // Initialize the employees array to an empty array
@@ -526,7 +527,8 @@ class NASC {
 
 		this.order = new Order();
 		this.butler = new Butler();
-		this.protocol = new Protocol(1, 2, new Interfaces(), new Message(new API(), new Url()), 5);
+		//this.protocol = new Protocol(1, 2, new Interfaces(), new Message(new API(), new Url()), 5);
+		this.protocol = [];
 	}
 
 
