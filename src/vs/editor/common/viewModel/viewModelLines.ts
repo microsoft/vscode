@@ -46,8 +46,11 @@ export interface IViewModelLines extends IDisposable {
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
+	getTextDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
+
+	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position;
 	/**
@@ -106,6 +109,9 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wordBreak = wordBreak;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
+	}
+	getTextDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[] {
+		throw new Error('Method not implemented.');
 	}
 
 	public dispose(): void {
@@ -1193,6 +1199,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return new Array(endLineNumber - startLineNumber + 1).fill([]);
 	}
 
+	public convertModelRangeToViewRange(modelRange: Range): Range {
+		return modelRange;
+	}
+
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
 		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
 		const result = new Array<number>(viewLineCount);
@@ -1244,6 +1254,11 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		}
 
 		return result;
+	}
+
+
+	public getTextDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[] {
+		return [];
 	}
 
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {

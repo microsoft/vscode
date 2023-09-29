@@ -40,6 +40,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DefaultChatTextEditor } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { isEqual } from 'vs/base/common/resources';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IEditObserver {
 	start(): void;
@@ -375,6 +376,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 				const keysNow = new Set(this._hunkDisplayData.keys());
 				widgetData = undefined;
+				const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 
 				for (const hunkData of this._session.hunkData.getInfo()) {
 
@@ -415,7 +417,7 @@ export class LiveStrategy extends EditModeStrategy {
 						);
 						const domNode = document.createElement('div');
 						domNode.className = 'inline-chat-original-zone2';
-						const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(originalRange.startLineNumber, 1, originalRange.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
+						const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(originalRange.startLineNumber, 1, originalRange.startLineNumber, 1), '', InlineDecorationType.Regular, lineHeight)], domNode);
 						const viewZoneData: IViewZone = {
 							afterLineNumber: -1,
 							heightInLines: result.heightInLines,

@@ -193,7 +193,8 @@ export class ViewCursor {
 			}
 
 			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, textContentClassName);
+			const bottom = ctx.getVerticalOffsetForLineNumber(position.lineNumber + 1) - ctx.bigNumbersDelta;
+			return new ViewCursorRenderData(top, left, paddingLeft, width, bottom - top, textContent, textContentClassName);
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);

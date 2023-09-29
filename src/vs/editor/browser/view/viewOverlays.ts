@@ -184,7 +184,7 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		sb.appendString('<div style="top:');
+		sb.appendString('<div class="view-overlay" style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
 		sb.appendString(String(lineHeight));

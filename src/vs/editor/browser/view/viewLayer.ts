@@ -461,7 +461,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this.viewportData.lineHeight);
+			const deltaIndex = lineNumber - deltaLN;
+			const lineHeight = deltaTop[deltaIndex + 1] - deltaTop[deltaIndex];
+			lines[i].layoutLine(lineNumber, deltaTop[deltaIndex], lineHeight);
 		}
 	}
 
@@ -565,7 +567,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData.lineHeight, this.viewportData, sb);
+				const lineHeight = deltaTop[i + 1] - deltaTop[i];
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -595,7 +598,8 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData.lineHeight, this.viewportData, sb);
+				const lineHeight = deltaTop[i + 1] - deltaTop[i];
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;

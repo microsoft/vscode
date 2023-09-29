@@ -9,6 +9,7 @@
 */
 .monaco-editor .lines-content .cslr {
 	position: absolute;
+	height: 100%;
 }
 
 .monaco-editor .focused .selected-text {

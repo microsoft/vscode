@@ -10,7 +10,7 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface IDecorationsViewportData {
@@ -31,8 +31,10 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly configuration: IEditorConfiguration;
 	private readonly _linesCollection: IViewModelLines;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
+	private readonly _lineHeight: number;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
+	private _decorationsHeightMapCache?: Uint8ClampedArray | undefined;
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
@@ -46,6 +48,7 @@ export class ViewModelDecorations implements IDisposable {
 		this._decorationsCache = Object.create(null);
 		this._cachedModelDecorationsResolver = null;
 		this._cachedModelDecorationsResolverViewRange = null;
+		this._lineHeight = configuration.options.get(EditorOption.lineHeight);
 	}
 
 	private _clearCachedModelDecorationsResolver(): void {
@@ -55,22 +58,25 @@ export class ViewModelDecorations implements IDisposable {
 
 	public dispose(): void {
 		this._decorationsCache = Object.create(null);
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public reset(): void {
 		this._decorationsCache = Object.create(null);
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onModelDecorationsChanged(): void {
 		this._decorationsCache = Object.create(null);
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onLineMappingChanged(): void {
 		this._decorationsCache = Object.create(null);
-
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
@@ -115,6 +121,50 @@ export class ViewModelDecorations implements IDisposable {
 		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
 	}
 
+	/**
+	 * Get an array where each index maps the line number to its line height.
+	 *
+	 * Index 0 is not an actual line number. It always contains the original line height.
+	 */
+	public getDecorationsLineHeightMap(): Uint8ClampedArray {
+		if (!this._decorationsHeightMapCache) {
+			const lineCount = this._linesCollection.getViewLineCount();
+			const lineHeights = new Uint8ClampedArray(lineCount + 1).fill(this._lineHeight);
+			const viewRange = new Range(1, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
+			const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
+			const modelDecorationsLength = modelDecorations.length;
+
+			for (let decorationIndex = 0; decorationIndex < modelDecorationsLength; decorationIndex++) {
+				const decoration = modelDecorations[decorationIndex];
+				const decorationLineHeight = decoration.options.lineHeight;
+
+				if (!decorationLineHeight) {
+					continue;
+				}
+
+				const range = this._linesCollection.convertModelRangeToViewRange(decoration.range);
+				for (let rangeLine = range.startLineNumber; rangeLine <= range.endLineNumber; rangeLine++) {
+					lineHeights[rangeLine] = Math.max(lineHeights[rangeLine], decorationLineHeight);
+				}
+			}
+
+			this._decorationsHeightMapCache = lineHeights;
+		}
+
+		return this._decorationsHeightMapCache;
+	}
+
+	public getDecorationsOffset(lineNumber: number = this._linesCollection.getViewLineCount()): number {
+		const lineHeights = this.getDecorationsLineHeightMap();
+		let offset = 0;
+
+		for (let i = 1; i < lineNumber; i++) {
+			offset += lineHeights[i];
+		}
+
+		return offset;
+	}
+
 	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
 		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
@@ -141,7 +191,11 @@ export class ViewModelDecorations implements IDisposable {
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
+				const inlineDecoration = new InlineDecoration(
+					viewRange,
+					decorationOptions.inlineClassName,
+					decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
+					decorationOptions.lineHeight);
 				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
@@ -153,7 +207,8 @@ export class ViewModelDecorations implements IDisposable {
 					const inlineDecoration = new InlineDecoration(
 						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),
 						decorationOptions.beforeContentClassName,
-						InlineDecorationType.Before
+						InlineDecorationType.Before,
+						decorationOptions.lineHeight
 					);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
 				}
@@ -163,7 +218,8 @@ export class ViewModelDecorations implements IDisposable {
 					const inlineDecoration = new InlineDecoration(
 						new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),
 						decorationOptions.afterContentClassName,
-						InlineDecorationType.After
+						InlineDecorationType.After,
+						decorationOptions.lineHeight
 					);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}

@@ -77,7 +77,7 @@ export class LineDecoration {
 				continue;
 			}
 
-			if (range.isEmpty() && (d.type === InlineDecorationType.Regular || d.type === InlineDecorationType.RegularAffectingLetterSpacing)) {
+			if (range.isEmpty() && (d.type === InlineDecorationType.Regular || d.type === InlineDecorationType.RegularAffectingLetterSpacing) && !d.lineHeight) {
 				// Ignore empty range decorations
 				continue;
 			}
