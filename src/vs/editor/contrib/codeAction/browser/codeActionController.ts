@@ -248,6 +248,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
 
+		console.log('Inside of showCodeActionsList');
 		const currentDecorations = this._editor.createDecorationsCollection();
 
 		const editorDom = this._editor.getDomNode();

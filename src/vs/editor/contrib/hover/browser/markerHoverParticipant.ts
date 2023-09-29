@@ -200,6 +200,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			const codeActionsPromise = this.getCodeActions(markerHover.marker);
 			disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 			codeActionsPromise.then(actions => {
+				console.log('actions : ', actions);
 				updatePlaceholderDisposable.dispose();
 				this.recentMarkerCodeActionsInfo = { marker: markerHover.marker, hasCodeActions: actions.validActions.length > 0 };
 
