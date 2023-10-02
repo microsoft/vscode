@@ -1,5 +1,5 @@
 {
-	"name": "Code - OSS with X11/Wayland",
+	"name": "Code - OSS",
 	"build": {
 		"dockerfile": "Dockerfile"
 	},
@@ -12,11 +12,24 @@
 			"type": "volume"
 		}
 	],
+	"postCreateCommand": "./.devcontainer/post-create.sh",
 	"customizations": {
 		"vscode": {
+			"settings": {
+				"resmon.show.battery": false,
+				"resmon.show.cpufreq": false
+			},
 			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"EditorConfig.EditorConfig",
+				"GitHub.vscode-pull-request-github",
+				"ms-vscode.vscode-github-issue-notebooks",
+				"ms-vscode.vscode-selfhost-test-provider",
 				"mutantdino.resourcemonitor"
 			]
 		}
+	},
+	"hostRequirements": {
+		"memory": "9gb"
 	}
 }
