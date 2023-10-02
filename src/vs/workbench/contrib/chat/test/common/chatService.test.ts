@@ -7,7 +7,10 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from 'vs/editor/common/core/range';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -57,8 +60,28 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 		this._onDidChangeState.fire(state);
 	}
 
-	async provideReply(request: IChatRequest) {
+	async provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void): Promise<{ session: IChat; followups: never[] }> {
 		return { session: request.session, followups: [] };
+	}
+}
+
+/** Chat provider for testing that returns used context */
+class ChatProviderWithUsedContext extends SimpleTestProvider implements IChatProvider {
+	override provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void): Promise<{ session: IChat; followups: never[] }> {
+
+		progress({
+			documents: [
+				{
+					uri: URI.file('/test/path/to/file'),
+					version: 3,
+					ranges: [
+						new Range(1, 1, 2, 2)
+					]
+				}
+			]
+		});
+
+		return super.provideReply(request, progress);
 	}
 }
 
@@ -222,5 +245,53 @@ suite('Chat', () => {
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
+	});
+
+	test('can serialize', async () => {
+
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const providerId = 'ChatProviderWithUsedContext';
+
+		testDisposables.add(testService.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
+
+		const model = testDisposables.add(testService.startSession(providerId, CancellationToken.None));
+		assert.strictEqual(model.getRequests().length, 0);
+
+		assertSnapshot(model.toExport());
+
+		const response = await testService.sendRequest(model.sessionId, 'test request');
+		assert(response);
+
+		await response.responseCompletePromise;
+
+		assert.strictEqual(model.getRequests().length, 1);
+
+		assertSnapshot(model.toExport());
+	});
+
+	test('can deserialize', async () => {
+
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const providerId = 'ChatProviderWithUsedContext';
+
+		testDisposables.add(testService.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
+
+		const chatModel1 = testDisposables.add(testService.startSession(providerId, CancellationToken.None));
+		assert.strictEqual(chatModel1.getRequests().length, 0);
+
+		const response = await testService.sendRequest(chatModel1.sessionId, 'test request');
+		assert(response);
+
+		await response.responseCompletePromise;
+
+		const serializedChatData = chatModel1.toJSON();
+
+		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
+
+		assert(chatModel2);
+
+		assertSnapshot(chatModel2.toExport());
 	});
 });

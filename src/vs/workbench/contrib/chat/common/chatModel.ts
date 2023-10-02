@@ -13,7 +13,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -347,6 +347,8 @@ export interface ISerializableChatRequestData {
 	followups: IChatFollowup[] | undefined;
 	isCanceled: boolean | undefined;
 	vote: InteractiveSessionVoteDirection | undefined;
+	/** For backward compat: should be optional */
+	usedContext?: IUsedContext;
 }
 
 export interface IExportableChatData {
@@ -378,7 +380,10 @@ export function isSerializableSessionData(obj: unknown): obj is ISerializableCha
 	const data = obj as ISerializableChatData;
 	return isExportableSessionData(obj) &&
 		typeof data.creationDate === 'number' &&
-		typeof data.sessionId === 'string';
+		typeof data.sessionId === 'string' &&
+		obj.requests.every((request: ISerializableChatRequestData) =>
+			!request.usedContext /* for backward compat allow missing usedContext */ || isIUsedContext(request.usedContext)
+		);
 }
 
 export type IChatChangeEvent = IChatAddRequestEvent | IChatAddResponseEvent | IChatInitEvent | IChatRemoveRequestEvent;
@@ -515,12 +520,17 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		try {
 			return requests.map((raw: ISerializableChatRequestData) => {
-				const parsedRequest = typeof raw.message === 'string' ? this.getParsedRequestFromString(raw.message) :
-					reviveParsedChatRequest(raw.message);
+				const parsedRequest =
+					typeof raw.message === 'string'
+						? this.getParsedRequestFromString(raw.message)
+						: reviveParsedChatRequest(raw.message);
 				const request = new ChatRequestModel(this, parsedRequest, raw.providerRequestId);
 				if (raw.response || raw.responseErrorDetails) {
 					const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
+						request.response.updateContent(raw.usedContext);
+					}
 				}
 				return request;
 			});
@@ -700,6 +710,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						fullName: r.response.agent.metadata.fullName,
 						icon: r.response.agent.metadata.icon
 					} : undefined,
+					usedContext: r.response?.response.usedContext,
 				};
 			}),
 			providerId: this.providerId,
