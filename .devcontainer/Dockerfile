@@ -6,6 +6,7 @@ RUN /root/install-vscode.sh
 RUN git config --system codespaces-theme.hide-status 1
 
 USER node
+RUN npm install -g node-gyp
 RUN YARN_CACHE="$(yarn cache dir)" && rm -rf "$YARN_CACHE" && ln -s /vscode-dev/yarn-cache "$YARN_CACHE"
 
 USER root
