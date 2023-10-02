@@ -1522,7 +1522,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 		if (focus) {
 			const selection: Array<IEditorIdentifier | IEditorGroup> = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
 
-			if (selection.length > 0) {
+			if (selection.length > 1) {
 				return selection.map(elementToContext);
 			}
 

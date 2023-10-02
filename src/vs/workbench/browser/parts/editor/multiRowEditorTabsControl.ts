@@ -62,6 +62,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		if (didChange) {
 			// HACK: To render all editor tabs on startup, otherwise only one row gets rendered
 			otherTabController.openEditors([]);
+
+			this.handleOpenedEditors();
 		}
 		return didChange;
 	}
@@ -73,7 +75,17 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const didChangeOpenEditorsSticky = this.stickyEditorTabsControl.openEditors(stickyEditors);
 		const didChangeOpenEditorsUnSticky = this.unstickyEditorTabsControl.openEditors(unstickyEditors);
 
-		return didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky;
+		const didChange = didChangeOpenEditorsSticky || didChangeOpenEditorsUnSticky;
+
+		if (didChange) {
+			this.handleOpenedEditors();
+		}
+
+		return didChange;
+	}
+
+	private handleOpenedEditors(): void {
+		this.handlePinnedTabsSeparateRowToolbars();
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
@@ -162,7 +174,11 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 	layout(dimensions: IEditorTitleControlDimensions): Dimension {
 		const stickyDimensions = this.stickyEditorTabsControl.layout(dimensions);
-		const unstickyDimensions = this.unstickyEditorTabsControl.layout(dimensions);
+		const unstickyAvailableDimensions = {
+			container: dimensions.container,
+			available: new Dimension(dimensions.available.width, dimensions.available.height - stickyDimensions.height)
+		};
+		const unstickyDimensions = this.unstickyEditorTabsControl.layout(unstickyAvailableDimensions);
 
 		return new Dimension(
 			dimensions.container.width,

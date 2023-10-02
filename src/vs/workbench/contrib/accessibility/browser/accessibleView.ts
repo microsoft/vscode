@@ -37,7 +37,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -46,6 +46,7 @@ const enum DIMENSIONS {
 }
 
 export interface IAccessibleContentProvider {
+	id: AccessibleViewProviderId;
 	verbositySettingKey: AccessibilityVerbositySettingId;
 	options: IAccessibleViewOptions;
 	/**
@@ -102,6 +103,7 @@ export interface IAccessibleViewOptions {
 	language?: string;
 	type: AccessibleViewType;
 	positionBottom?: boolean;
+	customHelp?: () => string;
 }
 
 export class AccessibleView extends Disposable {
@@ -208,7 +210,7 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewCurrentProviderId.reset();
 	}
 
-	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean): void {
+	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, lineNumber?: number): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
@@ -227,6 +229,15 @@ export class AccessibleView extends Disposable {
 			}
 		};
 		this._contextViewService.showContextView(delegate);
+
+		if (lineNumber) {
+			// Context view takes time to show up, so we need to wait for it to show up before we can set the position
+			setTimeout(() => {
+				this._editorWidget.revealLine(lineNumber);
+				this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+			}, 50);
+		}
+
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
 		}
@@ -324,9 +335,7 @@ export class AccessibleView extends Disposable {
 		if (lineNumber === undefined) {
 			return;
 		}
-		this.show(provider);
-		this._editorWidget.revealLine(lineNumber);
-		this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		this.show(provider, undefined, undefined, lineNumber);
 		this._updateContextKeys(provider, true);
 	}
 
@@ -360,7 +369,7 @@ export class AccessibleView extends Disposable {
 		if (!showAccessibleViewHelp) {
 			// don't overwrite the current provider
 			this._currentProvider = provider;
-			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey.replaceAll('accessibility.verbosity.', ''));
+			this._accessibleViewCurrentProviderId.set(provider.id);
 		}
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
@@ -384,7 +393,8 @@ export class AccessibleView extends Disposable {
 				message += '\n';
 			}
 		}
-		const exitThisDialogHint = localize('exit', '\n\nExit this dialog (Escape).');
+		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
+		const exitThisDialogHint = verbose && !provider.options.positionBottom ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
 		this._updateContextKeys(provider, true);
 
@@ -403,7 +413,7 @@ export class AccessibleView extends Disposable {
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || this._currentProvider?.actions;
 			if (verbose && !showAccessibleViewHelp && hasActions) {
-				actionsHint = localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
+				actionsHint = provider.options.positionBottom ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
 			}
 			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "Accessibility Help") : localize('accessible-view', "Accessible View");
 			this._title.textContent = ariaLabel;
@@ -506,12 +516,14 @@ export class AccessibleView extends Disposable {
 
 		}
 		const currentProvider = Object.assign({}, this._currentProvider);
+		currentProvider.provideContent = this._currentProvider.provideContent.bind(currentProvider);
 		currentProvider.options = Object.assign({}, currentProvider.options);
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
-			provideContent: () => this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+			id: currentProvider.id,
+			provideContent: () => currentProvider.options.customHelp ? currentProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 			onClose: () => this.show(currentProvider),
 			options: { type: AccessibleViewType.Help },
-			verbositySettingKey: this._currentProvider.verbositySettingKey
+			verbositySettingKey: currentProvider.verbositySettingKey
 		};
 		this._contextViewService.hideContextView();
 		// HACK: Delay to allow the context view to hide #186514

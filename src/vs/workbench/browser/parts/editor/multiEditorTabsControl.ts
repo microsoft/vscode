@@ -391,7 +391,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsContainer.classList.remove('scroll');
 
 				if (e.target === tabsContainer) {
-					this.onDrop(e, this.tabsModel.count, tabsContainer);
+					const isGroupTransfer = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
+					this.onDrop(e, isGroupTransfer ? this.groupView.count : this.tabsModel.count, tabsContainer);
 				}
 			}
 		}));

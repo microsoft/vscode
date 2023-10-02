@@ -79,8 +79,8 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 			let d;
 			for (d = 0; d < length; d++) {
 				if (
-					sequence1.getElement(cur.seq1Range.start + d) !== sequence1.getElement(cur.seq1Range.endExclusive + d) ||
-					sequence2.getElement(cur.seq2Range.start + d) !== sequence2.getElement(cur.seq2Range.endExclusive + d)
+					!sequence1.isStronglyEqual(cur.seq1Range.start + d, cur.seq1Range.endExclusive + d) ||
+					!sequence2.isStronglyEqual(cur.seq2Range.start + d, cur.seq2Range.endExclusive + d)
 				) {
 					break;
 				}

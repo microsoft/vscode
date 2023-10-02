@@ -9,34 +9,30 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IXtermTerminal, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import type { Terminal } from 'xterm';
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
+	id = AccessibleViewProviderId.Terminal;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
-	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private _bufferTracker: BufferContentTracker,
+		customHelp: () => string,
 		@IModelService _modelService: IModelService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
+		this.options.customHelp = customHelp;
 	}
 
 	onClose() {
 		this._instance.focus();
-	}
-	registerListeners(): void {
-		if (!this._xterm) {
-			return;
-		}
 	}
 
 	provideContent(): string {

@@ -9,7 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
@@ -49,6 +49,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const helpText = getAccessibilityHelpText(accessor);
 	accessibleViewService.show({
+		id: AccessibleViewProviderId.Notebook,
 		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
 		provideContent: () => helpText,
 		onClose: () => {
@@ -108,6 +109,7 @@ export function showAccessibleOutput(accessibleViewService: IAccessibleViewServi
 	}
 
 	accessibleViewService.show({
+		id: AccessibleViewProviderId.Notebook,
 		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
 		provideContent(): string { return outputContent; },
 		onClose() {

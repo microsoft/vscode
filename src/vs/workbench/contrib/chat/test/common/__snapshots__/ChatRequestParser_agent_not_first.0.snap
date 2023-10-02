@@ -11,7 +11,8 @@
         endLineNumber: 1,
         endColumn: 11
       },
-      text: "Hello Mr. "
+      text: "Hello Mr. ",
+      kind: "text"
     },
     {
       range: {
@@ -30,7 +31,8 @@
           description: "",
           subCommands: [ { name: "subCommand" } ]
         }
-      }
+      },
+      kind: "agent"
     },
     {
       range: {
@@ -43,7 +45,8 @@
         endLineNumber: 1,
         endColumn: 18
       },
-      text: " "
+      text: " ",
+      kind: "text"
     },
     {
       range: {
@@ -56,7 +59,8 @@
         endLineNumber: 1,
         endColumn: 29
       },
-      command: { name: "subCommand" }
+      command: { name: "subCommand" },
+      kind: "subcommand"
     },
     {
       range: {
@@ -69,7 +73,8 @@
         endLineNumber: 1,
         endColumn: 36
       },
-      text: " thanks"
+      text: " thanks",
+      kind: "text"
     }
   ],
   text: "Hello Mr. @agent /subCommand thanks"

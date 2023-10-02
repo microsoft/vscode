@@ -3574,10 +3574,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@25.8.2:
-  version "25.8.2"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-25.8.2.tgz#5e8ea742b68a7d1427bf78902ec40a5b7231a58b"
-  integrity sha512-AM1ra6b16EQuO1bJtiA8ZiWqqFLLgVfxD56ykiy+EA5C63Hkx8OmIbe+5JAsLiTwRVvBZ4oCAj6wa2qT+iq8ww==
+electron@25.8.4:
+  version "25.8.4"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-25.8.4.tgz#b50877aac7d96323920437baf309ad86382cb455"
+  integrity sha512-hUYS3RGdaa6E1UWnzeGnsdsBYOggwMMg4WGxNGvAoWtmRrr6J1BsjFW/yRq4WsJHJce2HdzQXtz4OGXV6yUCLg==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^18.11.18"
@@ -10695,10 +10695,10 @@ xterm-addon-image@0.6.0-beta.21:
   resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.6.0-beta.21.tgz#e3708bc504c56a23ff31f12a2eeb335331a92aac"
   integrity sha512-8/PTaXVPa4kQ0xzVeuZZk10OpbZBj2cgfwhM2B0ChSPvwrk0lX+ksnXdtDKH3tg+JYvo7fIhNXtkr4NwWt7VJQ==
 
-xterm-addon-search@0.14.0-beta.26:
-  version "0.14.0-beta.26"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.14.0-beta.26.tgz#2b5b8af31613c896d354c4799624090b11cd601c"
-  integrity sha512-CghsGO7fJa0efClbgZH20lh/JUaQYgJ1AJTPm8luc/eDc6DWOJblU0MxIABclLgT8lagv9+sOQfO0VIkAITxig==
+xterm-addon-search@0.14.0-beta.27:
+  version "0.14.0-beta.27"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.14.0-beta.27.tgz#b6f81eac5047253a5c664349c47498a81b6ec168"
+  integrity sha512-T4Exwf/rqoLHqGUUIta5Pw/i9PljvroZwLxc7RnVyDqpNsTifDn3675kS54CxwqPlv4owFhxujTDzJPCUEkM2A==
 
 xterm-addon-serialize@0.12.0-beta.26:
   version "0.12.0-beta.26"
