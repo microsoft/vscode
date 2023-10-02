@@ -18,7 +18,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookKernelService', () => {
 
