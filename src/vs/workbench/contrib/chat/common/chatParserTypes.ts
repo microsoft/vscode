@@ -136,6 +136,14 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					part.editorRange,
 					(part as ChatRequestSlashCommandPart).slashCommand
 				);
+			} else if (part.kind === ChatRequestDynamicReferencePart.Kind) {
+				return new ChatRequestDynamicReferencePart(
+					new OffsetRange(part.range.start, part.range.endExclusive),
+					part.editorRange,
+					(part as ChatRequestDynamicReferencePart).name,
+					(part as ChatRequestDynamicReferencePart).arg,
+					URI.revive((part as ChatRequestDynamicReferencePart).data)
+				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);
 			}
