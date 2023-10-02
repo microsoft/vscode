@@ -10,8 +10,6 @@ import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib
 import { createNotebookCellList, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
 suite('Notebook Undo/Redo', () => {
-	//const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
 	test('Basics', async function () {
 		await withTestNotebook(
 			[
@@ -43,7 +41,7 @@ suite('Notebook Undo/Redo', () => {
 
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
-						disposables.add(new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService)),
+						new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(viewModel.getVersionId(), 4);
@@ -71,7 +69,7 @@ suite('Notebook Undo/Redo', () => {
 				assert.doesNotThrow(() => {
 					editor.textModel.applyEdits([{
 						editType: CellEditType.Replace, index: 0, count: 2, cells: [
-							disposables.add(new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService)),
+							new TestCell(viewModel.viewType, 3, '# header 2', 'markdown', CellKind.Code, [], languageService),
 						]
 					}], true, undefined, () => undefined, undefined, true);
 				});
