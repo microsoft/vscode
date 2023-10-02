@@ -37,7 +37,6 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 					name: localize('status.editor.screenReaderMode', "Screen Reader Mode"),
 					text,
 					ariaLabel: text,
-					command: 'showEditorScreenReaderNotification',
 					kind: 'prominent'
 				}, 'status.editor.screenReaderMode', StatusbarAlignment.RIGHT, 100.6);
 			}
