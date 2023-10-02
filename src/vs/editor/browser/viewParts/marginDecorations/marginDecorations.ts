@@ -63,16 +63,8 @@ export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 			const d = decorations[i];
 			const marginClassName = d.options.marginClassName;
 			const zIndex = d.options.zIndex;
-			const lineHeight = d.options.lineHeight;
-			if (lineHeight) {
-				if (this.lineHeight) {
-					this.lineHeight = Math.max(this.lineHeight, lineHeight);
-				} else {
-					this.lineHeight = lineHeight;
-				}
-			}
 			if (marginClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, marginClassName, zIndex, lineHeight);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, marginClassName, zIndex);
 			}
 		}
 		return r;
