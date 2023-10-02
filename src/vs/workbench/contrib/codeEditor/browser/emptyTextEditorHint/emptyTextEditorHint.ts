@@ -112,16 +112,6 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 			return false;
 		}
 
-		const conflictingDecoration = this.editor.getLineDecorations(1)?.find((d) =>
-			d.options.beforeContentClassName
-			|| d.options.afterContentClassName
-			|| d.options.before?.content
-			|| d.options.after?.content
-		);
-		if (conflictingDecoration) {
-			return false;
-		}
-
 		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
 		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
 		return inlineChatProviders.length > 0 || shouldRenderDefaultHint;
@@ -187,13 +177,24 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 	}
 
 	private onDidChangeModelContent(): void {
-		if (!this.editor.getModel()?.getValueLength()) {
+		if (!this.editor.getModel()?.getValueLength() && !this.hasConflictingDecorations()) {
 			this.editor.addContentWidget(this);
 			this.isVisible = true;
 		} else {
 			this.editor.removeContentWidget(this);
 			this.isVisible = false;
 		}
+	}
+
+	private hasConflictingDecorations(): boolean {
+		const res = Boolean(this.editor.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		));
+		console.log(res);
+		return res;
 	}
 
 	getId(): string {
