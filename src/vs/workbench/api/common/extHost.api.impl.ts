@@ -104,7 +104,6 @@ import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReport
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
-import { ExtHostChatSlashCommands } from 'vs/workbench/api/common/extHostChatSlashCommand';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
 import { ExtHostRelatedInformation } from 'vs/workbench/api/common/extHostAiRelatedInformation';
 import { ExtHostAiEmbeddingVector } from 'vs/workbench/api/common/extHostEmbeddingVector';
@@ -209,7 +208,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostChatProvider = rpcProtocol.set(ExtHostContext.ExtHostChatProvider, new ExtHostChatProvider(rpcProtocol, extHostLogService));
-	const extHostChatSlashCommands = rpcProtocol.set(ExtHostContext.ExtHostChatSlashCommands, new ExtHostChatSlashCommands(rpcProtocol, extHostChatProvider, extHostLogService));
 	const extHostChatAgents = rpcProtocol.set(ExtHostContext.ExtHostChatAgents, new ExtHostChatAgents(rpcProtocol, extHostChatProvider, extHostLogService));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol, extHostLogService));
@@ -1346,10 +1344,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerChatResponseProvider(id: string, provider: vscode.ChatResponseProvider, metadata: vscode.ChatResponseProviderMetadata) {
 				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostChatProvider.registerProvider(extension.identifier, id, provider, metadata);
-			},
-			registerSlashCommand(name: string, command: vscode.SlashCommand, metadata?: vscode.SlashCommandMetadata) {
-				checkProposedApiEnabled(extension, 'chatSlashCommands');
-				return extHostChatSlashCommands.registerCommand(extension.identifier, name, command, metadata ?? { description: '' });
 			},
 			requestChatAccess(id: string) {
 				checkProposedApiEnabled(extension, 'chatRequestAccess');
