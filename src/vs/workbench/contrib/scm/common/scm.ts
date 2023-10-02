@@ -47,6 +47,7 @@ export interface ISCMResourceGroup extends ISequence<ISCMResource> {
 	readonly provider: ISCMProvider;
 	readonly label: string;
 	readonly id: string;
+	contextValue: string;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
 }

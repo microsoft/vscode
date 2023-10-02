@@ -369,6 +369,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroupLabel(this._sourceControlHandle, this.handle, label);
 	}
 
+	private _contextValue: string = '';
+	get contextValue(): string {
+		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
+		return this._contextValue;
+	}
+	set contextValue(contextValue: string) {
+		checkProposedApiEnabled(this._extension, 'scmResourceGroupState');
+		this._contextValue = contextValue;
+		this._proxy.$updateGroupContextValue(this._sourceControlHandle, this.handle, contextValue);
+	}
+
 	private _hideWhenEmpty: boolean | undefined = undefined;
 	get hideWhenEmpty(): boolean | undefined { return this._hideWhenEmpty; }
 	set hideWhenEmpty(hideWhenEmpty: boolean | undefined) {
@@ -391,6 +402,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 	readonly handle = ExtHostSourceControlResourceGroup._handlePool++;
 
 	constructor(
+		private readonly _extension: IExtensionDescription,
 		private _proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
 		private _sourceControlHandle: number,
@@ -688,7 +700,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
 
 	createResourceGroup(id: string, label: string): ExtHostSourceControlResourceGroup {
-		const group = new ExtHostSourceControlResourceGroup(this.#proxy, this._commands, this.handle, id, label);
+		const group = new ExtHostSourceControlResourceGroup(this._extension, this.#proxy, this._commands, this.handle, id, label);
 		const disposable = Event.once(group.onDidDispose)(() => this.createdResourceGroups.delete(group));
 		this.createdResourceGroups.set(group, disposable);
 		this.eventuallyAddResourceGroups();

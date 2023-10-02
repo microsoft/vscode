@@ -43,6 +43,8 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	contextValue: string = '';
+
 	constructor(
 		private readonly sourceControlHandle: number,
 		private readonly handle: number,
@@ -72,6 +74,11 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	$updateGroupLabel(label: string): void {
 		this.label = label;
+		this._onDidChange.fire();
+	}
+
+	$updateGroupContextValue(contextValue: string): void {
+		this.contextValue = contextValue;
 		this._onDidChange.fire();
 	}
 }
@@ -288,6 +295,16 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		group.$updateGroupLabel(label);
 	}
 
+	$updateGroupContextValue(handle: number, contextValue: string): void {
+		const group = this._groupsByHandle[handle];
+
+		if (!group) {
+			return;
+		}
+
+		group.$updateGroupContextValue(contextValue);
+	}
+
 	$spliceGroupResourceStates(splices: SCMRawResourceSplices[]): void {
 		for (const [groupHandle, groupSlices] of splices) {
 			const group = this._groupsByHandle[groupHandle];
@@ -490,6 +507,17 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroupLabel(groupHandle, label);
+	}
+
+	$updateGroupContextValue(sourceControlHandle: number, groupHandle: number, contextValue: string): void {
+		const repository = this._repositories.get(sourceControlHandle);
+
+		if (!repository) {
+			return;
+		}
+
+		const provider = repository.provider as MainThreadSCMProvider;
+		provider.$updateGroupContextValue(groupHandle, contextValue);
 	}
 
 	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void {

@@ -201,6 +201,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		if (!result) {
 			const contextKeyService = this.contextKeyService.createOverlay([
 				['scmResourceGroup', group.id],
+				['scmResourceGroupState', group.contextValue],
 			]);
 
 			result = new SCMMenusItem(contextKeyService, this.menuService);

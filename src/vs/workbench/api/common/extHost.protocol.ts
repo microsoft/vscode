@@ -1448,6 +1448,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
+	$updateGroupContextValue(sourceControlHandle: number, handle: number, contextValue: string): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
 
 	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
