@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/525e628edad54c0f7aa15b015310df240803ea66",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/29a37e5e2d66deefe5a06afad793a820871f4fdf",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -4437,7 +4437,7 @@
 			]
 		},
 		"parameter": {
-			"match": "(?x)\n(?:(?:\\b(ref|params|out|in|this)\\b)\\s+)?\n(?<type_name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)",
+			"match": "(?x)\n(?:(?:\\b(ref|params|out|in|this)\\b)\\s+)?\n(?<type_name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^()]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+\n(\\g<identifier>)",
 			"captures": {
 				"1": {
 					"name": "storage.modifier.$1.cs"
@@ -4800,7 +4800,7 @@
 		"anonymous-method-expression": {
 			"patterns": [
 				{
-					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n(@?[_[:alpha:]][_[:alnum:]]*)\\b\\s*\n(=>)",
+					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n(?:\n  (@?[_[:alpha:]][_[:alnum:]]*)\\b|\n  (\\()\n    (?<tuple>(?:[^()]|\\(\\g<tuple>\\))*)\n  (\\))\n)\\s*\n(=>)",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -4814,59 +4814,69 @@
 							"name": "entity.name.variable.parameter.cs"
 						},
 						"3": {
+							"name": "punctuation.parenthesis.open.cs"
+						},
+						"4": {
+							"patterns": [
+								{
+									"include": "#comment"
+								},
+								{
+									"include": "#explicit-anonymous-function-parameter"
+								},
+								{
+									"include": "#implicit-anonymous-function-parameter"
+								},
+								{
+									"include": "#default-argument"
+								},
+								{
+									"include": "#punctuation-comma"
+								}
+							]
+						},
+						"5": {
+							"name": "punctuation.parenthesis.close.cs"
+						},
+						"6": {
 							"name": "keyword.operator.arrow.cs"
 						}
 					},
-					"end": "(?=\\)|;|}|,)",
+					"end": "(?=[,;)}])",
 					"patterns": [
 						{
-							"include": "#block"
+							"include": "#intrusive"
 						},
 						{
-							"include": "#ref-modifier"
+							"begin": "(?={)",
+							"end": "(?=[,;)}])",
+							"patterns": [
+								{
+									"include": "#block"
+								},
+								{
+									"include": "#intrusive"
+								}
+							]
 						},
 						{
-							"include": "#expression"
+							"begin": "\\b(ref)\\b|(?=\\S)",
+							"beginCaptures": {
+								"1": {
+									"name": "storage.modifier.ref.cs"
+								}
+							},
+							"end": "(?=[,;)}])",
+							"patterns": [
+								{
+									"include": "#expression"
+								}
+							]
 						}
 					]
 				},
 				{
-					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n(?<tuple>\n  \\(\n    (?:[^()]|\\g<tuple>)*\n  \\)\n)\\s*\n(=>)",
-					"beginCaptures": {
-						"1": {
-							"patterns": [
-								{
-									"match": "async|static",
-									"name": "storage.modifier.$0.cs"
-								}
-							]
-						},
-						"2": {
-							"patterns": [
-								{
-									"include": "#lambda-parameter-list"
-								}
-							]
-						},
-						"3": {
-							"name": "keyword.operator.arrow.cs"
-						}
-					},
-					"end": "(?=\\)|;|}|,)",
-					"patterns": [
-						{
-							"include": "#block"
-						},
-						{
-							"include": "#ref-modifier"
-						},
-						{
-							"include": "#expression"
-						}
-					]
-				},
-				{
-					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n(?:\\b(delegate)\\b\\s*)",
+					"begin": "(?x)\n((?:\\b(?:async|static)\\b\\s*)*)\n\\b(delegate)\\b\\s*",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -4880,10 +4890,35 @@
 							"name": "storage.type.delegate.cs"
 						}
 					},
-					"end": "(?=\\)|;|}|,)",
+					"end": "(?<=})|(?=[,;)}])",
 					"patterns": [
 						{
-							"include": "#parenthesized-parameter-list"
+							"include": "#intrusive"
+						},
+						{
+							"begin": "\\(",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.parenthesis.open.cs"
+								}
+							},
+							"end": "\\)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.parenthesis.close.cs"
+								}
+							},
+							"patterns": [
+								{
+									"include": "#intrusive"
+								},
+								{
+									"include": "#explicit-anonymous-function-parameter"
+								},
+								{
+									"include": "#punctuation-comma"
+								}
+							]
 						},
 						{
 							"include": "#block"
@@ -4892,36 +4927,8 @@
 				}
 			]
 		},
-		"lambda-parameter-list": {
-			"begin": "\\(",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.parenthesis.open.cs"
-				}
-			},
-			"end": "\\)",
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.parenthesis.close.cs"
-				}
-			},
-			"patterns": [
-				{
-					"include": "#comment"
-				},
-				{
-					"include": "#attribute-section"
-				},
-				{
-					"include": "#lambda-parameter"
-				},
-				{
-					"include": "#punctuation-comma"
-				}
-			]
-		},
-		"lambda-parameter": {
-			"match": "(?x)\n(?:\\b(ref|out|in)\\b)?\\s*\n(?:(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s+)?\n(\\g<identifier>)\\b\\s*\n(?=[,)])",
+		"explicit-anonymous-function-parameter": {
+			"match": "(?x)\n(?:\\b(ref|params|out|in)\\b\\s*)?\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args><(?:[^<>]|\\g<type_args>)*>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^()]|\\g<tuple>)*\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n\\b(\\g<identifier>)\\b",
 			"captures": {
 				"1": {
 					"name": "storage.modifier.$1.cs"
@@ -4937,6 +4944,24 @@
 					"name": "entity.name.variable.parameter.cs"
 				}
 			}
+		},
+		"implicit-anonymous-function-parameter": {
+			"match": "\\@?[_[:alpha:]][_[:alnum:]]*\\b",
+			"name": "entity.name.variable.parameter.cs"
+		},
+		"default-argument": {
+			"begin": "=",
+			"beginCaptures": {
+				"0": {
+					"name": "keyword.operator.assignment.cs"
+				}
+			},
+			"end": "(?=,|\\))",
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
 		},
 		"type": {
 			"patterns": [
