@@ -1009,12 +1009,12 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			throw new Error('Cant modify splitview');
 		}
 
-		this.state = State.Busy;
 
 		if (index < 0 || index >= this.viewItems.length) {
 			return;
 		}
 
+		this.state = State.Busy;
 		const indexes = range(this.viewItems.length).filter(i => i !== index);
 		const lowPriorityIndexes = [...indexes.filter(i => this.viewItems[i].priority === LayoutPriority.Low), index];
 		const highPriorityIndexes = indexes.filter(i => this.viewItems[i].priority === LayoutPriority.High);
