@@ -110,8 +110,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private static readonly dropIntoEditorDecorationOptions = ModelDecorationOptions.register({
 		description: 'workbench-dnd-target',
-		className: 'dnd-target',
-		lineHeight: 0
+		className: 'dnd-target'
 	});
 
 	//#region Eventing
