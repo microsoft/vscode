@@ -293,7 +293,7 @@ export class NativeWindow extends Disposable {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
-		// Allow to update settings around allowed UNC Host
+		// Allow to update security settings around allowed UNC Host
 		ipcRenderer.on('vscode:configureAllowedUNCHost', (event: unknown, host: string) => {
 			if (!isWindows) {
 				return; // only supported on Windows
@@ -315,6 +315,12 @@ export class NativeWindow extends Disposable {
 
 				this.configurationService.updateValue('security.allowedUNCHosts', [...allowedUncHosts.values()], ConfigurationTarget.USER);
 			}
+		});
+
+		// Allow to update security settings around protocol handlers
+		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
+			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
+			this.configurationService.updateValue(setting, false, ConfigurationTarget.USER);
 		});
 
 		// Zoom level changes

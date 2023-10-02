@@ -69,7 +69,7 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 	}
 
 	async $handleProgressChunk(requestId: string, chunk: { message?: string | undefined; edits?: TextEdit[] | undefined }): Promise<void> {
-		this._progresses.get(requestId)?.report(chunk);
+		await Promise.resolve(this._progresses.get(requestId)?.report(chunk));
 	}
 
 	async $unregisterInteractiveEditorProvider(handle: number): Promise<void> {

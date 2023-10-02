@@ -21,7 +21,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -114,6 +114,7 @@ function createScreenReaderHelp(): IDisposable {
 			content.push(commentCommandInfo);
 		}
 		accessibleViewService.show({
+			id: AccessibleViewProviderId.DiffEditor,
 			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
 			provideContent: () => content.join('\n\n'),
 			onClose: () => {
