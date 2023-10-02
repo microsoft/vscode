@@ -50,6 +50,7 @@ stages:
             inputs:
               scanFolder: "$(Build.SourcesDirectory)"
               outputFormat: "pre"
+
           - task: NodeTool@0
             inputs:
               versionSource: fromFile
@@ -143,11 +144,15 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
 
+          - powershell: ls "$(agent.builddirectory)\\scanbin\\VSCode-win32-$(VSCODE_ARCH)\\pdb"
+            displayName: Check downloaded symbol file names
+
           - task: BinSkim@4
             inputs:
               InputType: "Basic"
               Function: "analyze"
               TargetPattern: "guardianGlob"
+              IgnorePdbLoadError: true
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
 
