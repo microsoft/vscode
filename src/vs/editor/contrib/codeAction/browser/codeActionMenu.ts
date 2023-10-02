@@ -68,10 +68,12 @@ export function toMenuItems(
 		if (menuEntry.actions.length) {
 			allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });
 			for (const action of menuEntry.actions) {
+				const isCopilot = action.action.isCopilot;
+				const group = menuEntry.group;
 				allMenuItems.push({
 					kind: ActionListItemKind.Action,
 					item: action,
-					group: menuEntry.group,
+					group: isCopilot ? { title: group.title, kind: group.kind, icon: Codicon.sparkle } : group,
 					label: action.action.title,
 					disabled: !!action.action.disabled,
 					keybinding: keybindingResolver(action.action),
