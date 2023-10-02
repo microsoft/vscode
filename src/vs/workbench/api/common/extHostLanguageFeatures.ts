@@ -443,6 +443,7 @@ class CodeActionAdapter {
 						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 					}
 				}
+				const isCopilot = 'isCopilot' in candidate && typeof candidate.isCopilot === 'boolean' ? candidate.isCopilot : undefined;
 
 				// new school: convert code action
 				actions.push({
@@ -453,6 +454,7 @@ class CodeActionAdapter {
 					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
+					isCopilot: isCopilot,
 					disabled: candidate.disabled?.reason
 				});
 			}
