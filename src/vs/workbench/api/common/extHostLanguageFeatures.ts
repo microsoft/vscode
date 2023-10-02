@@ -454,7 +454,7 @@ class CodeActionAdapter {
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					disabled: candidate.disabled?.reason,
-					isCopilot,
+					isCopilot
 				});
 			}
 		}

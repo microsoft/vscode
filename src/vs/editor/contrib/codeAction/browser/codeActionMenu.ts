@@ -12,6 +12,7 @@ import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/com
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
+import { isCopilotAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
 
 interface ActionGroup {
 	readonly kind: CodeActionKind;
@@ -68,12 +69,12 @@ export function toMenuItems(
 		if (menuEntry.actions.length) {
 			allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });
 			for (const action of menuEntry.actions) {
-				const isCopilotAction = action.action.isCopilot;
+				const isCopilot = isCopilotAction(action.action);
 				const group = menuEntry.group;
 				allMenuItems.push({
 					kind: ActionListItemKind.Action,
 					item: action,
-					group: isCopilotAction ? { title: group.title, kind: group.kind, icon: Codicon.sparkle } : group,
+					group: isCopilot ? { title: group.title, kind: group.kind, icon: Codicon.sparkle } : group,
 					label: action.action.title,
 					disabled: !!action.action.disabled,
 					keybinding: keybindingResolver(action.action),

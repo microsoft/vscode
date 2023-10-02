@@ -746,7 +746,6 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
-	isCopilot?: boolean;
 	disabled?: string;
 }
 
