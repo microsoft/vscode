@@ -1345,7 +1345,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib + 1,
 			// Disable the keybinding when accessibility mode is enabled as chords include
 			// important screen reader keybindings such as cmd+k, cmd+i to show the hover
-			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+			when: ContextKeyExpr.or(ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()), ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal))),
 		}],
 		run: (activeInstance) => activeInstance.clearBuffer()
 	});

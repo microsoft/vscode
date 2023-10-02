@@ -77,7 +77,7 @@ steps:
   - script: |
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
+      npm i -g node-gyp
 
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
