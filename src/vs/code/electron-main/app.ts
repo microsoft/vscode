@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
@@ -110,7 +110,6 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
@@ -614,6 +613,7 @@ export class CodeApplication extends Disposable {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		const dialogMainService = accessor.get(IDialogMainService);
 
 		// Install URL handlers that deal with protocl URLs either
 		// from this process by opening windows and/or by forwarding
@@ -622,7 +622,7 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				return app.handleProtocolUrl(windowsMainService, urlService, uri, options);
+				return app.handleProtocolUrl(windowsMainService, dialogMainService, urlService, uri, options);
 			}
 		});
 
@@ -636,7 +636,7 @@ export class CodeApplication extends Disposable {
 		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
-		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService);
+		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService, dialogMainService);
 		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		return initialProtocolUrls;
@@ -664,7 +664,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private async resolveInitialProtocolUrls(windowsMainService: IWindowsMainService): Promise<IInitialProtocolUrls | undefined> {
+	private async resolveInitialProtocolUrls(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<IInitialProtocolUrls | undefined> {
 
 		/**
 		 * Protocol URL handling on startup is complex, refer to
@@ -707,7 +707,7 @@ export class CodeApplication extends Disposable {
 				continue; // invalid
 			}
 
-			if (await this.shouldBlockURI(protocolUrl.uri, windowsMainService)) {
+			if (await this.shouldBlockURI(protocolUrl.uri, windowsMainService, dialogMainService)) {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
 
 				continue; // blocked
@@ -728,7 +728,7 @@ export class CodeApplication extends Disposable {
 		return { urls, openables };
 	}
 
-	private async shouldBlockURI(uri: URI, windowsMainService: IWindowsMainService): Promise<boolean> {
+	private async shouldBlockURI(uri: URI, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
 		if (uri.authority !== Schemas.file && uri.authority !== Schemas.vscodeRemote) {
 
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -750,7 +750,7 @@ export class CodeApplication extends Disposable {
 			return false; // not blocked via settings
 		}
 
-		const { options, buttonIndeces } = massageMessageBoxOptions({
+		const { response, checkboxChecked } = await dialogMainService.showMessageBox({
 			type: 'warning',
 			buttons: [
 				localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
@@ -760,11 +760,9 @@ export class CodeApplication extends Disposable {
 			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
 			checkboxLabel: localize('doNotAskAgain', "Do not ask me again"),
 			cancelId: 1
-		}, this.productService);
+		});
 
-		const { response, checkboxChecked } = await dialog.showMessageBox(options);
-
-		if (buttonIndeces[response] === 1) {
+		if (response !== 0) {
 			return true; // blocked by user choice
 		}
 
@@ -830,7 +828,7 @@ export class CodeApplication extends Disposable {
 		return undefined;
 	}
 
-	private async handleProtocolUrl(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
@@ -843,7 +841,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// If URI should be blocked, behave as if it's handled
-		if (await this.shouldBlockURI(uri, windowsMainService)) {
+		if (await this.shouldBlockURI(uri, windowsMainService, dialogMainService)) {
 			this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
 
 			return true;
