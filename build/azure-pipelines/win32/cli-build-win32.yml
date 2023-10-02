@@ -17,7 +17,7 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSpec: "18.15"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../cli/cli-apply-patches.yml
