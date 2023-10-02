@@ -226,7 +226,7 @@ export class CodeActionModel extends Disposable {
 								const currPosition = trigger.selection.getPosition();
 								let trackedPosition = currPosition;
 								let distance = Number.MAX_VALUE;
-								let toBeModified = false;
+								const currentActions = [...codeActionSet.validActions];
 
 								for (const marker of allMarkers) {
 									const col = marker.endColumn;
@@ -234,35 +234,52 @@ export class CodeActionModel extends Disposable {
 									const startRow = marker.startLineNumber;
 
 									// Found quickfix on the same line and check relative distance to other markers
-									if ((row === currPosition.lineNumber || startRow === currPosition.lineNumber) && Math.abs(currPosition.column - col) < distance) {
-										distance = Math.abs(currPosition.column - col);
-										toBeModified = true;
+									if ((row === currPosition.lineNumber || startRow === currPosition.lineNumber)) {
+
 										trackedPosition = new Position(row, col);
+
+										const newCodeActionTrigger: CodeActionTrigger = {
+											type: trigger.trigger.type,
+											triggerAction: trigger.trigger.triggerAction,
+											filter: { include: trigger.trigger.filter?.include ? trigger.trigger.filter?.include : CodeActionKind.QuickFix },
+											autoApply: trigger.trigger.autoApply,
+											context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
+										};
+
+										const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
+										const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
+
+										if (actionsAtMarker.validActions.length !== 0) {
+											for (const action of actionsAtMarker.validActions) {
+												action.highlightRange = action.action.isPreferred;
+											}
+											// Already filtered through to only get quickfixes, so no need to filter again.
+											if (Math.abs(currPosition.column - col) < distance) {
+												currentActions.unshift(...actionsAtMarker.validActions);
+											} else {
+												currentActions.push(...actionsAtMarker.validActions);
+											}
+										}
+										distance = Math.abs(currPosition.column - col);
 									}
 								}
+
+								currentActions.filter((action, index, self) =>
+									self.findIndex((a) => a.action.title === action.action.title) === index);
+
+								currentActions.sort((a, b) => {
+									if (a.action.isPreferred && !b.action.isPreferred) {
+										return -1;
+									} else if (!a.action.isPreferred && b.action.isPreferred) {
+										return 1;
+									} else {
+										return 0;
+									}
+								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								if (toBeModified) {
-									const newCodeActionTrigger: CodeActionTrigger = {
-										type: trigger.trigger.type,
-										triggerAction: trigger.trigger.triggerAction,
-										filter: { include: trigger.trigger.filter?.include ? trigger.trigger.filter?.include : CodeActionKind.QuickFix },
-										autoApply: trigger.trigger.autoApply,
-										context: { notAvailableMessage: trigger.trigger.context?.notAvailableMessage || '', position: trackedPosition }
-									};
+								return { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
 
-									const selectionAsPosition = new Selection(trackedPosition.lineNumber, trackedPosition.column, trackedPosition.lineNumber, trackedPosition.column);
-									const actionsAtMarker = await getCodeActions(this._registry, model, selectionAsPosition, newCodeActionTrigger, Progress.None, token);
-									const currentActions = [...codeActionSet.validActions];
-									if (actionsAtMarker.validActions.length !== 0) {
-										actionsAtMarker.validActions.forEach(action => {
-											action.highlightRange = action.action.isPreferred;
-										});
-										// Already filtered through to only get quickfixes, so no need to filter again.
-										currentActions.push(...actionsAtMarker.validActions);
-									}
-									return { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
-								}
 							}
 						}
 					}
@@ -270,9 +287,6 @@ export class CodeActionModel extends Disposable {
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
 
-				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
-					this._progressService?.showWhile(actions, 250);
-				}
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
