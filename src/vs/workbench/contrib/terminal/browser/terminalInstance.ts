@@ -139,7 +139,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
-	private _isDisposed: boolean;
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
@@ -229,7 +228,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		return this._rows;
 	}
-	get isDisposed(): boolean { return this._isDisposed; }
+	get isDisposed(): boolean { return this._store.isDisposed; }
 	get fixedCols(): number | undefined { return this._fixedCols; }
 	get fixedRows(): number | undefined { return this._fixedRows; }
 	get maxCols(): number { return this._cols; }
@@ -368,7 +367,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
-		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
 		this._hasHadInput = false;
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
@@ -492,7 +490,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}).catch((err) => {
 			// Ignore exceptions if the terminal is already disposed
-			if (!this._isDisposed) {
+			if (!this._store.isDisposed) {
 				throw err;
 			}
 		});
@@ -708,7 +706,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 */
 	protected async _createXterm(): Promise<XtermTerminal> {
 		const Terminal = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
@@ -1141,10 +1139,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(reason?: TerminalExitReason): void {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
-		this._isDisposed = true;
+		this._store.dispose();
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._widgetManager);
 
@@ -1438,7 +1436,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _createProcess(): Promise<void> {
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -1588,7 +1586,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onExit.fire(exitCodeOrError);
 
 		// Dispose of the onExit event if the terminal will not be reused again
-		if (this._isDisposed) {
+		if (this._store.isDisposed) {
 			this._onExit.dispose();
 		}
 	}
@@ -1749,7 +1747,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<void> {
-		if (this._isDisposed || this.shellLaunchConfig.customPtyImplementation) {
+		if (this._store.isDisposed || this.shellLaunchConfig.customPtyImplementation) {
 			return;
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved
