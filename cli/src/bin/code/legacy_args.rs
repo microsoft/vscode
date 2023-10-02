@@ -29,12 +29,12 @@ pub fn try_parse_legacy(
 				match args.get_mut(long) {
 					Some(prev) => {
 						if let Some(v) = value {
-							prev.push(v.to_str_lossy().to_string());
+							prev.push(v.to_string_lossy().to_string());
 						}
 					}
 					None => {
 						if let Some(v) = value {
-							args.insert(long.to_string(), vec![v.to_str_lossy().to_string()]);
+							args.insert(long.to_string(), vec![v.to_string_lossy().to_string()]);
 						} else {
 							args.insert(long.to_string(), vec![]);
 						}

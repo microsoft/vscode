@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessProviderRunOptions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
@@ -20,9 +20,9 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 	private readonly lastAcceptedPickerValues = new Map<IQuickAccessProviderDescriptor, string>();
 
 	private visibleQuickAccess: {
-		picker: IQuickPick<IQuickPickItem>;
-		descriptor: IQuickAccessProviderDescriptor | undefined;
-		value: string;
+		readonly picker: IQuickPick<IQuickPickItem>;
+		readonly descriptor: IQuickAccessProviderDescriptor | undefined;
+		readonly value: string;
 	} | undefined = undefined;
 
 	constructor(
@@ -106,16 +106,13 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		}
 		picker.contextKey = descriptor?.contextKey;
 		picker.filterValue = (value: string) => value.substring(descriptor ? descriptor.prefix.length : 0);
-		if (descriptor?.placeholder) {
-			picker.ariaLabel = descriptor?.placeholder;
-		}
 
 		// Pick mode: setup a promise that can be resolved
 		// with the selected items and prevent execution
 		let pickPromise: DeferredPromise<IQuickPickItem[]> | undefined = undefined;
 		if (pick) {
 			pickPromise = new DeferredPromise<IQuickPickItem[]>();
-			disposables.add(once(picker.onWillAccept)(e => {
+			disposables.add(Event.once(picker.onWillAccept)(e => {
 				e.veto();
 				picker.hide();
 			}));
@@ -134,7 +131,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		// Finally, trigger disposal and cancellation when the picker
 		// hides depending on items selected or not.
-		once(picker.onDidHide)(() => {
+		Event.once(picker.onDidHide)(() => {
 			if (picker.selectedItems.length === 0) {
 				cts.cancel();
 			}

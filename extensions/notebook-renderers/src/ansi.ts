@@ -379,11 +379,6 @@ export function handleANSIOutput(text: string, trustHtml: boolean): HTMLSpanElem
 	}
 }
 
-const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-	createHTML: value => value,
-	createScript: value => value,
-});
-
 function appendStylizedStringToContainer(
 	root: HTMLElement,
 	stringContent: string,
@@ -400,14 +395,9 @@ function appendStylizedStringToContainer(
 
 	let container = document.createElement('span');
 
-	if (trustHtml) {
-		const trustedHtml = ttPolicy?.createHTML(stringContent) ?? stringContent;
-		container.innerHTML = trustedHtml as string;
-	}
-
 	if (container.childElementCount === 0) {
 		// plain text
-		container = linkify(stringContent, true, workspaceFolder);
+		container = linkify(stringContent, true, workspaceFolder, trustHtml);
 	}
 
 	container.className = cssClasses.join(' ');

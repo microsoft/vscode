@@ -313,10 +313,10 @@ class MarkerWidget extends Disposable {
 		if (viewModel) {
 			const quickFixAction = viewModel.quickFixAction;
 			this.actionBar.push([quickFixAction], { icon: true, label: false });
-			this.icon.classList.toggle('quickFix', quickFixAction.enabled);
+			this.iconContainer.classList.toggle('quickFix', quickFixAction.enabled);
 			quickFixAction.onDidChange(({ enabled }) => {
 				if (!isUndefinedOrNull(enabled)) {
-					this.icon.classList.toggle('quickFix', enabled);
+					this.iconContainer.classList.toggle('quickFix', enabled);
 				}
 			}, this, this.disposables);
 			quickFixAction.onShowQuickFixes(() => {

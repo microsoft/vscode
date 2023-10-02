@@ -241,7 +241,7 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
-		this._keydownListener = dom.addStandardDisposableListener(<any>document, 'keydown', (e) => {
+		this._keydownListener = dom.addStandardDisposableListener(<any>initialElement.ownerDocument, 'keydown', (e) => {
 			const chord = e.toKeyCodeChord();
 			if (chord.isModifierKey()) {
 				// Allow modifier keys
@@ -342,6 +342,7 @@ export interface CssProperties {
 	fontWeight?: string;
 	fontSize?: string;
 	fontFamily?: string;
+	unicodeBidi?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from '@playwright/test';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { promises } from 'fs';
 import { IWindowDriver } from './driver';
 import { PageFunction } from 'playwright-core/types/structs';
 import { measureAndLog } from './logger';
@@ -107,6 +108,15 @@ export class PlaywrightDriver {
 			// Ignore
 		}
 
+		// Web: Extract client logs
+		if (this.options.web) {
+			try {
+				await measureAndLog(() => this.saveWebClientLogs(), 'saveWebClientLogs()', this.options.logger);
+			} catch (error) {
+				this.options.logger.log(`Error saving web client logs (${error})`);
+			}
+		}
+
 		// Web: exit via `close` method
 		if (this.options.web) {
 			try {
@@ -131,12 +141,23 @@ export class PlaywrightDriver {
 		}
 	}
 
+	private async saveWebClientLogs(): Promise<void> {
+		const logs = await this.getLogs();
+
+		for (const log of logs) {
+			const absoluteLogsPath = join(this.options.logsPath, log.relativePath);
+
+			await promises.mkdir(dirname(absoluteLogsPath), { recursive: true });
+			await promises.writeFile(absoluteLogsPath, log.contents);
+		}
+	}
+
 	async dispatchKeybinding(keybinding: string) {
 		const chords = keybinding.split(' ');
 		for (let i = 0; i < chords.length; i++) {
 			const chord = chords[i];
 			if (i > 0) {
-				await this.timeout(100);
+				await this.wait(100);
 			}
 
 			if (keybinding.startsWith('Alt') || keybinding.startsWith('Control') || keybinding.startsWith('Backspace')) {
@@ -158,7 +179,7 @@ export class PlaywrightDriver {
 			}
 		}
 
-		await this.timeout(100);
+		await this.wait(100);
 	}
 
 	async click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined) {
@@ -206,11 +227,15 @@ export class PlaywrightDriver {
 		return this.evaluateWithDriver(([driver]) => driver.getLocalizedStrings());
 	}
 
+	async getLogs() {
+		return this.page.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
+	}
+
 	private async evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
 		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 
-	private timeout(ms: number): Promise<void> {
+	wait(ms: number): Promise<void> {
 		return new Promise<void>(resolve => setTimeout(resolve, ms));
 	}
 

@@ -42,6 +42,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { IWorkspaceIdentityService, WorkspaceIdentityService } from 'vs/workbench/services/workspaces/common/workspaceIdentityService';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -72,6 +80,9 @@ suite('Edit session sync', () => {
 			override onWillShutdown = Event.None;
 		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(IProductService, <Partial<IProductService>>{ 'editSessions.store': { url: 'https://test.com', canSwitch: true, authenticationProviders: {} } });
+		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() {
 			override onDidSignIn = Event.None;
 			override onDidSignOut = Event.None;
@@ -129,7 +140,28 @@ suite('Edit session sync', () => {
 			override registerTextModelContentProvider = () => ({ dispose: () => { } });
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override saveAll = async (_options: ISaveAllEditorsOptions) => true;
+			override saveAll = async (_options: ISaveAllEditorsOptions) => { return { success: true, editors: [] }; };
+		});
+		instantiationService.stub(IEditSessionIdentityService, new class extends mock<IEditSessionIdentityService>() {
+			override async getEditSessionIdentifier() {
+				return 'test-identity';
+			}
+		});
+		instantiationService.set(IWorkspaceIdentityService, instantiationService.createInstance(WorkspaceIdentityService));
+		instantiationService.stub(IUserDataProfilesService, new class extends mock<IUserDataProfilesService>() {
+			override defaultProfile = {
+				id: 'default',
+				name: 'Default',
+				isDefault: true,
+				location: URI.file('location'),
+				globalStorageHome: URI.file('globalStorageHome'),
+				settingsResource: URI.file('settingsResource'),
+				keybindingsResource: URI.file('keybindingsResource'),
+				tasksResource: URI.file('tasksResource'),
+				snippetsHome: URI.file('snippetsHome'),
+				extensionsResource: URI.file('extensionsResource'),
+				cacheHome: URI.file('cacheHome'),
+			};
 		});
 
 		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);
@@ -161,7 +193,7 @@ suite('Edit session sync', () => {
 		};
 
 		// Stub sync service to return edit session data
-		const readStub = sandbox.stub().returns({ editSession, ref: '0' });
+		const readStub = sandbox.stub().returns({ content: JSON.stringify(editSession), ref: '0' });
 		instantiationService.stub(IEditSessionsStorageService, 'read', readStub);
 
 		// Create root folder

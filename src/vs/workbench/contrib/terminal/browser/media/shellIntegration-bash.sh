@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent the script recursing when setting up
-if [[ -n "$VSCODE_SHELL_INTEGRATION" ]]; then
+if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
 fi
 
@@ -33,7 +33,7 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 		builtin unset VSCODE_SHELL_LOGIN
 
 		# Apply any explicit path prefix (see #99878)
-		if [ -n "$VSCODE_PATH_PREFIX" ]; then
+		if [ -n "${VSCODE_PATH_PREFIX:-}" ]; then
 			export PATH=$VSCODE_PATH_PREFIX$PATH
 			builtin unset VSCODE_PATH_PREFIX
 		fi
@@ -43,6 +43,35 @@ fi
 
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
+fi
+
+# Apply EnvironmentVariableCollections if needed
+if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE"
+	done
+	builtin unset VSCODE_ENV_REPLACE
+fi
+if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE${!VARNAME}"
+	done
+	builtin unset VSCODE_ENV_PREPEND
+fi
+if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo -e "$ITEM" | cut -d "=" -f 2)"
+		export $VARNAME="${!VARNAME}$VALUE"
+	done
+	builtin unset VSCODE_ENV_APPEND
 fi
 
 __vsc_get_trap() {
@@ -111,6 +140,10 @@ __vsc_custom_PS2=""
 __vsc_in_command_execution="1"
 __vsc_current_command=""
 
+# It's fine this is in the global scope as it getting at it requires access to the shell environment
+__vsc_nonce="$VSCODE_NONCE"
+unset VSCODE_NONCE
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -125,7 +158,7 @@ __vsc_update_cwd() {
 
 __vsc_command_output_start() {
 	builtin printf '\e]633;C\a'
-	builtin printf '\e]633;E;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")"
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 }
 
 __vsc_continuation_start() {
@@ -242,10 +275,10 @@ __vsc_prompt_cmd() {
 
 # PROMPT_COMMAND arrays and strings seem to be handled the same (handling only the first entry of
 # the array?)
-__vsc_original_prompt_command=$PROMPT_COMMAND
+__vsc_original_prompt_command=${PROMPT_COMMAND:-}
 
 if [[ -z "${bash_preexec_imported:-}" ]]; then
-	if [[ -n "$__vsc_original_prompt_command" && "$__vsc_original_prompt_command" != "__vsc_prompt_cmd" ]]; then
+	if [[ -n "${__vsc_original_prompt_command:-}" && "${__vsc_original_prompt_command:-}" != "__vsc_prompt_cmd" ]]; then
 		PROMPT_COMMAND=__vsc_prompt_cmd_original
 	else
 		PROMPT_COMMAND=__vsc_prompt_cmd

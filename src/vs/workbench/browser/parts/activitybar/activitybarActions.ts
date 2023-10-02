@@ -9,7 +9,6 @@ import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hi
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -20,11 +19,11 @@ import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platf
 import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSessionAccount, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,10 +36,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { runWhenIdle } from 'vs/base/common/async';
+import { Lazy } from 'vs/base/common/lazy';
+import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -149,13 +152,9 @@ abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewIt
 			const actions = await this.resolveContextMenuActions(disposables);
 
 			const event = new StandardMouseEvent(e);
-			const anchor = {
-				x: event.posx,
-				y: event.posy
-			};
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => event,
 				getActions: () => actions,
 				onHide: () => disposables.dispose()
 			});
@@ -235,7 +234,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	private readonly problematicProviders: Set<string> = new Set();
 
 	private initialized = false;
-	private sessionFromEmbedder = getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
+	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
 
 	constructor(
 		action: ActivityAction,
@@ -243,6 +242,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHoverService hoverService: IHoverService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
@@ -253,7 +253,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super(MenuId.AccountsContext, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
@@ -272,17 +272,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			const promises = [];
-			for (const changed of e.event.changed) {
-				promises.push(this.addOrUpdateAccount(e.providerId, changed.account));
-			}
-			for (const added of e.event.added) {
-				promises.push(this.addOrUpdateAccount(e.providerId, added.account));
-			}
-			const result = await Promise.allSettled(promises);
-			for (const r of result) {
-				if (r.status === 'rejected') {
-					this.logService.error(r.reason);
+			for (const changed of [...e.event.changed, ...e.event.added]) {
+				try {
+					await this.addOrUpdateAccount(e.providerId, changed.account);
+				} catch (e) {
+					this.logService.error(e);
 				}
 			}
 			for (const removed of e.event.removed) {
@@ -294,6 +288,16 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	// This function exists to ensure that the accounts are added for auth providers that had already been registered
 	// before the menu was created.
 	private async initialize(): Promise<void> {
+		// Resolving the menu doesn't need to happen immediately, so we can wait until after the workbench has been restored
+		// and only run this when the system is idle.
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+		const disposable = this._register(runWhenIdle(async () => {
+			await this.doInitialize();
+			disposable.dispose();
+		}));
+	}
+
+	private async doInitialize(): Promise<void> {
 		const providerIds = this.authenticationService.getProviderIds();
 		const results = await Promise.allSettled(providerIds.map(providerId => this.addAccountsFromProvider(providerId)));
 
@@ -348,7 +352,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 				if (account.canSignOut) {
 					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), undefined, true, async () => {
 						const allSessions = await this.authenticationService.getSessions(providerId);
-						const sessionsForAccount = allSessions.filter(s => s.account.id === account.id);
+						const sessionsForAccount = allSessions.filter(s => s.account.label === account.label);
 						return await this.authenticationService.removeAccountSessions(providerId, account.label, sessionsForAccount);
 					}));
 					providerSubMenuActions.push(signOutAction);
@@ -395,34 +399,36 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	//#region groupedAccounts helpers
 
 	private async addOrUpdateAccount(providerId: string, account: AuthenticationSessionAccount): Promise<void> {
-		const accounts = this.groupedAccounts.get(providerId);
-		const existingAccount = accounts?.find(a => a.id === account.id);
-		if (existingAccount) {
-			if (existingAccount.label !== account.label) {
-				existingAccount.label = account.label;
-			}
-			return;
-		}
-
-		const sessionFromEmbedder = await this.sessionFromEmbedder;
-		// If the session stored from the embedder allows sign out, then we can treat it and all others as sign out-able
-		let canSignOut = !!sessionFromEmbedder?.canSignOut;
-		if (!canSignOut) {
-			if (sessionFromEmbedder?.id) {
-				const sessions = (await this.authenticationService.getSessions(providerId)).filter(s => s.account.id === account.id);
-				canSignOut = !sessions.some(s => s.id === sessionFromEmbedder.id);
-			} else {
-				// The default if we don't have a session from the embedder is to allow sign out
-				canSignOut = true;
-			}
-		}
-
+		let accounts = this.groupedAccounts.get(providerId);
 		if (!accounts) {
-			this.groupedAccounts.set(providerId, [{ ...account, canSignOut }]);
-			return;
+			accounts = [];
+			this.groupedAccounts.set(providerId, accounts);
 		}
 
-		accounts.push({ ...account, canSignOut });
+		const sessionFromEmbedder = await this.sessionFromEmbedder.value;
+		let canSignOut = true;
+		if (
+			sessionFromEmbedder												// if we have a session from the embedder
+			&& !sessionFromEmbedder.canSignOut								// and that session says we can't sign out
+			&& (await this.authenticationService.getSessions(providerId))	// and that session is associated with the account we are adding/updating
+				.some(s =>
+					s.id === sessionFromEmbedder.id
+					&& s.account.id === account.id
+				)
+		) {
+			canSignOut = false;
+		}
+
+		const existingAccount = accounts.find(a => a.label === account.label);
+		if (existingAccount) {
+			// if we have an existing account and we discover that we
+			// can't sign out of it, update the account to mark it as "can't sign out"
+			if (!canSignOut) {
+				existingAccount.canSignOut = canSignOut;
+			}
+		} else {
+			accounts.push({ ...account, canSignOut });
+		}
 	}
 
 	private removeAccount(providerId: string, account: AuthenticationSessionAccount): void {
@@ -447,10 +453,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			const sessions = await this.authenticationService.getSessions(providerId);
 			this.problematicProviders.delete(providerId);
 
-			const result = await Promise.allSettled(sessions.map(s => this.addOrUpdateAccount(providerId, s.account)));
-			for (const r of result) {
-				if (r.status === 'rejected') {
-					this.logService.error(r.reason);
+			for (const session of sessions) {
+				try {
+					await this.addOrUpdateAccount(providerId, session.account);
+				} catch (e) {
+					this.logService.error(e);
 				}
 			}
 		} catch (e) {
@@ -487,7 +494,6 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
-		this._register(Event.any(this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfileService.onDidChangeCurrentProfile)(() => this.updateProfileBadge()));
 	}
 
 	override render(container: HTMLElement): void {
@@ -514,7 +520,12 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 			return;
 		}
 
-		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
+		if (!this.userDataProfileService.currentProfile.icon || this.userDataProfileService.currentProfile.icon === DEFAULT_ICON.id) {
+			this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
+			this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+			this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
+		}
+
 		show(this.profileBadge);
 	}
 
@@ -533,7 +544,7 @@ export class PlaceHolderViewContainerActivityAction extends ViewContainerActivit
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: undefined }, compositeBar);
+		super({ id, name: id, classNames: undefined }, compositeBar);
 	}
 
 	setActivity(activity: IActivity): void {
@@ -544,7 +555,7 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 export class PlaceHolderToggleCompositeBadgeAction extends ToggleCompositeBadgeAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: undefined }, compositeBar);
+		super({ id, name: id, classNames: undefined }, compositeBar);
 	}
 
 	setActivity(activity: IActivity): void {
@@ -627,16 +638,6 @@ registerAction2(
 	});
 
 registerThemingParticipant((theme, collector) => {
-	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-	if (activityBarForegroundColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
-				color: ${activityBarForegroundColor} !important;
-			}
-		`);
-	}
 
 	const activityBarActiveBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
 	if (activityBarActiveBorderColor) {

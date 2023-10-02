@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -27,8 +26,12 @@ import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder 
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
+import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -43,6 +46,10 @@ suite('Search - Viewlet', () => {
 		instantiation.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiation.stub(ILabelService, new MockLabelService());
 		instantiation.stub(ILogService, new NullLogService());
+	});
+
+	teardown(() => {
+		instantiation.dispose();
 	});
 
 	test('Data Source', function () {
@@ -74,7 +81,7 @@ suite('Search - Viewlet', () => {
 					endColumn: 1
 				}
 			}]
-		}]);
+		}], '');
 
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
@@ -177,7 +184,7 @@ suite('Search - Viewlet', () => {
 		};
 		return instantiation.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null);
+		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
 	}
 
 	function aFolderMatch(path: string, index: number, parent?: SearchResult): FolderMatch {
@@ -186,7 +193,7 @@ suite('Search - Viewlet', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, parent ?? aSearchResult().folderMatches()[0], searchModel, null);
+		}, parent ?? aSearchResult().folderMatches()[0], searchModel.searchResult, null);
 	}
 
 	function aSearchResult(): SearchResult {
@@ -203,7 +210,7 @@ suite('Search - Viewlet', () => {
 		instantiationService.stub(IThemeService, new TestThemeService());
 
 		const config = new TestConfigurationService();
-		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
+		config.setUserConfiguration('search', { searchOnType: true });
 		instantiationService.stub(IConfigurationService, config);
 
 		return instantiationService.createInstance(ModelService);
@@ -211,27 +218,8 @@ suite('Search - Viewlet', () => {
 
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		return instantiationService.createInstance(NotebookEditorWidgetService);
-	}
-
-	function createFileUriFromPathFromRoot(path?: string): URI {
-		const rootName = getRootName();
-		if (path) {
-			return URI.file(`${rootName}${path}`);
-		} else {
-			if (isWindows) {
-				return URI.file(`${rootName}/`);
-			} else {
-				return URI.file(rootName);
-			}
-		}
-	}
-
-	function getRootName(): string {
-		if (isWindows) {
-			return 'c:';
-		} else {
-			return '';
-		}
 	}
 });

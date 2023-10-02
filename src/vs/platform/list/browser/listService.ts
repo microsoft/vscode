@@ -26,6 +26,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStyleOverride, defaultFindWidgetStyles, defaultListStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
@@ -53,7 +54,7 @@ export class ListService implements IListService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private lists: IRegisteredList[] = [];
 	private _lastFocusedWidget: WorkbenchListWidget | undefined = undefined;
 	private _hasCreatedStyleController: boolean = false;
@@ -112,6 +113,14 @@ export class ListService implements IListService {
 	}
 }
 
+export const RawWorkbenchListScrollAtBoundaryContextKey = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('listScrollAtBoundary', 'none');
+export const WorkbenchListScrollAtTopContextKey = ContextKeyExpr.or(
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('top'),
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('both'));
+export const WorkbenchListScrollAtBottomContextKey = ContextKeyExpr.or(
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('bottom'),
+	RawWorkbenchListScrollAtBoundaryContextKey.isEqualTo('both'));
+
 export const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
 export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
@@ -136,6 +145,33 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
+}
+
+// Note: We must declare IScrollObservarable as the arithmetic of concrete classes,
+// instead of object type like { onDidScroll: Event<any>; ... }. The latter will not mark
+// those properties as referenced during tree-shaking, causing them to be shaked away.
+type IScrollObservarable = Exclude<WorkbenchListWidget, WorkbenchPagedList<any>> | List<any>;
+
+function createScrollObserver(contextKeyService: IContextKeyService, widget: IScrollObservarable): IDisposable {
+	const listScrollAt = RawWorkbenchListScrollAtBoundaryContextKey.bindTo(contextKeyService);
+	const update = () => {
+		const atTop = widget.scrollTop === 0;
+
+		// We need a threshold `1` since scrollHeight is rounded.
+		// https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight#determine_if_an_element_has_been_totally_scrolled
+		const atBottom = widget.scrollHeight - widget.renderHeight - widget.scrollTop < 1;
+		if (atTop && atBottom) {
+			listScrollAt.set('both');
+		} else if (atTop) {
+			listScrollAt.set('top');
+		} else if (atBottom) {
+			listScrollAt.set('bottom');
+		} else {
+			listScrollAt.set('none');
+		}
+	};
+	update();
+	return widget.onDidScroll(update);
 }
 
 const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
@@ -257,6 +293,8 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		this.disposables.add(createScrollObserver(this.contextKeyService, this));
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
@@ -389,6 +427,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
+		this.disposables.add(createScrollObserver(this.contextKeyService, this.widget));
+
 		this.horizontalScrolling = options.horizontalScrolling;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
@@ -512,6 +552,8 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.disposables.add(workbenchListOptionsDisposable);
 
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
+
+		this.disposables.add(createScrollObserver(this.contextKeyService, this));
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
@@ -809,13 +851,13 @@ function createKeyboardNavigationEventFilter(keybindingService: IKeybindingServi
 
 		const result = keybindingService.softDispatch(event, event.target);
 
-		if (result?.enterMultiChord) {
+		if (result.kind === ResultKind.MoreChordsNeeded) {
 			inMultiChord = true;
 			return false;
 		}
 
 		inMultiChord = false;
-		return !result;
+		return result.kind === ResultKind.NoMatchingKb;
 	};
 }
 
@@ -1103,7 +1145,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 
 	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 	const [workbenchListOptions, disposable] = instantiationService.invokeFunction(toWorkbenchListOptions, options);
-	const additionalScrollHeight = options.additionalScrollHeight;
+	const paddingBottom = options.paddingBottom;
 	const renderIndentGuides = options.renderIndentGuides !== undefined ? options.renderIndentGuides : configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
 
 	return {
@@ -1120,7 +1162,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			defaultFindMatchType: getDefaultTreeFindMatchType(configurationService),
 			horizontalScrolling,
 			scrollByPage: Boolean(configurationService.getValue(scrollByPageKey)),
-			additionalScrollHeight,
+			paddingBottom: paddingBottom,
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
 			contextViewProvider: contextViewService as IContextViewProvider,
@@ -1163,6 +1205,8 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, tree);
+
+		this.disposables.push(createScrollObserver(this.contextKeyService, tree));
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
@@ -1425,7 +1469,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['automatic', 'trigger'],
 			default: 'automatic',
-			description: localize('typeNavigationMode', "Controls the how type navigation works in lists and trees in the workbench. When set to 'trigger', type navigation begins once the 'list.triggerTypeNavigation' command is run."),
+			markdownDescription: localize('typeNavigationMode2', "Controls how type navigation works in lists and trees in the workbench. When set to `trigger`, type navigation begins once the `list.triggerTypeNavigation` command is run."),
 		}
 	}
 });

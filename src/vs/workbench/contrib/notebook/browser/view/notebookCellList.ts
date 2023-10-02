@@ -18,20 +18,20 @@ import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType, CursorAtLineBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { clamp } from 'vs/base/common/numbers';
 import { ISplice } from 'vs/base/common/sequence';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListViewOptions, IListView } from 'vs/base/browser/ui/list/listView';
 import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 const enum CellEditorRevealType {
 	Line,
@@ -135,8 +135,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _isInLayout: boolean = false;
 
-	private readonly _viewContext: ViewContext;
-
 	private _webviewElement: FastDomNode<HTMLElement> | null = null;
 
 	get webviewElement() {
@@ -150,18 +148,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	constructor(
 		private listUser: string,
 		container: HTMLElement,
-		viewContext: ViewContext,
+		private readonly notebookOptions: NotebookOptions,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
 		@IListService listService: IListService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
-		this._viewContext = viewContext;
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			this._previousFocusedElements.forEach(element => {
@@ -174,6 +171,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
+
+		const notebookEditorCursorAtLineBoundaryContext = NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.bindTo(contextKeyService);
+		notebookEditorCursorAtLineBoundaryContext.set('none');
 
 		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
 		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
@@ -191,6 +191,21 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					break;
 				default:
 					notebookEditorCursorAtBoundaryContext.set('none');
+					break;
+			}
+
+			switch (element.cursorAtLineBoundary()) {
+				case CursorAtLineBoundary.Both:
+					notebookEditorCursorAtLineBoundaryContext.set('both');
+					break;
+				case CursorAtLineBoundary.Start:
+					notebookEditorCursorAtLineBoundaryContext.set('start');
+					break;
+				case CursorAtLineBoundary.End:
+					notebookEditorCursorAtLineBoundaryContext.set('end');
+					break;
+				default:
+					notebookEditorCursorAtLineBoundaryContext.set('none');
 					break;
 			}
 
@@ -686,6 +701,26 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.setSelection(indices);
 	}
 
+	getCellViewScrollTop(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+		if (index === undefined || index < 0 || index >= this.length) {
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		return this.view.elementTop(index);
+	}
+
+	getCellViewScrollBottom(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+		if (index === undefined || index < 0 || index >= this.length) {
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		const top = this.view.elementTop(index);
+		const height = this.view.elementHeight(index);
+		return top + height;
+	}
+
 	override setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
 		if (ignoreTextModelUpdate) {
 			super.setFocus(indexes, browserEvent);
@@ -793,12 +828,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._revealInViewWithMinimalScrolling(startIndex);
 	}
 
-	private _revealInViewWithMinimalScrolling(viewIndex: number) {
+	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
 		const firstIndex = this.view.firstVisibleIndex;
 		if (viewIndex <= firstIndex) {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
+			this._revealInternal(viewIndex, true, CellRevealPosition.Top, firstLine);
 		} else {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom);
+			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom, firstLine);
 		}
 	}
 
@@ -806,9 +841,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const scrollHeight = this.view.scrollHeight;
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 
-		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
+		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop));
 	}
 
 	//#region Reveal Cell synchronously
@@ -829,13 +863,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			case CellRevealSyncType.CenterIfOutsideViewport:
 				this._revealInternal(index, true, CellRevealPosition.Center);
 				break;
+			case CellRevealSyncType.FirstLineIfOutsideViewport:
+				this._revealInViewWithMinimalScrolling(index, true);
+				break;
 			case CellRevealSyncType.Default:
 				this._revealInViewWithMinimalScrolling(index);
 				break;
 		}
 	}
 
-	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition) {
+	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition, firstLine?: boolean) {
 		if (viewIndex >= this.view.length) {
 			return;
 		}
@@ -845,15 +882,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const elementTop = this.view.elementTop(viewIndex);
 		const elementBottom = this.view.elementHeight(viewIndex) + elementTop;
 
-		if (ignoreIfInsideViewport
-			&& elementTop >= scrollTop
-			&& elementBottom < wrapperBottom) {
-
-			if (revealPosition === CellRevealPosition.Center
-				&& elementBottom > wrapperBottom
-				&& elementTop > (scrollTop + wrapperBottom) / 2) {
-				// the element is partially visible and it's below the center of the viewport
-			} else {
+		if (ignoreIfInsideViewport) {
+			if (elementTop >= scrollTop && elementBottom < wrapperBottom) {
+				// element is already fully visible
 				return;
 			}
 		}
@@ -883,6 +914,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 				break;
 			case CellRevealPosition.Bottom:
+				if (firstLine) {
+					const lineHeight = this.viewModel?.layoutInfo?.fontInfo.lineHeight ?? 15;
+					const padding = this.notebookOptions.getLayoutConfiguration().cellTopMargin + this.notebookOptions.getLayoutConfiguration().editorTopPadding;
+					const firstLineLocation = elementTop + lineHeight + padding;
+					if (firstLineLocation < wrapperBottom) {
+						// first line is already visible
+						return;
+					}
+
+					this.view.setScrollTop(this.scrollTop + (firstLineLocation - wrapperBottom));
+					break;
+				}
 				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
 				this.view.setScrollTop(this.scrollTop + (this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.getViewScrollBottom()));
 				break;
@@ -1085,7 +1128,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (element instanceof MarkupCellViewModel) {
 				return this._revealInCenterIfOutsideViewport(viewIndex);
 			} else {
-				const rangeOffset = element.layoutInfo.outputContainerOffset + offset;
+				const rangeOffset = element.layoutInfo.outputContainerOffset + Math.min(offset, element.layoutInfo.outputTotalHeight);
 				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
 				this.view.setScrollTop(elementTop + rangeOffset - this.view.renderHeight / 2);
 			}
@@ -1109,16 +1152,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	focusView() {
 		this.view.domNode.focus();
-	}
-
-	getAbsoluteTopOfElement(element: ICellViewModel): number {
-		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined || index < 0 || index >= this.length) {
-			this._getViewIndexUpperBound(element);
-			throw new ListError(this.listUser, `Invalid index ${index}`);
-		}
-
-		return this.view.elementTop(index);
 	}
 
 	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
@@ -1170,24 +1203,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const focused = this.getFocus();
-		if (!focused.length) {
-			return this.view.updateElementHeight(index, size, null);
+		const focus = focused.length ? focused[0] : null;
+
+		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
+		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
+		const scrollHeuristic = allowScrolling && anchorFocusedSetting === 'auto' && this.view.elementTop(index) < this.view.getScrollTop();
+		if (focused && (anchorFocusedSetting === 'on' || scrollHeuristic)) {
+			this.view.updateElementHeight(index, size, focus);
 		}
 
-		const focus = focused[0];
-
-		if (focus <= index) {
-			return this.view.updateElementHeight(index, size, focus);
-		}
-
-		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
-		// then we should make sure that the `element`'s visual view position doesn't change.
-
-		if (this.view.elementTop(index) >= this.view.getScrollTop()) {
-			return this.view.updateElementHeight(index, size, index);
-		}
-
-		this.view.updateElementHeight(index, size, focus);
+		this.view.updateElementHeight(index, size, null);
 	}
 
 	// override
@@ -1216,8 +1241,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getViewScrollBottom() {
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-		return this.getViewScrollTop() + this.view.renderHeight - topInsertToolbarHeight;
+		return this.getViewScrollTop() + this.view.renderHeight;
 	}
 
 	setCellEditorSelection(cell: ICellViewModel, range: Range) {

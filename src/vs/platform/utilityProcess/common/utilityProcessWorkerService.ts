@@ -8,13 +8,13 @@ export interface IUtilityProcessWorkerProcess {
 	/**
 	 * The module to load as child process into the worker.
 	 */
-	moduleId: string;
+	readonly moduleId: string;
 
 	/**
 	 * The type of the process appears in the arguments of the
 	 * forked process to identify it easier.
 	 */
-	type: string;
+	readonly type: string;
 }
 
 export interface IOnDidTerminateUtilityrocessWorkerProcess {
@@ -27,7 +27,7 @@ export interface IOnDidTerminateUtilityrocessWorkerProcess {
 	 * terminated on its own, either unexpectedly or
 	 * because it finished.
 	 */
-	reason?: IUtilityProcessWorkerProcessExit;
+	readonly reason: IUtilityProcessWorkerProcessExit;
 }
 
 export interface IUtilityProcessWorkerProcessExit {
@@ -35,12 +35,12 @@ export interface IUtilityProcessWorkerProcessExit {
 	/**
 	 * The utility process worker process exit code if known.
 	 */
-	code?: number;
+	readonly code?: number;
 
 	/**
 	 * The utility process worker process exit signal if known.
 	 */
-	signal?: string;
+	readonly signal?: string;
 }
 
 export interface IUtilityProcessWorkerConfiguration {
@@ -48,24 +48,24 @@ export interface IUtilityProcessWorkerConfiguration {
 	/**
 	 * Configuration specific to the process to fork.
 	 */
-	process: IUtilityProcessWorkerProcess;
+	readonly process: IUtilityProcessWorkerProcess;
 
 	/**
 	 * Configuration specific for how to respond with the
 	 * communication message port to the receiver window.
 	 */
-	reply: {
-		windowId: number;
-		channel?: string;
-		nonce?: string;
+	readonly reply: {
+		readonly windowId: number;
+		readonly channel?: string;
+		readonly nonce?: string;
 	};
 }
 
 export interface IUtilityProcessWorkerCreateConfiguration extends IUtilityProcessWorkerConfiguration {
-	reply: {
-		windowId: number;
-		channel: string;
-		nonce: string;
+	readonly reply: {
+		readonly windowId: number;
+		readonly channel: string;
+		readonly nonce: string;
 	};
 }
 

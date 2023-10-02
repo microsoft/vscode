@@ -27,3 +27,9 @@ export class TreeViewsDnDService<T> implements ITreeViewsDnDService<T> {
 		this._dragOperations.set(uuid, transferPromise);
 	}
 }
+
+
+export class DraggedTreeItemsIdentifier {
+
+	constructor(readonly identifier: string) { }
+}

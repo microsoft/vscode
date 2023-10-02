@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { EnvironmentVariableScope, IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
@@ -51,5 +51,5 @@ export interface IEnvironmentVariableCollectionWithPersistence extends IEnvironm
 
 export interface IEnvironmentVariableInfo {
 	readonly requiresAction: boolean;
-	getStatus(): ITerminalStatus;
+	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus;
 }

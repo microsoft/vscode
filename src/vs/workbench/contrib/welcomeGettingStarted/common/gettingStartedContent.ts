@@ -65,16 +65,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'command:welcome.showNewFileEntries',
 		}
 	},
-	// {
-	// 	id: 'welcome.showNewFolderEntries',
-	// 	title: localize('gettingStarted.newFolder.title', "New Folder..."),
-	// 	description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
-	// 	icon: Codicon.newFolder,
-	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'welcome.showNewFolderEntries',
-	// 	}
-	// },
 	{
 		id: 'topLevelOpenMac',
 		title: localize('gettingStarted.openMac.title', "Open..."),
@@ -153,36 +143,25 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
-		id: 'topLevelVideoTutorials',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		icon: Codicon.playCircle,
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == on',
-		content: {
-			type: 'startEntry',
-			command: 'https://aka.ms/vscode-getting-started-video',
-		}
-	},
-	{
-		id: 'topLevelVideoTutorialsExperimental',
-		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
-		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
-		when: 'config.workbench.welcomePage.experimental.videoTutorials == experimental',
-		icon: Codicon.playCircle,
-		content: {
-			type: 'startEntry',
-			command: 'https://aka.ms/vscode-videos',
-		}
-	},
-	{
 		id: 'topLevelRemoteOpen',
 		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
 		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
-		when: 'config.workbench.remote.experimental.showStartListEntry',
+		when: '!isWeb',
 		icon: Codicon.remote,
 		content: {
 			type: 'startEntry',
-			command: 'command:workbench.action.remote.showStartEntryActions',
+			command: 'command:workbench.action.remote.showMenu',
+		}
+	},
+	{
+		id: 'topLevelOpenTunnel',
+		title: localize('gettingStarted.topLevelOpenTunnel.title', "Open Tunnel..."),
+		description: localize('gettingStarted.topLevelOpenTunnel.description', "Connect to a remote machine through a Tunnel"),
+		when: 'isWeb && showRemoteStartEntryInWeb',
+		icon: Codicon.remote,
+		content: {
+			type: 'startEntry',
+			command: 'command:workbench.action.remote.showWebStartEntryActions',
 		}
 	},
 ];
@@ -404,6 +383,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.settings.description.interpolated', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n{0}", Button(localize('tweakSettings', "Tweak my Settings"), 'command:toSide:workbench.action.openSettings')),
 					media: {
 						type: 'svg', altText: 'VS Code Settings', path: 'settings.svg'
+					},
+				},
+				{
+					id: 'profiles',
+					title: localize('gettingStarted.profiles.title', "Customize VS Code with Profiles"),
+					description: localize('gettingStarted.profiles.description.interpolated', "Profiles let you create sets of VS Code customizations that include settings, extensions and UI state. Create your own profile from scratch or use the predefined set of profile templates for your specific workflow.\n{0}", Button(localize('tryProfiles', "Try Profiles"), 'command:workbench.profiles.actions.createProfile')),
+					media: {
+						type: 'svg', altText: 'VS Code Profiles', path: 'profiles.svg'
 					},
 				},
 				{

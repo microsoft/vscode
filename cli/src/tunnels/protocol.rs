@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use crate::{
 	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
 	options::Quality,
+	update_service::Platform,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,9 +16,10 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
+	serverclose(ServerClosedParams),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
-	version(VersionParams),
+	version(VersionResponse),
 }
 
 #[derive(Deserialize, Debug)]
@@ -57,14 +59,6 @@ pub struct ForwardResult {
 	pub uri: String,
 }
 
-/// The `install_local` method in the wsl control server
-#[derive(Deserialize, Debug)]
-pub struct InstallFromLocalFolderParams {
-	pub archive_path: String,
-	#[serde(flatten)]
-	pub inner: ServeParams,
-}
-
 #[derive(Deserialize, Debug)]
 pub struct ServeParams {
 	pub socket_id: u16,
@@ -94,6 +88,11 @@ pub struct ServerMessageParams {
 	pub i: u16,
 	#[serde(with = "serde_bytes")]
 	pub body: Vec<u8>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ServerClosedParams {
+	pub i: u16,
 }
 
 #[derive(Serialize, Debug)]
@@ -127,6 +126,26 @@ pub struct GetHostnameResponse {
 	pub value: String,
 }
 
+#[derive(Serialize)]
+pub struct GetEnvResponse {
+	pub env: HashMap<String, String>,
+	pub os_platform: &'static str,
+	pub os_release: String,
+}
+
+#[derive(Deserialize)]
+pub struct FsStatRequest {
+	pub path: String,
+}
+
+#[derive(Serialize, Default)]
+pub struct FsStatResponse {
+	pub exists: bool,
+	pub size: Option<u64>,
+	#[serde(rename = "type")]
+	pub kind: Option<&'static str>,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct CallServerHttpParams {
 	pub path: String,
@@ -144,12 +163,12 @@ pub struct CallServerHttpResult {
 }
 
 #[derive(Serialize, Debug)]
-pub struct VersionParams {
+pub struct VersionResponse {
 	pub version: &'static str,
 	pub protocol_version: u32,
 }
 
-impl Default for VersionParams {
+impl Default for VersionResponse {
 	fn default() -> Self {
 		Self {
 			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
@@ -158,14 +177,92 @@ impl Default for VersionParams {
 	}
 }
 
+#[derive(Deserialize)]
+pub struct SpawnParams {
+	pub command: String,
+	pub args: Vec<String>,
+	#[serde(default)]
+	pub cwd: Option<String>,
+	#[serde(default)]
+	pub env: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+pub struct AcquireCliParams {
+	pub platform: Platform,
+	pub quality: Quality,
+	pub commit_id: Option<String>,
+	#[serde(flatten)]
+	pub spawn: SpawnParams,
+}
+
+#[derive(Serialize)]
+pub struct SpawnResult {
+	pub message: String,
+	pub exit_code: i32,
+}
+
+pub const METHOD_CHALLENGE_ISSUE: &str = "challenge_issue";
+pub const METHOD_CHALLENGE_VERIFY: &str = "challenge_verify";
+
+#[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueParams {
+	pub token: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ChallengeIssueResponse {
+	pub challenge: String,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct ChallengeVerifyParams {
+	pub response: String,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Copy, Clone, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum PortPrivacy {
+	Public,
+	Private,
+}
+
+pub mod forward_singleton {
+	use serde::{Deserialize, Serialize};
+
+	use super::PortPrivacy;
+
+	pub const METHOD_SET_PORTS: &str = "set_ports";
+
+	#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+	pub struct PortRec {
+		pub number: u16,
+		pub privacy: PortPrivacy,
+	}
+
+	pub type PortList = Vec<PortRec>;
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsParams {
+		pub ports: PortList,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct SetPortsResponse {
+		pub port_format: Option<String>,
+	}
+}
+
 pub mod singleton {
 	use crate::log;
+	use chrono::{DateTime, Utc};
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
 	pub const METHOD_SHUTDOWN: &str = "shutdown";
 	pub const METHOD_STATUS: &str = "status";
 	pub const METHOD_LOG: &str = "log";
+	pub const METHOD_LOG_REPLY_DONE: &str = "log_done";
 
 	#[derive(Serialize)]
 	pub struct LogMessage<'a> {
@@ -181,8 +278,41 @@ pub mod singleton {
 		pub message: String,
 	}
 
-	#[derive(Serialize, Deserialize)]
+	#[derive(Serialize, Deserialize, Clone, Default)]
+	pub struct StatusWithTunnelName {
+		pub name: Option<String>,
+		#[serde(flatten)]
+		pub status: Status,
+	}
+
+	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
-		pub ok: bool,
+		pub started_at: DateTime<Utc>,
+		pub tunnel: TunnelState,
+		pub last_connected_at: Option<DateTime<Utc>>,
+		pub last_disconnected_at: Option<DateTime<Utc>>,
+		pub last_fail_reason: Option<String>,
+	}
+
+	impl Default for Status {
+		fn default() -> Self {
+			Self {
+				started_at: Utc::now(),
+				tunnel: TunnelState::Disconnected,
+				last_connected_at: None,
+				last_disconnected_at: None,
+				last_fail_reason: None,
+			}
+		}
+	}
+
+	#[derive(Deserialize, Serialize, Debug)]
+	pub struct LogReplayFinished {}
+
+	#[derive(Deserialize, Serialize, Debug, Default, Clone)]
+	pub enum TunnelState {
+		#[default]
+		Disconnected,
+		Connected,
 	}
 }

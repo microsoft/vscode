@@ -191,23 +191,27 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 
 	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {
-		const webview = this.getWebviewInput(handle);
+		const webview = this.tryGetWebviewInput(handle);
+		if (!webview) {
+			return;
+		}
 		webview.dispose();
 	}
 
 	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.getWebviewInput(handle);
-		webview.setName(value);
+		this.tryGetWebviewInput(handle)?.setName(value);
 	}
 
 	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {
-		const webview = this.getWebviewInput(handle);
-		webview.iconPath = reviveWebviewIcon(value);
+		const webview = this.tryGetWebviewInput(handle);
+		if (webview) {
+			webview.iconPath = reviveWebviewIcon(value);
+		}
 	}
 
 	public $reveal(handle: extHostProtocol.WebviewHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
-		const webview = this.getWebviewInput(handle);
-		if (webview.isDisposed()) {
+		const webview = this.tryGetWebviewInput(handle);
+		if (!webview || webview.isDisposed()) {
 			return;
 		}
 
@@ -340,14 +344,6 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		if (Object.keys(viewStates).length) {
 			this._proxy.$onDidChangeWebviewPanelViewStates(viewStates);
 		}
-	}
-
-	private getWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput {
-		const webview = this.tryGetWebviewInput(handle);
-		if (!webview) {
-			throw new Error(`Unknown webview handle:${handle}`);
-		}
-		return webview;
 	}
 
 	private tryGetWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput | undefined {

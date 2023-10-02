@@ -58,6 +58,7 @@ interface EmitterLike<T> {
 interface PreloadStyles {
 	readonly outputNodePadding: number;
 	readonly outputNodeLeftPadding: number;
+	readonly tokenizationCss: string;
 }
 
 export interface PreloadOptions {
@@ -90,7 +91,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const textDecoder = new TextDecoder();
 
 	let currentOptions = ctx.options;
-	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
+	const isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 	let currentRenderOptions = ctx.renderOptions;
 	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
@@ -98,7 +99,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const vscode = acquireVsCodeApi();
 	delete (globalThis as any).acquireVsCodeApi;
 
-	const tokenizationStyleElement = document.querySelector('style#vscode-tokenization-styles');
+	const tokenizationStyle = new CSSStyleSheet();
+	tokenizationStyle.replaceSync(ctx.style.tokenizationCss);
+
 	const runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable = (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function')
 		? (runner) => {
 			setTimeout(() => {
@@ -136,6 +139,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			};
 		};
+
+	// check if an input element is focused within the output element
+	const checkOutputInputFocus = () => {
+
+		const activeElement = document.activeElement;
+		if (!activeElement) {
+			return;
+		}
+
+		if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true });
+
+			activeElement.addEventListener('blur', () => {
+				postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: false });
+			}, { once: true });
+		}
+	};
 
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
@@ -222,6 +242,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	document.body.addEventListener('click', handleInnerClick);
+	document.body.addEventListener('focusin', checkOutputInputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;
@@ -453,15 +474,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	};
 
-	function focusFirstFocusableInCell(cellId: string) {
-		const cellOutputContainer = document.getElementById(cellId);
+	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
+		const cellOutputContainer = document.getElementById(cellOrOutputId) ??
+			(alternateId ? document.getElementById(alternateId!) : undefined);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;
 			}
 
-			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
-			focusableElement?.focus();
+			let focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea') as HTMLElement | null;
+			if (!focusableElement) {
+				focusableElement = cellOutputContainer;
+				focusableElement.tabIndex = -1;
+			}
+
+			focusableElement.focus();
 		}
 	}
 
@@ -778,6 +805,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	interface ExtendedOutputItem extends rendererApi.OutputItem {
 		readonly _allOutputItems: ReadonlyArray<AdditionalOutputItemInfo>;
+		appendedText?(): string | undefined;
 	}
 
 	let hasWarnedAboutAllOutputItemsProposal = false;
@@ -787,7 +815,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		mime: string,
 		metadata: unknown,
 		valueBytes: Uint8Array,
-		allOutputItemData: ReadonlyArray<{ readonly mime: string }>
+		allOutputItemData: ReadonlyArray<{ readonly mime: string }>,
+		appended?: { valueBytes: Uint8Array; previousVersion: number }
 	): ExtendedOutputItem {
 
 		function create(
@@ -795,11 +824,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 			mime: string,
 			metadata: unknown,
 			valueBytes: Uint8Array,
+			appended?: { valueBytes: Uint8Array; previousVersion: number }
 		): ExtendedOutputItem {
 			return Object.freeze<ExtendedOutputItem>({
 				id,
 				mime,
 				metadata,
+
+				appendedText(): string | undefined {
+					if (appended) {
+						return textDecoder.decode(appended.valueBytes);
+					}
+					return undefined;
+				},
 
 				data(): Uint8Array {
 					return valueBytes;
@@ -848,7 +885,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}));
 
-		const item = create(id, mime, metadata, valueBytes);
+		const item = create(id, mime, metadata, valueBytes, appended);
 		allOutputItemCache.set(mime, Promise.resolve(item));
 		return item;
 	}
@@ -856,8 +893,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
 	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-		createHTML: value => value,
-		createScript: value => value,
+		createHTML: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
+		createScript: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
 	});
 
 	window.addEventListener('wheel', handleWheel);
@@ -869,25 +906,43 @@ async function webviewPreloads(ctx: PreloadContext) {
 		container: Node;
 		originalRange: Range;
 		isShadow: boolean;
+		searchPreviewInfo?: ISearchPreviewInfo;
 		highlightResult?: IHighlightResult;
 	}
 
+	interface ISearchPreviewInfo {
+		line: string;
+		range: {
+			start: number;
+			end: number;
+		};
+	}
+
 	interface IHighlighter {
-		highlightCurrentMatch(index: number): void;
-		unHighlightCurrentMatch(index: number): void;
+		addHighlights(matches: IFindMatch[], ownerID: string): void;
+		removeHighlights(ownerID: string): void;
+		highlightCurrentMatch(index: number, ownerID: string): void;
+		unHighlightCurrentMatch(index: number, ownerID: string): void;
 		dispose(): void;
 	}
 
-	let _highlighter: IHighlighter | null = null;
+	interface IHighlightInfo {
+		matches: IFindMatch[];
+		currentMatchIndex: number;
+	}
+
 	const matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
 	const currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	class JSHighlighter implements IHighlighter {
-		private _findMatchIndex = -1;
+		private _activeHighlightInfo: Map<string, IHighlightInfo>;
 
 		constructor(
-			readonly matches: IFindMatch[],
 		) {
+			this._activeHighlightInfo = new Map();
+		}
+
+		addHighlights(matches: IFindMatch[], ownerID: string): void {
 			for (let i = matches.length - 1; i >= 0; i--) {
 				const match = matches[i];
 				const ret = highlightRange(match.originalRange, true, 'mark', match.isShadow ? {
@@ -897,14 +952,32 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 				match.highlightResult = ret;
 			}
+
+			const highlightInfo: IHighlightInfo = {
+				matches,
+				currentMatchIndex: -1
+			};
+			this._activeHighlightInfo.set(ownerID, highlightInfo);
 		}
 
-		highlightCurrentMatch(index: number) {
-			const oldMatch = this.matches[this._findMatchIndex];
+		removeHighlights(ownerID: string): void {
+			this._activeHighlightInfo.get(ownerID)?.matches.forEach(match => {
+				match.highlightResult?.dispose();
+			});
+			this._activeHighlightInfo.delete(ownerID);
+		}
+
+		highlightCurrentMatch(index: number, ownerID: string) {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				console.error('Modified current highlight match before adding highlight list.');
+				return;
+			}
+			const oldMatch = highlightInfo.matches[highlightInfo.currentMatchIndex];
 			oldMatch?.highlightResult?.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 
-			const match = this.matches[index];
-			this._findMatchIndex = index;
+			const match = highlightInfo.matches[index];
+			highlightInfo.currentMatchIndex = index;
 			const sel = window.getSelection();
 			if (!!match && !!sel && match.highlightResult) {
 				let offset = 0;
@@ -926,14 +999,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
 
 				document.getSelection()?.removeAllRanges();
-				postNotebookMessage('didFindHighlight', {
+				postNotebookMessage('didFindHighlightCurrent', {
 					offset
 				});
 			}
 		}
 
-		unHighlightCurrentMatch(index: number) {
-			const oldMatch = this.matches[index];
+		unHighlightCurrentMatch(index: number, ownerID: string) {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				return;
+			}
+			const oldMatch = highlightInfo.matches[index];
 			if (oldMatch && oldMatch.highlightResult) {
 				oldMatch.highlightResult.update(matchColor, oldMatch.isShadow ? undefined : 'find-match');
 			}
@@ -941,59 +1018,106 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		dispose() {
 			document.getSelection()?.removeAllRanges();
-
-			this.matches.forEach(match => {
-				match.highlightResult?.dispose();
+			this._activeHighlightInfo.forEach(highlightInfo => {
+				highlightInfo.matches.forEach(match => {
+					match.highlightResult?.dispose();
+				});
 			});
 		}
 	}
 
 	class CSSHighlighter implements IHighlighter {
+		private _activeHighlightInfo: Map<string, IHighlightInfo>;
 		private _matchesHighlight: Highlight;
 		private _currentMatchesHighlight: Highlight;
-		private _findMatchIndex = -1;
 
-		constructor(
-			readonly matches: IFindMatch[],
-		) {
+		constructor() {
+			this._activeHighlightInfo = new Map();
 			this._matchesHighlight = new Highlight();
 			this._matchesHighlight.priority = 1;
 			this._currentMatchesHighlight = new Highlight();
 			this._currentMatchesHighlight.priority = 2;
+			CSS.highlights?.set(`find-highlight`, this._matchesHighlight);
+			CSS.highlights?.set(`current-find-highlight`, this._currentMatchesHighlight);
+		}
+
+		_refreshRegistry(updateMatchesHighlight = true) {
+			// for performance reasons, only update the full list of highlights when we need to
+			if (updateMatchesHighlight) {
+				this._matchesHighlight.clear();
+			}
+
+			this._currentMatchesHighlight.clear();
+
+			this._activeHighlightInfo.forEach((highlightInfo) => {
+
+				if (updateMatchesHighlight) {
+					for (let i = 0; i < highlightInfo.matches.length; i++) {
+						this._matchesHighlight.add(highlightInfo.matches[i].originalRange);
+					}
+				}
+				if (highlightInfo.currentMatchIndex < highlightInfo.matches.length && highlightInfo.currentMatchIndex >= 0) {
+					this._currentMatchesHighlight.add(highlightInfo.matches[highlightInfo.currentMatchIndex].originalRange);
+				}
+			});
+		}
+
+		addHighlights(
+			matches: IFindMatch[],
+			ownerID: string
+		) {
 
 			for (let i = 0; i < matches.length; i++) {
 				this._matchesHighlight.add(matches[i].originalRange);
 			}
-			CSS.highlights?.set('find-highlight', this._matchesHighlight);
-			CSS.highlights?.set('current-find-highlight', this._currentMatchesHighlight);
+
+			const newEntry: IHighlightInfo = {
+				matches,
+				currentMatchIndex: -1,
+			};
+
+			this._activeHighlightInfo.set(ownerID, newEntry);
 		}
 
-		highlightCurrentMatch(index: number): void {
-			this._findMatchIndex = index;
-			const match = this.matches[this._findMatchIndex];
-			const range = match.originalRange;
+		highlightCurrentMatch(index: number, ownerID: string): void {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				console.error('Modified current highlight match before adding highlight list.');
+				return;
+			}
+
+			highlightInfo.currentMatchIndex = index;
+			const match = highlightInfo.matches[index];
 
 			if (match) {
 				let offset = 0;
 				try {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
-					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
-					postNotebookMessage('didFindHighlight', {
+					postNotebookMessage('didFindHighlightCurrent', {
 						offset
 					});
 				} catch (e) {
 					console.error(e);
 				}
 			}
-
-			this._currentMatchesHighlight.clear();
-			this._currentMatchesHighlight.add(range);
+			this._refreshRegistry(false);
 		}
 
-		unHighlightCurrentMatch(index: number): void {
-			this._currentMatchesHighlight.clear();
+		unHighlightCurrentMatch(index: number, ownerID: string): void {
+			const highlightInfo = this._activeHighlightInfo.get(ownerID);
+			if (!highlightInfo) {
+				return;
+			}
+
+			highlightInfo.currentMatchIndex = -1;
+		}
+
+		removeHighlights(ownerID: string) {
+			this._activeHighlightInfo.delete(ownerID);
+			this._refreshRegistry();
 		}
 
 		dispose(): void {
@@ -1003,7 +1127,97 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
+	const _highlighter = (CSS.highlights) ? new CSSHighlighter() : new JSHighlighter();
+
+	function extractSelectionLine(selection: Selection): ISearchPreviewInfo {
+		const range = selection.getRangeAt(0);
+
+		// we need to keep a reference to the old selection range to re-apply later
+		const oldRange = range.cloneRange();
+		const captureLength = selection.toString().length;
+
+		// use selection API to modify selection to get entire line (the first line if multi-select)
+
+		// collapse selection to start so that the cursor position is at beginning of match
+		selection.collapseToStart();
+
+		// extend selection in both directions to select the line
+		selection.modify('move', 'backward', 'lineboundary');
+		selection.modify('extend', 'forward', 'lineboundary');
+
+		const line = selection.toString();
+
+		// using the original range and the new range, we can find the offset of the match from the line start.
+		const rangeStart = getStartOffset(selection.getRangeAt(0), oldRange);
+
+		// line range for match
+		const lineRange = {
+			start: rangeStart,
+			end: rangeStart + captureLength,
+		};
+
+		// re-add the old range so that the selection is restored
+		selection.removeAllRanges();
+		selection.addRange(oldRange);
+
+		return { line, range: lineRange };
+	}
+
+	function getStartOffset(lineRange: Range, originalRange: Range) {
+		// sometimes, the old and new range are in different DOM elements (ie: when the match is inside of <b></b>)
+		// so we need to find the first common ancestor DOM element and find the positions of the old and new range relative to that.
+		const firstCommonAncestor = findFirstCommonAncestor(lineRange.startContainer, originalRange.startContainer);
+
+		const selectionOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, lineRange.startContainer) + lineRange.startOffset;
+		const textOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, originalRange.startContainer) + originalRange.startOffset;
+		return textOffset - selectionOffset;
+	}
+
+	// modified from https://stackoverflow.com/a/68583466/16253823
+	function findFirstCommonAncestor(nodeA: Node, nodeB: Node) {
+		const range = new Range();
+		range.setStart(nodeA, 0);
+		range.setEnd(nodeB, 0);
+		return range.commonAncestorContainer;
+	}
+
+	function getTextContentLength(node: Node): number {
+		let length = 0;
+
+		if (node.nodeType === Node.TEXT_NODE) {
+			length += node.textContent?.length || 0;
+		} else {
+			for (const childNode of node.childNodes) {
+				length += getTextContentLength(childNode);
+			}
+		}
+
+		return length;
+	}
+
+	// modified from https://stackoverflow.com/a/48812529/16253823
+	function getSelectionOffsetRelativeTo(parentElement: Node, currentNode: Node | null): number {
+		if (!currentNode) {
+			return 0;
+		}
+		let offset = 0;
+
+		if (currentNode === parentElement || !parentElement.contains(currentNode)) {
+			return offset;
+		}
+
+
+		// count the number of chars before the current dom elem and the start of the dom
+		let prevSibling = currentNode.previousSibling;
+		while (prevSibling) {
+			offset += getTextContentLength(prevSibling);
+			prevSibling = prevSibling.previousSibling;
+		}
+
+		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
+	}
+
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
 
@@ -1048,7 +1262,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: preview.id,
 								container: preview,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
@@ -1068,7 +1283,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: cellId,
 								container: outputNode,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
@@ -1086,7 +1302,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: lastEl.cellId,
 								container: lastEl.container,
 								isShadow: false,
-								originalRange: selection.getRangeAt(0)
+								originalRange: selection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 							});
 
 						} else {
@@ -1106,7 +1323,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 											cellId: cellId,
 											container: node,
 											isShadow: false,
-											originalRange: selection.getRangeAt(0)
+											originalRange: selection.getRangeAt(0),
+											searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 										});
 									}
 									break;
@@ -1127,24 +1345,60 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
-		if (matches.length && CSS.highlights) {
-			_highlighter = new CSSHighlighter(matches);
-		} else {
-			_highlighter = new JSHighlighter(matches);
-		}
-
+		_highlighter.addHighlights(matches, options.ownerID);
 		document.getSelection()?.removeAllRanges();
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
+
+		document.designMode = 'Off';
 
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
 				id: match.id,
 				cellId: match.cellId,
-				index
+				index,
+				searchPreviewInfo: match.searchPreviewInfo,
 			}))
 		});
+	};
+
+	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
+		if (!document.hasFocus() && retries > 0) {
+			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
+			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			return;
+		}
+
+		try {
+			const image = document.getElementById(outputId)?.querySelector('img')
+				?? document.getElementById(altOutputId)?.querySelector('img');
+			if (image) {
+				await navigator.clipboard.write([new ClipboardItem({
+					'image/png': new Promise((resolve) => {
+						const canvas = document.createElement('canvas');
+						if (canvas !== null) {
+							canvas.width = image.naturalWidth;
+							canvas.height = image.naturalHeight;
+							const context = canvas.getContext('2d');
+							context?.drawImage(image, 0, 0);
+						}
+						canvas.toBlob((blob) => {
+							if (blob) {
+								resolve(blob);
+							}
+							canvas.remove();
+						}, 'image/png');
+					})
+				})]);
+			} else {
+				console.error('Could not find image element to copy for output with id', outputId);
+			}
+		} catch (e) {
+			console.error('Could not copy image:', e);
+		}
 	};
 
 	window.addEventListener('message', async rawEvent => {
@@ -1247,6 +1501,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 				break;
 			}
+			case 'copyImage': {
+				await copyOutputImage(event.data.outputId, event.data.altOutputId);
+				break;
+			}
 			case 'ack-dimension': {
 				for (const { cellId, outputId, height } of event.data.updates) {
 					viewModel.updateOutputHeight(cellId, outputId, height);
@@ -1266,7 +1524,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'focus-output':
-				focusFirstFocusableInCell(event.data.cellId);
+				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
 			case 'decorations': {
 				let outputContainer = document.getElementById(event.data.cellId);
@@ -1308,37 +1566,30 @@ async function webviewPreloads(ctx: PreloadContext) {
 				currentRenderOptions = event.data.renderOptions;
 				settingChange.fire(currentRenderOptions);
 				break;
-			case 'updateWorkspaceTrust': {
-				isWorkspaceTrusted = event.data.isTrusted;
-				viewModel.rerender();
-				break;
-			}
 			case 'tokenizedCodeBlock': {
 				const { codeBlockId, html } = event.data;
 				MarkdownCodeBlock.highlightCodeBlock(codeBlockId, html);
 				break;
 			}
 			case 'tokenizedStylesChanged': {
-				if (tokenizationStyleElement) {
-					tokenizationStyleElement.textContent = event.data.css;
-				}
+				tokenizationStyle.replaceSync(event.data.css);
 				break;
 			}
 			case 'find': {
-				_highlighter?.dispose();
+				_highlighter.removeHighlights(event.data.options.ownerID);
 				find(event.data.query, event.data.options);
 				break;
 			}
-			case 'findHighlight': {
-				_highlighter?.highlightCurrentMatch(event.data.index);
+			case 'findHighlightCurrent': {
+				_highlighter?.highlightCurrentMatch(event.data.index, event.data.ownerID);
 				break;
 			}
-			case 'findUnHighlight': {
-				_highlighter?.unHighlightCurrentMatch(event.data.index);
+			case 'findUnHighlightCurrent': {
+				_highlighter?.unHighlightCurrentMatch(event.data.index, event.data.ownerID);
 				break;
 			}
 			case 'findStop': {
-				_highlighter?.dispose();
+				_highlighter.removeHighlights(event.data.ownerID);
 				break;
 			}
 			case 'returnOutputItem': {
@@ -1554,9 +1805,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const controller = new AbortController();
 				this.outputs.set(outputId, { abort: controller, queue: new Promise(r => r(action(controller.signal))) });
 			} else {
-				record.queue = record.queue.then(r => {
+				record.queue = record.queue.then(async r => {
 					if (!record.abort.signal.aborted) {
-						return action(record.abort.signal);
+						await action(record.abort.signal);
 					}
 				});
 			}
@@ -1781,11 +2032,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._outputCells.clear();
 		}
 
-		public rerender() {
-			this.rerenderMarkupCells();
-			this.renderOutputCells();
-		}
-
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
@@ -1840,12 +2086,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cell?.unhide();
 		}
 
-		private rerenderMarkupCells() {
-			for (const cell of this._markupCells.values()) {
-				cell.rerender();
-			}
-		}
-
 		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
 			const cell = this._markupCells.get(id);
 			if (!cell) {
@@ -1874,12 +2114,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				if (cell) {
 					cell.element.style.top = `${top}px`;
 				}
-			}
-		}
-
-		private renderOutputCells() {
-			for (const outputCell of this._outputCells.values()) {
-				outputCell.rerender();
 			}
 		}
 
@@ -1954,8 +2188,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
 			el.innerHTML = trustedHtml as string;
-			if (tokenizationStyleElement) {
-				el.insertAdjacentElement('beforebegin', tokenizationStyleElement.cloneNode(true) as HTMLElement);
+			const root = el.getRootNode();
+			if (root instanceof ShadowRoot) {
+				if (!root.adoptedStyleSheets.includes(tokenizationStyle)) {
+					root.adoptedStyleSheets.push(tokenizationStyle);
+				}
 			}
 		}
 
@@ -2177,10 +2414,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.updateMarkupDimensions();
 		}
 
-		public rerender() {
-			this.updateContentAndRender(this._content.value, this._content.metadata);
-		}
-
 		public remove() {
 			this.element.remove();
 		}
@@ -2218,6 +2451,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.element = document.createElement('div');
 			this.element.style.position = 'absolute';
+			this.element.style.outline = '0';
 
 			this.element.id = cellId;
 			this.element.classList.add('cell_container');
@@ -2289,12 +2523,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.outputElements.get(outputId)?.updateContentAndRender(content);
 		}
 
-		public rerender() {
-			for (const outputElement of this.outputElements.values()) {
-				outputElement.rerender();
-			}
-		}
-
 		public updateOutputHeight(outputId: string, height: number) {
 			this.outputElements.get(outputId)?.updateHeight(height);
 		}
@@ -2334,6 +2562,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		) {
 			this.element = document.createElement('div');
 			this.element.classList.add('output_container');
+			this.element.setAttribute('data-vscode-context', JSON.stringify({ 'preventDefaultContextMenuItems': true }));
 			this.element.style.position = 'absolute';
 			this.element.style.overflow = 'hidden';
 		}
@@ -2369,10 +2598,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return this._outputNode;
 		}
 
-		public rerender() {
-			this._outputNode?.rerender();
-		}
-
 		public updateContentAndRender(content: webviewMessages.ICreationContent) {
 			this._outputNode?.updateAndRerender(content);
 		}
@@ -2401,7 +2626,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	class OutputElement {
 		public readonly element: HTMLElement;
 		private _content?: {
-			readonly content: webviewMessages.ICreationContent;
 			readonly preferredRendererId: string | undefined;
 			readonly preloadErrors: ReadonlyArray<Error | undefined>;
 		};
@@ -2439,15 +2663,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.renderTaskAbort?.abort();
 			this.renderTaskAbort = undefined;
 
-			this._content = { content, preferredRendererId, preloadErrors };
+			this._content = { preferredRendererId, preloadErrors };
 			if (content.type === 0 /* RenderOutputType.Html */) {
-				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent; // CodeQL [SM03712] The content comes from renderer extensions, not from direct user input.
 				this.element.innerHTML = trustedHtml as string;
 			} else if (preloadErrors.some(e => e instanceof Error)) {
 				const errors = preloadErrors.filter((e): e is Error => e instanceof Error);
 				showRenderError(`Error loading preloads`, this.element, errors);
 			} else {
-				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs);
+				const item = createOutputItem(this.outputId, content.output.mime, content.metadata, content.output.valueBytes, content.allOutputs, content.output.appended);
 
 				const controller = new AbortController();
 				this.renderTaskAbort = controller;
@@ -2497,16 +2721,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public rerender() {
-			if (this._content) {
-				this.render(this._content.content, this._content.preferredRendererId, this._content.preloadErrors);
-			}
-		}
-
 		public updateAndRerender(content: webviewMessages.ICreationContent) {
 			if (this._content) {
-				this._content = { content, preferredRendererId: this._content.preferredRendererId, preloadErrors: this._content.preloadErrors };
-				this.rerender();
+				this.render(content, this._content.preferredRendererId, this._content.preloadErrors);
 			}
 		}
 	}

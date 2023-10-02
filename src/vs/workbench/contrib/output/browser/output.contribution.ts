@@ -10,16 +10,13 @@ import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { OutputService } from 'vs/workbench/contrib/output/browser/outputServices';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -30,8 +27,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { EditorExtensions } from 'vs/workbench/common/editor';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -54,7 +51,7 @@ ModesRegistry.registerLanguage({
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	title: nls.localize('output', "Output"),
+	title: { value: nls.localize('output', "Output"), original: 'Output' },
 	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
@@ -82,25 +79,12 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	}
 }], VIEW_CONTAINER);
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(
-		LogViewer,
-		LogViewer.LOG_VIEWER_EDITOR_ID,
-		nls.localize('logViewer', "Log Viewer")
-	),
-	[
-		new SyncDescriptor(LogViewerInput)
-	]
-);
-
 class OutputContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITextModelService textModelService: ITextModelService,
 		@IOutputService private readonly outputService: IOutputService,
 	) {
 		super();
-		textModelService.registerTextModelContentProvider(LOG_SCHEME, instantiationService.createInstance(LogContentProvider));
 		this.registerActions();
 	}
 
@@ -293,10 +277,16 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const editorService = accessor.get(IEditorService);
-				const instantiationService = accessor.get(IInstantiationService);
+				const fileConfigurationService = accessor.get(IFilesConfigurationService);
 				const logFileOutputChannelDescriptor = this.getLogFileOutputChannelDescriptor(outputService);
 				if (logFileOutputChannelDescriptor) {
-					await editorService.openEditor(instantiationService.createInstance(LogViewerInput, logFileOutputChannelDescriptor), { pinned: true });
+					await fileConfigurationService.updateReadonly(logFileOutputChannelDescriptor.file, true);
+					await editorService.openEditor({
+						resource: logFileOutputChannelDescriptor.file,
+						options: {
+							pinned: true,
+						}
+					});
 				}
 			}
 			private getLogFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
@@ -368,21 +358,44 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 					menu: {
 						id: MenuId.CommandPalette,
 					},
+					description: {
+						description: 'workbench.action.openLogFile',
+						args: [{
+							name: 'logFile',
+							schema: {
+								markdownDescription: nls.localize('logFile', "The id of the log file to open, for example `\"window\"`. Currently the best way to get this is to get the ID by checking the `workbench.action.output.show.<id>` commands"),
+								type: 'string'
+							}
+						}]
+					},
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
+			async run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const quickInputService = accessor.get(IQuickInputService);
-				const instantiationService = accessor.get(IInstantiationService);
 				const editorService = accessor.get(IEditorService);
+				const fileConfigurationService = accessor.get(IFilesConfigurationService);
 
 				const entries: IOutputChannelQuickPickItem[] = outputService.getChannelDescriptors().filter(c => c.file && c.log)
 					.map(channel => (<IOutputChannelQuickPickItem>{ id: channel.id, label: channel.label, channel }));
 
-				const entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log file") });
+				const argName = args && typeof args === 'string' ? args : undefined;
+				let entry: IOutputChannelQuickPickItem | undefined;
+				if (argName) {
+					entry = entries.find(e => e.id === argName);
+				}
+				if (!entry) {
+					entry = await quickInputService.pick(entries, { placeHolder: nls.localize('selectlogFile', "Select Log File") });
+				}
 				if (entry) {
-					assertIsDefined(entry.channel.file);
-					await editorService.openEditor(instantiationService.createInstance(LogViewerInput, (entry.channel as IFileOutputChannelDescriptor)), { pinned: true });
+					const resource = assertIsDefined(entry.channel.file);
+					await fileConfigurationService.updateReadonly(resource, true);
+					await editorService.openEditor({
+						resource,
+						options: {
+							pinned: true,
+						}
+					});
 				}
 			}
 		}));

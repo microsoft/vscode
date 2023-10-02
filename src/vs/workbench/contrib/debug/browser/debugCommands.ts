@@ -473,7 +473,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_OVER_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: isWeb ? (KeyMod.Alt | KeyCode.F10) : KeyCode.F10, // Browsers do not allow F10 to be binded so we have to bind an alternative
+	primary: KeyCode.F10,
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -704,8 +704,26 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SELECT_AND_START_ID,
-	handler: async (accessor: ServicesAccessor) => {
+	handler: async (accessor: ServicesAccessor, debugType: string | unknown) => {
 		const quickInputService = accessor.get(IQuickInputService);
+		const debugService = accessor.get(IDebugService);
+
+		if (debugType) {
+			const configManager = debugService.getConfigurationManager();
+			const dynamicProviders = await configManager.getDynamicProviders();
+			for (const provider of dynamicProviders) {
+				if (provider.type === debugType) {
+					const pick = await provider.pick();
+					if (pick) {
+						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
+						debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
+
+						return;
+					}
+				}
+			}
+		}
+
 		quickInputService.quickAccess.show(DEBUG_QUICK_ACCESS_PREFIX);
 	}
 });

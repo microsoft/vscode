@@ -96,6 +96,7 @@ export interface IExtensionsWorkbenchService {
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
 	readonly outdated: IExtension[];
+	readonly whenInitialized: Promise<void>;
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
@@ -119,6 +120,7 @@ export interface IExtensionsWorkbenchService {
 	// Sync APIs
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
 	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
+	toggleApplyExtensionToAllProfiles(extension: IExtension): Promise<void>;
 }
 
 export const enum ExtensionEditorTab {

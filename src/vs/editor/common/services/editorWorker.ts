@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languages';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -14,7 +14,7 @@ import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleW
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
-export type DiffAlgorithmName = 'smart' | 'experimental';
+export type DiffAlgorithmName = 'legacy' | 'advanced';
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
@@ -29,6 +29,7 @@ export interface IEditorWorkerService {
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean): Promise<TextEdit[] | undefined>;
+	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;
@@ -41,6 +42,7 @@ export interface IDiffComputationResult {
 	quitEarly: boolean;
 	changes: ILineChange[];
 	identical: boolean;
+	moves: ITextMove[];
 }
 
 export type ILineChange = [
@@ -61,6 +63,14 @@ export type ICharChange = [
 	modifiedStartColumn: number,
 	modifiedEndLine: number,
 	modifiedEndColumn: number,
+];
+
+export type ITextMove = [
+	originalStartLine: number,
+	originalEndLine: number,
+	modifiedStartLine: number,
+	modifiedEndLine: number,
+	changes: ILineChange[],
 ];
 
 export interface IUnicodeHighlightsResult {

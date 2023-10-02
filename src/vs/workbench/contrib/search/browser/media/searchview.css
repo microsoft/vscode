@@ -35,6 +35,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	background-color: unset;
 }
 
 .monaco-workbench .search-view .search-widget .toggle-replace-button:hover {
@@ -375,4 +376,23 @@
 
 .monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus {
 	outline-color: var(--vscode-list-activeSelectionForeground)
+}
+
+.monaco-workbench .search-container .monaco-custom-toggle.disabled {
+	opacity: 0.3;
+	cursor: default;
+	user-select: none;
+	-webkit-user-select: none;
+	pointer-events: none;
+	background-color: inherit !important;
+}
+
+.monaco-workbench .search-container .find-filter-button {
+	color: inherit;
+	margin-left: 2px;
+	float: left;
+	cursor: pointer;
+	box-sizing: border-box;
+	user-select: none;
+	-webkit-user-select: none;
 }

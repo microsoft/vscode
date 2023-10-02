@@ -977,6 +977,22 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(document.getText(), expected);
 	});
 
+
+	test('[Bug] Failed to create new test file when in an untitled file #1261', async function () {
+		const uri = vscode.Uri.parse('untitled:Untitled-5.test');
+		const contents = `Hello Test File ${uri.toString()}`;
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(uri, { ignoreIfExists: true });
+		we.replace(uri, new vscode.Range(0, 0, 0, 0), contents);
+
+		const success = await vscode.workspace.applyEdit(we);
+
+		assert.ok(success);
+
+		const doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.getText(), contents);
+	});
+
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 1/3', async function () {
 
 		const file1 = await createRandomFile();
@@ -1171,7 +1187,6 @@ suite('vscode API - workspace', () => {
 		assert.deepStrictEqual(edt.selections, [new vscode.Selection(0, 0, 0, 3)]);
 	});
 
-
 	test('Support creating binary files in a WorkspaceEdit', async function (): Promise<any> {
 
 		const fileUri = vscode.Uri.parse(`${testFs.scheme}:/${rndName()}`);
@@ -1187,4 +1202,46 @@ suite('vscode API - workspace', () => {
 
 		assert.deepStrictEqual(actual, data);
 	});
+
+	test('saveAll', async () => {
+		await testSave(true);
+	});
+
+	test('save', async () => {
+		await testSave(false);
+	});
+
+	async function testSave(saveAll: boolean) {
+		const file = await createRandomFile();
+		const disposables: vscode.Disposable[] = [];
+
+		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
+
+		const onDidSaveTextDocument = new Set<vscode.TextDocument>();
+
+		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+			onDidSaveTextDocument.add(e);
+		}));
+
+		const doc = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(doc);
+
+		if (saveAll) {
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(doc.uri, new vscode.Position(0, 0), 'Hello World');
+
+			await vscode.workspace.applyEdit(edit);
+			assert.ok(doc.isDirty);
+
+			await vscode.workspace.saveAll(false); // requires dirty documents
+		} else {
+			const res = await vscode.workspace.save(doc.uri); // enforces to save even when not dirty
+			assert.ok(res?.toString() === doc.uri.toString());
+		}
+
+		assert.ok(onDidSaveTextDocument);
+		assert.ok(Array.from(onDidSaveTextDocument).find(e => e.uri.toString() === file.toString()), 'did Save: ' + file.toString());
+		disposeAll(disposables);
+		return deleteFile(file);
+	}
 });

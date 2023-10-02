@@ -5,10 +5,12 @@
 /// <reference lib='webworker.importscripts' />
 /// <reference lib='webworker' />
 
-import * as ts from 'typescript/lib/tsserverlibrary';
-import { ApiClient, FileType, Requests } from '@vscode/sync-api-client';
+import { ApiClient, FileStat, FileSystem, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
+import { basename } from 'path';
+import * as ts from 'typescript/lib/tsserverlibrary';
 import { URI } from 'vscode-uri';
+import WebTypingsInstaller from './typingsInstaller';
 
 // GLOBALS
 const watchFiles: Map<string, { path: string; callback: ts.FileWatcherCallback; pollingInterval?: number; options?: ts.WatchOptions }> = new Map();
@@ -46,29 +48,48 @@ function fromResource(extensionUri: URI, uri: URI) {
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`;
 }
+
 function updateWatch(event: 'create' | 'change' | 'delete', uri: URI, extensionUri: URI) {
-	const kind = event === 'create' ? ts.FileWatcherEventKind.Created
-		: event === 'change' ? ts.FileWatcherEventKind.Changed
-			: event === 'delete' ? ts.FileWatcherEventKind.Deleted
-				: ts.FileWatcherEventKind.Changed;
+	const kind = toTsWatcherKind(event);
 	const path = fromResource(extensionUri, uri);
-	if (watchFiles.has(path)) {
-		watchFiles.get(path)!.callback(path, kind);
+
+	const fileWatcher = watchFiles.get(path);
+	if (fileWatcher) {
+		fileWatcher.callback(path, kind);
 		return;
 	}
-	let found = false;
+
 	for (const watch of Array.from(watchDirectories.keys()).filter(dir => path.startsWith(dir))) {
 		watchDirectories.get(watch)!.callback(path);
-		found = true;
+		return;
 	}
-	if (!found) {
-		console.error(`no watcher found for ${path}`);
+
+	console.error(`no watcher found for ${path}`);
+}
+
+function toTsWatcherKind(event: 'create' | 'change' | 'delete') {
+	if (event === 'create') {
+		return ts.FileWatcherEventKind.Created;
+	} else if (event === 'change') {
+		return ts.FileWatcherEventKind.Changed;
+	} else if (event === 'delete') {
+		return ts.FileWatcherEventKind.Deleted;
+	}
+	throw new Error(`Unknown event: ${event}`);
+}
+
+class AccessOutsideOfRootError extends Error {
+	constructor(
+		public readonly filepath: string,
+		public readonly projectRootPaths: readonly string[]
+	) {
+		super(`Could not read file outside of project root ${filepath}`);
 	}
 }
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
-function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient | undefined, args: string[], fsWatcher: MessagePort): ServerHostWithImport {
+function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient: ApiClient | undefined, args: string[], fsWatcher: MessagePort, enabledExperimentalTypeAcquisition: boolean): ServerHostWithImport {
 	const currentDirectory = '/';
 	const fs = apiClient?.vscode.workspace.fileSystem;
 	let watchId = 0;
@@ -80,7 +101,6 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	const directorySeparator: string = (ts as any).directorySeparator;
 	const executingFilePath = findArgument(args, '--executingFilePath') || location + '';
 	const getExecutingDirectoryPath = memoize(() => memoize(() => ensureTrailingDirectorySeparator(getDirectoryPath(executingFilePath))));
-	// Later we could map ^memfs:/ to do something special if we want to enable more functionality like module resolution or something like that
 	const getWebPath = (path: string) => path.startsWith(directorySeparator) ? path.replace(directorySeparator, getExecutingDirectoryPath()) : undefined;
 
 	const textDecoder = new TextDecoder();
@@ -95,38 +115,65 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 	const logNormal = log.bind(null, ts.server.LogLevel.normal);
 	const logVerbose = log.bind(null, ts.server.LogLevel.verbose);
 
+	const noopWatcher: ts.FileWatcher = { close() { } };
 	return {
 		watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {
 			if (looksLikeLibDtsPath(path)) { // We don't support watching lib files on web since they are readonly
-				return { close() { } };
+				return noopWatcher;
 			}
+
+			console.log('watching file:', path);
 
 			logVerbose('fs.watchFile', { path });
 
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
+
 			watchFiles.set(path, { path, callback, pollingInterval, options });
-			watchId++;
-			fsWatcher.postMessage({ type: 'watchFile', uri: toResource(path), id: watchId });
+			const watchIds = [++watchId];
+			fsWatcher.postMessage({ type: 'watchFile', uri: uri, id: watchIds[0] });
+			if (enabledExperimentalTypeAcquisition && looksLikeNodeModules(path)) {
+				watchIds.push(++watchId);
+				fsWatcher.postMessage({ type: 'watchFile', uri: mapUri(uri, 'vscode-node-modules'), id: watchIds[1] });
+			}
 			return {
 				close() {
 					logVerbose('fs.watchFile.close', { path });
 
 					watchFiles.delete(path);
-					fsWatcher.postMessage({ type: 'dispose', id: watchId });
+					for (const id of watchIds) {
+						fsWatcher.postMessage({ type: 'dispose', id });
+					}
 				}
 			};
 		},
 		watchDirectory(path: string, callback: ts.DirectoryWatcherCallback, recursive?: boolean, options?: ts.WatchOptions): ts.FileWatcher {
 			logVerbose('fs.watchDirectory', { path });
 
+			let uri: URI;
+			try {
+				uri = toResource(path);
+			} catch (e) {
+				console.error(e);
+				return noopWatcher;
+			}
+
 			watchDirectories.set(path, { path, callback, recursive, options });
-			watchId++;
-			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri: toResource(path), id: watchId });
+			const watchIds = [++watchId];
+			fsWatcher.postMessage({ type: 'watchDirectory', recursive, uri, id: watchId });
 			return {
 				close() {
 					logVerbose('fs.watchDirectory.close', { path });
 
 					watchDirectories.delete(path);
-					fsWatcher.postMessage({ type: 'dispose', id: watchId });
+					for (const id of watchIds) {
+						fsWatcher.postMessage({ type: 'dispose', id });
+					}
 				}
 			};
 		},
@@ -190,14 +237,28 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				}
 			}
 
+			let uri;
 			try {
-				// We need to slice the bytes since we can't pass a shared array to text decoder
-				const contents = fs.readFile(toResource(path)).slice();
-				return textDecoder.decode(contents);
-			} catch (error) {
-				logNormal('Error fs.readFile', { path, error: error + '' });
+				uri = toResource(path);
+			} catch (e) {
 				return undefined;
 			}
+
+			let contents: Uint8Array | undefined;
+			try {
+				// We need to slice the bytes since we can't pass a shared array to text decoder
+				contents = fs.readFile(uri);
+			} catch (error) {
+				if (!enabledExperimentalTypeAcquisition) {
+					return undefined;
+				}
+				try {
+					contents = fs.readFile(mapUri(uri, 'vscode-node-modules'));
+				} catch (e) {
+					return undefined;
+				}
+			}
+			return textDecoder.decode(contents.slice());
 		},
 		getFileSize(path) {
 			logVerbose('fs.getFileSize', { path });
@@ -206,12 +267,19 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				throw new Error('not supported');
 			}
 
+			const uri = toResource(path);
+			let ret = 0;
 			try {
-				return fs.stat(toResource(path)).size;
-			} catch (error) {
-				logNormal('Error fs.getFileSize', { path, error: error + '' });
-				return 0;
+				ret = fs.stat(uri).size;
+			} catch (_error) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						ret = fs.stat(mapUri(uri, 'vscode-node-modules')).size;
+					} catch (_error) {
+					}
+				}
 			}
+			return ret;
 		},
 		writeFile(path, data, writeByteOrderMark) {
 			logVerbose('fs.writeFile', { path });
@@ -224,10 +292,21 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				data = byteOrderMarkIndicator + data;
 			}
 
+			let uri;
 			try {
-				fs.writeFile(toResource(path), textEncoder.encode(data));
+				uri = toResource(path);
+			} catch (e) {
+				return;
+			}
+			const encoded = textEncoder.encode(data);
+			try {
+				fs.writeFile(uri, encoded);
+				const name = basename(uri.path);
+				if (uri.scheme !== 'vscode-global-typings' && (name === 'package.json' || name === 'package-lock.json' || name === 'package-lock.kdl')) {
+					fs.writeFile(mapUri(uri, 'vscode-node-modules'), encoded);
+				}
 			} catch (error) {
-				logNormal('Error fs.writeFile', { path, error: error + '' });
+				console.error('fs.writeFile', { path, error });
 			}
 		},
 		resolvePath(path: string): string {
@@ -248,12 +327,24 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				return request.status === 200;
 			}
 
+			let uri;
 			try {
-				return fs.stat(toResource(path)).type === FileType.File;
-			} catch (error) {
-				logNormal('Error fs.fileExists', { path, error: error + '' });
+				uri = toResource(path);
+			} catch (e) {
 				return false;
 			}
+			let ret = false;
+			try {
+				ret = fs.stat(uri).type === FileType.File;
+			} catch (_error) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						ret = fs.stat(mapUri(uri, 'vscode-node-modules')).type === FileType.File;
+					} catch (_error) {
+					}
+				}
+			}
+			return ret;
 		},
 		directoryExists(path: string): boolean {
 			logVerbose('fs.directoryExists', { path });
@@ -262,10 +353,32 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				return false;
 			}
 
+			let uri;
 			try {
-				return fs.stat(toResource(path)).type === FileType.Directory;
-			} catch (error) {
-				logNormal('Error fs.directoryExists', { path, error: error + '' });
+				uri = toResource(path);
+			} catch (_error) {
+				return false;
+			}
+
+			let stat: FileStat | undefined = undefined;
+			try {
+				stat = fs.stat(uri);
+			} catch (_error) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						stat = fs.stat(mapUri(uri, 'vscode-node-modules'));
+					} catch (_error) {
+					}
+				}
+			}
+			if (stat) {
+				if (path.startsWith('/https') && !path.endsWith('.d.ts')) {
+					// TODO: Hack, https "file system" can't actually tell what is a file vs directory
+					return stat.type === FileType.File || stat.type === FileType.Directory;
+				}
+
+				return stat.type === FileType.Directory;
+			} else {
 				return false;
 			}
 		},
@@ -289,9 +402,13 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			return currentDirectory;
 		},
 		getDirectories(path: string): string[] {
+			logVerbose('fs.getDirectories', { path });
+
 			return getAccessibleFileSystemEntries(path).directories.slice();
 		},
 		readDirectory(path: string, extensions?: readonly string[], excludes?: readonly string[], includes?: readonly string[], depth?: number): string[] {
+			logVerbose('fs.readDirectory', { path });
+
 			return matchFiles(path, extensions, excludes, includes, /*useCaseSensitiveFileNames*/ true, currentDirectory, depth, getAccessibleFileSystemEntries, realpath);
 		},
 		getModifiedTime(path: string): Date | undefined {
@@ -301,12 +418,19 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 				throw new Error('not supported');
 			}
 
+			const uri = toResource(path);
+			let s: FileStat | undefined = undefined;
 			try {
-				return new Date(fs.stat(toResource(path)).mtime);
-			} catch (error) {
-				logNormal('Error fs.getModifiedTime', { path, error: error + '' });
-				return undefined;
+				s = fs.stat(uri);
+			} catch (_e) {
+				if (enabledExperimentalTypeAcquisition) {
+					try {
+						s = fs.stat(mapUri(uri, 'vscode-node-modules'));
+					} catch (_e) {
+					}
+				}
 			}
+			return s && new Date(s.mtime);
 		},
 		deleteFile(path: string): void {
 			logVerbose('fs.deleteFile', { path });
@@ -333,13 +457,19 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		base64encode: input => Buffer.from(input).toString('base64'),
 	};
 
-	/** For module resolution only; symlinks aren't supported yet. */
+	// For module resolution only. `node_modules` is also automatically mapped
+	// as if all node_modules-like paths are symlinked.
 	function realpath(path: string): string {
-		// skip paths without .. or ./ or /.
-		if (!path.match(/\.\.|\/\.|\.\//)) {
+		const isNm = looksLikeNodeModules(path) && !path.startsWith('/vscode-global-typings/');
+		// skip paths without .. or ./ or /. And things that look like node_modules
+		if (!isNm && !path.match(/\.\.|\/\.|\.\//)) {
 			return path;
 		}
-		const uri = toResource(path);
+
+		let uri = toResource(path);
+		if (isNm) {
+			uri = mapUri(uri, 'vscode-node-modules');
+		}
 		const out = [uri.scheme];
 		if (uri.authority) { out.push(uri.authority); }
 		for (const part of uri.path.split('/')) {
@@ -363,31 +493,35 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 			throw new Error('not supported');
 		}
 
+		const uri = toResource(path || '.');
+		let entries: [string, FileType][] = [];
+		const files: string[] = [];
+		const directories: string[] = [];
 		try {
-			const uri = toResource(path || '.');
-			const entries = fs.readDirectory(uri);
-			const files: string[] = [];
-			const directories: string[] = [];
-			for (const [entry, type] of entries) {
-				// This is necessary because on some file system node fails to exclude
-				// '.' and '..'. See https://github.com/nodejs/node/issues/4002
-				if (entry === '.' || entry === '..') {
-					continue;
-				}
-
-				if (type === FileType.File) {
-					files.push(entry);
-				}
-				else if (type === FileType.Directory) {
-					directories.push(entry);
-				}
+			entries = fs.readDirectory(uri);
+		} catch (_e) {
+			try {
+				entries = fs.readDirectory(mapUri(uri, 'vscode-node-modules'));
+			} catch (_e) {
 			}
-			files.sort();
-			directories.sort();
-			return { files, directories };
-		} catch (e) {
-			return { files: [], directories: [] };
 		}
+		for (const [entry, type] of entries) {
+			// This is necessary because on some file system node fails to exclude
+			// '.' and '..'. See https://github.com/nodejs/node/issues/4002
+			if (entry === '.' || entry === '..') {
+				continue;
+			}
+
+			if (type === FileType.File) {
+				files.push(entry);
+			}
+			else if (type === FileType.Directory) {
+				directories.push(entry);
+			}
+		}
+		files.sort();
+		directories.sort();
+		return { files, directories };
 	}
 
 	/**
@@ -424,7 +558,7 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 		}
 
 		if (allowRead === 'block') {
-			throw new Error(`Could not read file outside of project root ${filepath}`);
+			throw new AccessOutsideOfRootError(filepath, Array.from(projectRootPaths.keys()));
 		}
 
 		return uri;
@@ -433,6 +567,10 @@ function createServerHost(extensionUri: URI, logger: ts.server.Logger, apiClient
 
 function looksLikeLibDtsPath(filepath: string) {
 	return filepath.startsWith('/lib.') && filepath.endsWith('.d.ts');
+}
+
+function looksLikeNodeModules(filepath: string) {
+	return filepath.includes('/node_modules');
 }
 
 function filePathToResourceUri(filepath: string): URI | undefined {
@@ -469,14 +607,15 @@ class WasmCancellationToken implements ts.server.ServerCancellationToken {
 }
 
 interface StartSessionOptions {
-	globalPlugins: ts.server.SessionOptions['globalPlugins'];
-	pluginProbeLocations: ts.server.SessionOptions['pluginProbeLocations'];
-	allowLocalPluginLoads: ts.server.SessionOptions['allowLocalPluginLoads'];
-	useSingleInferredProject: ts.server.SessionOptions['useSingleInferredProject'];
-	useInferredProjectPerProjectRoot: ts.server.SessionOptions['useInferredProjectPerProjectRoot'];
-	suppressDiagnosticEvents: ts.server.SessionOptions['suppressDiagnosticEvents'];
-	noGetErrOnBackgroundUpdate: ts.server.SessionOptions['noGetErrOnBackgroundUpdate'];
-	serverMode: ts.server.SessionOptions['serverMode'];
+	readonly globalPlugins: ts.server.SessionOptions['globalPlugins'];
+	readonly pluginProbeLocations: ts.server.SessionOptions['pluginProbeLocations'];
+	readonly allowLocalPluginLoads: ts.server.SessionOptions['allowLocalPluginLoads'];
+	readonly useSingleInferredProject: ts.server.SessionOptions['useSingleInferredProject'];
+	readonly useInferredProjectPerProjectRoot: ts.server.SessionOptions['useInferredProjectPerProjectRoot'];
+	readonly suppressDiagnosticEvents: ts.server.SessionOptions['suppressDiagnosticEvents'];
+	readonly noGetErrOnBackgroundUpdate: ts.server.SessionOptions['noGetErrOnBackgroundUpdate'];
+	readonly serverMode: ts.server.SessionOptions['serverMode'];
+	readonly disableAutomaticTypingAcquisition: boolean;
 }
 
 class WorkerSession extends ts.server.Session<{}> {
@@ -486,17 +625,20 @@ class WorkerSession extends ts.server.Session<{}> {
 
 	constructor(
 		host: ts.server.ServerHost,
+		fs: FileSystem | undefined,
 		options: StartSessionOptions,
-		public readonly port: MessagePort,
+		private readonly port: MessagePort,
 		logger: ts.server.Logger,
 		hrtime: ts.server.SessionOptions['hrtime']
 	) {
 		const cancellationToken = new WasmCancellationToken();
+		const typingsInstaller = options.disableAutomaticTypingAcquisition || !fs ? ts.server.nullTypingsInstaller : new WebTypingsInstaller(host, '/vscode-global-typings/ts-nul-authority/projects');
+
 		super({
 			host,
 			cancellationToken,
 			...options,
-			typingsInstaller: ts.server.nullTypingsInstaller, // TODO: Someday!
+			typingsInstaller,
 			byteLength: () => { throw new Error('Not implemented'); }, // Formats the message text in send of Session which is overridden in this class so not needed
 			hrtime,
 			logger,
@@ -631,7 +773,7 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 	logger.info(`Version: 0.0.0`);
 	logger.info(`Arguments: ${args.join(' ')}`);
 	logger.info(`ServerMode: ${serverMode} unknownServerMode: ${unknownServerMode}`);
-	const options = {
+	const options: StartSessionOptions = {
 		globalPlugins: findArgumentStringArray(args, '--globalPlugins'),
 		pluginProbeLocations: findArgumentStringArray(args, '--pluginProbeLocations'),
 		allowLocalPluginLoads: hasArgument(args, '--allowLocalPluginLoads'),
@@ -639,22 +781,27 @@ async function initializeSession(args: string[], extensionUri: URI, ports: { tss
 		useInferredProjectPerProjectRoot: hasArgument(args, '--useInferredProjectPerProjectRoot'),
 		suppressDiagnosticEvents: hasArgument(args, '--suppressDiagnosticEvents'),
 		noGetErrOnBackgroundUpdate: hasArgument(args, '--noGetErrOnBackgroundUpdate'),
-		serverMode
+		serverMode,
+		disableAutomaticTypingAcquisition: hasArgument(args, '--disableAutomaticTypingAcquisition'),
 	};
 
+
 	let sys: ServerHostWithImport;
+	let fs: FileSystem | undefined;
 	if (hasArgument(args, '--enableProjectWideIntelliSenseOnWeb')) {
+		const enabledExperimentalTypeAcquisition = hasArgument(args, '--experimentalTypeAcquisition');
 		const connection = new ClientConnection<Requests>(ports.sync);
 		await connection.serviceReady();
 
-		sys = createServerHost(extensionUri, logger, new ApiClient(connection), args, ports.watcher);
+		const apiClient = new ApiClient(connection);
+		fs = apiClient.vscode.workspace.fileSystem;
+		sys = createServerHost(extensionUri, logger, apiClient, args, ports.watcher, enabledExperimentalTypeAcquisition);
 	} else {
-		sys = createServerHost(extensionUri, logger, undefined, args, ports.watcher);
-
+		sys = createServerHost(extensionUri, logger, undefined, args, ports.watcher, false);
 	}
 
 	setSys(sys);
-	session = new WorkerSession(sys, options, ports.tsserver, logger, hrtime);
+	session = new WorkerSession(sys, fs, options, ports.tsserver, logger, hrtime);
 	session.listen();
 }
 
@@ -703,3 +850,15 @@ const listener = async (e: any) => {
 	console.error(`unexpected message on main channel: ${JSON.stringify(e)}`);
 };
 addEventListener('message', listener);
+
+function mapUri(uri: URI, mappedScheme: string): URI {
+	if (uri.scheme === 'vscode-global-typings') {
+		throw new Error('can\'t map vscode-global-typings');
+	}
+	if (!uri.authority) {
+		uri = uri.with({ authority: 'ts-nul-authority' });
+	}
+	uri = uri.with({ scheme: mappedScheme, path: `/${uri.scheme}/${uri.authority || 'ts-nul-authority'}${uri.path}` });
+
+	return uri;
+}

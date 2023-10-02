@@ -153,7 +153,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
@@ -199,7 +199,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 	private provideDecorations(): void {
 
 		// File working copy decorations
-		this.decorationsService.registerDecorationsProvider(new class extends Disposable implements IDecorationsProvider {
+		const provider = this._register(new class extends Disposable implements IDecorationsProvider {
 
 			readonly label = localize('fileWorkingCopyDecorations', "File Working Copy Decorations");
 
@@ -247,7 +247,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 						color: listErrorForeground,
 						letter: Codicon.lockSmall,
 						strikethrough: true,
-						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
+						tooltip: localize('readonlyAndDeleted', "Deleted, Read-only"),
 					};
 				}
 
@@ -255,7 +255,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				else if (isReadonly) {
 					return {
 						letter: Codicon.lockSmall,
-						tooltip: localize('readonly', "Read Only"),
+						tooltip: localize('readonly', "Read-only"),
 					};
 				}
 
@@ -271,6 +271,8 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				return undefined;
 			}
 		}(this.stored));
+
+		this._register(this.decorationsService.registerDecorationsProvider(provider));
 	}
 
 	//#endregin
@@ -328,6 +330,16 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 
 		if (!target) {
 			return; // user canceled
+		}
+
+		// Ensure target is not marked as readonly and prompt otherwise
+		if (this.filesConfigurationService.isReadonly(target)) {
+			const confirmed = await this.confirmMakeWriteable(target);
+			if (!confirmed) {
+				return;
+			} else {
+				this.filesConfigurationService.updateReadonly(target, false);
+			}
 		}
 
 		// Just save if target is same as working copies own resource
@@ -478,8 +490,19 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'warning',
 			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
+			detail: localize('overwriteIrreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
 			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+		});
+
+		return confirmed;
+	}
+
+	private async confirmMakeWriteable(resource: URI): Promise<boolean> {
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('confirmMakeWriteable', "'{0}' is marked as read-only. Do you want to save anyway?", basename(resource)),
+			detail: localize('confirmMakeWriteableDetail', "Paths can be configured as read-only via settings."),
+			primaryButton: localize({ key: 'makeWriteableButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Save Anyway")
 		});
 
 		return confirmed;

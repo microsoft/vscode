@@ -47,11 +47,22 @@ import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
+export enum ViewPaneShowActions {
+	/** Show the actions when the view is hovered. This is the default behavior. */
+	Default,
+
+	/** Always shows the actions when the view is expanded */
+	WhenExpanded,
+
+	/** Always shows the actions */
+	Always,
+}
+
 export interface IViewPaneOptions extends IPaneOptions {
-	id: string;
-	showActionsAlways?: boolean;
-	titleMenuId?: MenuId;
-	donotForwardArgs?: boolean;
+	readonly id: string;
+	readonly showActions?: ViewPaneShowActions;
+	readonly titleMenuId?: MenuId;
+	readonly donotForwardArgs?: boolean;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -94,14 +105,14 @@ class ViewWelcomeController {
 		return visibleItems.map(v => v.descriptor);
 	}
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private id: string,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
-		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.disposables.add(Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables));
 		this.onDidChangeViewWelcomeContent();
 	}
 
@@ -188,7 +199,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private progressIndicator!: IProgressIndicator;
 
 	private toolbar?: WorkbenchToolBar;
-	private readonly showActionsAlways: boolean = false;
+	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	private titleDescriptionContainer?: HTMLElement;
@@ -219,7 +230,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
-		this.showActionsAlways = !!options.showActionsAlways;
+		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this.scopedContextKeyService.createKey('view', this.id);
@@ -229,7 +240,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
-		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
+		this.viewWelcomeController = this._register(new ViewWelcomeController(this.id, contextKeyService));
 	}
 
 	override get headerVisible(): boolean {
@@ -288,7 +299,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
-		actions.classList.toggle('show', this.showActionsAlways);
+		actions.classList.toggle('show-always', this.showActions === ViewPaneShowActions.Always);
+		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
 		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),
@@ -443,10 +455,12 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeContainer.style.height = `${height}px`;
-		this.viewWelcomeContainer.style.width = `${width}px`;
-		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
-		this.scrollableElement.scanDomNode();
+		if (this.shouldShowWelcome()) {
+			this.viewWelcomeContainer.style.height = `${height}px`;
+			this.viewWelcomeContainer.style.width = `${width}px`;
+			this.viewWelcomeContainer.classList.toggle('wide', width > 640);
+			this.scrollableElement.scanDomNode();
+		}
 	}
 
 	onDidScrollRoot() {

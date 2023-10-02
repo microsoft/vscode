@@ -11,7 +11,7 @@ use std::{
 use super::{
 	code_server::CodeServerArgs,
 	control_server::ServerTermination,
-	dev_tunnels::ActiveTunnel,
+	dev_tunnels::{ActiveTunnel, StatusLock},
 	protocol,
 	shutdown_signal::{ShutdownRequest, ShutdownSignal},
 };
@@ -22,6 +22,7 @@ use crate::{
 	rpc::{RpcCaller, RpcDispatcher},
 	singleton::SingletonServer,
 	state::LauncherPaths,
+	tunnels::code_server::print_listening,
 	update_service::Platform,
 	util::{
 		errors::{AnyError, CodeError},
@@ -47,16 +48,28 @@ pub struct SingletonServerArgs<'a> {
 	pub log_broadcast: &'a BroadcastLogSink,
 }
 
+struct StatusInfo {
+	name: String,
+	lock: StatusLock,
+}
+
 #[derive(Clone)]
 struct SingletonServerContext {
 	log: log::Logger,
 	shutdown_tx: broadcast::Sender<ShutdownSignal>,
 	broadcast_tx: broadcast::Sender<Vec<u8>>,
+	// ugly: a lock in a lock. current_status needs to be provided only
+	// after we set up the tunnel, however the tunnel is created after the
+	// singleton server starts to avoid a gap in singleton availability.
+	// However, this should be safe, as the lock is only used for immediate
+	// data reads (in the `status` method).
+	current_status: Arc<Mutex<Option<StatusInfo>>>,
 }
 
 pub struct RpcServer {
 	fut: JoinHandle<Result<(), CodeError>>,
 	shutdown_broadcast: broadcast::Sender<ShutdownSignal>,
+	current_status: Arc<Mutex<Option<StatusInfo>>>,
 }
 
 pub fn make_singleton_server(
@@ -68,10 +81,12 @@ pub fn make_singleton_server(
 	let (shutdown_broadcast, _) = broadcast::channel(4);
 	let rpc = new_json_rpc();
 
+	let current_status = Arc::new(Mutex::default());
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: log.clone(),
 		shutdown_tx: shutdown_broadcast.clone(),
 		broadcast_tx: log_broadcast.get_brocaster(),
+		current_status: current_status.clone(),
 	});
 
 	rpc.register_sync(
@@ -85,8 +100,16 @@ pub fn make_singleton_server(
 
 	rpc.register_sync(
 		protocol::singleton::METHOD_STATUS,
-		|_: protocol::EmptyObject, _| {
-			Ok(protocol::singleton::Status { ok: true }) // mostly placeholder
+		|_: protocol::EmptyObject, c| {
+			Ok(c.current_status
+				.lock()
+				.unwrap()
+				.as_ref()
+				.map(|s| protocol::singleton::StatusWithTunnelName {
+					name: Some(s.name.clone()),
+					status: s.lock.read(),
+				})
+				.unwrap_or_default())
 		},
 	);
 
@@ -114,6 +137,7 @@ pub fn make_singleton_server(
 	});
 	RpcServer {
 		shutdown_broadcast,
+		current_status,
 		fut,
 	}
 }
@@ -125,6 +149,15 @@ pub async fn start_singleton_server<'a>(
 		ShutdownRequest::Derived(Box::new(args.server.shutdown_broadcast.subscribe())),
 		ShutdownRequest::Derived(Box::new(args.shutdown.clone())),
 	]);
+
+	{
+		print_listening(&args.log, &args.tunnel.name);
+		let mut status = args.server.current_status.lock().unwrap();
+		*status = Some(StatusInfo {
+			name: args.tunnel.name.clone(),
+			lock: args.tunnel.status(),
+		})
+	}
 
 	let serve_fut = super::serve(
 		&args.log,
@@ -175,14 +208,6 @@ async fn serve_singleton_rpc<C: Clone + Send + Sync + 'static>(
 	}
 }
 
-const CONTROL_INSTRUCTIONS: &str =
-	"Connected to an existing tunnel process running on this machine. You can press:
-
-- Ctrl+C to detach
-- \"x\" + Enter to stop the tunnel and exit
-- \"r\" + Enter to restart the tunnel
-";
-
 /// Log sink that can broadcast and replay log events. Used for transmitting
 /// logs from the singleton to all clients. This should be created and injected
 /// into other services, like the tunnel, before `start_singleton_server`
@@ -208,7 +233,7 @@ impl BroadcastLogSink {
 		}
 	}
 
-	fn get_brocaster(&self) -> broadcast::Sender<Vec<u8>> {
+	pub fn get_brocaster(&self) -> broadcast::Sender<Vec<u8>> {
 		self.tx.clone()
 	}
 
@@ -223,12 +248,8 @@ impl BroadcastLogSink {
 
 		let _ = log_replay_tx.send(RpcCaller::serialize_notify(
 			&JsonRpcSerializer {},
-			protocol::singleton::METHOD_LOG,
-			protocol::singleton::LogMessage {
-				level: None,
-				prefix: "",
-				message: CONTROL_INSTRUCTIONS,
-			},
+			protocol::singleton::METHOD_LOG_REPLY_DONE,
+			protocol::EmptyObject {},
 		));
 
 		ConcatReceivable::new(log_replay_rx, self.tx.subscribe())

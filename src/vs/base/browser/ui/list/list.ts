@@ -5,7 +5,9 @@
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
@@ -29,8 +31,12 @@ export interface IListEvent<T> {
 	readonly browserEvent?: UIEvent;
 }
 
+export interface IListBrowserMouseEvent extends MouseEvent {
+	isHandledByList?: boolean;
+}
+
 export interface IListMouseEvent<T> {
-	readonly browserEvent: MouseEvent;
+	readonly browserEvent: IListBrowserMouseEvent;
 	readonly element: T | undefined;
 	readonly index: number | undefined;
 }
@@ -57,7 +63,7 @@ export interface IListContextMenuEvent<T> {
 	readonly browserEvent: UIEvent;
 	readonly element: T | undefined;
 	readonly index: number | undefined;
-	readonly anchor: HTMLElement | { readonly x: number; readonly y: number };
+	readonly anchor: HTMLElement | IMouseEvent;
 }
 
 export interface IIdentityProvider<T> {
@@ -94,7 +100,11 @@ export const ListDragOverReactions = {
 	accept(): IListDragOverReaction { return { accept: true }; },
 };
 
-export interface IListDragAndDrop<T> {
+/**
+ * Warning: Once passed to a list, that list takes up
+ * the responsibility of disposing it.
+ */
+export interface IListDragAndDrop<T> extends IDisposable {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;

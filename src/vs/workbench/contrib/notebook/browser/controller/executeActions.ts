@@ -5,26 +5,30 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { isEqual } from 'vs/base/common/resources';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorsOrder } from 'vs/workbench/common/editor';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind, CellUri, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Schemas } from 'vs/base/common/network';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -86,6 +90,25 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
 	}
+
+	let foundEditor: ICodeEditor | undefined = undefined;
+	for (const [, codeEditor] of context.notebookEditor.codeEditors) {
+		if (isEqual(codeEditor.getModel()?.uri, (context.cell ?? context.selectedCells?.[0])?.uri)) {
+			foundEditor = codeEditor;
+			break;
+		}
+	}
+
+	if (!foundEditor) {
+		return;
+	}
+
+	const controller = InlineChatController.get(foundEditor);
+	if (!controller) {
+		return;
+	}
+
+	controller.createSnapshot();
 }
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
@@ -124,7 +147,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
 				},
@@ -134,7 +157,11 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.or(
+							NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
+							NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated(),
+						),
+						ContextKeyExpr.and(NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated())?.negate(),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
@@ -201,7 +228,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		}
 
-		return runCell(editorGroupsService, context);
+		await runCell(editorGroupsService, context);
 	}
 });
 
@@ -411,7 +438,10 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			precondition: ContextKeyExpr.or(executeThisCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
-				when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_CELL_LIST_FOCUSED,
+					CTX_INLINE_CHAT_FOCUSED.negate()
+				),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},
@@ -426,29 +456,39 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 		}
 		const languageService = accessor.get(ILanguageService);
 
+		const config = accessor.get(IConfigurationService);
+		const scrollBehavior = config.getValue(NotebookSetting.scrollToRevealCell);
+		let focusOptions: IFocusNotebookCellOptions;
+		if (scrollBehavior === 'none') {
+			focusOptions = { skipReveal: true };
+		} else {
+			focusOptions = {
+				revealBehavior: scrollBehavior === 'fullCell' ? ScrollToRevealBehavior.fullCell : ScrollToRevealBehavior.firstLine
+			};
+		}
+
 		if (context.cell.cellKind === CellKind.Markup) {
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_SELECT_BELOW);
 			if (nextCell) {
-				await context.notebookEditor.focusNotebookCell(nextCell, 'container');
+				await context.notebookEditor.focusNotebookCell(nextCell, 'container', focusOptions);
 			} else {
 				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Markup, 'below');
 
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+					await context.notebookEditor.focusNotebookCell(newCell, 'editor', focusOptions);
 				}
 			}
 			return;
 		} else {
-			// Try to select below, fall back on inserting
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			if (nextCell) {
-				await context.notebookEditor.focusNotebookCell(nextCell, 'container');
+				await context.notebookEditor.focusNotebookCell(nextCell, 'container', focusOptions);
 			} else {
 				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Code, 'below');
 
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+					await context.notebookEditor.focusNotebookCell(newCell, 'editor', focusOptions);
 				}
 			}
 
@@ -516,7 +556,7 @@ registerAction2(class CancelAllNotebook extends CancelNotebook {
 					group: 'navigation',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
@@ -526,7 +566,7 @@ registerAction2(class CancelAllNotebook extends CancelNotebook {
 					order: -1,
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
@@ -544,6 +584,10 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 				value: localize('notebookActions.interruptNotebook', "Interrupt"),
 				original: 'Interrupt'
 			},
+			precondition: ContextKeyExpr.and(
+				NOTEBOOK_HAS_SOMETHING_RUNNING,
+				NOTEBOOK_INTERRUPTIBLE_KERNEL
+			),
 			icon: icons.stopIcon,
 			menu: [
 				{
@@ -552,7 +596,7 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 					group: 'navigation',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
@@ -562,10 +606,14 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 					order: -1,
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
+				},
+				{
+					id: MenuId.InteractiveToolbar,
+					group: 'navigation/execute'
 				}
 			]
 		});
@@ -600,13 +648,13 @@ registerAction2(class RevealRunningCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 20
 				},
 				{
 					id: MenuId.InteractiveToolbar,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
-						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+						ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive')
 					),
 					group: 'navigation',
 					order: 10
@@ -677,7 +725,7 @@ registerAction2(class RevealLastFailedCellAction extends NotebookAction {
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation/execute',
-					order: 0
+					order: 20
 				},
 			],
 			icon: icons.errorStateIcon,

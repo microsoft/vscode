@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join, resolve } from 'vs/base/common/path';
-import { isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { realpath } from 'vs/base/node/extpath';
@@ -26,11 +26,10 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
@@ -42,7 +41,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IStateService } from 'vs/platform/state/node/state';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -53,7 +51,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -61,7 +58,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IStateService private readonly stateService: IStateService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
@@ -437,37 +433,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		if (isLinuxSnap) {
-			this.safeSnapOpenExternal(url);
-		} else {
-			shell.openExternal(url);
-		}
+		this.environmentMainService.unsetSnapExportedVariables();
+		shell.openExternal(url);
+		this.environmentMainService.restoreSnapExportedVariables();
 
 		return true;
-	}
-
-	private safeSnapOpenExternal(url: string): void {
-
-		// Remove some environment variables before opening to avoid issues...
-		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
-		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
-		const gtkIMModuleFile = process.env['GTK_IM_MODULE_FILE'];
-		const gdkBackend = process.env['GDK_BACKEND'];
-		const gioModuleDir = process.env['GIO_MODULE_DIR'];
-		delete process.env['GDK_PIXBUF_MODULE_FILE'];
-		delete process.env['GDK_PIXBUF_MODULEDIR'];
-		delete process.env['GTK_IM_MODULE_FILE'];
-		delete process.env['GDK_BACKEND'];
-		delete process.env['GIO_MODULE_DIR'];
-
-		shell.openExternal(url);
-
-		// ...but restore them after
-		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
-		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
-		process.env['GTK_IM_MODULE_FILE'] = gtkIMModuleFile;
-		process.env['GDK_BACKEND'] = gdkBackend;
-		process.env['GIO_MODULE_DIR'] = gioModuleDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
@@ -479,7 +449,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (isWindows) {
 			isAdmin = (await import('native-is-elevated'))();
 		} else {
-			isAdmin = process.getuid() === 0;
+			isAdmin = process.getuid?.() === 0;
 		}
 
 		return isAdmin;
@@ -517,6 +487,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			});
 		});
+	}
+
+	async isRunningUnderARM64Translation(): Promise<boolean> {
+		if (isLinux || isWindows) {
+			return false;
+		}
+		return app.runningUnderARM64Translation;
 	}
 
 	@memoize
@@ -673,7 +650,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.setReady();
 	}
 
-	async relaunch(windowId: number | undefined, options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
+	async relaunch(windowId: number | undefined, options?: IRelaunchOptions): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
@@ -772,18 +749,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
-	}
-
-	async enableSandbox(windowId: number | undefined, enabled: boolean): Promise<void> {
-		if (enabled) {
-			this.stateService.setItem('window.experimental.useSandbox', true);
-		} else {
-			this.stateService.removeItem('window.experimental.useSandbox');
-		}
-	}
-
-	async toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcess.toggle();
 	}
 
 	//#endregion

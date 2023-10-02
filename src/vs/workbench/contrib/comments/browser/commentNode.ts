@@ -16,7 +16,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -45,6 +45,16 @@ import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { DomEmitter } from 'vs/base/browser/event';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { FileAccess } from 'vs/base/common/network';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+
+class CommentsActionRunner extends ActionRunner {
+	protected override async runAction(action: IAction, context: any[]): Promise<void> {
+		await action.run(...context);
+	}
+}
 
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
@@ -62,6 +72,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditor: SimpleCommentEditor | null = null;
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
+	private _editorHeight = MIN_EDITOR_HEIGHT;
+
 	private _isPendingLabel!: HTMLElement;
 	private _timestamp: HTMLElement | undefined;
 	private _timestampWidget: TimestampWidget | undefined;
@@ -86,6 +98,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
+		private readonly parentEditor: LayoutableEditor,
 		private commentThread: languages.CommentThread<T>,
 		public comment: languages.Comment,
 		private pendingEdit: string | undefined,
@@ -100,7 +113,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IAccessibilityService private accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -116,7 +130,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
 		if (comment.userIconPath) {
 			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
-			img.src = comment.userIconPath.toString();
+			img.src = FileAccess.uriToBrowserUri(URI.revive(comment.userIconPath)).toString(true);
 			img.onerror = _ => img.remove();
 		}
 		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));
@@ -124,6 +138,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this.createHeader(this._commentDetailsContainer);
 		this._body = document.createElement(`div`);
 		this._body.classList.add('comment-body', MOUSE_CURSOR_TEXT_CSS_CLASS_NAME);
+		if (configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.maxHeight !== false) {
+			this._body.classList.add('comment-body-max-height');
+		}
 
 		this.createScroll(this._commentDetailsContainer, this._body);
 		this.updateCommentBody(this.comment.body);
@@ -144,6 +161,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		if (pendingEdit) {
 			this.switchToEditMode();
 		}
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.toggleToolbarHidden(true);
+		}));
 	}
 
 	private createScroll(container: HTMLElement, body: HTMLElement) {
@@ -154,12 +174,15 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
-			vertical: ScrollbarVisibility.Hidden
+			vertical: ScrollbarVisibility.Visible
 		}, this._scrollable));
 
 		this._register(this._scrollableElement.onScroll(e => {
 			if (e.scrollLeftChanged) {
 				body.scrollLeft = e.scrollLeft;
+			}
+			if (e.scrollTopChanged) {
+				body.scrollTop = e.scrollTop;
 			}
 		}));
 
@@ -167,9 +190,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._register(onDidScrollViewContainer(_ => {
 			const position = this._scrollableElement.getScrollPosition();
 			const scrollLeft = Math.abs(body.scrollLeft - position.scrollLeft) <= 1 ? undefined : body.scrollLeft;
+			const scrollTop = Math.abs(body.scrollTop - position.scrollTop) <= 1 ? undefined : body.scrollTop;
 
-			if (scrollLeft !== undefined) {
-				this._scrollableElement.setScrollPosition({ scrollLeft });
+			if (scrollLeft !== undefined || scrollTop !== undefined) {
+				this._scrollableElement.setScrollPosition({ scrollLeft, scrollTop });
 			}
 		}));
 
@@ -230,8 +254,17 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._isPendingLabel.innerText = '';
 		}
 
-		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions.hidden'));
+		this._actionsToolbarContainer = dom.append(header, dom.$('.comment-actions'));
+		this.toggleToolbarHidden(true);
 		this.createActionsToolbar();
+	}
+
+	private toggleToolbarHidden(hidden: boolean) {
+		if (hidden && !this.accessibilityService.isScreenReaderOptimized()) {
+			this._actionsToolbarContainer.classList.add('hidden');
+		} else {
+			this._actionsToolbarContainer.classList.remove('hidden');
+		}
 	}
 
 	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
@@ -244,11 +277,16 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private get commentNodeContext() {
-		return {
+		return [{
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
 			$mid: MarshalledId.CommentNode
-		};
+		},
+		{
+			commentControlHandle: this.commentThread.controllerHandle,
+			commentThreadHandle: this.commentThread.commentThreadHandle,
+			$mid: MarshalledId.CommentThread
+		}];
 	}
 
 	private createToolbar() {
@@ -273,6 +311,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		});
 
 		this.toolbar.context = this.commentNodeContext;
+		this.toolbar.actionRunner = new CommentsActionRunner();
 
 		this.registerActionBarListeners(this._actionsToolbarContainer);
 		this._register(this.toolbar);
@@ -331,7 +370,8 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	async submitComment(): Promise<void> {
 		if (this._commentEditor && this._commentFormActions) {
-			this._commentFormActions.triggerDefaultAction();
+			await this._commentFormActions.triggerDefaultAction();
+			this.pendingEdit = undefined;
 		}
 	}
 
@@ -443,16 +483,16 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor.setModel(this._commentEditorModel);
 		this._commentEditor.setValue(this.pendingEdit ?? this.commentBodyValue);
 		this.pendingEdit = undefined;
-		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
+		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 		this._commentEditor.focus();
 
 		dom.scheduleAtNextAnimationFrame(() => {
-			this._commentEditor!.layout({ width: container.clientWidth - 14, height: 90 });
+			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
 		});
 
 		const lastLine = this._commentEditorModel.getLineCount();
-		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
+		const lastColumn = this._commentEditorModel.getLineLength(lastLine) + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
 		const commentThread = this.commentThread;
@@ -482,8 +522,28 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		}));
 
+		this.calculateEditorHeight();
+
+		this._register((this._commentEditorModel.onDidChangeContent(() => {
+			if (this._commentEditor && this.calculateEditorHeight()) {
+				this._commentEditor.layout({ height: this._editorHeight, width: this._commentEditor.getLayoutInfo().width });
+				this._commentEditor.render(true);
+			}
+		})));
+
 		this._register(this._commentEditor);
 		this._register(this._commentEditorModel);
+	}
+
+	private calculateEditorHeight(): boolean {
+		if (this._commentEditor) {
+			const newEditorHeight = calculateEditorHeight(this.parentEditor, this._commentEditor, this._editorHeight);
+			if (newEditorHeight !== this._editorHeight) {
+				this._editorHeight = newEditorHeight;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getPendingEdit(): string | undefined {
@@ -514,10 +574,12 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	layout() {
-		this._commentEditor?.layout();
+		this._commentEditor?.layout({ width: this._commentEditor.getLayoutInfo().width, height: this._editorHeight });
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
-		this._scrollableElement.setScrollDimensions({ width, scrollWidth });
+		const scrollHeight = this._body.scrollHeight;
+		const height = dom.getContentHeight(this._body) + 4;
+		this._scrollableElement.setScrollDimensions({ width, scrollWidth, height, scrollHeight });
 	}
 
 	public switchToEditMode() {
@@ -593,7 +655,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	setFocus(focused: boolean, visible: boolean = false) {
 		if (focused) {
 			this._domNode.focus();
-			this._actionsToolbarContainer.classList.remove('hidden');
+			this.toggleToolbarHidden(false);
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
 			if (this.comment.mode === languages.CommentMode.Editing) {
@@ -601,7 +663,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			}
 		} else {
 			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
-				this._actionsToolbarContainer.classList.add('hidden');
+				this.toggleToolbarHidden(true);
 				this._domNode.tabIndex = -1;
 			}
 			this._actionsToolbarContainer.classList.remove('tabfocused');
@@ -610,12 +672,12 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private registerActionBarListeners(actionsContainer: HTMLElement): void {
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', () => {
-			actionsContainer.classList.remove('hidden');
+			this.toggleToolbarHidden(false);
 			actionsContainer.classList.add('mouseover');
 		}));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseleave', () => {
 			if (actionsContainer.classList.contains('mouseover') && !actionsContainer.classList.contains('tabfocused')) {
-				actionsContainer.classList.add('hidden');
+				this.toggleToolbarHidden(true);
 			}
 			actionsContainer.classList.remove('mouseover');
 		}));
@@ -667,12 +729,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
+		const event = new StandardMouseEvent(e);
+
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e,
+			getAnchor: () => event,
 			menuId: MenuId.CommentThreadCommentContext,
 			menuActionOptions: { shouldForwardArgs: true },
 			contextKeyService: this._contextKeyService,
-			actionRunner: new ActionRunner(),
+			actionRunner: new CommentsActionRunner(),
 			getActionsContext: () => {
 				return this.commentNodeContext;
 			},

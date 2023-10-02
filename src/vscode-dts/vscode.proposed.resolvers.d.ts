@@ -16,6 +16,13 @@ declare module 'vscode' {
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
+		/**
+		 * Exec server from a recursively-resolved remote authority. If the
+		 * remote authority includes nested authorities delimited by `@`, it is
+		 * resolved from outer to inner authorities with ExecServer passed down
+		 * to each resolver in the chain.
+		 */
+		execServer?: ExecServer;
 	}
 
 	export class ResolvedAuthority {
@@ -24,6 +31,23 @@ declare module 'vscode' {
 		readonly connectionToken: string | undefined;
 
 		constructor(host: string, port: number, connectionToken?: string);
+	}
+
+	export interface ManagedMessagePassing {
+		onDidReceiveMessage: Event<Uint8Array>;
+		onDidClose: Event<Error | undefined>;
+		onDidEnd: Event<void>;
+
+		send: (data: Uint8Array) => void;
+		end: () => void;
+		drain?: () => Thenable<void>;
+	}
+
+	export class ManagedResolvedAuthority {
+		readonly makeConnection: () => Thenable<ManagedMessagePassing>;
+		readonly connectionToken: string | undefined;
+
+		constructor(makeConnection: () => Thenable<ManagedMessagePassing>, connectionToken?: string);
 	}
 
 	export interface ResolvedOptions {
@@ -41,6 +65,13 @@ declare module 'vscode' {
 		themeIcon: string;
 		id: string;
 		label: string;
+	}
+
+	export namespace env {
+		/** Quality of the application. May be undefined if running from sources. */
+		export const appQuality: string | undefined;
+		/** Commit of the application. May be undefined if running from sources. */
+		export const appCommit: string | undefined;
 	}
 
 	interface TunnelOptions {
@@ -109,13 +140,138 @@ declare module 'vscode' {
 		Output = 2
 	}
 
-	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
+	export type ResolverResult = (ResolvedAuthority | ManagedResolvedAuthority) & ResolvedOptions & TunnelInformation;
 
 	export class RemoteAuthorityResolverError extends Error {
 		static NotAvailable(message?: string, handled?: boolean): RemoteAuthorityResolverError;
 		static TemporarilyNotAvailable(message?: string): RemoteAuthorityResolverError;
 
 		constructor(message?: string);
+	}
+
+	/**
+	 * An ExecServer allows spawning processes on a remote machine. An ExecServer is provided by resolvers. It can be
+	 * acquired by `workspace.getRemoteExecServer` or from the context when in a resolver (`RemoteAuthorityResolverContext.execServer`).
+	 */
+	export interface ExecServer {
+		/**
+		 * Spawns a given subprocess with the given command and arguments.
+		 * @param command The command to execute.
+		 * @param args The arguments to pass to the command.
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that gives access to the process' stdin, stdout and stderr streams, as well as the process' exit code.
+		 */
+		spawn(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedCommand>;
+
+		/**
+		 * Spawns an connector that allows to start a remote server. It is assumed the command starts a Code CLI. Additional
+		 * arguments will be passed to the connector.
+		 * @param command The command to execute. It is assumed the command spawns a Code CLI executable.
+		 * @param args The arguments to pass to the connector
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that gives access to the spawned {@link RemoteServerConnector}. It also provides a stream to which standard
+		 * log messages are written.
+		 */
+		spawnRemoteServerConnector?(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<RemoteServerConnector>;
+
+		/**
+		 * Downloads the CLI executable of the desired platform and quality and pipes it to the
+		 * provided process' stdin.
+		 * @param buildTarget The CLI build target to download.
+		 * @param command The command to execute. The downloaded bits will be piped to the command's stdin.
+		 * @param args The arguments to pass to the command.
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that resolves when the process exits with a {@link ProcessExit} object.
+		 */
+		downloadCliExecutable?(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
+
+		/**
+		 * Gets the environment where the exec server is running.
+		 * @returns A promise that resolves to an {@link ExecEnvironment} object.
+		 */
+		env(): Thenable<ExecEnvironment>;
+
+		/**
+		 * Access to the file system of the remote.
+		 */
+		readonly fs: RemoteFileSystem;
+	}
+
+	export type ProcessEnv = Record<string, string>;
+
+	export interface ExecServerSpawnOptions {
+		readonly env?: ProcessEnv;
+		readonly cwd?: string;
+	}
+
+	export interface SpawnedCommand {
+		readonly stdin: WriteStream;
+		readonly stdout: ReadStream;
+		readonly stderr: ReadStream;
+		readonly onExit: Thenable<ProcessExit>;
+	}
+
+	export interface RemoteServerConnector {
+		readonly logs: ReadStream;
+		readonly onExit: Thenable<ProcessExit>;
+		/**
+		 * Connect to a new code server, returning a stream that can be used to communicate with it.
+		 * @param params The parameters for the code server.
+		 * @returns A promise that resolves to a {@link ManagedMessagePassing} object that can be used with a resolver
+		 */
+		connect(params: ServeParams): Thenable<ManagedMessagePassing>;
+	}
+
+	export interface ProcessExit {
+		readonly status: number;
+		readonly message?: string;
+	}
+
+	export interface ReadStream {
+		readonly onDidReceiveMessage: Event<Uint8Array>;
+		readonly onEnd: Thenable<void>;
+	}
+
+	export interface WriteStream {
+		write(data: Uint8Array): void;
+		end(): void;
+	}
+
+	export interface ServeParams {
+		readonly socketId: number;
+		readonly commit?: string;
+		readonly quality: string;
+		readonly extensions: string[];
+		/** Whether server traffic should be compressed. */
+		readonly compress?: boolean;
+		/** Optional explicit connection token for the server. */
+		readonly connectionToken?: string;
+	}
+
+	export interface CliBuild {
+		readonly quality: string;
+		/** 'LinuxAlpineX64' | 'LinuxX64' | 'LinuxARM64' | 'LinuxARM32' | 'DarwinX64' | 'DarwinARM64' | 'WindowsX64' | 'WindowsX86' | 'WindowsARM64' */
+		readonly buildTarget: string;
+		readonly commit: string;
+	}
+
+	export interface ExecEnvironment {
+		readonly env: ProcessEnv;
+		/** 'darwin' | 'linux' | 'win32' */
+		readonly osPlatform: string;
+		/** uname.version or windows version number, undefined if it could not be read. */
+		readonly osRelease?: string;
+	}
+
+	export interface RemoteFileSystem {
+		/**
+		 * Retrieve metadata about a file.
+		 *
+		 * @param path The path of the file to retrieve metadata about.
+		 * @returns The file metadata about the file.
+		 * @throws an exception when `path` doesn't exist.
+		 */
+		stat(path: string): Thenable<FileStat>;
 	}
 
 	export interface RemoteAuthorityResolver {
@@ -129,6 +285,15 @@ declare module 'vscode' {
 		 * @param context A context indicating if this is the first call or a subsequent call.
 		 */
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+
+		/**
+		 * Resolves an exec server interface for the authority. Called if an
+		 * authority is a midpoint in a transit to the desired remote.
+		 *
+		 * @param authority The authority part of the current opened `vscode-remote://` URI.
+		 * @returns The exec server interface, as defined in a contract between extensions.
+		 */
+		resolveExecServer?(remoteAuthority: string, context: RemoteAuthorityResolverContext): ExecServer | Thenable<ExecServer>;
 
 		/**
 		 * Get the canonical URI (if applicable) for a `vscode-remote://` URI.
@@ -173,7 +338,7 @@ declare module 'vscode' {
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
 		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
-		// eslint-disable-next-line local/vscode-dts-literal-or-types
+		// eslint-disable-next-line local/vscode-dts-literal-or-types, local/vscode-dts-string-type-literals
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
@@ -186,6 +351,7 @@ declare module 'vscode' {
 	export namespace workspace {
 		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
 		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
+		export function getRemoteExecServer(authority: string): Thenable<ExecServer | undefined>;
 	}
 
 	export namespace env {
