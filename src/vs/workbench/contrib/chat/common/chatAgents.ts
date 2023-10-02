@@ -100,6 +100,7 @@ export interface IChatAgentService {
 	getAgents(): Array<IChatAgentData>;
 	getAgent(id: string): IChatAgentData | undefined;
 	hasAgent(id: string): boolean;
+	updateAgent(id: string, updateMetadata: { subCommands: IChatAgentMetadata['subCommands'] }): void;
 }
 
 type Tuple = { data: IChatAgentData; callback?: IChatAgentCallback };
@@ -152,6 +153,16 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			this.registerAgentData(data),
 			this.registerAgentCallback(data.id, callback)
 		);
+	}
+
+	updateAgent(id: string, updateMetadata: { subCommands: IChatAgentMetadata['subCommands'] }): void {
+		const data = this._agents.get(id);
+		if (!data) {
+			throw new Error(`No agent with id ${id} registered`);
+		}
+
+		data.data.metadata.subCommands = updateMetadata.subCommands;
+		this._onDidChangeAgents.fire();
 	}
 
 	getAgents(): Array<IChatAgentData> {

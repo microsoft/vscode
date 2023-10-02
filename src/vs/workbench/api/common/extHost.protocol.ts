@@ -1157,6 +1157,7 @@ export interface ExtHostChatSlashCommandsShape {
 
 export interface MainThreadChatAgentsShape extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void;
+	$updateAgent(handle: number, metadataUpdate: { subCommands: IChatAgentMetadata['subCommands'] }): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
 }

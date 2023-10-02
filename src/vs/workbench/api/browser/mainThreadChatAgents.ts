@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from 'vs/base/common/lifecycle';
+import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape, ExtHostContext, MainContext, MainThreadChatAgentsShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -13,9 +13,9 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 
 
 @extHostNamedCustomer(MainContext.MainThreadChatAgents)
-export class MainThreadChatAgents implements MainThreadChatAgentsShape {
+export class MainThreadChatAgents implements MainThreadChatAgentsShape, IDisposable {
 
-	private readonly _agents = new DisposableMap<number>;
+	private readonly _agents = new DisposableMap<number, { name: string; dispose: () => void }>;
 	private readonly _pendingProgress = new Map<number, IProgress<IChatSlashFragment>>();
 	private readonly _proxy: ExtHostChatAgentsShape;
 
@@ -52,7 +52,16 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 				this._pendingProgress.delete(requestId);
 			}
 		});
-		this._agents.set(handle, d);
+		this._agents.set(handle, { name, dispose: d.dispose });
+	}
+
+	$updateAgent(handle: number, metadataUpdate: { subCommands: IChatAgentMetadata['subCommands'] }): void {
+		const data = this._agents.get(handle);
+		if (!data) {
+			throw new Error(`No agent with handle ${handle} registered`);
+		}
+
+		this._chatAgentService.updateAgent(data.name, metadataUpdate);
 	}
 
 	async $handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void> {

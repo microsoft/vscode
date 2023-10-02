@@ -5,14 +5,12 @@
 
 import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape, IMainContext, MainContext, MainThreadChatAgentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { ChatMessageRole } from 'vs/workbench/api/common/extHostTypes';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import type * as vscode from 'vscode';
 
@@ -20,7 +18,7 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 
 	private static _idPool = 0;
 
-	private readonly _agents = new Map<number, { extension: ExtensionIdentifier; agent: vscode.ChatAgent }>();
+	private readonly _agents = new Map<number, ExtHostChatAgent>();
 	private readonly _proxy: MainThreadChatAgentsShape;
 
 	constructor(
@@ -31,20 +29,18 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents);
 	}
 
-	registerAgent(extension: ExtensionIdentifier, name: string, agent: vscode.ChatAgent, metadata: vscode.ChatAgentMetadata): IDisposable {
+	createChatAgent(extension: ExtensionIdentifier, id: string, description: string, handler: vscode.ChatAgentHandler): vscode.ChatAgent {
 		const handle = ExtHostChatAgents._idPool++;
-		this._agents.set(handle, { extension, agent });
-		this._proxy.$registerAgent(handle, name, metadata);
+		const agent = new ExtHostChatAgent(extension, this._proxy, handle, handler);
+		this._agents.set(handle, agent);
 
-		return toDisposable(() => {
-			this._proxy.$unregisterAgent(handle);
-			this._agents.delete(handle);
-		});
+		this._proxy.$registerAgent(handle, id, { description, subCommands: [] });
+		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, requestId: number, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any> {
-		const data = this._agents.get(handle);
-		if (!data) {
+	async $invokeAgent(handle: number, requestId: number, command: string, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
 			this._logService.warn(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 			return;
 		}
@@ -59,12 +55,13 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 		const commandExecution = new DeferredPromise<void>();
 		token.onCancellationRequested(() => commandExecution.complete());
 		setTimeout(() => commandExecution.complete(), 3 * 1000);
-		this._extHostChatProvider.allowListExtensionWhile(data.extension, commandExecution.p);
+		this._extHostChatProvider.allowListExtensionWhile(agent.extension, commandExecution.p);
 
-		const task = data.agent(
-			{ role: ChatMessageRole.User, content: prompt },
+		const slashCommand = agent.slashCommands.find(s => s.name === command);
+		const task = slashCommand?.invoke(
+			null!,
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
-			new Progress<vscode.ChatAgentResponse>(p => {
+			new Progress<vscode.SlashResponse>(p => {
 				throwIfDone();
 				this._proxy.$handleProgressChunk(requestId, { content: isInteractiveProgressFileTree(p.message) ? p.message : p.message.value });
 			}),
@@ -88,4 +85,38 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 
 function isInteractiveProgressFileTree(thing: unknown): thing is vscode.InteractiveProgressFileTree {
 	return !!thing && typeof thing === 'object' && 'treeData' in thing;
+}
+
+class ExtHostChatAgent {
+	private _slashCommands: vscode.SlashCommand[] = [];
+
+	constructor(
+		public readonly extension: ExtensionIdentifier,
+		private readonly _proxy: MainThreadChatAgentsShape,
+		private readonly _handle: number,
+		private readonly _callback: vscode.ChatAgentHandler
+	) { }
+
+	get slashCommands(): ReadonlyArray<vscode.SlashCommand> {
+		return this._slashCommands;
+	}
+
+	get apiAgent(): vscode.ChatAgent {
+		const that = this;
+		return {
+			// onDidPerformAction
+			get slashCommands() { return that._slashCommands; },
+			set slashCommands(v) {
+				that._slashCommands = v;
+				that._proxy.$updateAgent(that._handle, { subCommands: v.map(c => ({ name: c.name, description: c.metadata.description })) });
+			},
+			dispose() {
+				that._proxy.$unregisterAgent(that._handle);
+			},
+		};
+	}
+
+	invoke(request: vscode.InteractiveRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken) {
+		this._callback(request, context, progress, token);
+	}
 }

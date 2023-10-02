@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface SlashCommandContext {
+	export interface ChatAgentContext {
 
 		// messages so far
 		history: ChatMessage[];
@@ -38,7 +38,7 @@ declare module 'vscode' {
 
 	export interface SlashCommand {
 
-		(prompt: ChatMessage, context: SlashCommandContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult | void>;
+		(prompt: ChatMessage, context: ChatAgentContext, progress: Progress<SlashResponse>, token: CancellationToken): Thenable<SlashResult | void>;
 	}
 
 	export namespace chat {

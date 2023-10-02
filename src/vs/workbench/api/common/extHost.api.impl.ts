@@ -1363,11 +1363,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
-			registerAgent(name: string, agent: vscode.ChatAgent, metadata: vscode.ChatAgentMetadata) {
+			createChatAgent(id: string, description: string, handler: vscode.ChatAgentHandler) {
 				checkProposedApiEnabled(extension, 'chatAgents');
-				return extHostChatAgents.registerAgent(extension.identifier, name, agent, metadata);
+				return extHostChatAgents.createChatAgent(extension.identifier, id, description, handler);
 			}
-
 		};
 
 		return <typeof vscode>{
