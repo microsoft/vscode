@@ -48,6 +48,9 @@ jobs:
       - name: Install libkrb5-dev
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: sudo apt install -y libkrb5-dev
+      - name: Install node-gyp
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: npm i -g node-gyp
       - name: Execute yarn
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
