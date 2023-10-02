@@ -255,10 +255,10 @@ export class ViewLine implements IVisibleLine {
 		return true;
 	}
 
-	public layoutLine(lineNumber: number, deltaTop: number): void {
+	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
-			this._renderedViewLine.domNode.setHeight(this._options.lineHeight);
+			this._renderedViewLine.domNode.setHeight(lineHeight);
 		}
 	}
 

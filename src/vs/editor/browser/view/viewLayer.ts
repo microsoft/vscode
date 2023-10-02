@@ -27,7 +27,7 @@ export interface IVisibleLine extends ILine {
 	/**
 	 * Layout the line.
 	 */
-	layoutLine(lineNumber: number, deltaTop: number): void;
+	layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void;
 }
 
 export interface ILine {
@@ -460,14 +460,15 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	}
 
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
-		// XXX This needs to be restored and adjusted.
-		// const rendLineNumberStart = ctx.rendLineNumberStart;
-		// const lines = ctx.lines;
+		const rendLineNumberStart = ctx.rendLineNumberStart;
+		const lines = ctx.lines;
+		const safeDeltaTOp = deltaTop.length - 1;
 
-		// for (let i = startIndex; i <= endIndex; i++) {
-		// 	const lineNumber = rendLineNumberStart + i;
-		// 	lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
-		// }
+		for (let i = startIndex; i <= endIndex; i++) {
+			const lineNumber = rendLineNumberStart + i;
+			const lineHeight = i < safeDeltaTOp ? deltaTop[i + 1] - deltaTop[i] : 19;
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], lineHeight);
+		}
 	}
 
 	private _insertLinesBefore(ctx: IRendererContext<T>, fromLineNumber: number, toLineNumber: number, deltaTop: number[], deltaLN: number): void {

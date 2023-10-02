@@ -209,10 +209,10 @@ export class ViewOverlayLine implements IVisibleLine {
 		return true;
 	}
 
-	public layoutLine(lineNumber: number, deltaTop: number): void {
+	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
 		if (this._domNode) {
 			this._domNode.setTop(deltaTop);
-			this._domNode.setHeight(this._lineHeight);
+			this._domNode.setHeight(lineHeight);
 		}
 	}
 }
