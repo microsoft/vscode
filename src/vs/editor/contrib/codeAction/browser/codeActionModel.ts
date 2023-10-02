@@ -261,10 +261,10 @@ export class CodeActionModel extends Disposable {
 										distance = Math.abs(currPosition.column - col);
 									}
 								}
-								currentActions.filter((action, index, self) =>
+								const filteredActions = currentActions.filter((action, index, self) =>
 									self.findIndex((a) => a.action.title === action.action.title) === index);
 
-								currentActions.sort((a, b) => {
+								filteredActions.sort((a, b) => {
 									if (a.action.isPreferred && !b.action.isPreferred) {
 										return -1;
 									} else if (!a.action.isPreferred && b.action.isPreferred) {
@@ -275,7 +275,7 @@ export class CodeActionModel extends Disposable {
 								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
+								return { validActions: filteredActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
 							}
 						}
 					}
