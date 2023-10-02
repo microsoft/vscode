@@ -717,14 +717,12 @@ export class CodeApplication extends Disposable {
 			if (windowOpenable) {
 				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
 
-				openables.push(windowOpenable);
+				openables.push(windowOpenable); // handled as window to open
+			} else {
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
 
-				continue; // handled as window to open
+				urls.push(protocolUrl); // handled within active window
 			}
-
-			this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
-
-			urls.push(protocolUrl); // handled within active window
 		}
 
 		return { urls, openables };
