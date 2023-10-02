@@ -444,7 +444,6 @@ class CodeActionAdapter {
 					}
 				}
 				const isCopilot = 'isCopilot' in candidate && typeof candidate.isCopilot === 'boolean' ? candidate.isCopilot : false;
-
 				// new school: convert code action
 				actions.push({
 					cacheId: [cacheId, i],
