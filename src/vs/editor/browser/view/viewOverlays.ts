@@ -9,7 +9,6 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { IVisibleLine, IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
@@ -71,7 +70,7 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 	// ---- begin IVisibleLinesHost
 
 	public createVisibleLine(): ViewOverlayLine {
-		return new ViewOverlayLine(this._context.configuration, this._dynamicOverlays);
+		return new ViewOverlayLine(this._dynamicOverlays);
 	}
 
 	// ---- end IVisibleLinesHost
@@ -84,12 +83,6 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._visibleLines.onConfigurationChanged(e);
-		const startLineNumber = this._visibleLines.getStartLineNumber();
-		const endLineNumber = this._visibleLines.getEndLineNumber();
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const line = this._visibleLines.getVisibleLine(lineNumber);
-			line.onConfigurationChanged(e);
-		}
 
 		const options = this._context.configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
@@ -149,15 +142,11 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 
 export class ViewOverlayLine implements IVisibleLine {
 
-	private readonly _configuration: IEditorConfiguration;
 	private readonly _dynamicOverlays: DynamicViewOverlay[];
 	private _domNode: FastDomNode<HTMLElement> | null;
 	private _renderedContent: string | null;
-	private _lineHeight: number;
 
-	constructor(configuration: IEditorConfiguration, dynamicOverlays: DynamicViewOverlay[]) {
-		this._configuration = configuration;
-		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
+	constructor(dynamicOverlays: DynamicViewOverlay[]) {
 		this._dynamicOverlays = dynamicOverlays;
 
 		this._domNode = null;
@@ -179,9 +168,6 @@ export class ViewOverlayLine implements IVisibleLine {
 	}
 	public onTokensChanged(): void {
 		// Nothing
-	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): void {
-		this._lineHeight = this._configuration.options.get(EditorOption.lineHeight);
 	}
 
 	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
