@@ -193,7 +193,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			|| d.options.before?.content
 			|| d.options.after?.content
 		));
-		console.log(res);
+
 		return res;
 	}
 
