@@ -38,7 +38,11 @@ export const fixAllCommandId = 'editor.action.fixAll';
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {
-		if (a.isPreferred && !b.isPreferred) {
+		if (a.isCopilot && !b.isCopilot) {
+			return 1;
+		} else if (!a.isCopilot && b.isCopilot) {
+			return -1;
+		} else if (a.isPreferred && !b.isPreferred) {
 			return -1;
 		} else if (!a.isPreferred && b.isPreferred) {
 			return 1;
