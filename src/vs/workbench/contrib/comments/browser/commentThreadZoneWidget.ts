@@ -220,6 +220,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
 			CommentThreadWidget,
 			container,
+			this.editor,
 			this._owner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,

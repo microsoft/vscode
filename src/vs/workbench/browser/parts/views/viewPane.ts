@@ -455,10 +455,12 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeContainer.style.height = `${height}px`;
-		this.viewWelcomeContainer.style.width = `${width}px`;
-		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
-		this.scrollableElement.scanDomNode();
+		if (this.shouldShowWelcome()) {
+			this.viewWelcomeContainer.style.height = `${height}px`;
+			this.viewWelcomeContainer.style.width = `${width}px`;
+			this.viewWelcomeContainer.classList.toggle('wide', width > 640);
+			this.scrollableElement.scanDomNode();
+		}
 	}
 
 	onDidScrollRoot() {

@@ -14,7 +14,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -476,6 +476,7 @@ export class SCMSyncViewPane extends ViewPane {
 				compressionEnabled: true,
 				horizontalScrolling: false,
 				autoExpandSingleChildren: true,
+				multipleSelectionSupport: false,
 				collapseByDefault: (e) => !ResourceTree.isResourceNode(e),
 				accessibilityProvider: this.instantiationService.createInstance(SCMSyncViewPaneAccessibilityProvider),
 				identityProvider: this.instantiationService.createInstance(SCMSyncViewPaneTreeIdentityProvider),
@@ -832,6 +833,7 @@ class RefreshAction extends ViewAction<SCMSyncViewPane> {
 			icon: Codicon.refresh,
 			menu: {
 				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID),
 				group: 'navigation'
 			}
 		});
@@ -854,6 +856,7 @@ class SetListViewModeAction extends ViewAction<SCMSyncViewPane> {
 			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.List),
 			menu: {
 				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID),
 				group: '1_viewmode'
 			}
 		});
@@ -876,6 +879,7 @@ class SetTreeViewModeAction extends ViewAction<SCMSyncViewPane>  {
 			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.Tree),
 			menu: {
 				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID),
 				group: '1_viewmode'
 			}
 		});

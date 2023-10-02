@@ -173,6 +173,9 @@ export class CommentService extends Disposable implements ICommentService {
 		const storageListener = this._register(new DisposableStore());
 
 		storageListener.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, CONTINUE_ON_COMMENTS, storageListener)((v) => {
+			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
+				return;
+			}
 			if (!v.external) {
 				return;
 			}
@@ -193,6 +196,9 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}));
 		this._register(storageService.onWillSaveState(() => {
+			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
+				return;
+			}
 			for (const provider of this._continueOnCommentProviders) {
 				const pendingComments = provider.provideContinueOnComments();
 				this._addContinueOnComments(pendingComments);
@@ -417,7 +423,10 @@ export class CommentService extends Disposable implements ICommentService {
 	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string }): PendingCommentThread | undefined {
 		const pendingComments = this._continueOnComments.get(pendingComment.owner);
 		if (pendingComments) {
-			return pendingComments.splice(pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range)), 1)[0];
+			const commentIndex = pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range));
+			if (commentIndex > -1) {
+				return pendingComments.splice(commentIndex, 1)[0];
+			}
 		}
 		return undefined;
 	}

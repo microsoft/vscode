@@ -23,7 +23,7 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
+import { TerminalAccessibilityHelpProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
 import type { Terminal } from 'xterm';
 import { Position } from 'vs/editor/common/core/position';
@@ -119,7 +119,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this._bufferTracker = this._register(this._instantiationService.createInstance(BufferContentTracker, this._xterm));
 		}
 		if (!this._bufferProvider) {
-			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
+			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker, () => {
+				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._instance, this._xterm!)).provideContent();
+			}));
 		}
 		this._accessibleViewService.show(this._bufferProvider);
 	}
@@ -199,7 +201,7 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 			if (!terminal) {
 				return;
 			}
-			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
+			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibilityHelpProvider, instance, terminal));
 		}, ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal)))));
 	}
 }

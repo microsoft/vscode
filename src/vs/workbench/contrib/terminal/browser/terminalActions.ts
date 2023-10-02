@@ -61,7 +61,7 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -365,7 +365,7 @@ export function registerTerminalActions() {
 		keybinding: [
 			{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)))),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			{
@@ -1345,7 +1345,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib + 1,
 			// Disable the keybinding when accessibility mode is enabled as chords include
 			// important screen reader keybindings such as cmd+k, cmd+i to show the hover
-			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+			when: ContextKeyExpr.or(ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()), ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal))),
 		}],
 		run: (activeInstance) => activeInstance.clearBuffer()
 	});
