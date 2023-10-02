@@ -235,9 +235,7 @@ export class CodeActionModel extends Disposable {
 
 									// Found quickfix on the same line and check relative distance to other markers
 									if ((row === currPosition.lineNumber || startRow === currPosition.lineNumber)) {
-
 										trackedPosition = new Position(row, col);
-
 										const newCodeActionTrigger: CodeActionTrigger = {
 											type: trigger.trigger.type,
 											triggerAction: trigger.trigger.triggerAction,
@@ -263,7 +261,6 @@ export class CodeActionModel extends Disposable {
 										distance = Math.abs(currPosition.column - col);
 									}
 								}
-
 								currentActions.filter((action, index, self) =>
 									self.findIndex((a) => a.action.title === action.action.title) === index);
 
@@ -279,14 +276,15 @@ export class CodeActionModel extends Disposable {
 
 								// Only retriggers if actually found quickfix on the same line as cursor
 								return { validActions: currentActions, allActions: codeActionSet.allActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
-
 							}
 						}
 					}
 					// temporarilly hiding here as this is enabled/disabled behind a setting.
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
-
+				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
+					this._progressService?.showWhile(actions, 250);
+				}
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
