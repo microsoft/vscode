@@ -65,16 +65,16 @@ export interface IChatFileTreeInfo {
 
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
-export interface IBaseChatWidgetViewContext {
+export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderStyle?: 'default' | 'compact';
 }
 
-export interface IChatViewViewContext extends IBaseChatWidgetViewContext {
+export interface IChatViewViewContext {
 	viewId: string;
 }
 
-export interface IChatResourceViewContext extends IBaseChatWidgetViewContext {
+export interface IChatResourceViewContext {
 	resource: boolean;
 }
 
