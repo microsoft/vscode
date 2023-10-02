@@ -24,12 +24,11 @@ export const enum ClassName {
 	EditorTextArea = 'textarea'
 }
 
-export class TerminalAccessibleContentProvider extends Disposable implements IAccessibleContentProvider {
-
+export class TerminalAccessibilityHelpProvider extends Disposable implements IAccessibleContentProvider {
+	id = AccessibleViewProviderId.TerminalHelp;
 	private readonly _hasShellIntegration: boolean = false;
-
 	onClose() {
-		const expr = ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal));
+		const expr = ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.TerminalHelp));
 		if (expr?.evaluate(this._contextKeyService.getContext(null))) {
 			this._commandService.executeCommand(TerminalCommandId.FocusAccessibleBuffer);
 		} else {
