@@ -389,7 +389,7 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			// Child Window: apply zoom after loading finished
+			// Child Window: apply zoom after loading finished and handle --open-devtools
 			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 			if (isChildWindow) {
 				contents.on('dom-ready', () => {
@@ -398,6 +398,10 @@ export class CodeApplication extends Disposable {
 					contents.setZoomLevel(windowZoomLevel);
 					contents.setZoomFactor(zoomLevelToZoomFactor(windowZoomLevel));
 				});
+
+				if (this.environmentMainService.args['open-devtools'] === true) {
+					contents.openDevTools({ mode: 'bottom' });
+				}
 			}
 
 			// All Windows: only allow about:blank child windows to open
