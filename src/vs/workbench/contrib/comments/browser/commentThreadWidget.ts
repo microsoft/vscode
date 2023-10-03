@@ -29,6 +29,13 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { localize } from 'vs/nls';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -43,19 +50,22 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _threadIsEmpty: IContextKey<boolean>;
 	private _styleElement: HTMLStyleElement;
 	private _commentThreadContextValue: IContextKey<string | undefined>;
+	private _focusedContextKey: IContextKey<boolean>;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
+
+	private _commentThreadState: languages.CommentThreadState | undefined;
 
 	get commentThread() {
 		return this._commentThread;
 	}
-
 	constructor(
 		readonly container: HTMLElement,
+		readonly _parentEditor: LayoutableEditor,
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
-		private _scopedInstatiationService: IInstantiationService,
+		private _scopedInstantiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
 		private _pendingComment: string | undefined,
 		private _pendingEdits: { [key: number]: string } | undefined,
@@ -66,12 +76,15 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			collapse: () => void;
 		},
 		@ICommentService private commentService: ICommentService,
-		@IContextMenuService contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super();
 
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
+		this._focusedContextKey = CommentContextKeys.commentFocused.bindTo(this._contextKeyService);
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
@@ -83,7 +96,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentMenus,
 			this._commentThread,
 			this._contextKeyService,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			contextMenuService
 		);
 
@@ -106,20 +119,27 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 				}
 			}
 		}));
-
-		this._body = this._scopedInstatiationService.createInstance(
+		this._register(tracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this._register(tracker.onDidBlur(() => this._focusedContextKey.reset()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Comments)) {
+				this._setAriaLabel();
+			}
+		}));
+		this._body = this._scopedInstantiationService.createInstance(
 			CommentThreadBody,
+			this._parentEditor,
 			this._owner,
 			this._parentResourceUri,
 			bodyElement,
 			this._markdownOptions,
 			this._commentThread,
 			this._pendingEdits,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
-
+		this._setAriaLabel();
 		this._styleElement = dom.createStyleSheet(this.container);
 
 
@@ -134,6 +154,21 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
+	}
+
+	private _setAriaLabel(): void {
+		let ariaLabel = localize('commentLabel', "Comment");
+		let keybinding: string | undefined;
+		const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Comments);
+		if (verbose) {
+			keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp, this._contextKeyService)?.getLabel() ?? undefined;
+		}
+		if (keybinding) {
+			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
+		} else {
+			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
+		}
+		this._body.container.ariaLabel = ariaLabel;
 	}
 
 	private updateCurrentThread(hasMouse: boolean, hasFocus: boolean) {
@@ -170,6 +205,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
+		const shouldCollapse = (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) && (this._commentThreadState === languages.CommentThreadState.Unresolved)
+			&& (commentThread.state === languages.CommentThreadState.Resolved);
+		this._commentThreadState = commentThread.state;
 		this._commentThread = commentThread;
 		dispose(this._commentThreadDisposables);
 		this._commentThreadDisposables = [];
@@ -185,10 +223,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		} else {
 			this._commentThreadContextValue.reset();
 		}
+
+		if (shouldCollapse && this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).collapseOnResolve) {
+			this.collapse();
+		}
 	}
 
 	display(lineHeight: number) {
-		const headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
 		this._body.display();
@@ -243,12 +285,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	private _createCommentForm() {
-		this._commentReply = this._scopedInstatiationService.createInstance(
+		this._commentReply = this._scopedInstantiationService.createInstance(
 			CommentReply,
 			this._owner,
 			this._body.container,
+			this._parentEditor,
 			this._commentThread,
-			this._scopedInstatiationService,
+			this._scopedInstantiationService,
 			this._contextKeyService,
 			this._commentMenus,
 			this._commentOptions,
@@ -261,7 +304,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	private _createAdditionalActions() {
-		this._additionalActions = this._scopedInstatiationService.createInstance(
+		this._additionalActions = this._scopedInstantiationService.createInstance(
 			CommentThreadAdditionalActions,
 			this._body.container,
 			this._commentThread,

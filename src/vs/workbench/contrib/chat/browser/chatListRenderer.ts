@@ -14,6 +14,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
+import { distinct } from 'vs/base/common/arrays';
 import { IntervalTimer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -31,7 +32,7 @@ import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/ed
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
@@ -52,6 +53,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -60,8 +62,10 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { IChatCodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
+import { convertParsedRequestToMarkdown, walkTreeAndAnnotateResourceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -70,9 +74,6 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { distinct } from 'vs/base/common/arrays';
-import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 
 const $ = dom.$;
 
@@ -137,7 +138,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatService private readonly chatService: IChatService
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -313,7 +314,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
-			this.basicRenderElement([new MarkdownString(element.messageText)], element, index, templateData);
+			const markdown = 'kind' in element.message ?
+				element.message.message :
+				convertParsedRequestToMarkdown(element.message);
+			this.basicRenderElement([new MarkdownString(markdown)], element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
 		}
@@ -361,7 +365,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
 			}));
@@ -396,7 +400,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
 			}));
@@ -539,6 +543,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		treeDisposables.add(tree.onDidChangeCollapseState(() => {
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		}));
+		treeDisposables.add(tree.onContextMenu((e) => {
+			e.browserEvent.preventDefault();
+			e.browserEvent.stopPropagation();
+		}));
 
 		tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
@@ -636,6 +644,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isResponseVM(element)) {
 			this.codeBlocksByResponseId.set(element.id, codeblocks);
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
+		}
+
+		if (isRequestVM(element)) {
+			walkTreeAndAnnotateResourceLinks(result.element);
 		}
 
 		if (usedSlashCommand) {
@@ -992,7 +1004,7 @@ class CodeBlockPart extends Disposable implements IChatResultCodeBlockPart {
 	}
 
 	private setText(newText: string): void {
-		const currentText = this.textModel.getLinesContent().join('\n');
+		const currentText = this.textModel.getValue(EndOfLinePreference.LF);
 		if (newText === currentText) {
 			return;
 		}
@@ -1200,7 +1212,8 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 	}
 	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		if (!element.children.length) {
+		const hasExtension = /\.[^/.]+$/.test(element.element.label);
+		if (!element.children.length && hasExtension) {
 			templateData.label.setFile(element.element.uri, {
 				fileKind: FileKind.FILE,
 				hidePath: true,

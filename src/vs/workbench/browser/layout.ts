@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -154,6 +154,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	readonly hasContainer = true;
 	readonly container = document.createElement('div');
+	get activeContainer() {
+		const activeDocument = getActiveDocument();
+		if (document === activeDocument) {
+			return this.container;
+		} else {
+			return activeDocument.body.children[0] as HTMLElement; // TODO@bpasero a bit of a hack
+		}
+	}
 
 	private _dimension!: IDimension;
 	get dimension(): IDimension { return this._dimension; }

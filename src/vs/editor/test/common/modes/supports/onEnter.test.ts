@@ -7,8 +7,11 @@ import { CharacterPair, IndentAction } from 'vs/editor/common/languages/language
 import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('OnEnter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('uses brackets', () => {
 		const brackets: CharacterPair[] = [

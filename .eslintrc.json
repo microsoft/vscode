@@ -48,6 +48,25 @@
 			"orientation",
 			"context"
 		], // non-complete list of globals that are easy to access unintentionally
+		"no-restricted-syntax": [
+			"warn",
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
+				"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+			},
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
+				"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
+			},
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
+				"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
+			},
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
+				"message": "Use DOM.isDragEvent() to support multi-window scenarios."
+			}
+		],
 		"no-var": "warn",
 		"jsdoc/no-types": "warn",
 		"semi": "off",
@@ -194,6 +213,47 @@
 						]
 					}
 				]
+			}
+		},
+		{
+			"files": [
+				"**/vscode.d.ts"
+			],
+			"rules": {
+				"jsdoc/tag-lines": "off",
+				"jsdoc/valid-types": "off",
+				"jsdoc/no-multi-asterisks": [
+					"warn",
+					{
+						"allowWhitespace": true
+					}
+				],
+				"jsdoc/require-jsdoc": [
+					"warn",
+					{
+						"enableFixer": false,
+						"contexts": [
+							"TSInterfaceDeclaration",
+							"TSPropertySignature",
+							"TSMethodSignature",
+							"TSDeclareFunction",
+							"ClassDeclaration",
+							"MethodDefinition",
+							"PropertyDeclaration",
+							"TSEnumDeclaration",
+							"TSEnumMember",
+							"ExportNamedDeclaration"
+						]
+					}
+				],
+				"jsdoc/check-param-names": [
+					"warn",
+					{
+						"enableFixer": false,
+						"checkDestructured": false
+					}
+				],
+				"jsdoc/require-returns": "warn"
 			}
 		},
 		{

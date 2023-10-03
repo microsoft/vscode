@@ -47,6 +47,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private readonly viewContainerModels = this._register(new DisposableMap<ViewContainer, { viewContainerModel: ViewContainerModel; disposables: DisposableStore } & IDisposable>());
 	private readonly viewsVisibilityActionDisposables = this._register(new DisposableMap<ViewContainer, IDisposable>());
+	private canRegisterViewsVisibilityActions: boolean = false;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly defaultViewLocationContextKeys: Map<string, IContextKey<boolean>>;
@@ -202,7 +203,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.saveViewCustomizations();
 
 		// Register visibility actions for all views
-		this.registerViewsVisibilityActions();
+		for (const [key, value] of this.viewContainerModels) {
+			this.registerViewsVisibilityActions(key, value);
+		}
+		this.canRegisterViewsVisibilityActions = true;
 	}
 
 	private onDidRegisterViews(views: { views: IViewDescriptor[]; viewContainer: ViewContainer }[]): void {
@@ -490,7 +494,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const container = this.viewContainersRegistry.registerViewContainer({
 			id,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true }]),
-			title: id, // we don't want to see this so using id
+			title: { value: id, original: id }, // we don't want to see this so using id
 			icon: location === ViewContainerLocation.Sidebar ? defaultViewIcon : undefined,
 			storageId: getViewContainerStorageId(id),
 			hideIfEmpty: true
@@ -697,7 +701,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			disposables.add(this.registerResetViewContainerAction(viewContainer));
 
-			this.viewContainerModels.set(viewContainer, { viewContainerModel: viewContainerModel, disposables, dispose: () => disposables.dispose() });
+			const value = { viewContainerModel: viewContainerModel, disposables, dispose: () => disposables.dispose() };
+			this.viewContainerModels.set(viewContainer, value);
 
 			// Register all views that were statically registered to this container
 			// Potentially, this is registering something that was handled by another container
@@ -712,6 +717,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 					viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
 				});
 			}
+
+			if (this.canRegisterViewsVisibilityActions) {
+				this.registerViewsVisibilityActions(viewContainer, value);
+			}
 		}
 
 		return viewContainerModel;
@@ -719,6 +728,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private onDidDeregisterViewContainer(viewContainer: ViewContainer): void {
 		this.viewContainerModels.deleteAndDispose(viewContainer);
+		this.viewsVisibilityActionDisposables.deleteAndDispose(viewContainer);
 	}
 
 	private onDidChangeActiveViews({ added, removed }: { added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }): void {
@@ -735,16 +745,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		});
 	}
 
-	private registerViewsVisibilityActions(): void {
-		for (const [viewContainer, { viewContainerModel, disposables }] of this.viewContainerModels) {
-			this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
-			disposables.add(Event.any(
-				viewContainerModel.onDidChangeActiveViewDescriptors,
-				viewContainerModel.onDidAddVisibleViewDescriptors,
-				viewContainerModel.onDidRemoveVisibleViewDescriptors,
-				viewContainerModel.onDidMoveVisibleViewDescriptors
-			)(e => this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel))));
-		}
+	private registerViewsVisibilityActions(viewContainer: ViewContainer, { viewContainerModel, disposables }: { viewContainerModel: ViewContainerModel; disposables: DisposableStore }): void {
+		this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
+		disposables.add(Event.any(
+			viewContainerModel.onDidChangeActiveViewDescriptors,
+			viewContainerModel.onDidAddVisibleViewDescriptors,
+			viewContainerModel.onDidRemoveVisibleViewDescriptors,
+			viewContainerModel.onDidMoveVisibleViewDescriptors
+		)(e => this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel))));
 	}
 
 	private registerViewsVisibilityActionsForContainer(viewContainerModel: ViewContainerModel): IDisposable {

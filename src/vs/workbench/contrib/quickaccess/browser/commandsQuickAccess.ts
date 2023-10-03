@@ -36,10 +36,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	private static AI_RELATED_INFORMATION_MAX_PICKS = 3;
+	private static AI_RELATED_INFORMATION_MAX_PICKS = 5;
 	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
 	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
@@ -164,13 +165,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		if (additionalPicks.length) {
-			additionalPicks.unshift({
-				type: 'separator',
-				label: localize('similarCommands', "similar commands")
-			});
-		}
-
 		if (picksSoFar.length || additionalPicks.length) {
 			additionalPicks.push({
 				type: 'separator'
@@ -181,7 +175,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		if (info) {
 			additionalPicks.push({
 				label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
-				commandId: ASK_QUICK_QUESTION_ACTION_ID,
+				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
 				args: [filter]
 			});
 		}

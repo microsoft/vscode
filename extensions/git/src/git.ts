@@ -66,14 +66,14 @@ function parseVersion(raw: string): string {
 function findSpecificGit(path: string, onValidate: (path: string) => boolean): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		if (!onValidate(path)) {
-			return e('git not found');
+			return e(new Error(`Path "${path}" is invalid.`));
 		}
 
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
 		child.on('error', cpErrorHandler(e));
-		child.on('close', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
+		child.on('close', code => code ? e(new Error(`Not found. Code: ${code}`)) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
 }
 
@@ -81,21 +81,21 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		cp.exec('which git', (err, gitPathBuffer) => {
 			if (err) {
-				return e('git not found');
+				return e(new Error(`Executing "which git" failed: ${err.message}`));
 			}
 
 			const path = gitPathBuffer.toString().trim();
 
 			function getVersion(path: string) {
 				if (!onValidate(path)) {
-					return e('git not found');
+					return e(new Error(`Path "${path}" is invalid.`));
 				}
 
 				// make sure git executes
 				cp.exec('git --version', (err, stdout) => {
 
 					if (err) {
-						return e('git not found');
+						return e(new Error(`Executing "git --version" failed: ${err.message}`));
 					}
 
 					return c({ path, version: parseVersion(stdout.trim()) });
@@ -112,7 +112,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 					// git is not installed, and launching /usr/bin/git
 					// will prompt the user to install it
 
-					return e('git not found');
+					return e(new Error('Executing "xcode-select -p" failed with error code 2.'));
 				}
 
 				getVersion(path);
@@ -142,12 +142,13 @@ function findGitWin32(onValidate: (path: string) => boolean): Promise<IGit> {
 		.then(undefined, () => findGitWin32InPath(onValidate));
 }
 
-export async function findGit(hints: string[], onValidate: (path: string) => boolean): Promise<IGit> {
+export async function findGit(hints: string[], onValidate: (path: string) => boolean, logger: LogOutputChannel): Promise<IGit> {
 	for (const hint of hints) {
 		try {
 			return await findSpecificGit(hint, onValidate);
-		} catch {
+		} catch (err) {
 			// noop
+			logger.info(`Unable to find git on the PATH: "${hint}". Error: ${err.message}`);
 		}
 	}
 
@@ -157,8 +158,9 @@ export async function findGit(hints: string[], onValidate: (path: string) => boo
 			case 'win32': return await findGitWin32(onValidate);
 			default: return await findSpecificGit('git', onValidate);
 		}
-	} catch {
+	} catch (err) {
 		// noop
+		logger.warn(`Unable to find git. Error: ${err.message}`);
 	}
 
 	throw new Error('Git installation not found.');
@@ -1021,10 +1023,24 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
-		const maxEntries = options?.maxEntries ?? 32;
-		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.reverse) {
+			args.push('--reverse', '--ancestry-path');
+		}
+
+		if (options?.sortByAuthorDate) {
+			args.push('--author-date-order');
+		}
+
+		if (options?.range) {
+			args.push(options.range);
+		} else {
+			args.push(`-n${options?.maxEntries ?? 32}`);
+		}
+
 		if (options?.path) {
-			args.push(options.path);
+			args.push('--', options.path);
 		}
 
 		const result = await this.exec(args);
@@ -1065,6 +1081,17 @@ export class Repository {
 		}
 
 		return parseGitCommits(result.stdout);
+	}
+
+	async reflog(ref: string, pattern: string): Promise<string[]> {
+		const args = ['reflog', ref, `--grep-reflog=${pattern}`];
+		const result = await this.exec(args);
+		if (result.exitCode) {
+			return [];
+		}
+
+		return result.stdout.split('\n')
+			.filter(entry => !!entry);
 	}
 
 	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
@@ -1249,7 +1276,7 @@ export class Repository {
 
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
-	diffIndexWithHEAD(path?: string | undefined): Promise<string | Change[]>;
+	diffIndexWithHEAD(path?: string | undefined): Promise<Change[]>;
 	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		if (!path) {
 			return await this.diffFiles(true);
@@ -1290,6 +1317,17 @@ export class Repository {
 
 		const args = ['diff', range, '--', sanitizePath(path)];
 		const result = await this.exec(args);
+
+		return result.stdout.trim();
+	}
+
+	async diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
+
+		const result = await this.exec(args);
+		if (result.exitCode) {
+			return '';
+		}
 
 		return result.stdout.trim();
 	}
@@ -2375,7 +2413,7 @@ export class Repository {
 			args.push('--ignore-case');
 		}
 
-		if (/^refs\/(head|remotes)\//i.test(name)) {
+		if (/^refs\/(heads|remotes)\//i.test(name)) {
 			args.push(name);
 		} else {
 			args.push(`refs/heads/${name}`, `refs/remotes/${name}`);
@@ -2441,6 +2479,15 @@ export class Repository {
 		return Promise.reject<Branch>(new Error('No such branch'));
 	}
 
+	async getDefaultBranch(): Promise<Branch> {
+		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+		if (!result.stdout) {
+			throw new Error('No default branch');
+		}
+
+		return this.getBranch(result.stdout.trim());
+	}
+
 	// TODO: Support core.commentChar
 	stripCommitMessageComments(message: string): string {
 		return message.replace(/^\s*#.*$\n?/gm, '').trim();
@@ -2499,6 +2546,25 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
+		const result = await this.exec(['rev-list', '--count', '--left-right', range]);
+		const [ahead, behind] = result.stdout.trim().split('\t');
+
+		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
+	}
+
+	async revParse(ref: string): Promise<string | undefined> {
+		try {
+			const result = await this.exec(['rev-parse', ref]);
+			if (result.stderr) {
+				return undefined;
+			}
+			return result.stdout.trim();
+		} catch (err) {
+			return undefined;
+		}
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {

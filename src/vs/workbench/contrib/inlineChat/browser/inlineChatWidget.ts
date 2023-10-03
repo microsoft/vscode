@@ -22,7 +22,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IModelService } from 'vs/editor/common/services/model';
 import { URI } from 'vs/base/common/uri';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
@@ -36,7 +36,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -170,17 +170,17 @@ export class InlineChatWidget {
 
 	private readonly _progressBar: ProgressBar;
 
-	private readonly _previewDiffEditor: IdleValue<EmbeddedDiffEditorWidget2>;
+	private readonly _previewDiffEditor: IdleValue<EmbeddedDiffEditorWidget>;
 	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
 	private readonly _previewCreateTitle: ResourceLabel;
 	private readonly _previewCreateEditor: IdleValue<ICodeEditor>;
 	private readonly _previewCreateModel = this._store.add(new MutableDisposable());
 
-	private readonly _onDidChangeHeight = new MicrotaskEmitter<void>();
+	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
-	private readonly _onDidChangeInput = new Emitter<this>();
+	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
 	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
 
 	private _lastDim: Dimension | undefined;
@@ -359,7 +359,7 @@ export class InlineChatWidget {
 		this._store.add(feedbackToolbar);
 
 		// preview editors
-		this._previewDiffEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.previewDiff, {
+		this._previewDiffEditor = this._store.add(new IdleValue(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
 			..._previewEditorEditorOptions,
 			onlyShowAccessibleDiffViewer: this._accessibilityService.isScreenReaderOptimized(),
 		}, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor))));
@@ -612,7 +612,7 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, allEdits: ISingleEditOperation[][], changes: readonly LineRangeMapping[]) {
+	showEditsPreview(textModelv0: ITextModel, allEdits: ISingleEditOperation[][], changes: readonly DetailedLineRangeMapping[]) {
 		if (changes.length === 0) {
 			this.hideEditsPreview();
 			return;
@@ -628,11 +628,11 @@ export class InlineChatWidget {
 		this._previewDiffEditor.value.setModel({ original: textModelv0, modified });
 
 		// joined ranges
-		let originalLineRange = changes[0].originalRange;
-		let modifiedLineRange = changes[0].modifiedRange;
+		let originalLineRange = changes[0].original;
+		let modifiedLineRange = changes[0].modified;
 		for (let i = 1; i < changes.length; i++) {
-			originalLineRange = originalLineRange.join(changes[i].originalRange);
-			modifiedLineRange = modifiedLineRange.join(changes[i].modifiedRange);
+			originalLineRange = originalLineRange.join(changes[i].original);
+			modifiedLineRange = modifiedLineRange.join(changes[i].modified);
 		}
 
 		// apply extra padding

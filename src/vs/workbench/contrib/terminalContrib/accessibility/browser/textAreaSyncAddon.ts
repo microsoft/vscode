@@ -74,9 +74,10 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 
 		if (this._cursorX !== textArea.selectionStart) {
-			textArea.selectionStart = this._cursorX ?? 0;
-			textArea.selectionEnd = this._cursorX ?? 0;
-			this._logService.debug(`TextAreaSyncAddon#syncTextArea: selection start/end changed to ${this._cursorX}`);
+			const selection = !this._cursorX || this._cursorX < 0 ? 0 : this._cursorX;
+			textArea.selectionStart = selection;
+			textArea.selectionEnd = selection;
+			this._logService.debug(`TextAreaSyncAddon#syncTextArea: selection start/end changed to ${selection}`);
 		}
 	}
 

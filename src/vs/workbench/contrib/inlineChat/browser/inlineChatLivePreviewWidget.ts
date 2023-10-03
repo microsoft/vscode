@@ -7,7 +7,7 @@ import { Dimension, h } from 'vs/base/browser/dom';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -18,7 +18,7 @@ import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INLINE_CHAT_ID, inlineChatDiffInserted, inlineChatDiffRemoved, inlineChatRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { LineRange } from 'vs/editor/common/core/lineRange';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -64,7 +64,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			.getEditorContributions()
 			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
-		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget2, this._elements.domNode, {
+		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
 			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
 			scrollBeyondLastLine: false,
 			renderMarginRevertIcon: true,
@@ -163,21 +163,27 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		this._isDiffLocked = true;
 	}
 
-	private _updateFromChanges(range: Range, changes: readonly LineRangeMapping[]): void {
+	private _updateFromChanges(range: Range, changes: readonly DetailedLineRangeMapping[]): void {
 		assertType(this.editor.hasModel());
 
 		if (this._isDiffLocked) {
 			return;
 		}
 
-		// complex changes
-		this._logService.debug('[IE] livePreview-mode: full diff');
-		this._renderChangesWithFullDiff(changes, range);
+		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
+			// no change or changes to an empty file
+			this._logService.debug('[IE] livePreview-mode: no diff');
+			this._cleanupFullDiff();
+		} else {
+			// complex changes
+			this._logService.debug('[IE] livePreview-mode: full diff');
+			this._renderChangesWithFullDiff(changes, range);
+		}
 	}
 
 	// --- full diff
 
-	private _renderChangesWithFullDiff(changes: readonly LineRangeMapping[], range: Range) {
+	private _renderChangesWithFullDiff(changes: readonly DetailedLineRangeMapping[], range: Range) {
 
 		const modified = this.editor.getModel()!;
 		const ranges = this._computeHiddenRanges(modified, range, changes);
@@ -206,16 +212,16 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		super.hide();
 	}
 
-	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly LineRangeMapping[]) {
+	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly DetailedLineRangeMapping[]) {
 		if (changes.length === 0) {
-			changes = [new LineRangeMapping(LineRange.fromRange(range), LineRange.fromRange(range), undefined)];
+			changes = [new DetailedLineRangeMapping(LineRange.fromRange(range), LineRange.fromRange(range), undefined)];
 		}
 
-		let originalLineRange = changes[0].originalRange;
-		let modifiedLineRange = changes[0].modifiedRange;
+		let originalLineRange = changes[0].original;
+		let modifiedLineRange = changes[0].modified;
 		for (let i = 1; i < changes.length; i++) {
-			originalLineRange = originalLineRange.join(changes[i].originalRange);
-			modifiedLineRange = modifiedLineRange.join(changes[i].modifiedRange);
+			originalLineRange = originalLineRange.join(changes[i].original);
+			modifiedLineRange = modifiedLineRange.join(changes[i].modified);
 		}
 
 		const startDelta = modifiedLineRange.startLineNumber - range.startLineNumber;

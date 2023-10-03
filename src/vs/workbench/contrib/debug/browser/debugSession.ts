@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
@@ -52,7 +52,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private threads = new Map<number, Thread>();
 	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
-	private rawListeners = new DisposableStore();
+	private readonly rawListeners = new DisposableStore();
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
@@ -103,11 +103,14 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose = this.rawListeners.add(new DisposableStore());
+		const toDispose = new DisposableStore();
 		const replListener = toDispose.add(new MutableDisposable());
 		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 		if (lifecycleService) {
-			toDispose.add(lifecycleService.onWillShutdown(() => this.shutdown()));
+			toDispose.add(lifecycleService.onWillShutdown(() => {
+				this.shutdown();
+				dispose(toDispose);
+			}));
 		}
 
 		const compoundRoot = this._options.compoundRoot;
@@ -536,7 +539,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints });
+			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toJSON()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < instructionBreakpoints.length; i++) {

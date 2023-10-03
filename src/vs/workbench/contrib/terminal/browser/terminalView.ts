@@ -244,9 +244,7 @@ export class TerminalViewPane extends ViewPane {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
 						this.tooltip = action.tooltip;
-					}
-					override dispose(): void {
-						action.dispose();
+						this._register(action);
 					}
 					override async run() {
 						const instance = that._terminalGroupService.activeInstance;

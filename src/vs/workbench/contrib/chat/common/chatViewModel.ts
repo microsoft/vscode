@@ -10,8 +10,9 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatRequestModel, IChatResponseModel, IChatModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatResponseErrorDetails, IChatReplyFollowup, IChatResponseCommandFollowup, InteractiveSessionVoteDirection, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
@@ -51,7 +52,7 @@ export interface IChatRequestViewModel {
 	readonly dataId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly message: string | IChatReplyFollowup;
+	readonly message: IParsedChatRequest | IChatReplyFollowup;
 	readonly messageText: string;
 	currentRenderedHeight: number | undefined;
 }
@@ -215,7 +216,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get messageText() {
-		return typeof this.message === 'string' ? this.message : this.message.message;
+		return 'kind' in this.message ? this.message.message : this.message.text;
 	}
 
 	currentRenderedHeight: number | undefined;

@@ -26,9 +26,12 @@ import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder 
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -215,6 +218,8 @@ suite('Search - Viewlet', () => {
 
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 });

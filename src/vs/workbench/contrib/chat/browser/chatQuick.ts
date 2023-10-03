@@ -14,11 +14,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
@@ -134,6 +135,7 @@ class QuickChat extends Disposable {
 	private model: ChatModel | undefined;
 	private _currentQuery: string | undefined;
 	private maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
+	private _deferUpdatingDynamicLayout: boolean = false;
 
 	constructor(
 		private readonly _options: IChatViewOptions,
@@ -183,6 +185,10 @@ class QuickChat extends Disposable {
 		this.widget.setVisible(true);
 		// If the mutable disposable is set, then we are keeping the existing scroll position
 		// so we should not update the layout.
+		if (this._deferUpdatingDynamicLayout) {
+			this._deferUpdatingDynamicLayout = false;
+			this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+		}
 		if (!this.maintainScrollTimer.value) {
 			this.widget.layoutDynamicChatTreeItemMode();
 		}
@@ -201,12 +207,13 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
+				{ resource: true },
+				{ renderInputOnTop: true, renderStyle: 'compact' },
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
 					inputEditorBackground: inputBackground,
-					resultEditorBackground: quickInputBackground
+					resultEditorBackground: editorBackground
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
@@ -222,7 +229,14 @@ class QuickChat extends Disposable {
 
 	private registerListeners(parent: HTMLElement): void {
 		this._register(this.layoutService.onDidLayout(() => {
-			this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+			if (this.widget.visible) {
+				this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
+			} else {
+				// If the chat is not visible, then we should defer updating the layout
+				// because it relies on offsetHeight which only works correctly
+				// when the chat is visible.
+				this._deferUpdatingDynamicLayout = true;
+			}
 		}));
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
@@ -259,7 +273,7 @@ class QuickChat extends Disposable {
 		for (const request of this.model.getRequests()) {
 			if (request.response?.response.value || request.response?.errorDetails) {
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
-					request.message as string,
+					request.message as IParsedChatRequest,
 					{
 						message: request.response.response.value,
 						errorDetails: request.response.errorDetails,

@@ -6,7 +6,7 @@
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { INotificationViewItem, isNotificationViewItem, NotificationsModel } from 'vs/workbench/common/notifications';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
@@ -90,9 +90,14 @@ export function getNotificationFromContext(listService: IListService, context?: 
 export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {
 
 	// Show Notifications Cneter
-	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
-		toasts.hide();
-		center.show();
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: SHOW_NOTIFICATIONS_CENTER,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN),
+		handler: () => {
+			toasts.hide();
+			center.show();
+		}
 	});
 
 	// Hide Notifications Center

@@ -49,12 +49,6 @@ export namespace TerminalContextKeys {
 	/** Whether any terminal is focused, including detached terminals used in other UI. */
 	export const focusInAny = new RawContextKey<boolean>(TerminalContextKeyStrings.FocusInAny, false, localize('terminalFocusInAnyContextKey', "Whether any terminal is focused, including detached terminals used in other UI."));
 
-	/** Whether the accessible buffer is focused. */
-	export const accessibleBufferFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.AccessibleBufferFocus, false, localize('terminalAccessibleBufferFocusContextKey', "Whether the terminal accessible buffer is focused."));
-
-	/** Whether the accessible buffer focus is on the last line. */
-	export const accessibleBufferOnLastLine = new RawContextKey<boolean>(TerminalContextKeyStrings.AccessibleBufferOnLastLine, false, localize('terminalAccessibleBufferOnLastLineContextKey', "Whether the accessible buffer focus is on the last line."));
-
 	/** Whether a terminal in the editor area is focused. */
 	export const editorFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.EditorFocus, false, localize('terminalEditorFocusContextKey', "Whether a terminal in the editor area is focused."));
 

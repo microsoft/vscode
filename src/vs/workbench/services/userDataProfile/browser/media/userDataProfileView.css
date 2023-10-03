@@ -62,24 +62,66 @@
 	padding: 0 4px;
 }
 
-.profile-type-widget {
-	display: flex;
-	margin: 0px 6px 8px 11px;
-	align-items: center;
-	justify-content: space-between;
-	font-size: 12px;
+.profile-edit-widget {
+	padding: 4px 6px 0px 11px;
 }
 
-.profile-type-widget>.profile-type-select-container {
+.profile-edit-widget > .profile-icon-container {
+	display: flex;
+	margin-bottom: 8px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon {
+	cursor: pointer;
+	padding: 3px;
+	border-radius: 5px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon.codicon{
+	font-size: 18px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon:hover {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.profile-edit-widget > .profile-type-container {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon-label,
+.profile-edit-widget > .profile-type-container > .profile-type-create-label {
+	width: 90px;
+	display: inline-flex;
+	align-items: center;
+}
+
+.profile-edit-widget > .profile-icon-container:only-child > .profile-icon-label {
+	width: 45px;
+}
+
+.profile-edit-widget > .profile-icon-container > .profile-icon-id {
+	display: inline-flex;
+	align-items: center;
+	margin-left: 5px;
+	opacity: .8;
+	font-size: 0.9em;
+}
+
+.profile-edit-widget > .profile-type-container > .profile-type-select-container {
 	overflow: hidden;
-	padding-left: 10px;
 	flex: 1;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.profile-type-widget>.profile-type-select-container>.monaco-select-box {
+.profile-edit-widget > .profile-type-container > .profile-type-select-container > .monaco-select-box {
 	cursor: pointer;
 	line-height: 17px;
 	padding: 2px 23px 2px 8px;

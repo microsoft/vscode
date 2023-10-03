@@ -18,6 +18,7 @@
     "editSessionIdentityProvider",
     "quickDiffProvider",
     "scmActionButton",
+    "scmHistoryProvider",
     "scmSelectedProvider",
     "scmValidation",
     "tabInputTextMerge",
@@ -2465,7 +2466,7 @@
             "null"
           ],
           "default": 50,
-          "description": "%config.inputValidationSubjectLength%"
+          "markdownDescription": "%config.inputValidationSubjectLength%"
         },
         "git.detectSubmodules": {
           "type": "boolean",
@@ -2659,7 +2660,7 @@
           "description": "%config.useIntegratedAskPass%"
         },
         "git.githubAuthentication": {
-          "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+          "markdownDeprecationMessage": "This setting is now deprecated, please use `#github.gitAuthentication#` instead."
         },
         "git.timeline.date": {
           "type": "string",
@@ -3005,14 +3006,14 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "^0.8.4",
+    "@vscode/extension-telemetry": "^0.8.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
     "jschardet": "3.0.0",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
-    "which": "3.0.1"
+    "which": "4.0.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",

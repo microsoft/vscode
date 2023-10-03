@@ -437,7 +437,7 @@
 
 /* #endregion */
 
-.interactive-response-progress-tree .monaco-tl-row:hover {
+.interactive-response-progress-tree .monaco-list-row:not(.selected) .monaco-tl-row:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
@@ -468,4 +468,12 @@
 	border: 1px solid var(--vscode-input-border,transparent);
 	border-radius: 4px;
 	width: auto;
+}
+
+.interactive-item-container .chat-resource-widget {
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 3px;
+	white-space: nowrap;
+	padding: 1px;
 }

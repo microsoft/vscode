@@ -4,35 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isWeb } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { INotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
+import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 import { NotebookStickyLine, computeContent } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
-
-(isWeb ? suite.skip : suite)('NotebookEditorStickyScroll', () => {
-
+suite('NotebookEditorStickyScroll', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
 	const domNode: HTMLElement = document.createElement('div');
 
-	suiteSetup(() => {
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 	});
-
-	suiteTeardown(() => disposables.dispose());
 
 	function getOutline(editor: any) {
 		if (!editor.hasModel()) {
@@ -47,8 +49,11 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 		return outline;
 	}
 
-	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[]) {
+	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[], disposables: Pick<DisposableStore, 'add'>) {
 		const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
+		for (const stickyLine of output.values()) {
+			disposables.add(stickyLine.line);
+		}
 		return createStickyTestElement(output.values());
 	}
 
@@ -84,16 +89,18 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(0);
 				editor.visibleRanges = [{ start: 0, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, disposables);
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 
@@ -109,7 +116,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				['# header b', 'markdown', CellKind.Markup, [], {}],	// 300
 				['var c = 2;', 'javascript', CellKind.Code, [], {}]		// 350
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, ds) => {
 				viewModel.restoreEditorViewState({
 					editingCells: Array.from({ length: 8 }, () => false),
 					editorViewStates: Array.from({ length: 8 }, () => null),
@@ -119,17 +126,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(175);
 				editor.visibleRanges = [{ start: 3, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 
@@ -146,7 +155,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				['# header b', 'markdown', CellKind.Markup, [], {}],	// 350
 				['var c = 2;', 'javascript', CellKind.Code, [], {}]		// 400
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, ds) => {
 				viewModel.restoreEditorViewState({
 					editingCells: Array.from({ length: 9 }, () => false),
 					editorViewStates: Array.from({ length: 9 }, () => null),
@@ -156,17 +165,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(325); // room for a single header
 				editor.visibleRanges = [{ start: 6, end: 9 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 
@@ -184,7 +195,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				['# header b', 'markdown', CellKind.Markup, [], {}],	// 400
 				['var c = 2;', 'javascript', CellKind.Code, [], {}]		// 450
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, ds) => {
 				viewModel.restoreEditorViewState({
 					editingCells: Array.from({ length: 10 }, () => false),
 					editorViewStates: Array.from({ length: 10 }, () => null),
@@ -194,17 +205,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(175); // room for a single header
 				editor.visibleRanges = [{ start: 3, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 
@@ -221,7 +234,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var c = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, ds) => {
 				viewModel.restoreEditorViewState({
 					editingCells: Array.from({ length: 8 }, () => false),
 					editorViewStates: Array.from({ length: 8 }, () => null),
@@ -231,17 +244,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(50);
 				editor.visibleRanges = [{ start: 0, end: 8 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 
@@ -260,7 +275,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['var c = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, ds) => {
 				viewModel.restoreEditorViewState({
 					editingCells: Array.from({ length: 10 }, () => false),
 					editorViewStates: Array.from({ length: 10 }, () => null),
@@ -270,17 +285,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(125);
 				editor.visibleRanges = [{ start: 2, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 
@@ -299,7 +316,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				['### header bbb', 'markdown', CellKind.Markup, [], {}],
 				['var c = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, ds) => {
 				viewModel.restoreEditorViewState({
 					editingCells: Array.from({ length: 10 }, () => false),
 					editorViewStates: Array.from({ length: 10 }, () => null),
@@ -309,17 +326,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(375);
 				editor.visibleRanges = [{ start: 7, end: 10 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 
@@ -340,7 +359,7 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 				['### header bbb', 'markdown', CellKind.Markup, [], {}],
 				['var c = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
+			async (editor, viewModel, ds) => {
 				viewModel.restoreEditorViewState({
 					editingCells: Array.from({ length: 12 }, () => false),
 					editorViewStates: Array.from({ length: 12 }, () => null),
@@ -350,17 +369,19 @@ import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 					collapsedOutputCells: {},
 				});
 
-				const cellList = createNotebookCellList(instantiationService);
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
 				cellList.layout(400, 100);
 
 				editor.setScrollTop(350);
 				editor.visibleRanges = [{ start: 7, end: 12 }];
 
-				const notebookOutlineEntries = getOutline(editor).entries;
-				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries);
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
 
 				await assertSnapshot(resultingMap);
+				outline.dispose();
 			});
 	});
 

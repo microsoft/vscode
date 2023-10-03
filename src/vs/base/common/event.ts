@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { once as onceFn } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
@@ -165,7 +165,10 @@ export namespace Event {
 	export function any<T>(...events: Event<T>[]): Event<T>;
 	export function any(...events: Event<any>[]): Event<void>;
 	export function any<T>(...events: Event<T>[]): Event<T> {
-		return (listener, thisArgs = null, disposables?) => combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
+		return (listener, thisArgs = null, disposables?) => {
+			const disposable = combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e))));
+			return addAndReturnDisposable(disposable, disposables);
+		};
 	}
 
 	/**
@@ -203,6 +206,19 @@ export namespace Event {
 		disposable?.add(emitter);
 
 		return emitter.event;
+	}
+
+	/**
+	 * Adds the IDisposable to the store if it's set, and returns it. Useful to
+	 * Event function implementation.
+	 */
+	function addAndReturnDisposable<T extends IDisposable>(d: T, store: DisposableStore | IDisposable[] | undefined): T {
+		if (store instanceof Array) {
+			store.push(d);
+		} else if (store) {
+			store.add(d);
+		}
+		return d;
 	}
 
 	/**
@@ -378,7 +394,7 @@ export namespace Event {
 	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
 	 * ```
 	 */
-	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
+	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
 
 		let listener: IDisposable | null = event(e => {
@@ -389,6 +405,10 @@ export namespace Event {
 			}
 		});
 
+		if (disposable) {
+			disposable.add(listener);
+		}
+
 		const flush = () => {
 			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
@@ -398,6 +418,9 @@ export namespace Event {
 			onWillAddFirstListener() {
 				if (!listener) {
 					listener = event(e => emitter.fire(e));
+					if (disposable) {
+						disposable.add(listener);
+					}
 				}
 			},
 
@@ -419,81 +442,12 @@ export namespace Event {
 			}
 		});
 
+		if (disposable) {
+			disposable.add(emitter);
+		}
+
 		return emitter.event;
 	}
-
-	export interface IChainableEvent<T> extends IDisposable {
-
-		event: Event<T>;
-		map<O>(fn: (i: T) => O): IChainableEvent<O>;
-		forEach(fn: (i: T) => void): IChainableEvent<T>;
-		filter(fn: (e: T) => boolean): IChainableEvent<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
-		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
-		latch(): IChainableEvent<T>;
-		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
-		on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
-		once(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
-	}
-
-	class ChainableEvent<T> implements IChainableEvent<T> {
-
-		private readonly disposables = new DisposableStore();
-
-		constructor(readonly event: Event<T>) { }
-
-		/** @see {@link Event.map} */
-		map<O>(fn: (i: T) => O): IChainableEvent<O> {
-			return new ChainableEvent(map(this.event, fn, this.disposables));
-		}
-
-		/** @see {@link Event.forEach} */
-		forEach(fn: (i: T) => void): IChainableEvent<T> {
-			return new ChainableEvent(forEach(this.event, fn, this.disposables));
-		}
-
-		/** @see {@link Event.filter} */
-		filter(fn: (e: T) => boolean): IChainableEvent<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
-		filter(fn: (e: T) => boolean): IChainableEvent<T> {
-			return new ChainableEvent(filter(this.event, fn, this.disposables));
-		}
-
-		/** @see {@link Event.reduce} */
-		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R> {
-			return new ChainableEvent(reduce(this.event, merge, initial, this.disposables));
-		}
-
-		/** @see {@link Event.reduce} */
-		latch(): IChainableEvent<T> {
-			return new ChainableEvent(latch(this.event, undefined, this.disposables));
-		}
-
-		/** @see {@link Event.debounce} */
-		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay?: number, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number): IChainableEvent<R>;
-		debounce<R>(merge: (last: R | undefined, event: T) => R, delay: number = 100, leading = false, flushOnListenerRemove = false, leakWarningThreshold?: number): IChainableEvent<R> {
-			return new ChainableEvent(debounce(this.event, merge, delay, leading, flushOnListenerRemove, leakWarningThreshold, this.disposables));
-		}
-
-		/**
-		 * Attach a listener to the event.
-		 */
-		on(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[] | DisposableStore) {
-			return this.event(listener, thisArgs, disposables);
-		}
-
-		/** @see {@link Event.once} */
-		once(listener: (e: T) => any, thisArgs: any, disposables: IDisposable[]) {
-			return once(this.event)(listener, thisArgs, disposables);
-		}
-
-		dispose() {
-			this.disposables.dispose();
-		}
-	}
-
 	/**
 	 * Wraps the event in an {@link IChainableEvent}, allowing a more functional programming style.
 	 *
@@ -506,14 +460,91 @@ export namespace Event {
 	 * ).event;
 	 *
 	 * // Using chain
-	 * const onEnterPressChain = Event.chain(onKeyPress.event)
+	 * const onEnterPressChain = Event.chain(onKeyPress.event, $ => $
 	 *   .map(e => new StandardKeyboardEvent(e))
 	 *   .filter(e => e.keyCode === KeyCode.Enter)
-	 *   .event;
+	 * );
 	 * ```
 	 */
-	export function chain<T>(event: Event<T>): IChainableEvent<T> {
-		return new ChainableEvent(event);
+	export function chain<T, R>(event: Event<T>, sythensize: ($: IChainableSythensis<T>) => IChainableSythensis<R>): Event<R> {
+		const fn: Event<R> = (listener, thisArgs, disposables) => {
+			const cs = sythensize(new ChainableSynthesis()) as ChainableSynthesis;
+			return event(function (value) {
+				const result = cs.evaluate(value);
+				if (result !== HaltChainable) {
+					listener.call(thisArgs, result);
+				}
+			}, undefined, disposables);
+		};
+
+		return fn;
+	}
+
+	const HaltChainable = Symbol('HaltChainable');
+
+	class ChainableSynthesis implements IChainableSythensis<any> {
+		private readonly steps: ((input: any) => any)[] = [];
+
+		map<O>(fn: (i: any) => O): this {
+			this.steps.push(fn);
+			return this;
+		}
+
+		forEach(fn: (i: any) => void): this {
+			this.steps.push(v => {
+				fn(v);
+				return v;
+			});
+			return this;
+		}
+
+		filter(fn: (e: any) => boolean): this {
+			this.steps.push(v => fn(v) ? v : HaltChainable);
+			return this;
+		}
+
+		reduce<R>(merge: (last: R | undefined, event: any) => R, initial?: R | undefined): this {
+			let last = initial;
+			this.steps.push(v => {
+				last = merge(last, v);
+				return last;
+			});
+			return this;
+		}
+
+		latch(equals: (a: any, b: any) => boolean = (a, b) => a === b): ChainableSynthesis {
+			let firstCall = true;
+			let cache: any;
+			this.steps.push(value => {
+				const shouldEmit = firstCall || !equals(value, cache);
+				firstCall = false;
+				cache = value;
+				return shouldEmit ? value : HaltChainable;
+			});
+
+			return this;
+		}
+
+		public evaluate(value: any) {
+			for (const step of this.steps) {
+				value = step(value);
+				if (value === HaltChainable) {
+					break;
+				}
+			}
+
+			return value;
+		}
+	}
+
+	export interface IChainableSythensis<T> {
+		map<O>(fn: (i: T) => O): IChainableSythensis<O>;
+		forEach(fn: (i: T) => void): IChainableSythensis<T>;
+		filter(fn: (e: T) => boolean): IChainableSythensis<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableSythensis<R>;
+		reduce<R>(merge: (last: R, event: T) => R, initial: R): IChainableSythensis<R>;
+		reduce<R>(merge: (last: R | undefined, event: T) => R): IChainableSythensis<R>;
+		latch(equals?: (a: T, b: T) => boolean): IChainableSythensis<T>;
 	}
 
 	export interface NodeEventEmitter {
@@ -1418,7 +1449,7 @@ export class EventMultiplexer<T> implements IDisposable {
 			this.events.splice(idx, 1);
 		};
 
-		return toDisposable(onceFn(dispose));
+		return toDisposable(createSingleCallFunction(dispose));
 	}
 
 	private onFirstListenerAdd(): void {

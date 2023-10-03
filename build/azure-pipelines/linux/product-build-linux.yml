@@ -20,7 +20,7 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSpec: "18.15"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -52,7 +52,6 @@ steps:
         libgtk-3-0 \
         libgbm1 \
         libxkbfile-dev \
-        libsecret-1-dev \
         libkrb5-dev
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
@@ -371,4 +370,3 @@ steps:
       artifact: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
       condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
       displayName: Publish snap pre-package
-

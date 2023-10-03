@@ -146,16 +146,13 @@ flakySuite('Disk File Service', function () {
 	setup(async () => {
 		const logService = new NullLogService();
 
-		service = new FileService(logService);
-		disposables.add(service);
+		service = disposables.add(new FileService(logService));
 
-		fileProvider = new TestDiskFileSystemProvider(logService);
+		fileProvider = disposables.add(new TestDiskFileSystemProvider(logService));
 		disposables.add(service.registerProvider(Schemas.file, fileProvider));
-		disposables.add(fileProvider);
 
-		testProvider = new TestDiskFileSystemProvider(logService);
+		testProvider = disposables.add(new TestDiskFileSystemProvider(logService));
 		disposables.add(service.registerProvider(testSchema, testProvider));
-		disposables.add(testProvider);
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
 
@@ -1818,7 +1815,14 @@ flakySuite('Disk File Service', function () {
 	test('writeFile - buffered (atomic)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
 
-		return testWriteFile(true);
+		let e;
+		try {
+			await testWriteFile(true);
+		} catch (error) {
+			e = error;
+		}
+
+		assert.ok(e);
 	});
 
 	test('writeFile - unbuffered (atomic)', async () => {
@@ -1869,7 +1873,14 @@ flakySuite('Disk File Service', function () {
 	test('writeFile (large file) - buffered (atomic)', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileAtomicWrite);
 
-		return testWriteFileLarge(true);
+		let e;
+		try {
+			await testWriteFileLarge(true);
+		} catch (error) {
+			e = error;
+		}
+
+		assert.ok(e);
 	});
 
 	test('writeFile (large file) - unbuffered (atomic)', async () => {
@@ -1889,6 +1900,29 @@ flakySuite('Disk File Service', function () {
 
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
 	}
+
+	test('writeFile (large file) - unbuffered (atomic) - concurrent writes with multiple services', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileAtomicWrite);
+
+		const resource = URI.file(join(testDir, 'lorem.txt'));
+
+		const content = readFileSync(resource.fsPath);
+		const newContent = content.toString() + content.toString();
+
+		const promises: Promise<IFileStatWithMetadata>[] = [];
+		let suffix = 0;
+		for (let i = 0; i < 10; i++) {
+			const service = disposables.add(new FileService(new NullLogService()));
+			disposables.add(service.registerProvider(Schemas.file, fileProvider));
+
+			promises.push(service.writeFile(resource, VSBuffer.fromString(`${newContent}${++suffix}`), { atomic: { postfix: '.vsctmp' } }));
+			await timeout(0);
+		}
+
+		await Promise.allSettled(promises);
+
+		assert.strictEqual(readFileSync(resource.fsPath).toString(), `${newContent}${suffix}`);
+	});
 
 	test('writeFile - buffered - readonly throws', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);

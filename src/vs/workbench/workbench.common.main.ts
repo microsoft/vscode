@@ -42,11 +42,12 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 //#region --- workbench parts
 
 import 'vs/workbench/browser/parts/editor/editor.contribution';
-import 'vs/workbench/browser/parts/editor/editorPart';
+import 'vs/workbench/browser/parts/editor/editorParts';
 import 'vs/workbench/browser/parts/paneCompositePart';
 import 'vs/workbench/browser/parts/banner/bannerPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import 'vs/workbench/browser/parts/views/viewsService';
+import 'vs/workbench/browser/iconSelectBox';
 
 //#endregion
 
@@ -113,6 +114,7 @@ import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contr
 import 'vs/workbench/services/userActivity/common/userActivityService';
 import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
 import 'vs/workbench/services/issue/browser/issueTroubleshoot';
+import 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';

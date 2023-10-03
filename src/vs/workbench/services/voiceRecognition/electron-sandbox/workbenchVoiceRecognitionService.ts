@@ -41,6 +41,7 @@ export interface IWorkbenchVoiceRecognitionService {
 interface IVoiceTranscriptionWorkletOptions extends AudioWorkletNodeOptions {
 	processorOptions: {
 		readonly bufferTimespan: number;
+		readonly vadThreshold: number;
 	};
 }
 
@@ -93,6 +94,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 	private static readonly AUDIO_CHANNELS = 1;
 
 	private static readonly BUFFER_TIMESPAN = 1000;
+	private static readonly VAD_THRESHOLD = 0.02;
 
 	constructor(
 		@IProgressService private readonly progressService: IProgressService,
@@ -172,7 +174,8 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 					channelCountMode: 'explicit',
 					processorOptions: {
-						bufferTimespan: WorkbenchVoiceRecognitionService.BUFFER_TIMESPAN
+						bufferTimespan: WorkbenchVoiceRecognitionService.BUFFER_TIMESPAN,
+						vadThreshold: WorkbenchVoiceRecognitionService.VAD_THRESHOLD
 					}
 				}, onDidTranscribe, this.sharedProcessService);
 				await voiceTranscriptionTarget.start(cts.token);

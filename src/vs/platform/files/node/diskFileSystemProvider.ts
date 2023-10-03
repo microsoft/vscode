@@ -252,28 +252,41 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private async doWriteFileAtomic(resource: URI, tempResource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 
-		// Write to temp resource first
-		await this.doWriteFile(tempResource, content, opts);
+		// Ensure to create locks for all resources involved
+		// since atomic write involves mutiple disk operations
+		// and resources.
+
+		const locks = new DisposableStore();
 
 		try {
+			locks.add(await this.createResourceLock(resource));
+			locks.add(await this.createResourceLock(tempResource));
 
-			// Rename over existing to ensure atomic replace
-			await this.rename(tempResource, resource, { overwrite: true });
+			// Write to temp resource first
+			await this.doWriteFile(tempResource, content, opts, true /* disable write lock */);
 
-		} catch (error) {
-
-			// Cleanup in case of rename error
 			try {
-				await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
-			} catch (error) {
-				// ignore - we want the outer error to bubble up
-			}
 
-			throw error;
+				// Rename over existing to ensure atomic replace
+				await this.rename(tempResource, resource, { overwrite: true });
+
+			} catch (error) {
+
+				// Cleanup in case of rename error
+				try {
+					await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
+				} catch (error) {
+					// ignore - we want the outer error to bubble up
+				}
+
+				throw error;
+			}
+		} finally {
+			locks.dispose();
 		}
 	}
 
-	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions, disableWriteLock?: boolean): Promise<void> {
 		let handle: number | undefined = undefined;
 		try {
 			const filePath = this.toFilePath(resource);
@@ -293,7 +306,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true, unlock: opts.unlock });
+			handle = await this.open(resource, { create: true, unlock: opts.unlock }, disableWriteLock);
 
 			// Write content at once
 			await this.write(handle, 0, content, 0, content.byteLength);
@@ -317,14 +330,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		DiskFileSystemProvider.canFlush = enabled;
 	}
 
-	async open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+	async open(resource: URI, opts: IFileOpenOptions, disableWriteLock?: boolean): Promise<number> {
 		const filePath = this.toFilePath(resource);
 
 		// Writes: guard multiple writes to the same resource
 		// behind a single lock to prevent races when writing
 		// from multiple places at the same time to the same file
 		let lock: IDisposable | undefined = undefined;
-		if (isFileOpenForWriteOptions(opts)) {
+		if (isFileOpenForWriteOptions(opts) && !disableWriteLock) {
 			lock = await this.createResourceLock(resource);
 		}
 
@@ -756,13 +769,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const locks = new DisposableStore();
 
 		try {
-			const [fromLock, toLock] = await Promise.all([
-				this.createResourceLock(from),
-				this.createResourceLock(to)
-			]);
-
-			locks.add(fromLock);
-			locks.add(toLock);
+			locks.add(await this.createResourceLock(from));
+			locks.add(await this.createResourceLock(to));
 
 			if (mkdir) {
 				await Promises.mkdir(dirname(toFilePath), { recursive: true });

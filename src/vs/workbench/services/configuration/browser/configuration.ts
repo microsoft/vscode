@@ -446,8 +446,8 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
+	private readonly directoryWatcherDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly configurationResource: URI,
@@ -469,22 +469,20 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.configurationResource);
+		this.fileWatcherDisposable.value = this.fileService.watch(this.configurationResource);
 	}
 
 	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
+		this.fileWatcherDisposable.value = undefined;
 	}
 
 	private watchDirectory(): void {
 		const directory = this.uriIdentityService.extUri.dirname(this.configurationResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
+		this.directoryWatcherDisposable.value = this.fileService.watch(directory);
 	}
 
 	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
+		this.directoryWatcherDisposable.value = undefined;
 	}
 
 	async initialize(): Promise<ConfigurationModel> {

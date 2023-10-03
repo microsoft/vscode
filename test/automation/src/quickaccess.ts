@@ -171,15 +171,33 @@ export class QuickAccess {
 	}
 
 	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
+		let retries = 0;
 
-		// open commands picker
-		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
+		while (++retries < 5) {
 
-		// wait for best choice to be focused
-		await this.quickInput.waitForQuickInputElementFocused();
+			// open commands picker
+			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
-		// wait and click on best choice
-		await this.quickInput.selectQuickInputElement(0, keepOpen);
+			// wait for best choice to be focused
+			await this.quickInput.waitForQuickInputElementFocused();
+
+			// Retry for as long as the command not found
+			const text = await this.quickInput.waitForQuickInputElementText();
+			if (text === 'No matching commands') {
+				this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+				await this.quickInput.closeQuickInput();
+				await this.code.wait(1000);
+				continue;
+			}
+
+			// wait and click on best choice
+			await this.quickInput.selectQuickInputElement(0, keepOpen);
+
+			return;
+		}
+
+		throw new Error(`Command: ${commandId} Not found`);
+
 	}
 
 	async openQuickOutline(): Promise<void> {

@@ -55,8 +55,6 @@ import 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
-import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
-import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/secrets/electron-sandbox/secretStorageService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';

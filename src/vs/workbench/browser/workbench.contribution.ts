@@ -95,11 +95,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					key: 'untitledLabelFormat'
 				}, "Controls the format of the label for an untitled editor."),
 			},
-			'workbench.editor.untitled.hint': {
+			'workbench.editor.empty.hint': {
 				'type': 'string',
 				'enum': ['text', 'hidden'],
 				'default': 'text',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled text hint should be visible in the editor.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'emptyEditorHint' }, "Controls if the empty editor text hint should be visible in the editor.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
@@ -165,6 +165,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'minimum': 38,
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
 			},
+			'window.density.editorTabHeight': {
+				'type': 'string',
+				'enum': ['default', 'compact'],
+				'default': 'default',
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs. Also applies to the title control bar when `#workbench.editor.showTabs#` is disabled.")
+			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
 				'enum': ['normal', 'compact', 'shrink'],
@@ -175,6 +181,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name.")
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+			},
+			'workbench.editor.pinnedTabsOnSeparateRow': {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize('workbench.editor.pinnedTabsOnSeparateRow', "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 			},
 			'workbench.editor.preventPinnedEditorClose': {
 				'type': 'string',
@@ -380,6 +391,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['experimental'],
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
+			},
+			'workbench.commandPalette.experimental.askChatLocation': {
+				'type': 'string',
+				tags: ['experimental'],
+				'description': localize('askChatLocation', "Controls where the command palette should ask chat questions."),
+				'default': 'chatView',
+				enum: ['chatView', 'quickChat'],
+				enumDescriptions: [
+					localize('askChatLocation.chatView', "Ask chat questions in the Chat view."),
+					localize('askChatLocation.quickChat', "Ask chat questions in Quick Chat.")
+				]
 			},
 			'workbench.commandPalette.experimental.enableNaturalLanguageSearch': {
 				'type': 'boolean',

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 
@@ -53,6 +55,7 @@ suite('TerminalCapabilityStore', () => {
 });
 
 suite('TerminalCapabilityStoreMultiplexer', () => {
+	let store: DisposableStore;
 	let multiplexer: TerminalCapabilityStoreMultiplexer;
 	let store1: TerminalCapabilityStore;
 	let store2: TerminalCapabilityStore;
@@ -60,16 +63,19 @@ suite('TerminalCapabilityStoreMultiplexer', () => {
 	let removeEvents: TerminalCapability[];
 
 	setup(() => {
-		multiplexer = new TerminalCapabilityStoreMultiplexer();
+		store = new DisposableStore();
+		multiplexer = store.add(new TerminalCapabilityStoreMultiplexer());
 		multiplexer.onDidAddCapabilityType(e => addEvents.push(e));
 		multiplexer.onDidRemoveCapabilityType(e => removeEvents.push(e));
-		store1 = new TerminalCapabilityStore();
-		store2 = new TerminalCapabilityStore();
+		store1 = store.add(new TerminalCapabilityStore());
+		store2 = store.add(new TerminalCapabilityStore());
 		addEvents = [];
 		removeEvents = [];
 	});
 
-	teardown(() => multiplexer.dispose());
+	teardown(() => store.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should fire events when capabilities are enabled', async () => {
 		assertEvents(addEvents, []);

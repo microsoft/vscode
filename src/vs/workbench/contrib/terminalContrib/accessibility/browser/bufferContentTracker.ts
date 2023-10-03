@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { IMarker, Terminal } from 'xterm';
 
-export class BufferContentTracker {
+export class BufferContentTracker extends Disposable {
 	/**
 	 * Marks the last part of the buffer that was cached
 	 */
@@ -27,6 +28,7 @@ export class BufferContentTracker {
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+		super();
 	}
 
 	reset(): void {
@@ -44,7 +46,7 @@ export class BufferContentTracker {
 		this._removeViewportContent();
 		this._updateCachedContent();
 		this._updateViewportContent();
-		this._lastCachedMarker = this._xterm.raw.registerMarker();
+		this._lastCachedMarker = this._register(this._xterm.raw.registerMarker());
 		this._logService.debug('Buffer content tracker: set ', this._lines.length, ' lines');
 	}
 

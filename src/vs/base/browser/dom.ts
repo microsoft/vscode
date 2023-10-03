@@ -12,10 +12,33 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+
+export const { registerWindow, getWindows, onDidCreateWindow } = (function () {
+	const windows: Window[] = [];
+	const onDidCreateWindow = new event.Emitter<{ window: Window; disposableStore: DisposableStore }>();
+	return {
+		onDidCreateWindow: onDidCreateWindow.event,
+		registerWindow(window: Window): IDisposable {
+			windows.push(window);
+			const disposableStore = new DisposableStore();
+			disposableStore.add(toDisposable(() => {
+				const index = windows.indexOf(window);
+				if (index !== -1) {
+					windows.splice(index, 1);
+				}
+			}));
+			onDidCreateWindow.fire({ window, disposableStore });
+			return disposableStore;
+		},
+		getWindows(): Window[] {
+			return windows;
+		}
+	};
+})();
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -282,34 +305,37 @@ export function addDisposableThrottledListener<R, E extends Event = Event>(node:
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return document.defaultView!.getComputedStyle(el, null);
+	return el.ownerDocument.defaultView!.getComputedStyle(el, null);
 }
 
 export function getClientArea(element: HTMLElement): Dimension {
 
+	const elDocument = element.ownerDocument;
+	const elWindow = elDocument.defaultView?.window;
+
 	// Try with DOM clientWidth / clientHeight
-	if (element !== document.body) {
+	if (element !== elDocument.body) {
 		return new Dimension(element.clientWidth, element.clientHeight);
 	}
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if (platform.isIOS && window.visualViewport) {
-		return new Dimension(window.visualViewport.width, window.visualViewport.height);
+	if (platform.isIOS && elWindow?.visualViewport) {
+		return new Dimension(elWindow.visualViewport.width, elWindow.visualViewport.height);
 	}
 
 	// Try innerWidth / innerHeight
-	if (window.innerWidth && window.innerHeight) {
-		return new Dimension(window.innerWidth, window.innerHeight);
+	if (elWindow?.innerWidth && elWindow.innerHeight) {
+		return new Dimension(elWindow.innerWidth, elWindow.innerHeight);
 	}
 
 	// Try with document.body.clientWidth / document.body.clientHeight
-	if (document.body && document.body.clientWidth && document.body.clientHeight) {
-		return new Dimension(document.body.clientWidth, document.body.clientHeight);
+	if (elDocument.body && elDocument.body.clientWidth && elDocument.body.clientHeight) {
+		return new Dimension(elDocument.body.clientWidth, elDocument.body.clientHeight);
 	}
 
 	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
-	if (document.documentElement && document.documentElement.clientWidth && document.documentElement.clientHeight) {
-		return new Dimension(document.documentElement.clientWidth, document.documentElement.clientHeight);
+	if (elDocument.documentElement && elDocument.documentElement.clientWidth && elDocument.documentElement.clientHeight) {
+		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -431,8 +457,8 @@ export function getTopLeftOffset(element: HTMLElement): IDomPosition {
 
 	while (
 		(element = <HTMLElement>element.parentNode) !== null
-		&& element !== document.body
-		&& element !== document.documentElement
+		&& element !== element.ownerDocument.body
+		&& element !== element.ownerDocument.documentElement
 	) {
 		top -= element.scrollTop;
 		const c = isShadowRoot(element) ? null : getComputedStyle(element);
@@ -498,8 +524,8 @@ export function position(element: HTMLElement, top: number, right?: number, bott
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
 	return {
-		left: bb.left + window.scrollX,
-		top: bb.top + window.scrollY,
+		left: bb.left + (domNode.ownerDocument.defaultView?.scrollX ?? 0),
+		top: bb.top + (domNode.ownerDocument.defaultView?.scrollY ?? 0),
 		width: bb.width,
 		height: bb.height
 	};
@@ -518,7 +544,7 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 		}
 
 		testElement = testElement.parentElement;
-	} while (testElement !== null && testElement !== document.documentElement);
+	} while (testElement !== null && testElement !== testElement.ownerDocument.documentElement);
 
 	return zoom;
 }
@@ -602,7 +628,7 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 	const flowToParentId = node.dataset[parentFlowToDataKey];
 	if (typeof flowToParentId === 'string') {
-		return document.getElementById(flowToParentId);
+		return node.ownerDocument.getElementById(flowToParentId);
 	}
 	return null;
 }
@@ -671,7 +697,7 @@ export function isInShadowDOM(domNode: Node): boolean {
 
 export function getShadowRoot(domNode: Node): ShadowRoot | null {
 	while (domNode.parentNode) {
-		if (domNode === document.body) {
+		if (domNode === domNode.ownerDocument?.body) {
 			// reached the body
 			return null;
 		}
@@ -680,14 +706,46 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 	return isShadowRoot(domNode) ? domNode : null;
 }
 
+/**
+ * Returns the active element across all child windows.
+ * Use this instead of `document.activeElement` to handle multiple windows.
+ */
 export function getActiveElement(): Element | null {
-	let result = document.activeElement;
+	let result = getActiveDocument().activeElement;
 
 	while (result?.shadowRoot) {
 		result = result.shadowRoot.activeElement;
 	}
 
 	return result;
+}
+
+/**
+ * Returns the active document across all child windows.
+ * Use this instead of `document` when reacting to dom events to handle multiple windows.
+ */
+export function getActiveDocument(): Document {
+	const documents = [document, ...getWindows().map(w => w.document)];
+	return documents.find(doc => doc.hasFocus()) ?? document;
+}
+
+export function getActiveWindow(): Window & typeof globalThis {
+	const document = getActiveDocument();
+	return document.defaultView?.window ?? window;
+}
+
+function getWindow(e: unknown): Window & typeof globalThis {
+	const candidateNode = e as Node | undefined;
+	if (candidateNode?.ownerDocument?.defaultView) {
+		return candidateNode.ownerDocument.defaultView.window;
+	}
+
+	const candidateEvent = e as UIEvent | undefined;
+	if (candidateEvent?.view) {
+		return candidateEvent.view.window;
+	}
+
+	return window;
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
@@ -752,11 +810,24 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 	}
 }
 
-export function isHTMLElement(o: any): o is HTMLElement {
-	if (typeof HTMLElement === 'object') {
-		return o instanceof HTMLElement;
-	}
-	return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
+export function isMouseEvent(e: unknown): e is MouseEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof MouseEvent || e instanceof getWindow(e).MouseEvent;
+}
+
+export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof KeyboardEvent || e instanceof getWindow(e).KeyboardEvent;
+}
+
+export function isPointerEvent(e: unknown): e is PointerEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof PointerEvent || e instanceof getWindow(e).PointerEvent;
+}
+
+export function isDragEvent(e: unknown): e is DragEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof DragEvent || e instanceof getWindow(e).DragEvent;
 }
 
 export const EventType = {
@@ -875,15 +946,19 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 	private _refreshStateHandler: () => void;
 
-	private static hasFocusWithin(element: HTMLElement): boolean {
-		const shadowRoot = getShadowRoot(element);
-		const activeElement = (shadowRoot ? shadowRoot.activeElement : document.activeElement);
-		return isAncestor(activeElement, element);
+	private static hasFocusWithin(element: HTMLElement | Window): boolean {
+		if (element instanceof HTMLElement) {
+			const shadowRoot = getShadowRoot(element);
+			const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
+			return isAncestor(activeElement, element);
+		} else {
+			return isAncestor(window.document.activeElement, window.document);
+		}
 	}
 
 	constructor(element: HTMLElement | Window) {
 		super();
-		let hasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
+		let hasFocus = FocusTracker.hasFocusWithin(element);
 		let loosingFocus = false;
 
 		const onFocus = () => {
@@ -920,8 +995,11 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
-		this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
-		this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
+		if (element instanceof HTMLElement) {
+			this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
+			this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
+		}
+
 	}
 
 	refreshState() {
@@ -1089,7 +1167,7 @@ export function removeTabIndexAndUpdateFocus(node: HTMLElement): void {
 	// standard DOM behavior is to move focus to the <body> element. We
 	// typically never want that, rather put focus to the closest element
 	// in the hierarchy of the parent DOM nodes.
-	if (document.activeElement === node) {
+	if (node.ownerDocument.activeElement === node) {
 		const parentFocusable = findParentWithAttribute(node.parentElement, 'tabIndex');
 		parentFocusable?.focus();
 	}
@@ -1895,4 +1973,59 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
+interface IObserver extends IDisposable {
+	readonly onDidChangeAttribute: event.Event<string>;
+}
+
+function observeAttributes(element: Element, filter?: string[]): IObserver {
+	const onDidChangeAttribute = new event.Emitter<string>();
+
+	const observer = new MutationObserver(mutations => {
+		for (const mutation of mutations) {
+			if (mutation.type === 'attributes' && mutation.attributeName) {
+				onDidChangeAttribute.fire(mutation.attributeName);
+			}
+		}
+	});
+
+	observer.observe(element, {
+		attributes: true,
+		attributeFilter: filter
+	});
+
+	return {
+		onDidChangeAttribute: onDidChangeAttribute.event,
+		dispose: () => {
+			observer.disconnect();
+			onDidChangeAttribute.dispose();
+		}
+	};
+}
+
+export function copyAttributes(from: Element, to: Element): void {
+	for (const { name, value } of from.attributes) {
+		to.setAttribute(name, value);
+	}
+}
+
+function copyAttribute(from: Element, to: Element, name: string): void {
+	const value = from.getAttribute(name);
+	if (value) {
+		to.setAttribute(name, value);
+	} else {
+		to.removeAttribute(name);
+	}
+}
+
+export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
+	copyAttributes(from, to);
+
+	const observer = observeAttributes(from, filter);
+
+	return combinedDisposable(
+		observer,
+		observer.onDidChangeAttribute(name => copyAttribute(from, to, name))
+	);
 }
