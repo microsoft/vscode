@@ -839,10 +839,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private async _measureRenderTime(): Promise<void> {
 		const frameTimes: number[] = [];
-		if (!this._core._renderService?._renderer._renderLayers) {
+		if (!this._core._renderService?._renderer.value?._renderLayers) {
 			return;
 		}
-		const textRenderLayer = this._core._renderService._renderer._renderLayers[0];
+		const textRenderLayer = this._core._renderService._renderer.value._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer?.onGridChanged;
 		const evaluateCanvasRenderer = () => {
 			// Discard first frame time as it's normal to take longer
