@@ -34,7 +34,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly _lineHeight: number;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
-	private _decorationsHeightMapCache?: number[] | undefined;
+	private _decorationsHeightMapCache?: Uint8ClampedArray | undefined;
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
@@ -126,10 +126,10 @@ export class ViewModelDecorations implements IDisposable {
 	 *
 	 * Index 0 is not an actual line number. It always contains the original line height.
 	 */
-	public getDecorationsLineHeightMap(): number[] {
+	public getDecorationsLineHeightMap(): Uint8ClampedArray {
 		if (!this._decorationsHeightMapCache) {
 			const lineCount = this._linesCollection.getViewLineCount();
-			const lineHeights = Array.from({ length: lineCount + 1 }, () => this._lineHeight);
+			const lineHeights = new Uint8ClampedArray(lineCount + 1).fill(this._lineHeight);
 			const viewRange = new Range(0, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
 			const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
 
