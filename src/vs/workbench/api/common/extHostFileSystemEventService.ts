@@ -16,6 +16,7 @@ import { FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { Lazy } from 'vs/base/common/lazy';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -137,32 +138,14 @@ class LazyRevivedFileSystemEvents implements FileSystemEvents {
 
 	constructor(private readonly _events: FileSystemEvents) { }
 
-	private _created: URI[] | undefined = undefined;
-	get created(): URI[] {
-		if (!this._created) {
-			this._created = this._events.created.map(URI.revive) as URI[];
-		}
+	private _created = new Lazy(() => this._events.created.map(URI.revive) as URI[]);
+	get created(): URI[] { return this._created.value; }
 
-		return this._created;
-	}
+	private _changed = new Lazy(() => this._events.changed.map(URI.revive) as URI[]);
+	get changed(): URI[] { return this._changed.value; }
 
-	private _changed: URI[] | undefined = undefined;
-	get changed(): URI[] {
-		if (!this._changed) {
-			this._changed = this._events.changed.map(URI.revive) as URI[];
-		}
-
-		return this._changed;
-	}
-
-	private _deleted: URI[] | undefined = undefined;
-	get deleted(): URI[] {
-		if (!this._deleted) {
-			this._deleted = this._events.deleted.map(URI.revive) as URI[];
-		}
-
-		return this._deleted;
-	}
+	private _deleted = new Lazy(() => this._events.deleted.map(URI.revive) as URI[]);
+	get deleted(): URI[] { return this._deleted.value; }
 }
 
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
