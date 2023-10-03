@@ -453,8 +453,8 @@ class CodeActionAdapter {
 					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
-					disabled: candidate.disabled?.reason,
-					isCopilot: 'isCopilot' in candidate && typeof candidate.isCopilot === 'boolean' ? candidate.isCopilot : false
+					isAI: candidate.isAI,
+					disabled: candidate.disabled?.reason
 				});
 			}
 		}

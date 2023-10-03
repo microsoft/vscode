@@ -1918,7 +1918,7 @@ export interface ICodeActionDto {
 	command?: ICommandDto;
 	kind?: string;
 	isPreferred?: boolean;
-	isCopilot?: boolean;
+	isAI?: boolean;
 	disabled?: string;
 }
 

@@ -38,9 +38,9 @@ export const fixAllCommandId = 'editor.action.fixAll';
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	private static codeActionsPreferredComparator(a: languages.CodeAction, b: languages.CodeAction): number {
-		if (isCopilotAction(a) && !isCopilotAction(b)) {
+		if (a.isAI && !b.isAI) {
 			return 1;
-		} else if (!isCopilotAction(a) && isCopilotAction(b)) {
+		} else if (!a.isAI && b.isAI) {
 			return -1;
 		} else if (a.isPreferred && !b.isPreferred) {
 			return -1;
@@ -314,15 +314,6 @@ function asMessage(err: any): string | undefined {
 	} else {
 		return undefined;
 	}
-}
-
-export function isCopilotAction(action: languages.CodeAction): boolean {
-	const propertyCopilotDefined = 'isCopilot' in action;
-	if (!propertyCopilotDefined) {
-		return false;
-	}
-	const isCopilot = action.isCopilot;
-	return typeof isCopilot === 'boolean' && isCopilot;
 }
 
 CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (accessor, resource: URI, rangeOrSelection: Range | Selection, kind?: string, itemResolveCount?: number): Promise<ReadonlyArray<languages.CodeAction>> {
