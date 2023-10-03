@@ -1358,7 +1358,7 @@ begin
     end;
 
     if not Result and not WizardSilent() then begin
-      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
+      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version. Uninstalling will not delete settings.', mbInformation, MB_OK);
     end;
   end;
 
@@ -1528,11 +1528,12 @@ begin
     begin
       CreateMutex('{#AppMutex}-ready');
 
+      Log('Checking whether application is still running...');
       while (CheckForMutexes('{#AppMutex}')) do
       begin
-        Log('Application is still running, waiting');
         Sleep(1000)
       end;
+      Log('Application appears not to be running.');
 
       StopTunnelServiceIfNeeded();
 

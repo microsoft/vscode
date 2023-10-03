@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
@@ -15,7 +16,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.getVersionId(), 0);
@@ -59,7 +60,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
@@ -100,7 +101,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
@@ -132,9 +133,9 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
-				const cellList = createNotebookCellList(accessor);
+				const cellList = createNotebookCellList(accessor, new DisposableStore());
 				cellList.attachViewModel(viewModel);
 				cellList.setFocus([1]);
 
@@ -173,7 +174,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const languageService = accessor.get(ILanguageService);
 
 				editor.textModel.applyEdits([{

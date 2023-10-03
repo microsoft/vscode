@@ -43,6 +43,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const enum RenderConstants {
 	/**
@@ -588,6 +589,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		alert(localize('terminalCleared', "Cleared"));
 	}
 
 	hasSelection(): boolean {
@@ -953,7 +955,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.write(data);
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		this._anyTerminalFocusContextKey.reset();
 		this._anyFocusedTerminalHasSelection.reset();
 		this._onDidDispose.fire();

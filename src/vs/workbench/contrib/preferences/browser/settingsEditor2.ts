@@ -37,7 +37,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
 import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { getCommonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
+import { ITOCEntry, getCommonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
@@ -194,6 +194,7 @@ export class SettingsEditor2 extends EditorPane {
 	private _searchResultModel: SearchResultModel | null = null;
 	private searchResultLabel: string | null = null;
 	private lastSyncedLabel: string | null = null;
+	private settingsOrderByTocIndex: Map<string, number> | null = null;
 
 	private tocRowFocused: IContextKey<boolean>;
 	private settingRowFocused: IContextKey<boolean>;
@@ -205,6 +206,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings = false;
+	private tocTreeDisposed = false;
 
 	/** Persist the search query upon reloads */
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
@@ -844,6 +846,7 @@ export class SettingsEditor2 extends EditorPane {
 				'aria-label': localize('settings', "Settings"),
 			})),
 			this.viewState));
+		this.tocTreeDisposed = false;
 
 		this._register(this.tocTree.onDidFocus(() => {
 			this._currentFocusContext = SettingsFocusContext.TableOfContents;
@@ -877,6 +880,10 @@ export class SettingsEditor2 extends EditorPane {
 
 		this._register(this.tocTree.onDidBlur(() => {
 			this.tocRowFocused.set(false);
+		}));
+
+		this._register(this.tocTree.onDidDispose(() => {
+			this.tocTreeDisposed = true;
 		}));
 	}
 
@@ -1103,18 +1110,19 @@ export class SettingsEditor2 extends EditorPane {
 				const reportModifiedProps = {
 					key,
 					query,
-					searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
-					rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
+					searchResults: this.searchResultModel?.getUniqueResults() ?? null,
+					rawResults: this.searchResultModel?.getRawResults() ?? null,
 					showConfiguredOnly: !!this.viewState.tagFilters && this.viewState.tagFilters.has(MODIFIED_SETTING_TAG),
 					isReset: typeof value === 'undefined',
 					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
 				};
 
+				this.pendingSettingUpdate = null;
 				return this.reportModifiedSetting(reportModifiedProps);
 			});
 	}
 
-	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult[] | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
+	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
 		type SettingsEditorModifiedSettingEvent = {
 			key: string;
 			groupId: string | undefined;
@@ -1133,29 +1141,21 @@ export class SettingsEditor2 extends EditorPane {
 			isReset: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies whether a setting was reset to its default value.' };
 			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scope of the setting, such as user or workspace.' };
 			owner: 'rzhao271';
-			comment: 'Event which fires when the user modifies a setting in the settings editor';
+			comment: 'Event emitted when the user modifies a setting in the Settings editor';
 		};
-
-		this.pendingSettingUpdate = null;
 
 		let groupId: string | undefined = undefined;
 		let nlpIndex: number | undefined = undefined;
 		let displayIndex: number | undefined = undefined;
 		if (props.searchResults) {
-			const remoteResult = props.searchResults[SearchResultIdx.Remote];
-			const localResult = props.searchResults[SearchResultIdx.Local];
-
-			const localIndex = localResult!.filterMatches.findIndex(m => m.setting.key === props.key);
-			groupId = localIndex >= 0 ?
-				'local' :
-				'remote';
-
-			displayIndex = localIndex >= 0 ?
-				localIndex :
-				remoteResult && (remoteResult.filterMatches.findIndex(m => m.setting.key === props.key) + localResult.filterMatches.length);
+			displayIndex = props.searchResults.filterMatches.findIndex(m => m.setting.key === props.key);
 
 			if (this.searchResultModel) {
 				const rawResults = this.searchResultModel.getRawResults();
+				if (rawResults[SearchResultIdx.Local] && displayIndex >= 0) {
+					const settingInLocalResults = rawResults[SearchResultIdx.Local].filterMatches.some(m => m.setting.key === props.key);
+					groupId = settingInLocalResults ? 'local' : 'remote';
+				}
 				if (rawResults[SearchResultIdx.Remote]) {
 					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
@@ -1240,6 +1240,33 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 		return undefined;
+	}
+
+	private createSettingsOrderByTocIndex(resolvedSettingsRoot: ITOCEntry<ISetting>): Map<string, number> {
+		const index = new Map<string, number>();
+		function indexSettings(resolvedSettingsRoot: ITOCEntry<ISetting>, counter = 0): number {
+			if (resolvedSettingsRoot.settings) {
+				for (const setting of resolvedSettingsRoot.settings) {
+					if (!index.has(setting.key)) {
+						index.set(setting.key, counter++);
+					}
+				}
+			}
+			if (resolvedSettingsRoot.children) {
+				for (const child of resolvedSettingsRoot.children) {
+					counter = indexSettings(child, counter);
+				}
+			}
+			return counter;
+		}
+		indexSettings(resolvedSettingsRoot);
+		return index;
+	}
+
+	private refreshModels(resolvedSettingsRoot: ITOCEntry<ISetting>) {
+		this.settingsTreeModel.update(resolvedSettingsRoot);
+		this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root;
+		this.settingsOrderByTocIndex = this.createSettingsOrderByTocIndex(resolvedSettingsRoot);
 	}
 
 	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, schemaChange = false): Promise<void> {
@@ -1340,7 +1367,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.searchResultModel?.updateChildren();
 
 		if (this.settingsTreeModel) {
-			this.settingsTreeModel.update(resolvedSettingsRoot);
+			this.refreshModels(resolvedSettingsRoot);
 
 			if (schemaChange && !!this.searchResultModel) {
 				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
@@ -1351,8 +1378,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.renderTree(undefined, forceRefresh);
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
-			this.settingsTreeModel.update(resolvedSettingsRoot);
-			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
+			this.refreshModels(resolvedSettingsRoot);
 
 			// Don't restore the cached state if we already have a query value from calling _setOptions().
 			const cachedState = !this.viewState.query ? this.restoreCachedState() : undefined;
@@ -1483,7 +1509,7 @@ export class SettingsEditor2 extends EditorPane {
 		await this.triggerSearch(query.replace(/\u203A/g, ' '));
 
 		if (query && this.searchResultModel) {
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchResultModel!.getUniqueResults()));
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchResultModel));
 		}
 	}
 
@@ -1540,7 +1566,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
-			} else {
+			} else if (!this.tocTreeDisposed) {
 				// Leaving search mode
 				this.tocTree.collapseAll();
 				this.refreshTOCTree();
@@ -1556,7 +1582,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * Return a fake SearchResultModel which can hold a flat list of all settings, to be filtered (@modified etc)
 	 */
 	private createFilterModel(): SearchResultModel {
-		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 		const fullResult: ISearchResult = {
 			filterMatches: []
@@ -1574,49 +1600,41 @@ export class SettingsEditor2 extends EditorPane {
 		return filterModel;
 	}
 
-	private reportFilteringUsed(results: ISearchResult[]): void {
+	private reportFilteringUsed(searchResultModel: SearchResultModel | null): void {
+		if (!searchResultModel) {
+			return;
+		}
+
 		type SettingsEditorFilterEvent = {
-			'durations.nlpResult': number | undefined;
 			'counts.nlpResult': number | undefined;
 			'counts.filterResult': number | undefined;
-			'requestCount': number | undefined;
+			'counts.uniqueResultsCount': number | undefined;
 		};
 		type SettingsEditorFilterClassification = {
-			'durations.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'How long the remote search provider took, if applicable.' };
 			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
 			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the local search provider, if applicable.' };
-			'requestCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of requests sent to Bing, if applicable.' };
+			'counts.uniqueResultsCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of unique matches over both search providers, if applicable.' };
 			owner: 'rzhao271';
-			comment: 'Tracks the number of requests and performance of the built-in search providers';
+			comment: 'Tracks the performance of the built-in search providers';
 		};
-
-		const nlpResult = results[SearchResultIdx.Remote];
-		const nlpMetadata = nlpResult?.metadata;
-
-		const duration = {
-			nlpResult: nlpMetadata?.duration
-		};
-
 		// Count unique results
 		const counts: { nlpResult?: number; filterResult?: number } = {};
-		const filterResult = results[SearchResultIdx.Local];
+		const rawResults = searchResultModel.getRawResults();
+		const filterResult = rawResults[SearchResultIdx.Local];
 		if (filterResult) {
 			counts['filterResult'] = filterResult.filterMatches.length;
 		}
-
+		const nlpResult = rawResults[SearchResultIdx.Remote];
 		if (nlpResult) {
 			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}
 
-		const requestCount = nlpMetadata?.requestCount;
-
+		const uniqueResults = searchResultModel.getUniqueResults();
 		const data = {
-			'durations.nlpResult': duration.nlpResult,
 			'counts.nlpResult': counts['nlpResult'],
 			'counts.filterResult': counts['filterResult'],
-			requestCount
+			'counts.uniqueResultsCount': uniqueResults?.filterMatches.length
 		};
-
 		this.telemetryService.publicLog2<SettingsEditorFilterEvent, SettingsEditorFilterClassification>('settingsEditor.filter', data);
 	}
 
@@ -1668,7 +1686,7 @@ export class SettingsEditor2 extends EditorPane {
 			return null;
 		}
 		if (!this.searchResultModel) {
-			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
+			this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.settingsOrderByTocIndex, this.workspaceTrustManagementService.isWorkspaceTrusted());
 			// Must be called before this.renderTree()
 			// to make sure the search results count is set.
 			this.searchResultModel.setResult(type, result);
@@ -1811,7 +1829,8 @@ class SyncControls extends Disposable {
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -1822,10 +1841,14 @@ class SyncControls extends Disposable {
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;
-		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Settings Sync");
+		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Backup and Sync Settings");
 		DOM.hide(this.turnOnSyncButton.element);
 
 		this._register(this.turnOnSyncButton.onDidClick(async () => {
+			telemetryService.publicLog2<{}, {
+				owner: 'sandy081';
+				comment: 'This event tracks whenever settings sync is turned on from settings editor.';
+			}>('sync/turnOnSyncFromSettings');
 			await this.commandService.executeCommand('workbench.userDataSync.actions.turnOn');
 		}));
 

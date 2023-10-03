@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { once as onceFn } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
@@ -394,7 +394,7 @@ export namespace Event {
 	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
 	 * ```
 	 */
-	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
+	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
 
 		let listener: IDisposable | null = event(e => {
@@ -405,6 +405,10 @@ export namespace Event {
 			}
 		});
 
+		if (disposable) {
+			disposable.add(listener);
+		}
+
 		const flush = () => {
 			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
@@ -414,6 +418,9 @@ export namespace Event {
 			onWillAddFirstListener() {
 				if (!listener) {
 					listener = event(e => emitter.fire(e));
+					if (disposable) {
+						disposable.add(listener);
+					}
 				}
 			},
 
@@ -434,6 +441,10 @@ export namespace Event {
 				listener = null;
 			}
 		});
+
+		if (disposable) {
+			disposable.add(emitter);
+		}
 
 		return emitter.event;
 	}
@@ -1438,7 +1449,7 @@ export class EventMultiplexer<T> implements IDisposable {
 			this.events.splice(idx, 1);
 		};
 
-		return toDisposable(onceFn(dispose));
+		return toDisposable(createSingleCallFunction(dispose));
 	}
 
 	private onFirstListenerAdd(): void {

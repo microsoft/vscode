@@ -8,7 +8,11 @@ use base64::{engine::general_purpose as b64, Engine as _};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{str::FromStr, time::Duration};
+use std::{
+	net::{IpAddr, Ipv4Addr, SocketAddr},
+	str::FromStr,
+	time::Duration,
+};
 use sysinfo::Pid;
 use tokio::{
 	io::{AsyncBufReadExt, BufReader},
@@ -132,6 +136,11 @@ impl ServiceContainer for TunnelServiceContainer {
 
 pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
+	let mut shutdown_reqs = vec![ShutdownRequest::CtrlC];
+	if let Some(p) = args.parent_process_id.and_then(|p| Pid::from_str(&p).ok()) {
+		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
+	}
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -140,7 +149,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.require_token
 			.map(AuthRequired::VSDAWithToken)
 			.unwrap_or(AuthRequired::VSDA),
-		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
 	};
 
@@ -157,8 +166,9 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 
 			Box::new(listener)
 		}
-		(true, _) => {
-			let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+		(Some(p), _) => {
+			let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), p);
+			let listener = tokio::net::TcpListener::bind(addr)
 				.await
 				.map_err(|e| wrap(e, "error listening on port"))?;
 

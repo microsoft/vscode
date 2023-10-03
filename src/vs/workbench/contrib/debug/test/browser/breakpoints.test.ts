@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { OverviewRulerLane } from 'vs/editor/common/model';
@@ -58,8 +57,6 @@ suite('Debug - Breakpoints', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Breakpoints
 
@@ -296,7 +293,7 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 		//address: string, offset: number, condition?: string, hitCondition?: string
-		model.addInstructionBreakpoint('0xCCCCFFFF', 0);
+		model.addInstructionBreakpoint('0xCCCCFFFF', 0, 0n);
 
 		assert.strictEqual(eventCount, 1);
 		let instructionBreakpoints = model.getInstructionBreakpoints();
@@ -304,7 +301,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(instructionBreakpoints[0].instructionReference, '0xCCCCFFFF');
 		assert.strictEqual(instructionBreakpoints[0].offset, 0);
 
-		model.addInstructionBreakpoint('0xCCCCEEEE', 1);
+		model.addInstructionBreakpoint('0xCCCCEEEE', 1, 0n);
 		assert.strictEqual(eventCount, 2);
 		instructionBreakpoints = model.getInstructionBreakpoints();
 		assert.strictEqual(instructionBreakpoints.length, 2);

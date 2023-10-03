@@ -220,11 +220,14 @@ pub struct CommandShellArgs {
 	#[clap(long)]
 	pub on_socket: bool,
 	/// Listen on a port instead of stdin/stdout.
-	#[clap(long)]
-	pub on_port: bool,
+	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
+	pub on_port: Option<u16>,
 	/// Require the given token string to be given in the handshake.
 	#[clap(long)]
 	pub require_token: Option<String>,
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long, hide = true)]
+	pub parent_process_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

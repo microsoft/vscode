@@ -8,6 +8,8 @@ export interface ICommentsConfiguration {
 	useRelativeTime: boolean;
 	visible: boolean;
 	maxHeight: boolean;
+	collapseOnResolve: boolean;
+	experimentalContinueOn: boolean;
 }
 
 export const COMMENTS_SECTION = 'comments';

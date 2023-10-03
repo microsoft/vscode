@@ -74,6 +74,7 @@ export class MenuId {
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly CommandCenter = new MenuId('CommandCenter');
+	static readonly CommandCenterCenter = new MenuId('CommandCenterCenter');
 	static readonly LayoutControlMenuSubmenu = new MenuId('LayoutControlMenuSubmenu');
 	static readonly LayoutControlMenu = new MenuId('LayoutControlMenu');
 	static readonly MenubarMainMenu = new MenuId('MenubarMainMenu');

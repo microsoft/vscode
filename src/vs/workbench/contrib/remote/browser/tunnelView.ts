@@ -28,7 +28,7 @@ import { IRemoteExplorerService, TunnelType, ITunnelItem, TUNNEL_VIEW_ID, Tunnel
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -518,7 +518,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		inputBox.focus();
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
 
-		const done = once(async (success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction(async (success: boolean, finishEditing: boolean) => {
 			dispose(toDispose);
 			if (this.inputDone) {
 				this.inputDone = undefined;
@@ -1465,7 +1465,7 @@ namespace ChangeLocalPortAction {
 
 	function validateInput(tunnelService: ITunnelService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		if (!value.match(/^[0-9]+$/)) {
-			return { content: invalidPortString, severity: Severity.Error };
+			return { content: nls.localize('remote.tunnelsView.portShouldBeNumber', "Local port should be a number."), severity: Severity.Error };
 		} else if (Number(value) >= maxPortNumber) {
 			return { content: invalidPortNumberString, severity: Severity.Error };
 		} else if (canElevate && tunnelService.isPortPrivileged(Number(value))) {

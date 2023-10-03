@@ -29,7 +29,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
 	private _registeredEHSearchProvider = false;
 
-	private _disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,

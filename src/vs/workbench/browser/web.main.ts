@@ -187,7 +187,7 @@ export class BrowserMain extends Disposable {
 				},
 				window: {
 					withProgress: (options, task) => progressService.withProgress(options, task),
-					createTerminal: (options) => embedderTerminalService.createTerminal(options),
+					createTerminal: async (options) => embedderTerminalService.createTerminal(options),
 				},
 				workspace: {
 					openTunnel: async tunnelOptions => {
@@ -315,7 +315,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataProfilesService, userDataProfilesService);
 
 		const currentProfile = await this.getCurrentProfile(workspace, userDataProfilesService, environmentService);
-		const userDataProfileService = new UserDataProfileService(currentProfile, userDataProfilesService);
+		const userDataProfileService = new UserDataProfileService(currentProfile);
 		serviceCollection.set(IUserDataProfileService, userDataProfileService);
 
 		// Remote Agent

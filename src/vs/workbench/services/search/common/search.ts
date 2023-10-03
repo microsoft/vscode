@@ -26,6 +26,7 @@ export { TextSearchCompleteMessageType };
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
+export const SEARCH_RESULT_LANGUAGE_ID = 'search-result';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
 

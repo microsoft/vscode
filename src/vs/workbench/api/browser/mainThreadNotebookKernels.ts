@@ -43,7 +43,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 	}
 
 	public get preloadProvides() {
-		return this.preloads.map(p => p.provides).flat();
+		return this.preloads.flatMap(p => p.provides);
 	}
 
 	constructor(data: INotebookKernelDto2, private _languageService: ILanguageService) {

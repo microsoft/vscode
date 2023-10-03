@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notebook';
+import 'vs/css!./media/notebookCellEditorHint';
 import 'vs/css!./media/notebookCellInsertToolbar';
 import 'vs/css!./media/notebookCellStatusBar';
 import 'vs/css!./media/notebookCellTitleToolbar';
@@ -51,7 +52,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_PANE_BACKGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealRangeType, CellRevealSyncType, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealRangeType, CellRevealSyncType, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
@@ -112,7 +113,8 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',
 		'store.contrib.stickyScrollController',
-		'editor.contrib.findController'
+		'editor.contrib.findController',
+		'editor.contrib.emptyTextEditorHint'
 	];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
@@ -887,7 +889,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			NotebookCellList,
 			'NotebookCellList',
 			this._body,
-			this._viewContext,
+			this._viewContext.notebookOptions,
 			this._listDelegate,
 			renderers,
 			this.scopedContextKeyService,
@@ -1510,7 +1512,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		if (this._dimension) {
-			this._list.layout(this._dimension.height, this._dimension.width);
+			this._list.layout(this.getBodyHeight(this._dimension.height), this._dimension.width);
 		} else {
 			this._list.layout();
 		}
@@ -1777,6 +1779,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._scrollBeyondLastLine && !this.isEmbedded;
 	}
 
+	private getBodyHeight(dimensionHeight: number) {
+		return Math.max(dimensionHeight - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0), 0);
+	}
+
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
@@ -1800,7 +1806,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._dimension = dimension;
 		this._position = position;
-		const newBodyHeight = Math.max(dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0), 0);
+		const newBodyHeight = this.getBodyHeight(dimension.height);
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
 		const topInserToolbarHeight = this._notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
@@ -2069,6 +2075,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
 		this._list.revealCell(cell, CellRevealSyncType.CenterIfOutsideViewport);
+	}
+
+	revealFirstLineIfOutsideViewport(cell: ICellViewModel) {
+		this._list.revealCell(cell, CellRevealSyncType.FirstLineIfOutsideViewport);
 	}
 
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
@@ -2358,6 +2368,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this.revealInCenterIfOutsideViewport(cell);
 			}
 		} else {
+			// focus container
 			const itemDOM = this._list.domElementOfElement(cell);
 			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
 				(document.activeElement as HTMLElement).blur();
@@ -2371,7 +2382,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);
 					this.revealInView(cell);
-				} else if (options?.minimalScrolling) {
+				} else if (options?.revealBehavior === ScrollToRevealBehavior.firstLine) {
+					this.revealFirstLineIfOutsideViewport(cell);
+				} else if (options?.revealBehavior === ScrollToRevealBehavior.fullCell) {
 					this.revealInView(cell);
 				} else {
 					this.revealInCenterIfOutsideViewport(cell);

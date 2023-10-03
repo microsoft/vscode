@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
@@ -182,7 +182,7 @@ export class Throttler implements IDisposable {
 
 	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
 		if (this.isDisposed) {
-			throw new Error('Throttler is disposed');
+			return Promise.reject(new Error('Throttler is disposed'));
 		}
 
 		if (this.activePromise) {
@@ -490,9 +490,36 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
-export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
-	const timer = setTimeout(handler, timeout);
-	return toDisposable(() => clearTimeout(timer));
+/**
+ * Creates a timeout that can be disposed using its returned value.
+ * @param handler The timeout handler.
+ * @param timeout An optional timeout in milliseconds.
+ * @param store An optional {@link DisposableStore} that will have the timeout disposable managed automatically.
+ *
+ * @example
+ * const store = new DisposableStore;
+ * // Call the timeout after 1000ms at which point it will be automatically
+ * // evicted from the store.
+ * const timeoutDisposable = disposableTimeout(() => {}, 1000, store);
+ *
+ * if (foo) {
+ *   // Cancel the timeout and evict it from store.
+ *   timeoutDisposable.dispose();
+ * }
+ */
+export function disposableTimeout(handler: () => void, timeout = 0, store?: DisposableStore): IDisposable {
+	const timer = setTimeout(() => {
+		handler();
+		if (store) {
+			disposable.dispose();
+		}
+	}, timeout);
+	const disposable = toDisposable(() => {
+		clearTimeout(timer);
+		store?.deleteAndLeak(disposable);
+	});
+	store?.add(disposable);
+	return disposable;
 }
 
 /**

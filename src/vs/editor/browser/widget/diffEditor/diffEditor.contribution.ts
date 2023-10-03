@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -25,7 +26,9 @@ export class ToggleCollapseUnchangedRegions extends Action2 {
 			title: { value: localize('toggleCollapseUnchangedRegions', "Toggle Collapse Unchanged Regions"), original: 'Toggle Collapse Unchanged Regions' },
 			icon: Codicon.map,
 			toggled: ContextKeyExpr.has('config.diffEditor.hideUnchangedRegions.enabled'),
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
 			menu: {
+				when: ContextKeyExpr.has('isInDiffEditor'),
 				id: MenuId.EditorTitle,
 				order: 22,
 				group: 'navigation',
@@ -47,6 +50,7 @@ export class ToggleShowMovedCodeBlocks extends Action2 {
 		super({
 			id: 'diffEditor.toggleShowMovedCodeBlocks',
 			title: { value: localize('toggleShowMovedCodeBlocks', "Toggle Show Moved Code Blocks"), original: 'Toggle Show Moved Code Blocks' },
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
 		});
 	}
 
@@ -64,6 +68,7 @@ export class ToggleUseInlineViewWhenSpaceIsLimited extends Action2 {
 		super({
 			id: 'diffEditor.toggleUseInlineViewWhenSpaceIsLimited',
 			title: { value: localize('toggleUseInlineViewWhenSpaceIsLimited', "Toggle Use Inline View When Space Is Limited"), original: 'Toggle Use Inline View When Space Is Limited' },
+			precondition: ContextKeyExpr.has('isInDiffEditor'),
 		});
 	}
 
@@ -81,10 +86,14 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: new ToggleUseInlineViewWhenSpaceIsLimited().desc.id,
 		title: localize('useInlineViewWhenSpaceIsLimited', "Use Inline View When Space Is Limited"),
 		toggled: ContextKeyExpr.has('config.diffEditor.useInlineViewWhenSpaceIsLimited'),
+		precondition: ContextKeyExpr.has('isInDiffEditor'),
 	},
 	order: 11,
 	group: '1_diff',
-	when: EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached,
+	when: ContextKeyExpr.and(
+		EditorContextKeys.diffEditorRenderSideBySideInlineBreakpointReached,
+		ContextKeyExpr.has('isInDiffEditor'),
+	),
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -93,9 +102,11 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		title: localize('showMoves', "Show Moved Code Blocks"),
 		icon: Codicon.move,
 		toggled: ContextKeyEqualsExpr.create('config.diffEditor.experimental.showMoves', true),
+		precondition: ContextKeyExpr.has('isInDiffEditor'),
 	},
 	order: 10,
 	group: '1_diff',
+	when: ContextKeyExpr.has('isInDiffEditor'),
 });
 
 const diffEditorCategory: ILocalizedString = {
@@ -232,6 +243,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: AccessibleDiffViewerNext.id,
 		title: localize('Open Accessible Diff Viewer', "Open Accessible Diff Viewer"),
+		precondition: ContextKeyExpr.has('isInDiffEditor'),
 	},
 	order: 10,
 	group: '2_diff',
@@ -279,10 +291,11 @@ export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor |
 		}
 	}
 
-	if (document.activeElement) {
+	const activeElement = getActiveElement();
+	if (activeElement) {
 		for (const d of diffEditors) {
 			const container = d.getContainerDomNode();
-			if (isElementOrParentOf(container, document.activeElement)) {
+			if (isElementOrParentOf(container, activeElement)) {
 				return d;
 			}
 		}
