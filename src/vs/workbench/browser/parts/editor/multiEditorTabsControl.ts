@@ -134,7 +134,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	constructor(
 		parent: HTMLElement,
-		private readonly editorPartsView: IEditorPartsView,
+		editorPartsView: IEditorPartsView,
 		groupsView: IEditorGroupsView,
 		groupView: IEditorGroupView,
 		tabsModel: IReadonlyEditorGroupModel,
@@ -152,7 +152,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
-		super(parent, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, editorResolverService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, editorResolverService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
