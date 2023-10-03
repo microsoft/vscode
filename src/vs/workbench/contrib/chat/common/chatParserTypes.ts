@@ -89,7 +89,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
  */
 export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
-	readonly kind = ChatRequestSlashCommandPart.Kind;
+	readonly kind = ChatRequestDynamicReferencePart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string, readonly arg: string, readonly data: URI) { }
 
 	get referenceText(): string {

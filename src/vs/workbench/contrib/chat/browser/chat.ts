@@ -68,6 +68,7 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | ICha
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderStyle?: 'default' | 'compact';
+	supportsFileReferences?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -87,6 +88,7 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly providerId: string;
+	readonly supportsFileReferences: boolean;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;

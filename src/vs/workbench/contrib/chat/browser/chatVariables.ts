@@ -8,7 +8,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatDynamicReferenceModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferenceModel';
+import { ChatDynamicReferenceModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferences';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest, ChatRequestVariablePart, ChatRequestDynamicReferencePart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatVariablesService, IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolveResult, IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -74,8 +74,12 @@ export class ChatVariablesService implements IChatVariablesService {
 	}
 
 	getDynamicReferences(sessionId: string): ReadonlyArray<IDynamicReference> {
+		// This is slightly wrong... the parser pulls dynamic references from the input widget, but there is no guarantee that message came from the input here.
+		// Need to ...
+		// - Parser takes list of dynamic references (annoying)
+		// - Or the parser is known to implicitly act on the input widget, and we need to call it before calling the chat service (maybe incompatible with the future, but easy)
 		const widget = this.chatWidgetService.getWidgetBySessionId(sessionId);
-		if (!widget || !widget.viewModel) {
+		if (!widget || !widget.viewModel || !widget.supportsFileReferences) {
 			return [];
 		}
 

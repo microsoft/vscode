@@ -144,6 +144,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register((chatWidgetService as ChatWidgetService).register(this));
 	}
 
+	get supportsFileReferences(): boolean {
+		return !!this.viewOptions.supportsFileReferences;
+	}
+
 	get providerId(): string {
 		return this.viewModel?.providerId || '';
 	}
