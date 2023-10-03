@@ -53,10 +53,11 @@
 }
 
 .monaco-editor .ghost-text-remove {
-	color: var(--vscode-editorGhostText-foreground) !important;
+	/* color: #8B0000 !important; */
 	background-color: var(--vscode-editorGhostText-background);
 	font-style: italic;
 	text-decoration: line-through;
+	text-decoration-skip: leading-spaces trailing-spaces;
 }
 
 .monaco-editor .ghost-text-remove-selected {

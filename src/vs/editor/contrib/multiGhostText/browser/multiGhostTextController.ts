@@ -73,6 +73,7 @@ export class MultiGhostTextController extends Disposable {
 			return;
 		}
 
+		console.log('showGhostText', JSON.stringify(ghostTexts, null, 2));
 
 		this._widgetsData = ghostTexts;
 		const ghostText = this._widgetsData.shift();
@@ -99,7 +100,9 @@ export class MultiGhostTextController extends Disposable {
 		this.editor.pushUndoStop();
 		if (data.removeRange) {
 			this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.removeRange), data.text)]);
-			lineDelta = data.text.split('\n').length - 1 - (data.removeRange.endLineNumber - data.removeRange.startLineNumber);
+			const removeLineNumbers = data.removeRange.endLineNumber - data.removeRange.startLineNumber;
+			const addLineNumbers = data.text.split('\n').length - 1;
+			lineDelta = addLineNumbers - removeLineNumbers;
 		}
 		else {
 			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), data.text)]);
@@ -110,8 +113,10 @@ export class MultiGhostTextController extends Disposable {
 	}
 
 	private updateLocations(insertionLine: number, lineDelta: number) {
+		console.log('updateLocations', insertionLine, lineDelta);
 		const tranlated = this._widgetsData.map((data) => {
 			if (data.position.lineNumber < insertionLine) {
+				console.log('updateLocations', 'no change');
 				return data;
 			}
 
@@ -135,6 +140,7 @@ export class MultiGhostTextController extends Disposable {
 			};
 		});
 
+		console.log('updateLocations', JSON.stringify(tranlated, null, 2));
 		this._widgetsData = tranlated;
 	}
 
@@ -146,8 +152,10 @@ export class MultiGhostTextController extends Disposable {
 		const data = this._currentWidget[1];
 
 		const lineDelta = this.acceptCurrent(widget, data);
+		console.log('acceptAndNext', lineDelta);
 		this.updateLocations(data.position.lineNumber, lineDelta);
 		const ghostText = this._widgetsData.shift();
+		console.log('acceptAndNext', JSON.stringify(ghostText, null, 2));
 		if (ghostText) {
 			this.showSingleGhostText(ghostText);
 			this.editor.setPosition(Position.lift(ghostText.position));

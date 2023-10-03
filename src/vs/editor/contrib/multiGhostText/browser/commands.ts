@@ -27,8 +27,8 @@ export class ShowMultiGhostText extends EditorAction {
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, input: ShowInput): Promise<void> {
-		console.log('Show Multi Ghost Text', JSON.stringify(input, null, 2));
-		console.log('Editor cursor', JSON.stringify(editor.getPosition()));
+		// console.log('Show Multi Ghost Text', JSON.stringify(input, null, 2));
+		// console.log('Editor cursor', JSON.stringify(editor.getPosition()));
 		const controller = MultiGhostTextController.get(editor);
 		controller?.showGhostText(input.ghostTexts, input.auto);
 	}
