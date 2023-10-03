@@ -278,7 +278,7 @@ export class OpenEditorsView extends ViewPane {
 			if (!e.element) {
 				return;
 			} else if (e.element instanceof OpenEditor) {
-				if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) {
+				if (dom.isMouseEvent(e.browserEvent) && e.browserEvent.button === 1) {
 					return; // middle click already handled above: closes the editor
 				}
 

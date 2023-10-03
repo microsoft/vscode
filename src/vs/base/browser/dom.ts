@@ -811,18 +811,22 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
+	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof MouseEvent || e instanceof getWindow(e).MouseEvent;
 }
 
 export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
+	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof KeyboardEvent || e instanceof getWindow(e).KeyboardEvent;
 }
 
 export function isPointerEvent(e: unknown): e is PointerEvent {
+	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof PointerEvent || e instanceof getWindow(e).PointerEvent;
 }
 
 export function isDragEvent(e: unknown): e is DragEvent {
+	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof DragEvent || e instanceof getWindow(e).DragEvent;
 }
 
