@@ -179,6 +179,8 @@ export class MultiGhostTextController extends Disposable {
 		if (ghostText) {
 			this.showSingleGhostText(ghostText);
 			this.editor.setPosition(Position.lift(ghostText.position));
+			//if position is outside viewports, scroll to it
+			this.editor.revealPositionInCenterIfOutsideViewport(Position.lift(ghostText.position));
 		}
 		else {
 			this.clear();
