@@ -315,31 +315,31 @@ export class ContextView extends Disposable {
 		let top: number;
 		let left: number;
 
-		const window = DOM.getActiveWindow();
+		const activeWindow = DOM.getActiveWindow();
 		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
-			const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+			const verticalAnchor: ILayoutAnchor = { offset: around.top - activeWindow.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
 
-			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
+			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
 
 			// if view intersects vertically with anchor,  we must avoid the anchor
 			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
 				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
 			}
 
-			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
 		} else {
 			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
 
-			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
 
 			// if view intersects horizontally with anchor, we must avoid the anchor
 			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
 				verticalAnchor.mode = LayoutAnchorMode.AVOID;
 			}
 
-			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
+			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
 		}
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');

@@ -37,7 +37,9 @@ class StandaloneLayoutService implements ILayoutService {
 	}
 
 	get activeContainer(): HTMLElement {
-		return this._codeEditorService.getActiveCodeEditor()?.getContainerDomNode() ?? this.container;
+		const activeCodeEditor = this._codeEditorService.getFocusedCodeEditor() ?? this._codeEditorService.getActiveCodeEditor();
+
+		return activeCodeEditor?.getContainerDomNode() ?? this.container;
 	}
 
 	focus(): void {
