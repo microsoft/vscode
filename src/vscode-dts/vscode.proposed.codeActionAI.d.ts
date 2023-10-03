@@ -11,6 +11,6 @@ declare module 'vscode' {
 		 *
 		 * Ex: A quick fix should be marked AI if it invokes AI.
 		 */
-		isAi?: boolean;
+		isAI?: boolean;
 	}
 }
