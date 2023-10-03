@@ -1166,7 +1166,9 @@ export class Repository {
 		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
 
 		if (!element) {
-			throw new GitError({ message: 'Git relative path not found.' });
+			throw new GitError({
+				message: `Git relative path not found. Was looking for ${relativePathLowercase} among ${JSON.stringify(elements.map(({ file }) => file), null, 2)}`,
+			});
 		}
 
 		return element.file;
