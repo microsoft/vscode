@@ -863,6 +863,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
+	readonly activePart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): IAuxiliaryEditorPart { throw new Error('Method not implemented.'); }
 }
@@ -1711,6 +1712,8 @@ export class TestSingletonFileEditorInput extends TestFileEditorInput {
 }
 
 export class TestEditorPart extends MainEditorPart implements IEditorGroupsService {
+
+	readonly activePart = this;
 
 	testSaveState(): void {
 		return super.saveState();

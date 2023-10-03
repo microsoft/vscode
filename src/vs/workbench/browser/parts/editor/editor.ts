@@ -88,6 +88,26 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 	return options;
 }
 
+/**
+ * A helper to access editor groups across all opened editor parts.
+ */
+export interface IEditorPartsView {
+
+	/**
+	 * An array of all editor groups across all editor parts.
+	 */
+	readonly groups: IEditorGroupView[];
+
+	/**
+	 * Get the group based on an identifier across all opened
+	 * editor parts.
+	 */
+	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
+}
+
+/**
+ * A helper to access and mutate editor groups within an editor part.
+ */
 export interface IEditorGroupsView {
 
 	readonly groups: IEditorGroupView[];
@@ -115,13 +135,6 @@ export interface IEditorGroupsView {
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
 }
 
-export interface IEditorPartsView {
-
-	readonly groups: IEditorGroupView[];
-
-	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
-}
-
 export interface IEditorGroupTitleHeight {
 
 	/**
@@ -138,6 +151,9 @@ export interface IEditorGroupTitleHeight {
 	readonly offset: number;
 }
 
+/**
+ * A helper to access and mutate an editor group within an editor part.
+ */
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;

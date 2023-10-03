@@ -171,6 +171,10 @@ export interface IEditorDropTargetDelegate {
 	containsGroup?(groupView: IEditorGroup): boolean;
 }
 
+/**
+ * An editor part is a viewer of editor groups. There can be multiple editor
+ * parts opened in multiple windows.
+ */
 export interface IEditorPart {
 
 	/**
@@ -441,9 +445,17 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): Promise<void>;
 }
 
+/**
+ * The main service to interact with editor groups across all opened editor parts.
+ */
 export interface IEditorGroupsService extends IEditorPart {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Provides access to the currently active editor part.
+	 */
+	readonly activePart: IEditorPart;
 
 	/**
 	 * Opens a new window with a full editor part instantiated

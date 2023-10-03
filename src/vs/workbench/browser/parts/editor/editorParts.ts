@@ -98,7 +98,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Helpers
 
-	private get activePart(): EditorPart {
+	get activePart(): EditorPart {
 		const activeDocument = getActiveDocument();
 
 		for (const part of this.parts) {
