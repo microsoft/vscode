@@ -1353,9 +1353,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (!this._labelComputer) {
 				this._labelComputer = this._register(this._scopedInstantiationService.createInstance(TerminalLabelComputer, this._configHelper));
 				this._register(this._labelComputer.onDidChangeLabel(e => {
-					this._title = e.title;
-					this._description = e.description;
-					this._onTitleChanged.fire(this);
+					const wasChanged = this._title !== e.title || this._description !== e.description;
+					if (wasChanged) {
+						this._title = e.title;
+						this._description = e.description;
+						this._onTitleChanged.fire(this);
+					}
 				}));
 			}
 			if (this._shellLaunchConfig.name) {
