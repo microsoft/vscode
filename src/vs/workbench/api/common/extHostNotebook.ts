@@ -428,19 +428,39 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					limitHit = true;
 					return;
 				}
+
+				const simpleCells: Array<{ input: string; outputs: string[] }> = [];
 				const notebook = this._documents.get(uri);
-				if (!notebook) {
-					return;
+				if (notebook) {
+					const cells = notebook.apiNotebook.getCells();
+					cells.forEach(e => simpleCells.push(
+						{
+							input: e.document.getText(),
+							outputs: e.outputs.flatMap(value => value.items.map(output => output.data.toString()))
+						}
+					));
+				} else {
+					const fileContent = await this._extHostFileSystem.value.readFile(uri);
+					const bytes = VSBuffer.fromString(fileContent.toString());
+					const notebook = await serializer.deserializeNotebook(bytes.buffer, token);
+					const data = typeConverters.NotebookData.from(notebook);
+
+					data.cells.forEach(cell => simpleCells.push(
+						{
+							input: cell.source,
+							outputs: cell.outputs.flatMap(value => value.items.map(output => output.valueBytes.toString()))
+						}
+					));
 				}
-				const cells = notebook.apiNotebook.getCells();
+
 
 				if (token.isCancellationRequested) {
 					return;
 				}
 
-				cells.forEach((cell, index) => {
+				simpleCells.forEach((cell, index) => {
 					const target = textQuery.contentPattern.pattern;
-					const cellModel: ICellSearchModel = new CellSearchModel(cell.document.getText(), undefined, cell.outputs.flatMap(value => value.items.map(output => output.data.toString())));
+					const cellModel: ICellSearchModel = new CellSearchModel(cell.input, undefined, cell.outputs);
 
 					const inputMatches = cellModel.findInInputs(target);
 					const outputMatches = cellModel.findInOutputs(target);
