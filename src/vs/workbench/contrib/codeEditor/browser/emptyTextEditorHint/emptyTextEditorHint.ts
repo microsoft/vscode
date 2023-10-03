@@ -54,6 +54,10 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 		])
 	}]);
 
+export interface IEmptyTextEditorHintOptions {
+	readonly clickable?: boolean;
+}
+
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 export class EmptyTextEditorHintContribution implements IEditorContribution {
 
@@ -94,6 +98,10 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}));
 	}
 
+	protected _getOptions(): IEmptyTextEditorHintOptions {
+		return { clickable: true };
+	}
+
 	protected _shouldRenderHint() {
 		const configValue = this.configurationService.getValue(emptyTextEditorHintSetting);
 		if (configValue === 'hidden') {
@@ -125,6 +133,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		if (this._shouldRenderHint()) {
 			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
+				this._getOptions(),
 				this.editorGroupsService,
 				this.commandService,
 				this.configurationService,
@@ -153,6 +162,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly options: IEmptyTextEditorHintOptions,
 		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
@@ -238,11 +248,17 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			const actionPart = localize('emptyHintText', 'Press {0} to ask {1} to do something. ', keybindingHintLabel, providerName);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
-				const hintPart = $('a', undefined, fragment);
-				hintPart.style.fontStyle = 'italic';
-				hintPart.style.cursor = 'pointer';
-				hintPart.onclick = handleClick;
-				return hintPart;
+				if (this.options.clickable) {
+					const hintPart = $('a', undefined, fragment);
+					hintPart.style.fontStyle = 'italic';
+					hintPart.style.cursor = 'pointer';
+					hintPart.onclick = handleClick;
+					return hintPart;
+				} else {
+					const hintPart = $('span', undefined, fragment);
+					hintPart.style.fontStyle = 'italic';
+					return hintPart;
+				}
 			});
 
 			hintElement.appendChild(before);
@@ -251,8 +267,11 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			label.set(keybindingHint);
 			label.element.style.width = 'min-content';
 			label.element.style.display = 'inline';
-			label.element.style.cursor = 'pointer';
-			label.element.onclick = handleClick;
+
+			if (this.options.clickable) {
+				label.element.style.cursor = 'pointer';
+				label.element.onclick = handleClick;
+			}
 
 			hintElement.appendChild(after);
 
