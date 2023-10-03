@@ -29,6 +29,9 @@ declare module 'vscode' {
 	}
 
 	export interface SlashResult {
+		// Should be able to compute these async, because they typically will involve a separate LLM call.
+		// That can be a separate call (provideFollowups) or ChatAgentResult contains a promise to it (so ChatAgent returns a promise to a promise).
+		// Or, we can just be ok with the UI showing that the response is still continuing when the actual response is done but the followups are being computed.
 		followUp?: InteractiveSessionFollowup[];
 	}
 
@@ -43,11 +46,8 @@ declare module 'vscode' {
 	}
 
 	interface ChatAgent {
-		fullName?: string;
-		icon?: Uri;
 		slashCommands: SlashCommand[];
-
-		// onDidPerformAction: Event<{ sessionId: string; responseId: string; kind: string }>;
+		onDidPerformAction: Event<{ sessionId: string; responseId: string; action: InteractiveSessionUserAction }>;
 		dispose(): void;
 	}
 
@@ -62,6 +62,6 @@ declare module 'vscode' {
 	export namespace chat {
 		// Invoking slash commands vs the agent with no slash command?
 		// Could be a separate handler or a slash command with a '' id
-		export function createChatAgent(id: string, description: string, defaultHandler?: ChatAgentHandler): ChatAgent;
+		export function createChatAgent(id: string, description: string, fullName?: string, icon?: Uri, defaultHandler?: ChatAgentHandler): ChatAgent;
 	}
 }
