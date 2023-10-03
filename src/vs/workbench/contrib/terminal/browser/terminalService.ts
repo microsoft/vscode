@@ -127,10 +127,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 	private readonly _onDidChangeInstanceDimensions = this._register(new Emitter<ITerminalInstance>());
 	get onDidChangeInstanceDimensions(): Event<ITerminalInstance> { return this._onDidChangeInstanceDimensions.event; }
-	private readonly _onDidChangeInstanceIcon = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
-	get onDidChangeInstanceIcon(): Event<{ instance: ITerminalInstance; userInitiated: boolean }> { return this._onDidChangeInstanceIcon.event; }
-	private readonly _onDidChangeInstanceColor = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
-	get onDidChangeInstanceColor(): Event<{ instance: ITerminalInstance; userInitiated: boolean }> { return this._onDidChangeInstanceColor.event; }
 	private readonly _onDidRegisterProcessSupport = this._register(new Emitter<void>());
 	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<void>());
@@ -156,6 +152,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	// Lazily initialized events that fire when the specified event fires on _any_ terminal
 	@memoize get onAnyInstanceDataInput() { return this.createOnInstanceEvent(e => e.onDidInputData); }
+	@memoize get onAnyInstanceIconChange() { return this.createOnInstanceEvent(e => e.onIconChanged); }
 	@memoize get onAnyInstanceMaximumDimensionsChange() { return this.createOnInstanceEvent(e => Event.map(e.onMaximumDimensionsChanged, () => e, this._store)); }
 	@memoize get onAnyInstancePrimaryStatusChange() { return this.createOnInstanceEvent(e => Event.map(e.statusList.onDidChangePrimaryStatus, () => e, this._store)); }
 	@memoize get onAnyInstanceProcessIdReady() { return this.createOnInstanceEvent(e => e.onProcessIdReady); }
@@ -527,7 +524,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// terminal ID will be stale and the process will be leaked.
 		this.onAnyInstanceProcessIdReady(() => this._saveState());
 		this.onAnyInstanceTitleChange(instance => this._updateTitle(instance));
-		this.onDidChangeInstanceIcon(e => this._updateIcon(e.instance, e.userInitiated));
+		this.onAnyInstanceIconChange(e => this._updateIcon(e.instance, e.userInitiated));
 	}
 
 	private _handleInstanceContextKeys(): void {
@@ -818,8 +815,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		const instanceDisposables: IDisposable[] = [
-			instance.onIconChanged(this._onDidChangeInstanceIcon.fire, this._onDidChangeInstanceIcon),
-			instance.onIconChanged(this._onDidChangeInstanceColor.fire, this._onDidChangeInstanceColor),
 			instance.onDimensionsChanged(() => {
 				this._onDidChangeInstanceDimensions.fire(instance);
 				if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
@@ -1207,8 +1202,7 @@ class TerminalEditorStyle extends Themable {
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
+		this._register(this._terminalService.onAnyInstanceIconChange(() => this.updateStyles()));
 		this._register(this._terminalService.onDidCreateInstance(() => this.updateStyles()));
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			if (this._editorService.activeEditor instanceof TerminalEditorInput) {

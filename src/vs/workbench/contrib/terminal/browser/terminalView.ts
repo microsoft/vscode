@@ -397,8 +397,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		this._register(Event.debounce<ITerminalInstance | undefined, Set<ITerminalInstance>>(Event.any(
 			this._terminalService.onAnyInstancePrimaryStatusChange,
 			this._terminalGroupService.onDidChangeActiveInstance,
-			Event.map(this._terminalService.onDidChangeInstanceIcon, e => e.instance),
-			Event.map(this._terminalService.onDidChangeInstanceColor, e => e.instance),
+			Event.map(this._terminalService.onAnyInstanceIconChange, e => e.instance),
 			this._terminalService.onAnyInstanceTitleChange,
 			this._terminalService.onDidChangeInstanceCapability,
 		), (last, e) => {
@@ -562,8 +561,7 @@ class TerminalThemeIconStyle extends Themable {
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
+		this._register(this._terminalService.onAnyInstanceIconChange(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}
