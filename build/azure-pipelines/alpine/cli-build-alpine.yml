@@ -11,7 +11,7 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSpec: "18.15"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     # Install yarn as the ARM64 build agent is using vanilla Ubuntu
