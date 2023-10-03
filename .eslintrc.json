@@ -140,7 +140,18 @@
 			"rules": {
 				"local/code-no-test-only": "error",
 				"local/code-no-test-async-suite": "warn",
-				"local/code-no-unexternalized-strings": "off"
+				"local/code-no-unexternalized-strings": "off",
+				"local/code-must-use-result": [
+					"warn",
+					[
+						{
+							"message": "Expression must be awaited",
+							"functions": [
+								"assertSnapshot"
+							]
+						}
+					]
+				]
 			}
 		},
 		{
