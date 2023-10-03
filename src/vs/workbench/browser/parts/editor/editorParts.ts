@@ -12,7 +12,7 @@ import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/br
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IChildWindowService } from 'vs/workbench/services/childWindow/browser/childWindowService';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
 
@@ -22,7 +22,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChildWindowService private readonly childWindowService: IChildWindowService
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
 	) {
 		super();
 
@@ -38,20 +38,20 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	createAuxiliaryEditorPart(): IAuxiliaryEditorPart {
 		const disposables = new DisposableStore();
 
-		const childWindow = disposables.add(this.childWindowService.open());
-		disposables.add(Event.once(childWindow.onDidClose)(() => disposables.dispose()));
+		const auxiliaryWindow = disposables.add(this.auxiliaryWindowService.open());
+		disposables.add(Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose()));
 
 		const partContainer = document.createElement('div');
 		partContainer.classList.add('part', 'editor');
 		partContainer.setAttribute('role', 'main');
-		childWindow.container.appendChild(partContainer);
+		auxiliaryWindow.container.appendChild(partContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this));
 		disposables.add(this.registerEditorPart(editorPart));
 		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
 
 		editorPart.create(partContainer, { restorePreviousState: false });
-		disposables.add(childWindow.onDidResize(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
+		disposables.add(auxiliaryWindow.onDidResize(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
 
 		this._onDidAddGroup.fire(editorPart.activeGroup);
 
