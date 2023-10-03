@@ -2452,6 +2452,6 @@ export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
 			pinned: true,
 			viewState: activeEditor.toUntyped({ preserveViewState: editorGroupService.activeGroup.id })?.options?.viewState,
 		});
-		await editorGroupService.activeGroup?.closeEditor(activeEditor);
+		await editorGroupService.activeGroup.closeEditor(activeEditor);
 	}
 }
