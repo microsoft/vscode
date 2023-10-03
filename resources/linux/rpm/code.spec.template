@@ -60,14 +60,14 @@ fi
 #fi
 
 # Install the desktop entry
-update-desktop-database %> /dev/null || :
+update-desktop-database &> /dev/null || :
 
 # Update mimetype database to pickup workspace mimetype
 update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %postun
 # Uninstall the desktop entry
-update-desktop-database %> /dev/null || :
+update-desktop-database &> /dev/null || :
 
 # Update mimetype database for removed workspace mimetype
 update-mime-database %{_datadir}/mime &> /dev/null || :
