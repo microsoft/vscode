@@ -2,7 +2,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$milestone=milestone:\"September 2023\""
+    "value": "$milestone=milestone:\"October 2023\"\n"
   },
   {
     "kind": 1,
@@ -12,12 +12,12 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-dev $milestone is:open"
+    "value": "repo:microsoft/vscode-dev $milestone is:open\n"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-dev milestone:\"Backlog\" is:open"
+    "value": "repo:microsoft/vscode-dev milestone:\"Backlog\" is:open\n"
   },
   {
     "kind": 1,
@@ -27,7 +27,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode label:vscode.dev is:open"
+    "value": "repo:microsoft/vscode label:vscode.dev is:open\n"
   },
   {
     "kind": 1,
@@ -37,11 +37,11 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-remote-repositories-github $milestone is:open"
+    "value": "repo:microsoft/vscode-remote-repositories-github $milestone is:open\n"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "repo:microsoft/vscode-remotehub $milestone is:open"
+    "value": "repo:microsoft/vscode-remotehub $milestone is:open\n"
   }
 ]

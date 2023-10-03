@@ -133,16 +133,16 @@ export class NativeWindow extends Disposable {
 	private registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e)));
+		this._register(addDisposableListener(window, EventType.RESIZE, () => this.layoutService.layout()));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
+			this._register(addDisposableListener(window.document.body, event, (e: DragEvent) => {
 				EventHelper.stop(e);
-			});
+			}));
 		}
 
 		// Support `runAction` event
@@ -543,12 +543,6 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onWindowResize(e: UIEvent): void {
-		if (e.target === window) {
-			this.layoutService.layout();
-		}
-	}
-
 	private updateDocumentEdited(documentEdited: true | undefined): void {
 		let setDocumentEdited: boolean;
 		if (typeof documentEdited === 'boolean') {
@@ -829,11 +823,6 @@ export class NativeWindow extends Disposable {
 	}
 
 	private setupOpenHandlers(): void {
-
-		// Block window.open() calls
-		window.open = function (): Window | null {
-			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
-		};
 
 		// Handle external open() calls
 		this.openerService.setDefaultExternalOpener({
