@@ -111,7 +111,7 @@ export class MultiGhostTextController extends Disposable {
 
 	private updateLocations(insertionLine: number, lineDelta: number) {
 		const tranlated = this._widgetsData.map((data) => {
-			if (data.position.column < insertionLine) {
+			if (data.position.lineNumber < insertionLine) {
 				return data;
 			}
 
