@@ -12,7 +12,7 @@ import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/no
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ExtHostContext, ExtHostNotebookDocumentsShape, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
-import { NotebookDto } from 'vs/workbench/api/common/mainThreadNotebookDto';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 

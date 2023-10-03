@@ -34,8 +34,8 @@ import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
 import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { CellSearchModel, ICellSearchModel } from 'vs/workbench/api/common/notebookSearchExtHost';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
+import { CellSearchModel, ICellSearchModel } from 'vs/workbench/contrib/search/common/search';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -440,7 +440,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 				cells.forEach((cell, index) => {
 					const target = textQuery.contentPattern.pattern;
-					const cellModel: ICellSearchModel = new CellSearchModel(cell.document.getText(), undefined, cell.outputs.flatMap(value => value.items));
+					const cellModel: ICellSearchModel = new CellSearchModel(cell.document.getText(), undefined, cell.outputs.flatMap(value => value.items.map(output => output.data.toString())));
 
 					const inputMatches = cellModel.findInInputs(target);
 					const outputMatches = cellModel.findInOutputs(target);
