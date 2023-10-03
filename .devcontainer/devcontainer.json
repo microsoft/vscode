@@ -18,5 +18,21 @@
 				"mutantdino.resourcemonitor"
 			]
 		}
+	},
+
+	"extensions": [
+		"dbaeumer.vscode-eslint",
+		"eg2.vscode-npm-script",
+		"github.vscode-pull-request-github",
+		"mutantdino.resourcemonitor"
+	],
+
+	// Optionally loads a cached yarn install for the repo
+	"postCreateCommand": ".devcontainer/cache/restore-diff.sh",
+
+	"remoteUser": "node",
+
+	"hostRequirements": {
+		"memory": "8gb"
 	}
 }
