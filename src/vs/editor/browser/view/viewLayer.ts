@@ -462,11 +462,11 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
 		const rendLineNumberStart = ctx.rendLineNumberStart;
 		const lines = ctx.lines;
-		const safeDeltaTOp = deltaTop.length - 1;
+		const safeDeltaTop = deltaTop.length - 1;
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			const lineHeight = i < safeDeltaTOp ? deltaTop[i + 1] - deltaTop[i] : 19;
+			const lineHeight = i < safeDeltaTop ? deltaTop[i + 1] - deltaTop[i] : 19;
 			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], lineHeight);
 		}
 	}
@@ -564,7 +564,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		{
 			sb.reset();
 			let hadNewLine = false;
-			const safeDeltaTOp = deltaTop.length - 1;
+			const safeDeltaTop = deltaTop.length - 1;
 
 			for (let i = 0; i < linesLength; i++) {
 				const line = lines[i];
@@ -577,7 +577,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				// XXX Get rid of the hardcoded 19
-				const lineHeight = i < safeDeltaTOp ? deltaTop[i + 1] - deltaTop[i] : 19;
+				const lineHeight = i < safeDeltaTop ? deltaTop[i + 1] - deltaTop[i] : 19;
 				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
@@ -598,7 +598,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 			let hadInvalidLine = false;
 			const wasInvalid: boolean[] = [];
-			const safeDeltaTOp = deltaTop.length - 1;
+			const safeDeltaTop = deltaTop.length - 1;
 
 			for (let i = 0; i < linesLength; i++) {
 				const line = lines[i];
@@ -610,7 +610,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				// XXX Get rid of the hardcoded 19
-				const lineHeight = i < safeDeltaTOp ? deltaTop[i + 1] - deltaTop[i] : 19;
+				const lineHeight = i < safeDeltaTop ? deltaTop[i + 1] - deltaTop[i] : 19;
 				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering

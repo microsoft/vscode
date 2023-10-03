@@ -121,7 +121,6 @@ export class ViewModelDecorations implements IDisposable {
 		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
 	}
 
-	// XXX The result can probably be cached to increase performance.
 	/**
 	 * Get an array where each index maps the line number to its line height.
 	 *
