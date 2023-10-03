@@ -21,7 +21,7 @@ export interface IChildWindowService {
 
 	readonly _serviceBrand: undefined;
 
-	create(): IChildWindow;
+	open(): IChildWindow;
 }
 
 export interface IChildWindow extends IDisposable {
@@ -42,7 +42,7 @@ export class ChildWindowService implements IChildWindowService {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) { }
 
-	create(): IChildWindow {
+	open(): IChildWindow {
 		const disposables = new DisposableStore();
 
 		const childWindow = assertIsDefined(window.open('about:blank')?.window);

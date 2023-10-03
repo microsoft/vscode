@@ -1713,6 +1713,8 @@ export class TestSingletonFileEditorInput extends TestFileEditorInput {
 
 export class TestEditorPart extends MainEditorPart implements IEditorGroupsService {
 
+	declare readonly _serviceBrand: undefined;
+
 	readonly activePart = this;
 
 	testSaveState(): void {

@@ -15,7 +15,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorGroupsView, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -80,8 +80,6 @@ class GridWidgetView<T extends IView> implements IView {
 }
 
 export class EditorPart extends Part implements IEditorPart {
-
-	declare readonly _serviceBrand: undefined;
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
@@ -267,6 +265,10 @@ export class EditorPart extends Part implements IEditorPart {
 		} else {
 			target.push(node.view);
 		}
+	}
+
+	hasGroup(identifier: GroupIdentifier): boolean {
+		return this.groupViews.has(identifier);
 	}
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined {
@@ -1224,6 +1226,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private disposeGroups(): void {
 		for (const group of this.groups) {
 			group.dispose();
+
 			this._onDidRemoveGroup.fire(group);
 		}
 
@@ -1248,14 +1251,14 @@ export class EditorPart extends Part implements IEditorPart {
 export class MainEditorPart extends EditorPart {
 
 	constructor(
-		groupsView: IEditorGroupsView,
+		editorPartsView: IEditorPartsView,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(groupsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 }
 
@@ -1267,7 +1270,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	readonly onDidClose = this._onDidClose.event;
 
 	constructor(
-		groupsView: IEditorGroupsView,
+		editorPartsView: IEditorPartsView,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -1275,7 +1278,11 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(groupsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
+	}
+
+	protected override saveState(): void {
+		return; // TODO@bpasero support auxiliary editor state
 	}
 
 	async close(): Promise<void> {
