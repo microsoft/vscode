@@ -97,16 +97,22 @@ export class MultiGhostTextController extends Disposable {
 		this._dontClear = true;
 		let lineDelta = 0;
 
+		//It should only happen in case of last line suggestion
+		let text = data.text;
+		if (data.text.startsWith('\n')) {
+			text = data.text.substring(1);
+		}
+
 		this.editor.pushUndoStop();
 		if (data.removeRange) {
-			this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.removeRange), data.text)]);
+			this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.removeRange), text)]);
 			const removeLineNumbers = data.removeRange.endLineNumber - data.removeRange.startLineNumber;
-			const addLineNumbers = data.text.split('\n').length - 1;
+			const addLineNumbers = text.split('\n').length - 1;
 			lineDelta = addLineNumbers - removeLineNumbers;
 		}
 		else {
-			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), data.text)]);
-			lineDelta = data.text.split('\n').length - 1;
+			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), text)]);
+			lineDelta = text.split('\n').length - 1;
 		}
 		widget.dispose();
 		return lineDelta;
@@ -154,8 +160,22 @@ export class MultiGhostTextController extends Disposable {
 		const lineDelta = this.acceptCurrent(widget, data);
 		console.log('acceptAndNext', lineDelta);
 		this.updateLocations(data.position.lineNumber, lineDelta);
-		const ghostText = this._widgetsData.shift();
+		let ghostText = this._widgetsData.shift();
 		console.log('acceptAndNext', JSON.stringify(ghostText, null, 2));
+		//if we'd show ghost text in a position that's outside of the file, we should display it at the end of the last line
+		const fileLineCount = this.editor.getModel()?.getLineCount() ?? 1;
+		if (ghostText && ghostText.position.lineNumber > fileLineCount) {
+			ghostText = {
+				position: {
+					lineNumber: fileLineCount,
+					column: this.editor.getModel()?.getLineMaxColumn(fileLineCount) ?? 1
+				},
+				removeRange: ghostText.removeRange,
+				text: '\n' + ghostText.text
+			};
+		}
+
+
 		if (ghostText) {
 			this.showSingleGhostText(ghostText);
 			this.editor.setPosition(Position.lift(ghostText.position));
