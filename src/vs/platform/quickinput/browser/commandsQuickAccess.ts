@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
@@ -36,6 +36,15 @@ export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderO
 	suggestedCommandIds?: Set<string>;
 }
 
+export const ICommandsHistoryService = createDecorator<ICommandsHistoryService>('ICommandsHistoryService');
+export interface ICommandsHistoryService {
+	readonly _serviceBrand: undefined;
+	getConfiguredLength(): number;
+	peek(commandId: string): number | undefined;
+	push(commandId: string): void;
+	clear(): void;
+}
+
 export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAccessProvider<ICommandQuickPick> implements IDisposable {
 
 	static PREFIX = '>';
@@ -45,13 +54,11 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 	private static WORD_FILTER = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 
-	private readonly commandsHistory = this._register(this.instantiationService.createInstance(CommandsHistory));
-
 	protected override readonly options: ICommandsQuickAccessOptions;
 
 	constructor(
 		options: ICommandsQuickAccessOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandsHistoryService private readonly commandsHistoryService: ICommandsHistoryService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -147,8 +154,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				return -1; // other command has a score but first doesn't so first wins
 			}
 
-			const commandACounter = this.commandsHistory.peek(commandPickA.commandId);
-			const commandBCounter = this.commandsHistory.peek(commandPickB.commandId);
+			const commandACounter = this.commandsHistoryService.peek(commandPickA.commandId);
+			const commandBCounter = this.commandsHistoryService.peek(commandPickB.commandId);
 
 			if (commandACounter && commandBCounter) {
 				return commandACounter > commandBCounter ? -1 : 1; // use more recently used command before older
@@ -191,7 +198,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			const commandPick = filteredCommandPicks[i];
 
 			// Separator: recently used
-			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
+			if (i === 0 && this.commandsHistoryService.peek(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('recentlyUsed', "recently used") });
 				addOtherSeparator = true;
 			}
@@ -202,14 +209,14 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			}
 
 			// Separator: commonly used
-			if (addCommonlyUsedSeparator && commandPick.tfIdfScore === undefined && !this.commandsHistory.peek(commandPick.commandId) && this.options.suggestedCommandIds?.has(commandPick.commandId)) {
+			if (addCommonlyUsedSeparator && commandPick.tfIdfScore === undefined && !this.commandsHistoryService.peek(commandPick.commandId) && this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('commonlyUsed', "commonly used") });
 				addOtherSeparator = true;
 				addCommonlyUsedSeparator = false;
 			}
 
 			// Separator: other commands
-			if (addOtherSeparator && commandPick.tfIdfScore === undefined && !this.commandsHistory.peek(commandPick.commandId) && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
+			if (addOtherSeparator && commandPick.tfIdfScore === undefined && !this.commandsHistoryService.peek(commandPick.commandId) && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('morecCommands', "other commands") });
 				addOtherSeparator = false;
 			}
@@ -259,7 +266,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			accept: async () => {
 
 				// Add to history
-				this.commandsHistory.push(commandPick.commandId);
+				this.commandsHistoryService.push(commandPick.commandId);
 
 				// Telementry
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
@@ -301,17 +308,20 @@ interface ICommandsQuickAccessConfiguration {
 	};
 }
 
-export class CommandsHistory extends Disposable {
+export class CommandsHistoryService extends Disposable implements ICommandsHistoryService {
+
+	readonly _serviceBrand: undefined;
 
 	static readonly DEFAULT_COMMANDS_HISTORY_LENGTH = 50;
 
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
-
-	private static cache: LRUCache<string, number> | undefined;
 	private static counter = 1;
 
+	private cache: LRUCache<string, number> | undefined;
+
 	private configuredCommandsHistoryLength = 0;
+	private isDirty = false;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -334,17 +344,15 @@ export class CommandsHistory extends Disposable {
 			return;
 		}
 
-		this.configuredCommandsHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
+		this.configuredCommandsHistoryLength = this.getConfiguredLength();
 
-		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
-			CommandsHistory.cache.limit = this.configuredCommandsHistoryLength;
-
-			CommandsHistory.saveState(this.storageService);
+		if (this.cache && this.cache.limit !== this.configuredCommandsHistoryLength) {
+			this.cache.limit = this.configuredCommandsHistoryLength;
 		}
 	}
 
 	private load(): void {
-		const raw = this.storageService.get(CommandsHistory.PREF_KEY_CACHE, StorageScope.PROFILE);
+		const raw = this.storageService.get(CommandsHistoryService.PREF_KEY_CACHE, StorageScope.PROFILE);
 		let serializedCache: ISerializedCommandHistory | undefined;
 		if (raw) {
 			try {
@@ -354,7 +362,7 @@ export class CommandsHistory extends Disposable {
 			}
 		}
 
-		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
+		const cache = this.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
 		if (serializedCache) {
 			let entries: { key: string; value: number }[];
 			if (serializedCache.usesLRU) {
@@ -365,51 +373,55 @@ export class CommandsHistory extends Disposable {
 			entries.forEach(entry => cache.set(entry.key, entry.value));
 		}
 
-		CommandsHistory.counter = this.storageService.getNumber(CommandsHistory.PREF_KEY_COUNTER, StorageScope.PROFILE, CommandsHistory.counter);
+		CommandsHistoryService.counter = this.storageService.getNumber(CommandsHistoryService.PREF_KEY_COUNTER, StorageScope.PROFILE, CommandsHistoryService.counter);
 	}
 
 	push(commandId: string): void {
-		if (!CommandsHistory.cache) {
+		if (!this.cache) {
 			return;
 		}
 
-		CommandsHistory.cache.set(commandId, CommandsHistory.counter++); // set counter to command
-
-		CommandsHistory.saveState(this.storageService);
+		this.cache.set(commandId, CommandsHistoryService.counter++); // set counter to command
+		this.isDirty = true;
 	}
 
 	peek(commandId: string): number | undefined {
-		return CommandsHistory.cache?.peek(commandId);
+		return this.cache?.peek(commandId);
 	}
 
-	static saveState(storageService: IStorageService): void {
-		if (!CommandsHistory.cache) {
-			return;
-		}
-
-		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
-		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
-
-		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.PROFILE, StorageTarget.USER);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.PROFILE, StorageTarget.USER);
-	}
-
-	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
-		const config = <ICommandsQuickAccessConfiguration>configurationService.getValue();
+	getConfiguredLength(): number {
+		const config = <ICommandsQuickAccessConfiguration>this.configurationService.getValue();
 
 		const configuredCommandHistoryLength = config.workbench?.commandPalette?.history;
 		if (typeof configuredCommandHistoryLength === 'number') {
 			return configuredCommandHistoryLength;
 		}
 
-		return CommandsHistory.DEFAULT_COMMANDS_HISTORY_LENGTH;
+		return CommandsHistoryService.DEFAULT_COMMANDS_HISTORY_LENGTH;
 	}
 
-	static clearHistory(configurationService: IConfigurationService, storageService: IStorageService): void {
-		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
-		CommandsHistory.cache = new LRUCache<string, number>(commandHistoryLength);
-		CommandsHistory.counter = 1;
+	clear(): void {
+		const commandHistoryLength = this.getConfiguredLength();
+		this.cache = new LRUCache<string, number>(commandHistoryLength);
+		CommandsHistoryService.counter = 1;
+		this.isDirty = true;
+	}
 
-		CommandsHistory.saveState(storageService);
+	protected save(): void {
+		if (!this.cache) {
+			return;
+		}
+
+		if (!this.isDirty) {
+			return;
+		}
+
+		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
+		this.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
+
+		this.storageService.store(CommandsHistoryService.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(CommandsHistoryService.PREF_KEY_COUNTER, CommandsHistoryService.counter, StorageScope.PROFILE, StorageTarget.USER);
+
+		this.isDirty = false;
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { CommandsHistoryService, ICommandQuickPick, ICommandsHistoryService } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -13,7 +13,7 @@ import { raceTimeout, timeout } from 'vs/base/common/async';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,7 +24,6 @@ import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickac
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -37,6 +36,8 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -66,7 +67,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IEditorService private readonly editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@ICommandsHistoryService commandsHistoryService: ICommandsHistoryService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -84,7 +85,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				label: localize('noCommandResults', "No matching commands"),
 				commandId: ''
 			}),
-		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+		}, commandsHistoryService, keybindingService, commandService, telemetryService, dialogService);
 
 		this._register(configurationService.onDidChangeConfiguration((e) => this.updateOptions(e)));
 		this.updateOptions();
@@ -285,11 +286,10 @@ export class ClearCommandHistoryAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const storageService = accessor.get(IStorageService);
 		const dialogService = accessor.get(IDialogService);
+		const commandsHistoryService = accessor.get(ICommandsHistoryService);
 
-		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(configurationService);
+		const commandHistoryLength = commandsHistoryService.getConfiguredLength();
 		if (commandHistoryLength > 0) {
 
 			// Ask for confirmation
@@ -304,9 +304,20 @@ export class ClearCommandHistoryAction extends Action2 {
 				return;
 			}
 
-			CommandsHistory.clearHistory(configurationService, storageService);
+			commandsHistoryService.clear();
 		}
 	}
 }
 
-//#endregion
+export class WorkbenchCommandsHistoryService extends CommandsHistoryService {
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+	) {
+		super(storageService, configurationService);
+		this._register(lifecycleService.onBeforeShutdown(e => this.save()));
+	}
+
+}
