@@ -133,6 +133,38 @@ interface IExtensionListener<E> {
 	(e: E): any;
 }
 
+class LazyRevivedFileSystemEvents implements FileSystemEvents {
+
+	constructor(private readonly _events: FileSystemEvents) { }
+
+	private _created: URI[] | undefined = undefined;
+	get created(): URI[] {
+		if (!this._created) {
+			this._created = this._events.created.map(created => URI.revive(created));
+		}
+
+		return this._created;
+	}
+
+	private _changed: URI[] | undefined = undefined;
+	get changed(): URI[] {
+		if (!this._changed) {
+			this._changed = this._events.changed.map(changed => URI.revive(changed));
+		}
+
+		return this._changed;
+	}
+
+	private _deleted: URI[] | undefined = undefined;
+	get deleted(): URI[] {
+		if (!this._deleted) {
+			this._deleted = this._events.deleted.map(deleted => URI.revive(deleted));
+		}
+
+		return this._deleted;
+	}
+}
+
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
 	private readonly _onFileSystemEvent = new Emitter<FileSystemEvents>();
@@ -163,7 +195,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
-		this._onFileSystemEvent.fire(events);
+		this._onFileSystemEvent.fire(new LazyRevivedFileSystemEvents(events));
 	}
 
 
