@@ -2762,13 +2762,6 @@ export class CommandCenter {
 		await repository.pullWithRebase(repository.HEAD);
 	}
 
-	private _getForcePushMode(withLease: boolean | undefined, ifIncludes: boolean | undefined): ForcePushMode {
-		if (!withLease) {
-			return ForcePushMode.Force;
-		}
-		return ifIncludes ? ForcePushMode.ForceWithLeaseIfIncludes : ForcePushMode.ForceWithLease;
-	}
-
 	private async _push(repository: Repository, pushOptions: PushOptions) {
 		const remotes = repository.remotes;
 
@@ -2796,7 +2789,9 @@ export class CommandCenter {
 				return;
 			}
 
-			forcePushMode = this._getForcePushMode(config.get<boolean>('useForcePushWithLease'), config.get<boolean>('useForcePushIfIncludes'));
+			const useForcePushWithLease = config.get<boolean>('useForcePushWithLease') === true;
+			const useForcePushIfIncludes = config.get<boolean>('useForcePushIfIncludes') === true;
+			forcePushMode = useForcePushWithLease ? useForcePushIfIncludes ? ForcePushMode.ForceWithLeaseIfIncludes : ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
 				const message = l10n.t('You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?');
@@ -3665,11 +3660,9 @@ export class CommandCenter {
 					case GitErrorCodes.PushRejected:
 						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
 						break;
-					case GitErrorCodes.ForcePushRejected:
-						message = l10n.t('Can\'t force push refs to remote. Check if force push is not prohibited by remote.');
-						break;
-					case GitErrorCodes.SaferForcePushRejected:
-						message = l10n.t('Can\'t force push refs to remote. Check if force push is not prohibited by the remote or pull the latest changes from the remote branch first.');
+					case GitErrorCodes.ForcePushWithLeaseRejected:
+					case GitErrorCodes.ForcePushWithLeaseIfIncludesRejected:
+						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
 						break;
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');

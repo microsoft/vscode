@@ -1917,7 +1917,7 @@ export class Repository {
 
 		if (forcePushMode === ForcePushMode.ForceWithLease || forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes) {
 			args.push('--force-with-lease');
-			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && this._git.compareGitVersionTo('2.30')) {
+			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && this._git.compareGitVersionTo('2.30') !== -1) {
 				args.push('--force-if-includes');
 			}
 		} else if (forcePushMode === ForcePushMode.Force) {
@@ -1948,12 +1948,12 @@ export class Repository {
 			await this.exec(args, { env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent } });
 		} catch (err) {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
-				if (forcePushMode === undefined) {
-					err.gitErrorCode = GitErrorCodes.PushRejected;
-				} else if (forcePushMode === ForcePushMode.Force) {
-					err.gitErrorCode = GitErrorCodes.ForcePushRejected;
+				if (forcePushMode === ForcePushMode.ForceWithLease && /! \[rejected\].*\(stale info\)/m.test(err.stderr || '')) {
+					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseRejected;
+				} else if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && /! \[rejected\].*\(remote ref updated since checkout\)/m.test(err.stderr || '')) {
+					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseIfIncludesRejected;
 				} else {
-					err.gitErrorCode = GitErrorCodes.SaferForcePushRejected;
+					err.gitErrorCode = GitErrorCodes.PushRejected;
 				}
 			} else if (/Permission.*denied/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.PermissionDenied;
