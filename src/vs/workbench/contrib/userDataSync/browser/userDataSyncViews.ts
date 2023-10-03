@@ -461,6 +461,7 @@ abstract class UserDataSyncActivityViewDataProvider<T = Profile> implements ITre
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
 				label: { label: getSyncAreaLabel(syncResourceHandle.syncResource) },
 				description: fromNow(syncResourceHandle.created, true),
+				tooltip: new Date(syncResourceHandle.created).toLocaleString(),
 				themeIcon: FolderThemeIcon,
 				syncResourceHandle,
 				contextValue: `sync-resource-${syncResourceHandle.syncResource}`

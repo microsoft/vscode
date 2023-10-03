@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
@@ -110,7 +110,6 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
@@ -125,6 +124,11 @@ import { Lazy } from 'vs/base/common/lazy';
  * even if the user starts many instances (e.g. from the command line).
  */
 export class CodeApplication extends Disposable {
+
+	private static readonly SECURITY_PROTOCOL_HANDLING_CONFIRMATION_SETTING_KEY = {
+		[Schemas.file]: 'security.promptForLocalFileProtocolHandling' as const,
+		[Schemas.vscodeRemote]: 'security.promptForRemoteFileProtocolHandling' as const
+	};
 
 	private windowsMainService: IWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
@@ -581,7 +585,7 @@ export class CodeApplication extends Disposable {
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Setup Protocol URL Handlers
-		const initialProtocolUrls = appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
+		const initialProtocolUrls = await appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
 
 		// Setup vscode-remote-resource protocol handler.
 		this.setupManagedRemoteResourceUrlHandler(mainProcessElectronServer);
@@ -605,10 +609,11 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 	}
 
-	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IInitialProtocolUrls | undefined {
+	private async setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<IInitialProtocolUrls | undefined> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		const dialogMainService = accessor.get(IDialogMainService);
 
 		// Install URL handlers that deal with protocl URLs either
 		// from this process by opening windows and/or by forwarding
@@ -617,7 +622,7 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				return app.handleProtocolUrl(windowsMainService, urlService, uri, options);
+				return app.handleProtocolUrl(windowsMainService, dialogMainService, urlService, uri, options);
 			}
 		});
 
@@ -631,7 +636,7 @@ export class CodeApplication extends Disposable {
 		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
-		const initialProtocolUrls = this.resolveInitialProtocolUrls();
+		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService, dialogMainService);
 		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		return initialProtocolUrls;
@@ -659,7 +664,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private resolveInitialProtocolUrls(): IInitialProtocolUrls | undefined {
+	private async resolveInitialProtocolUrls(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<IInitialProtocolUrls | undefined> {
 
 		/**
 		 * Protocol URL handling on startup is complex, refer to
@@ -682,8 +687,7 @@ export class CodeApplication extends Disposable {
 			return undefined;
 		}
 
-		const openables: IWindowOpenable[] = [];
-		const urls = [
+		const protocolUrls = [
 			...protocolUrlsFromCommandLine,
 			...protocolUrlsFromEvent
 		].map(url => {
@@ -694,53 +698,79 @@ export class CodeApplication extends Disposable {
 
 				return undefined;
 			}
-		}).filter((obj): obj is IProtocolUrl => {
-			if (!obj) {
-				return false; // invalid
-			}
-
-			if (this.shouldBlockURI(obj.uri)) {
-				this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', obj.uri.toString(true));
-
-				return false; // blocked
-			}
-
-			const windowOpenable = this.getWindowOpenableFromProtocolUrl(obj.uri);
-			if (windowOpenable) {
-				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
-
-				openables.push(windowOpenable);
-
-				return false; // handled as window to open
-			}
-
-			this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
-
-			return true; // handled within active window
 		});
+
+		const openables: IWindowOpenable[] = [];
+		const urls: IProtocolUrl[] = [];
+		for (const protocolUrl of protocolUrls) {
+			if (!protocolUrl) {
+				continue; // invalid
+			}
+
+			if (await this.shouldBlockURI(protocolUrl.uri, windowsMainService, dialogMainService)) {
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
+
+				continue; // blocked
+			}
+
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
+			if (windowOpenable) {
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
+
+				openables.push(windowOpenable); // handled as window to open
+			} else {
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
+
+				urls.push(protocolUrl); // handled within active window
+			}
+		}
 
 		return { urls, openables };
 	}
 
-	private shouldBlockURI(uri: URI): boolean {
-		if (uri.authority === Schemas.file && isWindows) {
-			const { options, buttonIndeces } = massageMessageBoxOptions({
-				type: 'warning',
-				buttons: [
-					localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
-					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
-				],
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri, { os: OS, tildify: this.environmentMainService }), this.productService.nameShort),
-				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
-			}, this.productService);
+	private async shouldBlockURI(uri: URI, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
+		if (uri.authority !== Schemas.file && uri.authority !== Schemas.vscodeRemote) {
 
-			const res = buttonIndeces[dialog.showMessageBoxSync(options)];
-			if (res === 1) {
-				return true;
-			}
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			//
+			// NOTE: we currently only ask for confirmation for `file` and `vscode-remote`
+			// authorities here. There is an additional confirmation for `extension.id`
+			// authorities from within the window.
+			//
+			// IF YOU ARE PLANNING ON ADDING ANOTHER AUTHORITY HERE, MAKE SURE TO ALSO
+			// ADD IT TO THE CONFIRMATION CODE BELOW OR INSIDE THE WINDOW!
+			//
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			return false;
 		}
 
-		return false;
+		const askForConfirmation = this.configurationService.getValue<unknown>(CodeApplication.SECURITY_PROTOCOL_HANDLING_CONFIRMATION_SETTING_KEY[uri.authority]);
+		if (askForConfirmation === false) {
+			return false; // not blocked via settings
+		}
+
+		const { response, checkboxChecked } = await dialogMainService.showMessageBox({
+			type: 'warning',
+			buttons: [
+				localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+				localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
+			],
+			message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", uri.authority === Schemas.file ? getPathLabel(uri, { os: OS, tildify: this.environmentMainService }) : uri.toString(true), this.productService.nameShort),
+			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
+			checkboxLabel: localize('doNotAskAgain', "Do not ask me again"),
+			cancelId: 1
+		});
+
+		if (response !== 0) {
+			return true; // blocked by user choice
+		}
+
+		if (checkboxChecked) {
+			windowsMainService.sendToOpeningWindow('vscode:disablePromptForProtocolHandling', uri.authority === Schemas.file ? 'local' : 'remote');
+		}
+
+		return false; // not blocked by user choice
 	}
 
 	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {
@@ -798,7 +828,7 @@ export class CodeApplication extends Disposable {
 		return undefined;
 	}
 
-	private async handleProtocolUrl(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
@@ -811,7 +841,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// If URI should be blocked, behave as if it's handled
-		if (this.shouldBlockURI(uri)) {
+		if (await this.shouldBlockURI(uri, windowsMainService, dialogMainService)) {
 			this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
 
 			return true;

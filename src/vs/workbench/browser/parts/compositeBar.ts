@@ -59,11 +59,6 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			}
 			// ... on a different composite bar
 			else {
-				const viewsToMove = this.viewDescriptorService.getViewContainerModel(currentContainer)!.allViewDescriptors;
-				if (viewsToMove.some(v => !v.canMoveView)) {
-					return;
-				}
-
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
 			}
 		}
@@ -118,11 +113,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				return dragData.id !== targetCompositeId;
 			}
 
-			// ... to another composite location
-			const draggedViews = this.viewDescriptorService.getViewContainerModel(currentContainer)!.allViewDescriptors;
-
-			// ... all views must be movable
-			return !draggedViews.some(view => !view.canMoveView);
+			return true;
 		} else {
 
 			// Dragging an individual view

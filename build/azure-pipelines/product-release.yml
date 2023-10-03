@@ -5,7 +5,7 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSpec: "18.15"
 
   - task: AzureCLI@2
     inputs:
