@@ -45,9 +45,12 @@ export class SwitchRemoteViewItem extends Disposable {
 			submenu: this.switchRemoteMenu,
 			title: nls.localize('switchRemote.label', "Switch Remote"),
 			group: 'navigation',
-			when: ContextKeyExpr.equals('activeViewlet', VIEWLET_ID),
+			when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 			order: 1,
 			isSelection: true
+		}));
+		this._register(remoteExplorerService.onDidChangeTargetType(e => {
+			this.select(e);
 		}));
 	}
 
@@ -102,7 +105,7 @@ export class SwitchRemoteViewItem extends Disposable {
 				const text = view.name;
 				const authority = isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority];
 				if (authority.some(a => this.completedRemotes.has(a))) {
-					return;
+					continue;
 				}
 				const thisCapture = this;
 				this._register(registerAction2(class extends Action2 {
