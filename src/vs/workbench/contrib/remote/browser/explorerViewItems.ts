@@ -15,19 +15,19 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/acti
 import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 
 interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];
 	virtualWorkspace?: string;
+	dispose(): void;
 }
 
 export const SELECTED_REMOTE_IN_EXPLORER = new RawContextKey<string>('selectedRemoteInExplorer', '');
 
 export class SwitchRemoteViewItem extends Disposable {
 	private switchRemoteMenu: MenuId;
-	private options: IRemoteSelectItem[] = [];
-	private completedRemotes: Set<string> = new Set();
+	private completedRemotes: DisposableMap<string, IRemoteSelectItem> = this._register(new DisposableMap());
 	private readonly selectedRemoteContext: IContextKey<string>;
 
 	constructor(
@@ -56,8 +56,8 @@ export class SwitchRemoteViewItem extends Disposable {
 
 	public setSelectionForConnection(): boolean {
 		let isSetForConnection = false;
-		if (this.options.length > 0) {
-			let index = 0;
+		if (this.completedRemotes.size > 0) {
+			let authority: string[] | undefined;
 			const remoteAuthority = this.environmentService.remoteAuthority;
 			let virtualWorkspace: string | undefined;
 			if (!remoteAuthority) {
@@ -68,9 +68,11 @@ export class SwitchRemoteViewItem extends Disposable {
 				: (virtualWorkspace ? [virtualWorkspace]
 					: (this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.WORKSPACE)?.split(',') ?? this.storageService.get(REMOTE_EXPLORER_TYPE_KEY, StorageScope.PROFILE)?.split(',')));
 			if (explorerType !== undefined) {
-				index = this.getOptionIndexForExplorerType(explorerType);
+				authority = this.getAuthorityForExplorerType(explorerType);
 			}
-			this.select(this.options[index].authority);
+			if (authority) {
+				this.select(authority);
+			}
 		}
 		return isSetForConnection;
 	}
@@ -80,22 +82,31 @@ export class SwitchRemoteViewItem extends Disposable {
 		this.remoteExplorerService.targetType = authority;
 	}
 
-	private getOptionIndexForExplorerType(explorerType: string[]): number {
-		let index = 0;
-		for (let optionIterator = 0; (optionIterator < this.options.length) && (index === 0); optionIterator++) {
-			for (let authorityIterator = 0; authorityIterator < this.options[optionIterator].authority.length; authorityIterator++) {
-				for (let i = 0; i < explorerType.length; i++) {
-					if (this.options[optionIterator].authority[authorityIterator] === explorerType[i]) {
-						index = optionIterator;
+	private getAuthorityForExplorerType(explorerType: string[]): string[] | undefined {
+		let authority: string[] | undefined;
+		for (const option of this.completedRemotes) {
+			for (const authorityOption of option[1].authority) {
+				for (const explorerOption of explorerType) {
+					if (authorityOption === explorerOption) {
+						authority = option[1].authority;
 						break;
-					} else if (this.options[optionIterator].virtualWorkspace === explorerType[i]) {
-						index = optionIterator;
+					} else if (option[1].virtualWorkspace === explorerOption) {
+						authority = option[1].authority;
 						break;
 					}
 				}
 			}
 		}
-		return index;
+		return authority;
+	}
+
+	public removeOptionItems(views: IViewDescriptor[]) {
+		for (const view of views) {
+			if (view.group && view.group.startsWith('targets') && view.remoteAuthority && (!view.when || this.contextKeyService.contextMatchesRules(view.when))) {
+				const authority = isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority];
+				this.completedRemotes.deleteAndDispose(authority[0]);
+			}
+		}
 	}
 
 	public createOptionItems(views: IViewDescriptor[]) {
@@ -104,11 +115,11 @@ export class SwitchRemoteViewItem extends Disposable {
 			if (view.group && view.group.startsWith('targets') && view.remoteAuthority && (!view.when || this.contextKeyService.contextMatchesRules(view.when))) {
 				const text = view.name;
 				const authority = isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority];
-				if (authority.some(a => this.completedRemotes.has(a))) {
+				if (this.completedRemotes.has(authority[0])) {
 					continue;
 				}
 				const thisCapture = this;
-				this._register(registerAction2(class extends Action2 {
+				const action = registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: `workbench.action.remoteExplorer.show.${authority[0]}`,
@@ -122,11 +133,8 @@ export class SwitchRemoteViewItem extends Disposable {
 					async run(): Promise<void> {
 						thisCapture.select(authority);
 					}
-				}));
-				this.options.push({ text, authority });
-				for (const authorityOption of authority) {
-					this.completedRemotes.add(authorityOption);
-				}
+				});
+				this.completedRemotes.set(authority[0], { text, authority, virtualWorkspace: view.virtualWorkspace, dispose: () => action.dispose() });
 			}
 		}
 		if (this.completedRemotes.size > startingCount) {

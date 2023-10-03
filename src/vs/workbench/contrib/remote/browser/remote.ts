@@ -598,6 +598,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
 		this._register(this.remoteSwitcher = this.instantiationService.createInstance(SwitchRemoteViewItem));
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			const helpInformation: HelpInformation[] = [];
 			for (const extension of extensions) {
@@ -607,7 +608,6 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			this.helpInformation = helpInformation;
 			this._onDidChangeHelpInformation.fire();
 
-			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (this.helpInformation.length && !this.hasRegisteredHelpView) {
 				viewsRegistry.registerViews([this.helpPanelDescriptor], this.viewContainer);
 				this.hasRegisteredHelpView = true;
@@ -616,12 +616,23 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 				this.hasRegisteredHelpView = false;
 			}
 		});
-		this.remoteSwitcher.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer));
-	}
-
-	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		this.remoteSwitcher!.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer));
-		return super.onDidAddViewDescriptors(added);
+		this.remoteSwitcher.createOptionItems(viewsRegistry.getViews(this.viewContainer));
+		this._register(viewsRegistry.onViewsRegistered(e => {
+			const remoteViews: IViewDescriptor[] = [];
+			for (const view of e) {
+				if (view.viewContainer.id === VIEWLET_ID) {
+					remoteViews.push(...view.views);
+				}
+			}
+			if (remoteViews.length > 0) {
+				this.remoteSwitcher!.createOptionItems(remoteViews);
+			}
+		}));
+		this._register(viewsRegistry.onViewsDeregistered(e => {
+			if (e.viewContainer.id === VIEWLET_ID) {
+				this.remoteSwitcher!.removeOptionItems(e.views);
+			}
+		}));
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
@@ -651,7 +662,6 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 	protected setFilter(viewDescriptor: IViewDescriptor): void {
 		this.remoteExplorerService.targetType = isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority : [viewDescriptor.remoteAuthority!];
 	}
-
 
 	getTitle(): string {
 		const title = nls.localize('remote.explorer', "Remote Explorer");
