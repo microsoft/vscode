@@ -335,7 +335,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
-		this._register(_terminalService.onAnyInstanceTitleChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onAnyInstanceTitleChange(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(terminalProfileService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
@@ -399,7 +399,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			this._terminalGroupService.onDidChangeActiveInstance,
 			Event.map(this._terminalService.onDidChangeInstanceIcon, e => e.instance),
 			Event.map(this._terminalService.onDidChangeInstanceColor, e => e.instance),
-			this._terminalService.onAnyInstanceTitleChanged,
+			this._terminalService.onAnyInstanceTitleChange,
 			this._terminalService.onDidChangeInstanceCapability,
 		), (last, e) => {
 			if (!last) {

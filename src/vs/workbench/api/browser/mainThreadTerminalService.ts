@@ -81,7 +81,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._store.add(_terminalService.onDidMaximumDimensionsChange(instance => this._onInstanceMaximumDimensionsChanged(instance)));
 		this._store.add(_terminalService.onDidRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
 		this._store.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
-		this._store.add(_terminalService.onAnyInstanceTitleChanged(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
+		this._store.add(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 		this._store.add(_terminalService.onDidInputInstanceData(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
 		this._store.add(_terminalService.onDidChangeSelection(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
 

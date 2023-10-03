@@ -112,7 +112,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
 			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
-			this._terminalService.onAnyInstanceTitleChanged(() => this.refresh()),
+			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
 			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
 			this._terminalService.onDidChangeConnectionState(() => this.refresh()),

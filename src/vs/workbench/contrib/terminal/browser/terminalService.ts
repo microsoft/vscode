@@ -163,7 +163,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 
 	// Lazily initialized events that fire when the specified event fires on _any_ terminal
-	@memoize get onAnyInstanceTitleChanged() { return this.createOnInstanceEvent(e => e.onTitleChanged); }
+	@memoize get onAnyInstanceTitleChange() { return this.createOnInstanceEvent(e => e.onTitleChanged); }
 	@memoize get onAnyInstanceProcessIdReady() { return this.createOnInstanceEvent(e => e.onProcessIdReady); }
 
 	constructor(
@@ -530,7 +530,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
 		this.onAnyInstanceProcessIdReady(() => this._saveState());
-		this.onAnyInstanceTitleChanged(instance => this._updateTitle(instance));
+		this.onAnyInstanceTitleChange(instance => this._updateTitle(instance));
 		this.onDidChangeInstanceIcon(e => this._updateIcon(e.instance, e.userInitiated));
 	}
 
