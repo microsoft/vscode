@@ -140,7 +140,7 @@ class LazyRevivedFileSystemEvents implements FileSystemEvents {
 	private _created: URI[] | undefined = undefined;
 	get created(): URI[] {
 		if (!this._created) {
-			this._created = this._events.created.map(created => URI.revive(created));
+			this._created = this._events.created.map(URI.revive) as URI[];
 		}
 
 		return this._created;
@@ -149,7 +149,7 @@ class LazyRevivedFileSystemEvents implements FileSystemEvents {
 	private _changed: URI[] | undefined = undefined;
 	get changed(): URI[] {
 		if (!this._changed) {
-			this._changed = this._events.changed.map(changed => URI.revive(changed));
+			this._changed = this._events.changed.map(URI.revive) as URI[];
 		}
 
 		return this._changed;
@@ -158,7 +158,7 @@ class LazyRevivedFileSystemEvents implements FileSystemEvents {
 	private _deleted: URI[] | undefined = undefined;
 	get deleted(): URI[] {
 		if (!this._deleted) {
-			this._deleted = this._events.deleted.map(deleted => URI.revive(deleted));
+			this._deleted = this._events.deleted.map(URI.revive) as URI[];
 		}
 
 		return this._deleted;
