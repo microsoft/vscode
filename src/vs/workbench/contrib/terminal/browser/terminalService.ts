@@ -131,8 +131,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
 	private readonly _onDidFocusInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidFocusInstance(): Event<ITerminalInstance> { return this._onDidFocusInstance.event; }
-	private readonly _onDidReceiveProcessId = this._register(new Emitter<ITerminalInstance>());
-	get onDidReceiveProcessId(): Event<ITerminalInstance> { return this._onDidReceiveProcessId.event; }
 	private readonly _onDidRequestStartExtensionTerminal = this._register(new Emitter<IStartExtensionTerminalRequest>());
 	get onDidRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onDidRequestStartExtensionTerminal.event; }
 	private readonly _onDidChangeInstanceDimensions = this._register(new Emitter<ITerminalInstance>());
@@ -166,6 +164,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	// Lazily initialized events that fire when the specified event fires on _any_ terminal
 	@memoize get onAnyInstanceTitleChanged() { return this.createOnInstanceEvent(e => e.onTitleChanged); }
+	@memoize get onAnyInstanceProcessIdReady() { return this.createOnInstanceEvent(e => e.onProcessIdReady); }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -530,7 +529,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this.onDidChangeInstances(() => this._saveState());
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
-		this.onDidReceiveProcessId(() => this._saveState());
+		this.onAnyInstanceProcessIdReady(() => this._saveState());
 		this.onAnyInstanceTitleChanged(instance => this._updateTitle(instance));
 		this.onDidChangeInstanceIcon(e => this._updateIcon(e.instance, e.userInitiated));
 	}
@@ -825,7 +824,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const instanceDisposables: IDisposable[] = [
 			instance.onIconChanged(this._onDidChangeInstanceIcon.fire, this._onDidChangeInstanceIcon),
 			instance.onIconChanged(this._onDidChangeInstanceColor.fire, this._onDidChangeInstanceColor),
-			instance.onProcessIdReady(this._onDidReceiveProcessId.fire, this._onDidReceiveProcessId),
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeInstancePrimaryStatus.fire(instance)),
 			instance.onDimensionsChanged(() => {
 				this._onDidChangeInstanceDimensions.fire(instance);

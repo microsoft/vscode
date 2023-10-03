@@ -191,11 +191,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	readonly onDidCreateInstance: Event<ITerminalInstance>;
-	readonly onDidReceiveProcessId: Event<ITerminalInstance>;
 	readonly onDidChangeInstanceDimensions: Event<ITerminalInstance>;
 	readonly onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	readonly onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
 	readonly onAnyInstanceTitleChanged: Event<ITerminalInstance | undefined>;
+	readonly onAnyInstanceProcessIdReady: Event<ITerminalInstance>;
 	readonly onDidChangeInstanceIcon: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	readonly onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	readonly onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
