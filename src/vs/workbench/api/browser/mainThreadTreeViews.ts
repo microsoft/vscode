@@ -44,7 +44,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 			const disposables = new DisposableStore();
-			this._dataProviders.set(treeViewId, { dataProvider, dispose: disposables.dispose });
+			this._dataProviders.set(treeViewId, { dataProvider, dispose: () => disposables.dispose() });
 			const dndController = (options.hasHandleDrag || options.hasHandleDrop)
 				? new TreeViewDragAndDropController(treeViewId, options.dropMimeTypes, options.dragMimeTypes, options.hasHandleDrag, this._proxy) : undefined;
 			const viewer = this.getTreeView(treeViewId);
