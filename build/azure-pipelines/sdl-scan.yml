@@ -144,8 +144,8 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
 
-          - powershell: ls "$(agent.builddirectory)\\scanbin\\VSCode-win32-$(VSCODE_ARCH)\\pdb"
-            displayName: Check downloaded symbol file names
+          - powershell: ls "$(agent.builddirectory)\\scanbin\\VSCode-win32-$(VSCODE_ARCH)\\pdb\\*.pdb"
+            displayName: Check Downloaded Symbol File Names
 
           - task: BinSkim@4
             inputs:
