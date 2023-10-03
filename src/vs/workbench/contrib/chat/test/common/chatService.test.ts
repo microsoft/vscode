@@ -10,7 +10,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -25,7 +24,8 @@ import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatC
 import { IChat, IChatProgress, IChatProvider, IChatRequest, IChatResponse, IPersistedChatState, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -70,8 +70,7 @@ suite('Chat', () => {
 
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
-			// [IChatSlashCommandService, new SyncDescriptor<any>(ChatSlashCommandService)],
-			[IChatVariablesService, new SyncDescriptor<any>(ChatVariablesService)]
+			[IChatVariablesService, new MockChatVariablesService()],
 		)));
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
