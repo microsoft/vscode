@@ -25,6 +25,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewsService } from 'vs/workbench/common/views';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChat, IChatProgress, IChatProvider, IChatRequest, IChatResponse, IPersistedChatState, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -271,26 +272,40 @@ suite('Chat', () => {
 
 	test('can deserialize', async () => {
 
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		let serializedChatData: ISerializableChatData;
+
 		const providerId = 'ChatProviderWithUsedContext';
 
-		testDisposables.add(testService.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
+		// create the first service, send request, get response, and serialize the state
+		{  // serapate block to not leak variables in outer scope
+			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
-		const chatModel1 = testDisposables.add(testService.startSession(providerId, CancellationToken.None));
-		assert.strictEqual(chatModel1.getRequests().length, 0);
+			testDisposables.add(testService.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
 
-		const response = await testService.sendRequest(chatModel1.sessionId, 'test request');
-		assert(response);
+			const chatModel1 = testDisposables.add(testService.startSession(providerId, CancellationToken.None));
+			assert.strictEqual(chatModel1.getRequests().length, 0);
 
-		await response.responseCompletePromise;
+			const response = await testService.sendRequest(chatModel1.sessionId, 'test request');
+			assert(response);
 
-		const serializedChatData = chatModel1.toJSON();
+			await response.responseCompletePromise;
+
+			serializedChatData = chatModel1.toJSON();
+		}
+
+		// try deserializing the state into a new service
 
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 
-		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
+		testDisposables.add(testService2.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
 
+		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2);
+
+		// should `loadSessionFromContent` return `ChatModel` that's disposable instead of `IChatModel`?
+		testDisposables.add({
+			dispose: () => testService2.clearSession(serializedChatData.sessionId)
+		});
 
 		assertSnapshot(chatModel2.toExport());
 	});
