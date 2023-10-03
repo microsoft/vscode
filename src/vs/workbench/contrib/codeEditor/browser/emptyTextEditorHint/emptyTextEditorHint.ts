@@ -43,12 +43,14 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 		key: 'workbench.editor.untitled.hint',
 		migrateFn: (value, _accessor) => ([
 			[emptyTextEditorHintSetting, { value }],
+			['workbench.editor.untitled.hint', { value: undefined }]
 		])
 	},
 	{
 		key: 'accessibility.verbosity.untitledHint',
 		migrateFn: (value, _accessor) => ([
 			[AccessibilityVerbositySettingId.EmptyEditorHint, { value }],
+			['accessibility.verbosity.untitledHint', { value: undefined }]
 		])
 	}]);
 
