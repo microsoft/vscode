@@ -1,10 +1,12 @@
 # Code - OSS Development Container
 
-This dev container includes configuration for a development container for working with Code - OSS in a local container. For using [GitHub Codespaces](https://github.com/features/codespaces) follow the [prebuilt setup](prebuilt/README.md) which installs VNC for displaying the application window.
+[![Open in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode)
 
-> **Note:** You will need X11's `DISPLAY` or Wayland's `WAYLAND_DISPLAY` environment variable set locally to allow for the Code - OSS window to display. See [Running GUI app on WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps) for Windows and [Quartz](https://www.xquartz.org) for Mac.
+This repository includes configuration for a development container for working with Code - OSS in a local container or using [GitHub Codespaces](https://github.com/features/codespaces).
 
-## Quick start
+## Quick start - local
+
+If you already have VS Code and Docker installed, you can click the badge above or [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. Clicking these links will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
 
 1. Install Docker Desktop or Docker for Linux on your local machine. (See [docs](https://aka.ms/vscode-remote/containers/getting-started) for additional details.)
 
@@ -24,9 +26,9 @@ This dev container includes configuration for a development container for workin
 - Use the WSL extension for VS Code to open the cloned folder in WSL.
 - Press <kbd>F1</kbd> and select **Dev Containers: Reopen in Container**.
 
-Next: **[Try it out!](#try-it)**
+> **Note:** For developing the desktop app locally, you will need X11's `DISPLAY` or Wayland's `WAYLAND_DISPLAY` environment variable set to allow for the Code - OSS window to display. See [Running GUI app on WSL](https://learn.microsoft.com/en-us/windows/wsl/tutorials/gui-apps) for Windows and [Quartz](https://www.xquartz.org) for Mac.
 
-## Try it
+### Try it
 
 To start working with Code - OSS, follow these steps:
 
@@ -34,7 +36,7 @@ To start working with Code - OSS, follow these steps:
 
     ```bash
     yarn install
-    bash scripts/code.sh
+    ./scripts/code.sh
     ```
 
 2. You should now see Code - OSS!
@@ -45,12 +47,32 @@ Next, let's try debugging.
 
 2. Go to your local VS Code client, and use the **Run / Debug** view to launch the **VS Code** configuration. (Typically the default, so you can likely just press <kbd>F5</kbd>).
 
-    > **Note:** If launching times out, you can increase the value of `timeout` in the "VS Code", "Attach Main Process", "Attach Extension Host", and "Attach to Shared Process" configurations in [launch.json](../../.vscode/launch.json). However, running `scripts/code.sh` first will set up Electron which will usually solve timeout issues.
+    > **Note:** If launching times out, you can increase the value of `timeout` in the "VS Code", "Attach Main Process", "Attach Extension Host", and "Attach to Shared Process" configurations in [launch.json](../../.vscode/launch.json). However, running `./scripts/code.sh` first will set up Electron which will usually solve timeout issues.
 
 3. After a bit, Code - OSS will appear with the debugger attached!
 
 Enjoy!
 
-## Notes
+### Notes
 
 The container comes with VS Code Insiders installed. To run it from an Integrated Terminal use `VSCODE_IPC_HOOK_CLI= /usr/bin/code-insiders .`.
+
+## Quick start - GitHub Codespaces
+
+1. From the [microsoft/vscode GitHub repository](https://github.com/microsoft/vscode), click on the **Code** dropdown, select **Open with Codespaces**, and then click on **New codespace**. If prompted, select the **Standard** machine size (which is also the default).
+
+   > **Note:** You will not see these options within GitHub if you are not in the Codespaces beta.
+
+### Try it
+
+To start working with Code - OSS Web, follow these steps:
+
+1. Open a terminal (<kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>\`</kbd>) and type the following commands:
+
+    ```bash
+    yarn install
+    yarn compile && yarn compile-web
+    ./scripts/code-web.sh
+    ```
+
+2. You should now see Code - OSS Web open in your browser!
