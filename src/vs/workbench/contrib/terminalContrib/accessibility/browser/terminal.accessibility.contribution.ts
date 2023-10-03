@@ -29,9 +29,8 @@ import type { Terminal } from 'xterm';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Event } from 'vs/base/common/event';
-import { isWindows } from 'vs/base/common/platform';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -47,7 +46,7 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 		super();
 	}
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, isWindows ? this._instance.shellType as WindowsShellType : undefined, this._instance.capabilities);
+		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
 		xterm.raw.loadAddon(addon);
 		addon.activate(xterm.raw);
 	}
@@ -90,7 +89,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}));
 	}
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, isWindows ? this._instance.shellType as WindowsShellType : undefined, this._instance.capabilities);
+		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
 		xterm.raw.loadAddon(addon);
 		addon.activate(xterm.raw);
 		this._xterm = xterm;
