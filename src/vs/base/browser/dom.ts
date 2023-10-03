@@ -46,13 +46,6 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
-/**
- * @deprecated Use node.isConnected directly
- */
-export function isInDOM(node: Node | null): boolean {
-	return node?.isConnected ?? false;
-}
-
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
