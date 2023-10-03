@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalLogService, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
@@ -30,7 +30,6 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 	}
 
 	constructor(
-		private readonly _windowsShell: WindowsShellType | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService
@@ -88,7 +87,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		const currentCommand = commandCapability?.currentCommand;
-		if (!currentCommand || (this._windowsShell && (this._windowsShell === 'pwsh' && !currentCommand.command?.includes('PS')) || (this._windowsShell === 'cmd' && !currentCommand.command?.includes('C:')))) {
+		if (!currentCommand) {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no current command`);
 			return;
 		}
