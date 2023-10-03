@@ -191,7 +191,7 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 		}
 
 		// Get the character dimensions from xterm if it's available
-		if (xtermCore?._renderService._renderer.value) {
+		if (xtermCore?._renderService?._renderer.value) {
 			const cellDims = xtermCore._renderService.dimensions.css.cell;
 			if (cellDims?.width && cellDims?.height) {
 				return {
