@@ -418,6 +418,7 @@ class BuiltinDynamicCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -425,6 +426,11 @@ class BuiltinDynamicCompletions extends Disposable {
 			_debugDisplayName: 'chatDynamicCompletions',
 			triggerCharacters: ['$'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const fileVariablesEnabled = this.configurationService.getValue('chat.experimental.fileVariables');
+				if (!fileVariablesEnabled) {
+					return;
+				}
+
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.supportsFileReferences) {
 					return null;
