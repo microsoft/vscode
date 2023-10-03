@@ -87,6 +87,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 const enum Constants {
 	/**
@@ -267,13 +268,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return this._description;
 		}
 		const type = this.shellLaunchConfig.attachPersistentProcess?.type || this.shellLaunchConfig.type;
-		if (type) {
-			if (type === 'Task') {
-				return nls.localize('terminalTypeTask', "Task");
-			}
-			return nls.localize('terminalTypeLocal', "Local");
+		switch (type) {
+			case 'Task': return terminalStrings.typeTask;
+			case 'Local': return terminalStrings.typeLocal;
+			default: return undefined;
 		}
-		return undefined;
 	}
 	get userHome(): string | undefined { return this._userHome; }
 	get shellIntegrationNonce(): string { return this._processManager.shellIntegrationNonce; }
@@ -2439,10 +2438,10 @@ export class TerminalLabelComputer extends Disposable {
 			cwd: instance.cwd || instance.initialCwd || '',
 			cwdFolder: '',
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,
-			local: type === 'Local' ? type : undefined,
+			local: type === 'Local' ? terminalStrings.typeLocal : undefined,
 			process: instance.processName,
 			sequence: instance.sequence,
-			task: type === 'Task' ? type : undefined,
+			task: type === 'Task' ? terminalStrings.typeTask : undefined,
 			fixedDimensions: instance.fixedCols
 				? (instance.fixedRows ? `\u2194${instance.fixedCols} \u2195${instance.fixedRows}` : `\u2194${instance.fixedCols}`)
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
