@@ -9,6 +9,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWel
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -67,6 +68,7 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | ICha
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderStyle?: 'default' | 'compact';
+	supportsFileReferences?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -86,7 +88,9 @@ export interface IChatWidget {
 	readonly viewModel: IChatViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 	readonly providerId: string;
+	readonly supportsFileReferences: boolean;
 
+	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
 	focus(item: ChatTreeItem): void;
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void;

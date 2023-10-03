@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { distinct, flatten } from 'vs/base/common/arrays';
@@ -335,7 +335,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					const onKeyUp = new DomEmitter(document, 'keyup');
 					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
 						let standardKeyboardEvent = undefined;
-						if (keyupEvent instanceof KeyboardEvent) {
+						if (isKeyboardEvent(keyupEvent)) {
 							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
 						}
 						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {

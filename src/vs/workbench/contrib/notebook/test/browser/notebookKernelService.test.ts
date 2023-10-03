@@ -30,6 +30,8 @@ suite('NotebookKernelService', () => {
 		disposables.dispose();
 	});
 
+	//ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(function () {
 		disposables = new DisposableStore();
 
@@ -51,7 +53,7 @@ suite('NotebookKernelService', () => {
 				};
 			}
 		});
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
 	});
 

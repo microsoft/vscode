@@ -49,8 +49,12 @@ export interface IChatWidgetStyles {
 	resultEditorBackground: string;
 }
 
+export interface IChatWidgetContrib extends IDisposable {
+	readonly id: string;
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
-	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): any }[] = [];
+	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
@@ -66,6 +70,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _onDidChangeHeight = this._register(new Emitter<number>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	private contribs: IChatWidgetContrib[] = [];
 
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
@@ -138,6 +144,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register((chatWidgetService as ChatWidgetService).register(this));
 	}
 
+	get supportsFileReferences(): boolean {
+		return !!this.viewOptions.supportsFileReferences;
+	}
+
 	get providerId(): string {
 		return this.viewModel?.providerId || '';
 	}
@@ -182,7 +192,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			revealLastElement(this.tree);
 		}
 
-		ChatWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
+		this.contribs = ChatWidget.CONTRIBS.map(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
+	}
+
+	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
+		return this.contribs.find(c => c.id === id) as T;
 	}
 
 	focusInput(): void {
