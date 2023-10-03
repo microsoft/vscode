@@ -466,8 +466,9 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			const lineHeight = i < safeDeltaTop ? deltaTop[i + 1] - deltaTop[i] : 19;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], lineHeight);
+			const deltaIndex = lineNumber - deltaLN;
+			const lineHeight = deltaTop[deltaIndex + 1] - deltaTop[deltaIndex];
+			lines[i].layoutLine(lineNumber, deltaTop[deltaIndex], lineHeight);
 		}
 	}
 
@@ -564,7 +565,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		{
 			sb.reset();
 			let hadNewLine = false;
-			const safeDeltaTop = deltaTop.length - 1;
 
 			for (let i = 0; i < linesLength; i++) {
 				const line = lines[i];
@@ -576,8 +576,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				// XXX Get rid of the hardcoded 19
-				const lineHeight = i < safeDeltaTop ? deltaTop[i + 1] - deltaTop[i] : 19;
+				const lineHeight = deltaTop[i + 1] - deltaTop[i];
 				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
@@ -598,7 +597,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 			let hadInvalidLine = false;
 			const wasInvalid: boolean[] = [];
-			const safeDeltaTop = deltaTop.length - 1;
 
 			for (let i = 0; i < linesLength; i++) {
 				const line = lines[i];
@@ -609,8 +607,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				// XXX Get rid of the hardcoded 19
-				const lineHeight = i < safeDeltaTop ? deltaTop[i + 1] - deltaTop[i] : 19;
+				const lineHeight = deltaTop[i + 1] - deltaTop[i];
 				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering

@@ -664,8 +664,9 @@ export class LinesLayout {
 		const verticalCenter = verticalOffset1 + (verticalOffset2 - verticalOffset1) / 2;
 		let centeredLineNumber = -1;
 
+		let lineNumber = startLineNumber;
 		// Figure out how far the lines go
-		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+		for (; lineNumber <= endLineNumber; lineNumber++) {
 			const currentLineHeight = heights[lineNumber - 1];
 
 			if (centeredLineNumber === -1) {
@@ -704,6 +705,7 @@ export class LinesLayout {
 				break;
 			}
 		}
+		linesOffsets[lineNumber - startLineNumber] = currentLineRelativeOffset;
 
 		if (centeredLineNumber === -1) {
 			centeredLineNumber = endLineNumber;
@@ -720,7 +722,7 @@ export class LinesLayout {
 			}
 		}
 		if (completelyVisibleStartLineNumber < completelyVisibleEndLineNumber) {
-			if (endLineNumberVerticalOffset + lineHeight > verticalOffset2) {
+			if (endLineNumberVerticalOffset + heights[endLineNumber] > verticalOffset2) {
 				completelyVisibleEndLineNumber--;
 			}
 		}
@@ -743,10 +745,8 @@ export class LinesLayout {
 		const afterLineNumber = this.getAfterLineNumberForWhitespaceIndex(whitespaceIndex);
 
 		let previousLinesHeight: number;
-		let decorationsOffset = 0;
 		if (afterLineNumber >= 1) {
-			previousLinesHeight = this._lineHeight * afterLineNumber;
-			decorationsOffset = this._decorations.getDecorationsOffset(afterLineNumber);
+			previousLinesHeight = this._decorations.getDecorationsOffset(afterLineNumber - 1);
 		} else {
 			previousLinesHeight = 0;
 		}
@@ -757,7 +757,7 @@ export class LinesLayout {
 		} else {
 			previousWhitespacesHeight = 0;
 		}
-		return previousLinesHeight + decorationsOffset + previousWhitespacesHeight + this._paddingTop;
+		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
 
 	public getWhitespaceIndexAtOrAfterVerticallOffset(verticalOffset: number): number {
