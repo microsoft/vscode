@@ -1860,6 +1860,8 @@ export class Repository {
 
 		if (rebase) {
 			args.push('-r');
+			args.push('--autostash');
+			args.push('--recurse-submodules');
 		}
 
 		if (remote && branch) {

@@ -15,7 +15,9 @@ yarn-error.log
 vscode.lsif
 vscode.db
 /.profile-oss
+/.vs
 /cli/target
 /cli/openssl
 product.overrides.json
+/.idea/
 *.snap.actual
