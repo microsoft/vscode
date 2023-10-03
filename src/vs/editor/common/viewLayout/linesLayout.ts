@@ -404,11 +404,10 @@ export class LinesLayout {
 	 */
 	public getLinesTotalHeight(): number {
 		this._checkPendingChanges();
-		const linesHeight = this._lineHeight * this._lineCount;
+		const linesHeight = this._decorations.getDecorationsOffset();
 		const whitespacesHeight = this.getWhitespacesTotalHeight();
-		const decorationsOffset = this._decorations.getDecorationsOffset();
 
-		return linesHeight + whitespacesHeight + decorationsOffset + this._paddingTop + this._paddingBottom;
+		return linesHeight + whitespacesHeight + this._paddingTop + this._paddingBottom;
 	}
 
 	/**
@@ -490,10 +489,15 @@ export class LinesLayout {
 		this._checkPendingChanges();
 		lineNumber = lineNumber | 0;
 
-		const decorationsOffset = this._decorations.getDecorationsOffset(lineNumber);
+		let previousLinesHeight: number;
+		if (lineNumber > 1) {
+			previousLinesHeight = this._decorations.getDecorationsOffset(lineNumber);
+		} else {
+			previousLinesHeight = 0;
+		}
 		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber - (includeViewZones ? 1 : 0));
 
-		return decorationsOffset + previousWhitespacesHeight + this._paddingTop;
+		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
 
 	/**
@@ -505,10 +509,9 @@ export class LinesLayout {
 	public getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones = false): number {
 		this._checkPendingChanges();
 		lineNumber = lineNumber | 0;
-		const previousLinesHeight = this._lineHeight * lineNumber;
-		const decorationsOffset = this._decorations.getDecorationsOffset(lineNumber);
+		const previousLinesHeight = this._decorations.getDecorationsOffset(lineNumber);
 		const previousWhitespacesHeight = this.getWhitespaceAccumulatedHeightBeforeLineNumber(lineNumber + (includeViewZones ? 1 : 0));
-		return previousLinesHeight + decorationsOffset + previousWhitespacesHeight + this._paddingTop;
+		return previousLinesHeight + previousWhitespacesHeight + this._paddingTop;
 	}
 
 	/**
@@ -576,14 +579,15 @@ export class LinesLayout {
 			return 1;
 		}
 
+		const heights = this._decorations.getDecorationsLineHeightMap();
 		const linesCount = this._lineCount | 0;
-		const lineHeight = this._lineHeight;
 		let minLineNumber = 1;
 		let maxLineNumber = linesCount;
 
 		while (minLineNumber < maxLineNumber) {
 			const midLineNumber = ((minLineNumber + maxLineNumber) / 2) | 0;
 
+			const lineHeight = heights[midLineNumber];
 			const midLineNumberVerticalOffset = this.getVerticalOffsetForLineNumber(midLineNumber) | 0;
 
 			if (verticalOffset >= midLineNumberVerticalOffset + lineHeight) {
