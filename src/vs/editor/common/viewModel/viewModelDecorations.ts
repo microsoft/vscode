@@ -34,6 +34,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly _lineHeight: number;
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
+	private _decorationsHeightMapCache?: number[] | undefined;
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
@@ -57,22 +58,25 @@ export class ViewModelDecorations implements IDisposable {
 
 	public dispose(): void {
 		this._decorationsCache = Object.create(null);
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public reset(): void {
 		this._decorationsCache = Object.create(null);
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onModelDecorationsChanged(): void {
 		this._decorationsCache = Object.create(null);
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
 	public onLineMappingChanged(): void {
 		this._decorationsCache = Object.create(null);
-
+		this._decorationsHeightMapCache = undefined;
 		this._clearCachedModelDecorationsResolver();
 	}
 
@@ -124,25 +128,29 @@ export class ViewModelDecorations implements IDisposable {
 	 * Index 0 is not an actual line number. It always contains the original line height.
 	 */
 	public getDecorationsLineHeightMap(): number[] {
-		const lineCount = this._linesCollection.getViewLineCount();
-		const lineHeights = Array.from({ length: lineCount + 1 }, () => this._lineHeight);
-		const viewRange = new Range(0, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
+		if (!this._decorationsHeightMapCache) {
+			const lineCount = this._linesCollection.getViewLineCount();
+			const lineHeights = Array.from({ length: lineCount + 1 }, () => this._lineHeight);
+			const viewRange = new Range(0, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
+			const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
 
-		for (const decoration of modelDecorations) {
-			const range = decoration.range;
-			const decorationLineHeight = decoration.options.lineHeight;
+			for (const decoration of modelDecorations) {
+				const range = decoration.range;
+				const decorationLineHeight = decoration.options.lineHeight;
 
-			if (!decorationLineHeight) {
-				continue;
+				if (!decorationLineHeight) {
+					continue;
+				}
+
+				for (let rangeLine = range.startLineNumber; rangeLine <= range.endLineNumber; rangeLine++) {
+					lineHeights[rangeLine - 1] = Math.max(lineHeights[rangeLine - 1], decorationLineHeight);
+				}
 			}
 
-			for (let rangeLine = range.startLineNumber; rangeLine <= range.endLineNumber; rangeLine++) {
-				lineHeights[rangeLine - 1] = Math.max(lineHeights[rangeLine - 1], decorationLineHeight);
-			}
+			this._decorationsHeightMapCache = lineHeights;
 		}
 
-		return lineHeights;
+		return this._decorationsHeightMapCache;
 	}
 
 	public getDecorationsOffset(lineNumber: number = this._linesCollection.getViewLineCount()): number {
