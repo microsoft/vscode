@@ -453,7 +453,7 @@ class CodeActionAdapter {
 					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
-					isAI: candidate.isAI,
+					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
 					disabled: candidate.disabled?.reason
 				});
 			}
