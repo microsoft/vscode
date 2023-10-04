@@ -15,6 +15,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -155,6 +156,7 @@ export interface IEditorAction {
 	readonly id: string;
 	readonly label: string;
 	readonly alias: string;
+	readonly metadata: ICommandMetadata | undefined;
 	isSupported(): boolean;
 	run(args?: unknown): Promise<void>;
 }

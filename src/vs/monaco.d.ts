@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// TODO
+// eslint-disable-next-line local/code-import-patterns
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
+
 declare let MonacoEnvironment: monaco.Environment | undefined;
 
 interface Window {
@@ -2469,6 +2473,7 @@ declare namespace monaco.editor {
 		readonly id: string;
 		readonly label: string;
 		readonly alias: string;
+		readonly metadata: ICommandMetadata | undefined;
 		isSupported(): boolean;
 		run(args?: unknown): Promise<void>;
 	}

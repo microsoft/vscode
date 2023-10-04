@@ -5,6 +5,7 @@
 
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IEditor } from 'vs/editor/common/editorCommon';
+import { isLocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,10 +39,17 @@ export abstract class AbstractEditorCommandsQuickAccessProvider extends Abstract
 
 		const editorCommandPicks: ICommandQuickPick[] = [];
 		for (const editorAction of activeTextEditorControl.getSupportedActions()) {
+			const metadataDescription = editorAction.metadata?.description;
+			const commandDescription = metadataDescription === undefined || isLocalizedString(metadataDescription)
+				? metadataDescription
+				// TODO: this type will eventually not be a string and when that happens, this should simplified.
+				: { value: metadataDescription, original: metadataDescription };
+
 			editorCommandPicks.push({
 				commandId: editorAction.id,
 				commandAlias: editorAction.alias,
 				label: stripIcons(editorAction.label) || editorAction.id,
+				commandDescription,
 			});
 		}
 

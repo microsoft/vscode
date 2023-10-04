@@ -367,6 +367,8 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			uniqueId,
 			label,
 			label,
+			// TODO: support this somehow? Do I need the metadata to be a part of the API?
+			undefined,
 			precondition,
 			(...args: unknown[]) => Promise.resolve(_descriptor.run(this, ...args)),
 			this._contextKeyService
