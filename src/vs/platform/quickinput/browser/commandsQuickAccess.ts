@@ -330,6 +330,9 @@ export class CommandsHistory extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(e)));
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				// Commands history is very dynamic and so we limit impact
+				// on storage to only save on shutdown. This helps reduce
+				// the overhead of syncing this data across machines.
 				this.saveState();
 			}
 		}));
@@ -344,6 +347,7 @@ export class CommandsHistory extends Disposable {
 
 		if (CommandsHistory.cache && CommandsHistory.cache.limit !== this.configuredCommandsHistoryLength) {
 			CommandsHistory.cache.limit = this.configuredCommandsHistoryLength;
+			CommandsHistory.hasChanges = true;
 		}
 	}
 
