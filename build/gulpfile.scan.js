@@ -118,4 +118,5 @@ function confirmPdbsExist(destinationExe, destinationPdb) {
 			}
 		}
 	});
+	return Promise.resolve();
 }
