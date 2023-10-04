@@ -306,3 +306,5 @@ export class ClearCommandHistoryAction extends Action2 {
 		}
 	}
 }
+
+//#endregion
