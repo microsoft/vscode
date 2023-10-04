@@ -289,6 +289,10 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		return this._domNode;
 	}
 
+	public getFindInputDomNode() {
+		return this._findInput.domNode;
+	}
+
 	public reveal(initialInput?: string, animated = true): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
