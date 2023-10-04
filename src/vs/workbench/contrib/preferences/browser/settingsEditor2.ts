@@ -1529,7 +1529,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private triggerSearch(query: string): Promise<void> {
+	private async triggerSearch(query: string): Promise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
@@ -1549,9 +1549,8 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
-			return this.triggerFilterPreferences(query).then(() => {
-				this.toggleTocBySearchBehaviorType();
-			});
+			await this.triggerFilterPreferences(query);
+			this.toggleTocBySearchBehaviorType();
 		} else {
 			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilter) {
 				this.searchResultModel = this.createFilterModel();
@@ -1589,8 +1588,6 @@ export class SettingsEditor2 extends EditorPane {
 				this.splitView.setViewVisible(0, true);
 			}
 		}
-
-		return Promise.resolve();
 	}
 
 	/**
@@ -1611,7 +1608,6 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		filterModel.setResult(0, fullResult);
-
 		return filterModel;
 	}
 
