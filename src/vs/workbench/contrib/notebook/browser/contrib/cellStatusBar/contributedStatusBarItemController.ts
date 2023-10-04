@@ -100,9 +100,9 @@ class CellStatusBarHelper extends Disposable {
 	}
 	private _updateSoon(): void {
 		// Wait a tick to make sure that the event is fired to the EH before triggering status bar providers
-		this._register(disposableTimeout(() => {
+		disposableTimeout(() => {
 			this._updateThrottler.queue(() => this._update());
-		}, 0));
+		}, 0, this._store);
 	}
 
 	private async _update() {
