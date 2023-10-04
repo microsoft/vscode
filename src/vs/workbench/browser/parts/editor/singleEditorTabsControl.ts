@@ -55,7 +55,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupViewer, {
+		this.breadcrumbsControlFactory = this._register(this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupView, {
 			showFileIcons: false,
 			showSymbolIcons: true,
 			showDecorationColors: false,
@@ -109,15 +109,15 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private onTitleDoubleClick(e: MouseEvent): void {
 		EventHelper.stop(e);
 
-		this.groupViewer.pinEditor();
+		this.groupView.pinEditor();
 	}
 
 	private onTitleAuxClick(e: MouseEvent): void {
 		if (e.button === 1 /* Middle Button */ && this.tabsModel.activeEditor) {
 			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
-			if (!preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.accessor.partOptions)) {
-				this.groupViewer.closeEditor(this.tabsModel.activeEditor);
+			if (!preventEditorClose(this.tabsModel, this.tabsModel.activeEditor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
+				this.groupView.closeEditor(this.tabsModel.activeEditor);
 			}
 		}
 	}
@@ -261,10 +261,10 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private redraw(): void {
 		const editor = this.tabsModel.activeEditor ?? undefined;
-		const options = this.accessor.partOptions;
+		const options = this.groupsView.partOptions;
 
 		const isEditorPinned = editor ? this.tabsModel.isPinned(editor) : false;
-		const isGroupActive = this.accessor.activeGroup === this.groupViewer;
+		const isGroupActive = this.groupsView.activeGroup === this.groupView;
 
 		this.activeLabel = { editor, pinned: isEditorPinned };
 
@@ -293,7 +293,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			this.updateEditorDirty(editor);
 
 			// Editor Label
-			const { labelFormat } = this.accessor.partOptions;
+			const { labelFormat } = this.groupsView.partOptions;
 			let description: string;
 			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 				description = ''; // hide description when showing breadcrumbs
@@ -345,7 +345,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	}
 
 	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
-		const isGroupActive = this.accessor.activeGroup === this.groupViewer;
+		const isGroupActive = this.groupsView.activeGroup === this.groupView;
 
 		// Active: allow all actions
 		if (isGroupActive) {

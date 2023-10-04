@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -260,7 +261,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 								type = FileChangeType.DELETED;
 							}
 
-							this.onFileChange({ path: join(this.request.path, changedFileName), type });
+							this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type });
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
 						mapPathToStatDisposable.set(changedFileName, toDisposable(() => clearTimeout(timeoutHandle)));
@@ -279,7 +280,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							folderChildren.add(changedFileName);
 						}
 
-						this.onFileChange({ path: join(this.request.path, changedFileName), type });
+						this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type });
 					}
 				}
 
@@ -318,14 +319,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 							// File still exists, so emit as change event and reapply the watcher
 							if (fileExists) {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
+								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								disposables.add(await this.doWatch(path, false));
 							}
 
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
-								this.onFileChange({ path: this.request.path, type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
+								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								// Important to flush the event delivery
 								// before disposing the watcher, otherwise
@@ -344,7 +345,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 					// File changed
 					else {
-						this.onFileChange({ path: this.request.path, type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
+						this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 					}
 				}
 			});
@@ -367,17 +368,17 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 		// Logging
 		if (this.verboseLogging) {
-			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+			this.trace(`${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
 		}
 
 		// Add to aggregator unless excluded or not included (not if explicitly disabled)
-		if (!skipIncludeExcludeChecks && this.excludes.some(exclude => exclude(event.path))) {
+		if (!skipIncludeExcludeChecks && this.excludes.some(exclude => exclude(event.resource.fsPath))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored (excluded) ${event.path}`);
+				this.trace(` >> ignored (excluded) ${event.resource.fsPath}`);
 			}
-		} else if (!skipIncludeExcludeChecks && this.includes && this.includes.length > 0 && !this.includes.some(include => include(event.path))) {
+		} else if (!skipIncludeExcludeChecks && this.includes && this.includes.length > 0 && !this.includes.some(include => include(event.resource.fsPath))) {
 			if (this.verboseLogging) {
-				this.trace(` >> ignored (not included) ${event.path}`);
+				this.trace(` >> ignored (not included) ${event.resource.fsPath}`);
 			}
 		} else {
 			this.fileChangesAggregator.work(event);
@@ -393,7 +394,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			// Logging
 			if (this.verboseLogging) {
 				for (const event of coalescedFileChanges) {
-					this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+					this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
 				}
 			}
 
@@ -402,10 +403,10 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 			// Logging
 			if (!worked) {
-				this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				this.warn(`started ignoring events due to too many file change events at once (incoming: ${coalescedFileChanges.length}, most recent change: ${coalescedFileChanges[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			} else {
 				if (this.throttledFileChangesEmitter.pending > 0) {
-					this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${coalescedFileChanges[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+					this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${coalescedFileChanges[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 				}
 			}
 		}

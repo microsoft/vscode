@@ -38,6 +38,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import product from 'vs/platform/product/common/product';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -295,16 +296,14 @@ class ToggleScreencastModeAction extends Action2 {
 			}
 
 			const keybinding = keybindingService.resolveKeyboardEvent(event);
-			const command = (this._isKbFound(shortcut) && shortcut.commandId) ? MenuRegistry.getCommand(shortcut.commandId) : null;
+			const commandDetails = (this._isKbFound(shortcut) && shortcut.commandId) ? this.getCommandDetails(shortcut.commandId) : undefined;
 
-			let commandAndGroupLabel = '';
+			let commandAndGroupLabel = commandDetails?.title;
 			let keyLabel: string | undefined | null = keybinding.getLabel();
 
-			if (command) {
-				commandAndGroupLabel = typeof command.title === 'string' ? command.title : command.title.value;
-
-				if ((options.showCommandGroups ?? false) && command.category) {
-					commandAndGroupLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${commandAndGroupLabel} `;
+			if (commandDetails) {
+				if ((options.showCommandGroups ?? false) && commandDetails.category) {
+					commandAndGroupLabel = `${commandDetails.category}: ${commandAndGroupLabel} `;
 				}
 
 				if (this._isKbFound(shortcut) && shortcut.commandId) {
@@ -321,7 +320,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, $('span.title', {}, `${commandAndGroupLabel} `));
 			}
 
-			if ((options.showKeys ?? true) || (command && (options.showKeybindings ?? true))) {
+			if ((options.showKeys ?? true) || (commandDetails && (options.showKeybindings ?? true))) {
 				// Fix label for arrow keys
 				keyLabel = keyLabel?.replace('UpArrow', '↑')
 					?.replace('DownArrow', '↓')
@@ -340,6 +339,25 @@ class ToggleScreencastModeAction extends Action2 {
 
 	private _isKbFound(resolutionResult: ResolutionResult): resolutionResult is { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean } {
 		return resolutionResult.kind === ResultKind.KbFound;
+	}
+
+	private getCommandDetails(commandId: string): { title: string; category?: string } | undefined {
+		const fromMenuRegistry = MenuRegistry.getCommand(commandId);
+
+		if (fromMenuRegistry) {
+			return {
+				title: typeof fromMenuRegistry.title === 'string' ? fromMenuRegistry.title : fromMenuRegistry.title.value,
+				category: fromMenuRegistry.category ? (typeof fromMenuRegistry.category === 'string' ? fromMenuRegistry.category : fromMenuRegistry.category.value) : undefined
+			};
+		}
+
+		const fromCommandsRegistry = CommandsRegistry.getCommand(commandId);
+
+		if (fromCommandsRegistry && fromCommandsRegistry.description?.description) {
+			return { title: fromCommandsRegistry.description.description };
+		}
+
+		return undefined;
 	}
 }
 

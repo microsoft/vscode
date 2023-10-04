@@ -9,9 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -22,7 +23,7 @@ suite('ChatVariables', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
-		service = new ChatVariablesService();
+		service = new ChatVariablesService(null!);
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -44,43 +45,43 @@ suite('ChatVariables', function () {
 		};
 
 		{
-			const data = await resolveVariables('Hello @foo and@far');
+			const data = await resolveVariables('Hello #foo and#far');
 			assert.strictEqual(Object.keys(data.variables).length, 1);
 			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
-			assert.strictEqual(data.prompt, 'Hello [@foo](values:foo) and@far');
+			assert.strictEqual(data.prompt, 'Hello [#foo](values:foo) and#far');
 		}
 		{
-			const data = await resolveVariables('@foo Hello');
+			const data = await resolveVariables('#foo Hello');
 			assert.strictEqual(Object.keys(data.variables).length, 1);
 			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
-			assert.strictEqual(data.prompt, '[@foo](values:foo) Hello');
+			assert.strictEqual(data.prompt, '[#foo](values:foo) Hello');
 		}
 		{
-			const data = await resolveVariables('Hello @foo');
-			assert.strictEqual(Object.keys(data.variables).length, 1);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
-		}
-		{
-			const data = await resolveVariables('Hello @foo?');
-			assert.strictEqual(Object.keys(data.variables).length, 1);
-			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
-			assert.strictEqual(data.prompt, 'Hello [@foo](values:foo)?');
-		}
-		{
-			const data = await resolveVariables('Hello @foo and@far @foo');
+			const data = await resolveVariables('Hello #foo');
 			assert.strictEqual(Object.keys(data.variables).length, 1);
 			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
 		}
 		{
-			const data = await resolveVariables('Hello @foo and @far @foo');
+			const data = await resolveVariables('Hello #foo?');
+			assert.strictEqual(Object.keys(data.variables).length, 1);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+			assert.strictEqual(data.prompt, 'Hello [#foo](values:foo)?');
+		}
+		{
+			const data = await resolveVariables('Hello #foo and#far #foo');
+			assert.strictEqual(Object.keys(data.variables).length, 1);
+			assert.deepEqual(Object.keys(data.variables).sort(), ['foo']);
+		}
+		{
+			const data = await resolveVariables('Hello #foo and #far #foo');
 			assert.strictEqual(Object.keys(data.variables).length, 2);
 			assert.deepEqual(Object.keys(data.variables).sort(), ['far', 'foo']);
 		}
 		{
-			const data = await resolveVariables('Hello @foo and @far @foo @unknown');
+			const data = await resolveVariables('Hello #foo and #far #foo #unknown');
 			assert.strictEqual(Object.keys(data.variables).length, 2);
 			assert.deepEqual(Object.keys(data.variables).sort(), ['far', 'foo']);
-			assert.strictEqual(data.prompt, 'Hello [@foo](values:foo) and [@far](values:far) [@foo](values:foo) @unknown');
+			assert.strictEqual(data.prompt, 'Hello [#foo](values:foo) and [#far](values:far) [#foo](values:foo) #unknown');
 		}
 
 		v1.dispose();

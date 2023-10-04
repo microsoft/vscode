@@ -52,7 +52,7 @@ stages:
               outputFormat: "pre"
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSpec: "18.15"
 
           - template: ./distro/download-distro.yml
 
@@ -179,7 +179,7 @@ stages:
               toolMajorVersion: "V2"
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSpec: "18.15"
 
           - template: ./distro/download-distro.yml
 

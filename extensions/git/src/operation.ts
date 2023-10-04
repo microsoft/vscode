@@ -54,6 +54,7 @@ export const enum OperationKind {
 	RevertFiles = 'RevertFiles',
 	RevertFilesNoProgress = 'RevertFilesNoProgress',
 	RevList = 'RevList',
+	RevParse = 'RevParse',
 	SetBranchUpstream = 'SetBranchUpstream',
 	Show = 'Show',
 	Stage = 'Stage',
@@ -70,7 +71,7 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRefsOperation | GetRemoteRefsOperation |
 	HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation |
 	MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation |
-	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | RevListOperation |
+	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | RevListOperation | RevParseOperation |
 	SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation |
 	TagOperation;
 
@@ -119,6 +120,7 @@ export type RebaseAbortOperation = BaseOperation & { kind: OperationKind.RebaseA
 export type RebaseContinueOperation = BaseOperation & { kind: OperationKind.RebaseContinue };
 export type RevertFilesOperation = BaseOperation & { kind: OperationKind.RevertFiles };
 export type RevListOperation = BaseOperation & { kind: OperationKind.RevList };
+export type RevParseOperation = BaseOperation & { kind: OperationKind.RevParse };
 export type SetBranchUpstreamOperation = BaseOperation & { kind: OperationKind.SetBranchUpstream };
 export type ShowOperation = BaseOperation & { kind: OperationKind.Show };
 export type StageOperation = BaseOperation & { kind: OperationKind.Stage };
@@ -173,6 +175,7 @@ export const Operation = {
 	RebaseContinue: { kind: OperationKind.RebaseContinue, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseContinueOperation,
 	RevertFiles: (showProgress: boolean) => ({ kind: OperationKind.RevertFiles, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as RevertFilesOperation),
 	RevList: { kind: OperationKind.RevList, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as RevListOperation,
+	RevParse: { kind: OperationKind.RevParse, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as RevParseOperation,
 	SetBranchUpstream: { kind: OperationKind.SetBranchUpstream, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SetBranchUpstreamOperation,
 	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
 	Stage: { kind: OperationKind.Stage, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,
