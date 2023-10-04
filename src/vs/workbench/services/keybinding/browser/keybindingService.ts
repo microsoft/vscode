@@ -238,7 +238,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateKeybindingsJsonSchema()));
 
 		this._register(this._registerKeyListeners(window));
-		this._register(dom.onDidCreateWindow(({ window, disposableStore }) => {
+		this._register(dom.onDidRegisterWindow(({ window, disposableStore }) => {
 			disposableStore.add(this._registerKeyListeners(window));
 		}));
 

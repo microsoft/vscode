@@ -591,6 +591,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	hasContainer = true;
 	container: HTMLElement = window.document.body;
+	containers = [window.document.body];
 	activeContainer: HTMLElement = window.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;

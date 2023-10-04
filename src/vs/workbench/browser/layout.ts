@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -154,12 +154,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	readonly hasContainer = true;
 	readonly container = document.createElement('div');
-	get activeContainer() {
-		const activeDocument = getActiveDocument();
-		if (document === activeDocument) {
+	get activeContainer() { return this.getContainerFromDocument(getActiveDocument()); }
+	get containers(): Iterable<HTMLElement> {
+		const containers: HTMLElement[] = [];
+		for (const window of getWindows()) {
+			containers.push(this.getContainerFromDocument(window.document));
+		}
+
+		return containers;
+	}
+
+	private getContainerFromDocument(document: Document): HTMLElement {
+		if (document === this.container.ownerDocument) {
 			return this.container;
 		} else {
-			return activeDocument.body.children[0] as HTMLElement; // TODO@bpasero a bit of a hack
+			return document.body.children[0] as HTMLElement; // TODO@bpasero a bit of a hack
 		}
 	}
 
