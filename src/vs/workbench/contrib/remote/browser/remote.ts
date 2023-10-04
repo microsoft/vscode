@@ -26,7 +26,6 @@ import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -35,8 +34,7 @@ import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platfor
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
-import { Action } from 'vs/base/common/actions';
+import { SwitchRemoteViewItem } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { isStringArray } from 'vs/base/common/types';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -52,7 +50,6 @@ import * as icons from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
@@ -582,8 +579,8 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 	helpInformation: HelpInformation[] = [];
 	private _onDidChangeHelpInformation = new Emitter<void>();
 	public onDidChangeHelpInformation: Event<void> = this._onDidChangeHelpInformation.event;
-	private hasSetSwitchForConnection: boolean = false;
 	private hasRegisteredHelpView: boolean = false;
+	private remoteSwitcher: SwitchRemoteViewItem | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -596,11 +593,12 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
+		this._register(this.remoteSwitcher = this.instantiationService.createInstance(SwitchRemoteViewItem));
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		remoteHelpExtPoint.setHandler((extensions) => {
 			const helpInformation: HelpInformation[] = [];
 			for (const extension of extensions) {
@@ -610,7 +608,6 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			this.helpInformation = helpInformation;
 			this._onDidChangeHelpInformation.fire();
 
-			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (this.helpInformation.length && !this.hasRegisteredHelpView) {
 				viewsRegistry.registerViews([this.helpPanelDescriptor], this.viewContainer);
 				this.hasRegisteredHelpView = true;
@@ -619,6 +616,23 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 				this.hasRegisteredHelpView = false;
 			}
 		});
+		this.remoteSwitcher.createOptionItems(viewsRegistry.getViews(this.viewContainer));
+		this._register(viewsRegistry.onViewsRegistered(e => {
+			const remoteViews: IViewDescriptor[] = [];
+			for (const view of e) {
+				if (view.viewContainer.id === VIEWLET_ID) {
+					remoteViews.push(...view.views);
+				}
+			}
+			if (remoteViews.length > 0) {
+				this.remoteSwitcher!.createOptionItems(remoteViews);
+			}
+		}));
+		this._register(viewsRegistry.onViewsDeregistered(e => {
+			if (e.viewContainer.id === VIEWLET_ID) {
+				this.remoteSwitcher!.removeOptionItems(e.views);
+			}
+		}));
 	}
 
 	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
@@ -649,28 +663,11 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 		this.remoteExplorerService.targetType = isStringArray(viewDescriptor.remoteAuthority) ? viewDescriptor.remoteAuthority : [viewDescriptor.remoteAuthority!];
 	}
 
-	public override getActionViewItem(action: Action): IActionViewItem | undefined {
-		if (action.id === SwitchRemoteAction.ID) {
-			const optionItems = SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService);
-			const item = this.instantiationService.createInstance(SwitchRemoteViewItem, action, optionItems);
-			if (!this.hasSetSwitchForConnection) {
-				this.hasSetSwitchForConnection = item.setSelectionForConnection();
-			} else {
-				item.setSelection();
-			}
-			return item;
-		}
-
-		return super.getActionViewItem(action);
-	}
-
 	getTitle(): string {
 		const title = nls.localize('remote.explorer', "Remote Explorer");
 		return title;
 	}
 }
-
-registerAction2(SwitchRemoteAction);
 
 Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 	{
