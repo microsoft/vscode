@@ -130,7 +130,7 @@ export class ViewModelDecorations implements IDisposable {
 		if (!this._decorationsHeightMapCache) {
 			const lineCount = this._linesCollection.getViewLineCount();
 			const lineHeights = new Uint8ClampedArray(lineCount + 1).fill(this._lineHeight);
-			const viewRange = new Range(0, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
+			const viewRange = new Range(1, this._linesCollection.getViewLineMinColumn(0), lineCount, this._linesCollection.getViewLineMaxColumn(lineCount));
 			const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
 
 			for (const decoration of modelDecorations) {
@@ -142,7 +142,7 @@ export class ViewModelDecorations implements IDisposable {
 				}
 
 				for (let rangeLine = range.startLineNumber; rangeLine <= range.endLineNumber; rangeLine++) {
-					lineHeights[rangeLine - 1] = Math.max(lineHeights[rangeLine - 1], decorationLineHeight);
+					lineHeights[rangeLine] = Math.max(lineHeights[rangeLine], decorationLineHeight);
 				}
 			}
 

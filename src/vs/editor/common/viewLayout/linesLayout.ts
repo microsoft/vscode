@@ -667,7 +667,7 @@ export class LinesLayout {
 		let lineNumber = startLineNumber;
 		// Figure out how far the lines go
 		for (; lineNumber <= endLineNumber; lineNumber++) {
-			const currentLineHeight = heights[lineNumber - 1];
+			const currentLineHeight = heights[lineNumber];
 
 			if (centeredLineNumber === -1) {
 				const currentLineTop = currentVerticalOffset;

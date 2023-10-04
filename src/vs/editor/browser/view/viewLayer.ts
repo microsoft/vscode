@@ -462,7 +462,6 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private _renderUntouchedLines(ctx: IRendererContext<T>, startIndex: number, endIndex: number, deltaTop: number[], deltaLN: number): void {
 		const rendLineNumberStart = ctx.rendLineNumberStart;
 		const lines = ctx.lines;
-		const safeDeltaTop = deltaTop.length - 1;
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
