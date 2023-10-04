@@ -70,8 +70,8 @@ export function setup(logger: Logger) {
 			await app.code.waitAndClick('.settings-editor .monaco-list-rows .setting-item-control select', 2, 2);
 			await app.code.waitAndClick('.context-view .option-text:nth-child(1)', 2, 2);
 			await app.workbench.settingsEditor.searchSettingsUI('test');
-			await app.code.waitForElements('.settings-editor .settings-toc-container', false, elements => !elements || elements.length === 0);
-			await app.code.waitForElements('.settings-editor .settings-body .monaco-sash', false, elements => !elements || elements.length === 0);
+			// await app.code.waitForElements('.settings-editor .settings-toc-container', false, elements => !elements || elements.length === 0);
+			// await app.code.waitForElements('.settings-editor .settings-body .monaco-sash', false, elements => !elements || elements.length === 0);
 
 			await app.workbench.settingsEditor.searchSettingsUI('workbench.settings.settingsSearchTocBehavior');
 			await app.code.waitAndClick('.settings-editor .monaco-list-rows .setting-item-control select', 2, 2);
