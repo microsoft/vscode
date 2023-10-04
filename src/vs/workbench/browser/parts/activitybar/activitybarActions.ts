@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hide, show, isMouseEvent } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hide, show } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
@@ -13,10 +13,9 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositeBadgeAction, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityAction, ActivityActionViewItem, IActivityActionViewItemOptions, IActivityHoverOptions, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_ACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -35,7 +34,6 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -44,77 +42,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { runWhenIdle } from 'vs/base/common/async';
 import { Lazy } from 'vs/base/common/lazy';
 import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
-
-export class ViewContainerActivityAction extends ActivityAction {
-
-	private static readonly preventDoubleClickDelay = 300;
-
-	private lastRun = 0;
-
-	constructor(
-		activity: IActivity,
-		private readonly paneCompositePart: IPaneCompositePart,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super(activity);
-	}
-
-	updateActivity(activity: IActivity): void {
-		this.activity = activity;
-	}
-
-	override async run(event: { preserveFocus: boolean }): Promise<void> {
-		if (isMouseEvent(event) && event.button === 2) {
-			return; // do not run on right click
-		}
-
-		// prevent accident trigger on a doubleclick (to help nervous people)
-		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
-			return;
-		}
-		this.lastRun = now;
-
-		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		const activeViewlet = this.paneCompositePart.getActivePaneComposite();
-		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
-
-		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
-		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
-			switch (focusBehavior) {
-				case 'focus':
-					this.logAction('refocus');
-					this.paneCompositePart.openPaneComposite(this.activity.id, focus);
-					break;
-				case 'toggle':
-				default:
-					// Hide sidebar if selected viewlet already visible
-					this.logAction('hide');
-					this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-					break;
-			}
-
-			return;
-		}
-
-		this.logAction('show');
-		await this.paneCompositePart.openPaneComposite(this.activity.id, focus);
-
-		return this.activate();
-	}
-
-	private logAction(action: string) {
-		type ActivityBarActionClassification = {
-			owner: 'sbatten';
-			comment: 'Event logged when an activity bar action is triggered.';
-			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view in the activity bar for which the action was performed.' };
-			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was performed. e.g. "hide", "show", or "refocus"' };
-		};
-		this.telemetryService.publicLog2<{ viewletId: String; action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
-	}
-}
 
 abstract class AbstractGlobalActivityActionViewItem extends ActivityActionViewItem {
 
@@ -536,30 +463,6 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 
 	protected override computeTitle(): string {
 		return this.userDataProfileService.currentProfile.isDefault ? super.computeTitle() : localize('manage', "Manage {0} (Profile)", this.userDataProfileService.currentProfile.name);
-	}
-}
-
-export class PlaceHolderViewContainerActivityAction extends ViewContainerActivityAction { }
-
-export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
-
-	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, classNames: undefined }, compositeBar);
-	}
-
-	setActivity(activity: IActivity): void {
-		this.label = activity.name;
-	}
-}
-
-export class PlaceHolderToggleCompositeBadgeAction extends ToggleCompositeBadgeAction {
-
-	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, classNames: undefined }, compositeBar);
-	}
-
-	setActivity(activity: IActivity): void {
-		this.label = activity.name;
 	}
 }
 
