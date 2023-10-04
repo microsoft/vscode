@@ -276,17 +276,17 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	protected override createTitleArea(parent: HTMLElement): HTMLElement {
-		this.titleContainer = super.createTitleArea(parent);
+		const titleArea = super.createTitleArea(parent);
 
-		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, e => {
+		this._register(addDisposableListener(titleArea, EventType.CONTEXT_MENU, e => {
 			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
 		}));
-		this._register(Gesture.addTarget(this.titleContainer));
-		this._register(addDisposableListener(this.titleContainer, GestureEventType.Contextmenu, e => {
+		this._register(Gesture.addTarget(titleArea));
+		this._register(addDisposableListener(titleArea, GestureEventType.Contextmenu, e => {
 			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
 		}));
 
-		const globalTitleActionsContainer = this.titleContainer.appendChild($('.global-actions'));
+		const globalTitleActionsContainer = titleArea.appendChild($('.global-actions'));
 
 		// Global Actions Toolbar
 		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
@@ -299,10 +299,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		this.updateGlobalToolbarActions();
 
-		return this.titleContainer;
+		return titleArea;
 	}
 
 	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		this.titleContainer = parent;
 		this.updateTitleArea();
 		return {
 			updateTitle: (id, title, keybinding) => {
