@@ -383,18 +383,18 @@ export class CodeApplication extends Disposable {
 		//
 		app.on('web-contents-created', (event, contents) => {
 
+			// Child Window: delegate to `AuxiliarWindow` class
+			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
+			if (isChildWindow) {
+				this.mainInstantiationService.createInstance(AuxiliarWindow, contents);
+			}
+
 			// Block any in-page navigation
 			contents.on('will-navigate', event => {
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
 				event.preventDefault();
 			});
-
-			// Child Window: apply zoom after loading finished and handle --open-devtools
-			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
-			if (isChildWindow) {
-				this.mainInstantiationService.createInstance(AuxiliarWindow, contents);
-			}
 
 			// All Windows: only allow about:blank child windows to open
 			// For all other URLs, delegate to the OS.
