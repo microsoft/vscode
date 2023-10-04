@@ -599,7 +599,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			localize('usedReferencesPlural', "Used {0} references", data.documents.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1);
 		const iconElement = $('.chat-used-context-icon');
-		const icon = (element: IChatResponseViewModel) => element.usedReferencesCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
+		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 		const buttonElement = $('.chat-used-context-label', undefined);
 
@@ -617,12 +617,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		collapseButton.label = referencesLabel;
 		collapseButton.element.prepend(iconElement);
 
-		container.classList.toggle('chat-used-context-collapsed', !!element.usedReferencesCollapsed);
+		container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 		listDisposables.add(collapseButton.onDidClick(() => {
 			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
-			element.usedReferencesCollapsed = !element.usedReferencesCollapsed;
+			element.usedReferencesExpanded = !element.usedReferencesExpanded;
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
-			container.classList.toggle('chat-used-context-collapsed', !!element.usedReferencesCollapsed);
+			container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		}));
 
