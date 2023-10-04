@@ -159,6 +159,18 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
+		if ('documents' in progress) {
+			const usedContext = {
+				documents: progress.documents.map(({ uri, version, ranges }) => ({
+					uri: URI.revive(uri),
+					version,
+					ranges,
+				})),
+			};
+			this._activeRequestProgressCallbacks.get(id)?.(usedContext); // FIXME@ulugbekna: is this a correct thing to do?
+			return;
+		}
+
 		this._activeRequestProgressCallbacks.get(id)?.(progress);
 	}
 

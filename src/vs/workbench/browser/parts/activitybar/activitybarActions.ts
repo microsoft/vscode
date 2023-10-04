@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hide, show } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hide, show, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
@@ -44,7 +44,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { runWhenIdle } from 'vs/base/common/async';
 import { Lazy } from 'vs/base/common/lazy';
 import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
-import { ThemeIcon } from 'vs/base/common/themables';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -67,7 +66,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 	}
 
 	override async run(event: { preserveFocus: boolean }): Promise<void> {
-		if (event instanceof MouseEvent && event.button === 2) {
+		if (isMouseEvent(event) && event.button === 2) {
 			return; // do not run on right click
 		}
 
@@ -521,11 +520,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 			return;
 		}
 
-		if (this.userDataProfileService.currentProfile.icon && this.userDataProfileService.currentProfile.icon !== DEFAULT_ICON.id) {
-			this.profileBadgeContent.classList.toggle('profile-icon-overlay', true);
-			this.profileBadgeContent.classList.toggle('profile-text-overlay', false);
-			append(this.profileBadgeContent, $(ThemeIcon.asCSSSelector(DEFAULT_ICON)));
-		} else {
+		if (!this.userDataProfileService.currentProfile.icon || this.userDataProfileService.currentProfile.icon === DEFAULT_ICON.id) {
 			this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
 			this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
 			this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();

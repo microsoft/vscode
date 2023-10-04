@@ -13,7 +13,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isWindowsDriveLetter, parseLineAndColumnAware, sanitizeFilePath, toSlashes } from 'vs/base/common/extpath';
 import { getPathLabel } from 'vs/base/common/labels';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
@@ -1129,9 +1129,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			addUNCHostToAllowlist(uri.authority);
 
 			if (checkboxChecked) {
-				this._register(Event.once(this.onDidOpenWindow)(window => {
-					window.sendWhenReady('vscode:configureAllowedUNCHost', CancellationToken.None, uri.authority);
-				}));
+				this.sendToOpeningWindow('vscode:configureAllowedUNCHost', uri.authority);
 			}
 
 			return this.doResolveFilePath(path, options, true /* do not handle UNC error again */);
@@ -1463,10 +1461,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() - 1, newCount: this.getWindowCount() });
 
 			// Window Events
-			Event.once(createdWindow.onDidSignalReady)(() => this._onDidSignalReadyWindow.fire(createdWindow));
-			Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow));
-			Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow));
-			createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y }));
+			const disposables = new DisposableStore();
+			disposables.add(createdWindow.onDidSignalReady(() => this._onDidSignalReadyWindow.fire(createdWindow)));
+			disposables.add(Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow, disposables)));
+			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow)));
+			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
@@ -1583,7 +1582,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return this.userDataProfilesMainService.getProfileForWorkspace(workspace) ?? defaultProfile;
 	}
 
-	private onWindowClosed(window: ICodeWindow): void {
+	private onWindowClosed(window: ICodeWindow, disposables: IDisposable): void {
 
 		// Remove from our list so that Electron can clean it up
 		const index = WindowsMainService.WINDOWS.indexOf(window);
@@ -1591,6 +1590,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Emit
 		this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
+
+		// Clean up
+		disposables.dispose();
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {
@@ -1620,6 +1622,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const focusedWindow = this.getFocusedWindow() || this.getLastActiveWindow();
 
 		focusedWindow?.sendWhenReady(channel, CancellationToken.None, ...args);
+	}
+
+	sendToOpeningWindow(channel: string, ...args: any[]): void {
+		this._register(Event.once(this.onDidSignalReadyWindow)(window => {
+			window.sendWhenReady(channel, CancellationToken.None, ...args);
+		}));
 	}
 
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void {

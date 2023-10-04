@@ -49,6 +49,7 @@ export const enum AccessibilityVerbositySettingId {
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
 	InlineChat = 'inlineChat',

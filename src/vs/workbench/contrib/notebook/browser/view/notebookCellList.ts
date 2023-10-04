@@ -20,7 +20,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType, CursorAtLineBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { clamp } from 'vs/base/common/numbers';
@@ -154,7 +154,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
 		@IListService listService: IListService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
@@ -830,7 +830,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
 		const firstIndex = this.view.firstVisibleIndex;
-		if (viewIndex <= firstIndex) {
+		const elementHeight = this.view.elementHeight(viewIndex);
+
+		if (viewIndex <= firstIndex || elementHeight >= this.view.renderHeight) {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Top, firstLine);
 		} else {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom, firstLine);
@@ -1203,24 +1205,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const focused = this.getFocus();
-		if (!focused.length) {
-			return this.view.updateElementHeight(index, size, null);
+		const focus = focused.length ? focused[0] : null;
+
+		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
+		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
+		const scrollHeuristic = allowScrolling && anchorFocusedSetting === 'auto' && this.view.elementTop(index) < this.view.getScrollTop();
+		if (focused && (anchorFocusedSetting === 'on' || scrollHeuristic)) {
+			this.view.updateElementHeight(index, size, focus);
 		}
 
-		const focus = focused[0];
-
-		if (focus <= index) {
-			return this.view.updateElementHeight(index, size, focus);
-		}
-
-		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
-		// then we should make sure that the `element`'s visual view position doesn't change.
-
-		if (this.view.elementTop(index) >= this.view.getScrollTop()) {
-			return this.view.updateElementHeight(index, size, index);
-		}
-
-		this.view.updateElementHeight(index, size, focus);
+		this.view.updateElementHeight(index, size, null);
 	}
 
 	// override

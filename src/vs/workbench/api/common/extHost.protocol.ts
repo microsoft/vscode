@@ -365,14 +365,14 @@ export interface IShareableItemDto {
 	selection?: IRange;
 }
 
-export interface IRelatedContextItemDto {
+export interface IDocumentContextItemDto {
 	readonly uri: UriComponents;
-	readonly range: IRange;
+	readonly version: number;
+	readonly ranges: IRange[];
 }
 
 export interface IMappedEditsContextDto {
-	selections: ISelection[];
-	related: IRelatedContextItemDto[];
+	documents: IDocumentContextItemDto[][];
 }
 
 export interface ISignatureHelpProviderMetadataDto {
@@ -1145,16 +1145,6 @@ export interface ExtHostChatProviderShape {
 	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 }
 
-export interface MainThreadChatSlashCommandsShape extends IDisposable {
-	$registerCommand(handle: number, name: string, detail: string): void;
-	$unregisterCommand(handle: number): void;
-	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
-}
-
-export interface ExtHostChatSlashCommandsShape {
-	$executeCommand(handle: number, requestId: number, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
-}
-
 export interface MainThreadChatAgentsShape extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
@@ -1223,7 +1213,18 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
-export type IChatResponseProgressDto = { content: string | IMarkdownString } | { requestId: string } | { placeholder: string } | { treeData: IChatResponseProgressFileTreeData };
+export type IDocumentContextDto = {
+	uri: UriComponents;
+	version: number;
+	ranges: IRange[];
+};
+
+export type IChatResponseProgressDto =
+	| { content: string | IMarkdownString }
+	| { requestId: string }
+	| { placeholder: string }
+	| { treeData: IChatResponseProgressFileTreeData }
+	| { documents: IDocumentContextDto[] };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
@@ -2650,7 +2651,6 @@ export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadChatProvider: createProxyIdentifier<MainThreadChatProviderShape>('MainThreadChatProvider'),
-	MainThreadChatSlashCommands: createProxyIdentifier<MainThreadChatSlashCommandsShape>('MainThreadChatSlashCommands'),
 	MainThreadChatAgents: createProxyIdentifier<MainThreadChatAgentsShape>('MainThreadChatAgents'),
 	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
@@ -2771,7 +2771,6 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
-	ExtHostChatSlashCommands: createProxyIdentifier<ExtHostChatSlashCommandsShape>('ExtHostChatSlashCommands'),
 	ExtHostChatAgents: createProxyIdentifier<ExtHostChatAgentsShape>('ExtHostChatAgents'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),

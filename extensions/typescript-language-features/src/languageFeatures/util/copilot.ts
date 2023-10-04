@@ -13,8 +13,12 @@ import { ITypeScriptServiceClient } from '../../typescriptService';
 export class EditorChatFollowUp implements Command {
 	public static readonly ID = '_typescript.quickFix.editorChatReplacement2';
 	public readonly id = EditorChatFollowUp.ID;
-	constructor(private readonly client: ITypeScriptServiceClient) { }
-	async execute({ message, document, expand }: EditorChatFollowUp.Args) {
+
+	constructor(
+		private readonly client: ITypeScriptServiceClient,
+	) { }
+
+	async execute({ message, document, expand }: EditorChatFollowUp_Args) {
 		const initialRange =
 			expand.kind === 'navtree-function'
 				? await findScopeEndLineFromNavTree(
@@ -42,12 +46,10 @@ export class EditorChatFollowUp implements Command {
 		});
 	}
 }
-export namespace EditorChatFollowUp {
-	export interface Args {
-		readonly message: string;
-		readonly document: vscode.TextDocument;
-		readonly expand: Expand;
-	}
+export interface EditorChatFollowUp_Args {
+	readonly message: string;
+	readonly document: vscode.TextDocument;
+	readonly expand: Expand;
 }
 
 export class CompositeCommand implements Command {

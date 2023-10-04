@@ -59,6 +59,7 @@ export class ChatEditor extends EditorPane {
 			scopedInstantiationService.createInstance(
 				ChatWidget,
 				{ resource: true },
+				{ supportsFileReferences: true },
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
@@ -118,4 +119,3 @@ export class ChatEditor extends EditorPane {
 		}
 	}
 }
-
