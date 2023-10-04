@@ -464,8 +464,8 @@
 	gap: 6px;
 }
 
-.interactive-response-progress-tree .monaco-list .monaco-scrollable-element .monaco-list-rows {
-	border: 1px solid var(--vscode-input-border,transparent);
+.interactive-response-progress-tree .monaco-list {
+	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	width: auto;
 }
