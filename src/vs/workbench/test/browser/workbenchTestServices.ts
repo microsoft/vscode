@@ -717,6 +717,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
+	readonly partId = Parts.SIDEBAR_PART;
 	element: HTMLElement = undefined!;
 	minimumWidth = 0;
 	maximumWidth = 0;
@@ -769,6 +770,7 @@ export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelector
 	onDidChange = Event.None;
 	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
 	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
+	readonly partId = Parts.AUXILIARYBAR_PART;
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
 	getPaneComposite(id: string): any { return activeViewlet; }

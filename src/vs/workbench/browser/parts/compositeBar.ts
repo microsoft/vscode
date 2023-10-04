@@ -303,6 +303,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	recomputeSizes(): void {
 		this.computeSizes(this.model.visibleItems);
+		this.updateCompositeSwitcher();
 	}
 
 	layout(dimension: Dimension): void {
