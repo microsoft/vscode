@@ -217,18 +217,21 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	override create(parent: HTMLElement): void {
 		this.element = parent;
+		this.element.classList.add('pane-composite-part');
 
 		super.create(parent);
 
-		this.createEmptyPaneMessage();
+		const contentArea = this.getContentArea();
+		if (contentArea) {
+			this.createEmptyPaneMessage(contentArea);
+		}
 
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.paneFocusContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.paneFocusContextKey.set(false)));
 	}
 
-	private createEmptyPaneMessage(): void {
-		const contentArea = this.getContentArea()!;
+	private createEmptyPaneMessage(parent: HTMLElement): void {
 		this.emptyPaneMessageElement = document.createElement('div');
 		this.emptyPaneMessageElement.classList.add('empty-pane-message-area');
 
@@ -237,7 +240,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		messageElement.innerText = localize('pane.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPaneMessageElement.appendChild(messageElement);
-		contentArea.appendChild(this.emptyPaneMessageElement);
+		parent.appendChild(this.emptyPaneMessageElement);
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPaneMessageElement, {
 			onDragOver: (e) => {
@@ -270,6 +273,87 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				}
 			},
 		}));
+	}
+
+	protected override createTitleArea(parent: HTMLElement): HTMLElement {
+		this.titleContainer = super.createTitleArea(parent);
+
+		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, e => {
+			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		}));
+		this._register(Gesture.addTarget(this.titleContainer));
+		this._register(addDisposableListener(this.titleContainer, GestureEventType.Contextmenu, e => {
+			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		}));
+
+		const globalTitleActionsContainer = this.titleContainer.appendChild($('.global-actions'));
+
+		// Global Actions Toolbar
+		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			orientation: ActionsOrientation.HORIZONTAL,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+			toggleMenuTitle: localize('moreActions', "More Actions...")
+		}));
+
+		this.updateGlobalToolbarActions();
+
+		return this.titleContainer;
+	}
+
+	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		this.updateTitleArea();
+		return {
+			updateTitle: (id, title, keybinding) => {
+				if (!this.updateTitleArea() && this.paneTitleLabel) {
+					this.paneTitleLabel.updateTitle(id, title, keybinding);
+				}
+			},
+			updateStyles: () => this.paneTitleLabel?.updateStyles()
+		};
+	}
+
+	protected updateTitleArea(): boolean {
+		if (!this.titleContainer) {
+			return false;
+		}
+		if (!this.paneCompositeBar.value && this.shouldShowCompositeBar()) {
+			this.titleContainer.classList.add('composite-bar-container');
+			this.titleDisposables.clear();
+			this.titleLabelElement = undefined;
+			clearNode(this.titleContainer);
+			this.paneCompositeBar.value = this.createCompisteBar();
+			const titleArea = this.paneCompositeBar.value.create(this.titleContainer);
+			titleArea.classList.add('pane-composite-bar');
+			return true;
+		}
+		if (!this.titleLabelElement && !this.shouldShowCompositeBar()) {
+			this.paneCompositeBar.clear();
+			this.titleDisposables.clear();
+			clearNode(this.titleContainer);
+			this.titleContainer.classList.remove('pane-composite-bar-container');
+			this.paneTitleLabel = super.createTitleLabel(this.titleContainer);
+			this.titleLabelElement!.draggable = true;
+			const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
+				const activeViewlet = this.getActivePaneComposite()!;
+				return { type: 'composite', id: activeViewlet.getId() };
+			};
+			this.titleDisposables.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
+			return false;
+		}
+		return false;
+	}
+
+	protected createCompisteBar(): PaneCompositeBar {
+		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompoisteBarOptions(), this.partId, this);
+	}
+
+	protected override onTitleAreaUpdate(compositeId: string): void {
+		super.onTitleAreaUpdate(compositeId);
+
+		// If title actions change, relayout the composite bar
+		this.layoutCompositeBar();
 	}
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
@@ -348,86 +432,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		this.hideActiveComposite();
-	}
-
-	protected override createTitleArea(parent: HTMLElement): HTMLElement {
-		const element = super.createTitleArea(parent);
-
-		this._register(addDisposableListener(element, EventType.CONTEXT_MENU, e => {
-			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
-		}));
-		this._register(Gesture.addTarget(element));
-		this._register(addDisposableListener(element, GestureEventType.Contextmenu, e => {
-			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
-		}));
-
-		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
-
-		// Global Actions Toolbar
-		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
-			orientation: ActionsOrientation.HORIZONTAL,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
-		}));
-
-		this.updateGlobalToolbarActions();
-
-		return element;
-	}
-
-	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
-		this.titleContainer = parent;
-		this.updateTitleArea();
-		return {
-			updateTitle: (id, title, keybinding) => {
-				if (!this.updateTitleArea() && this.paneTitleLabel) {
-					this.paneTitleLabel.updateTitle(id, title, keybinding);
-				}
-			},
-			updateStyles: () => this.paneTitleLabel?.updateStyles()
-		};
-	}
-
-	protected updateTitleArea(): boolean {
-		if (!this.titleContainer) {
-			return false;
-		}
-		if (!this.paneCompositeBar.value && this.shouldShowCompositeBar()) {
-			this.titleDisposables.clear();
-			this.titleLabelElement = undefined;
-			clearNode(this.titleContainer);
-			this.paneCompositeBar.value = this.createCompisteBar();
-			const titleArea = this.paneCompositeBar.value.create(this.titleContainer);
-			titleArea.classList.add('pane-composite-bar');
-			return true;
-		}
-		if (!this.titleLabelElement && !this.shouldShowCompositeBar()) {
-			this.paneCompositeBar.clear();
-			this.titleDisposables.clear();
-			clearNode(this.titleContainer);
-			this.paneTitleLabel = super.createTitleLabel(this.titleContainer);
-			this.titleLabelElement!.draggable = true;
-			const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
-				const activeViewlet = this.getActivePaneComposite()!;
-				return { type: 'composite', id: activeViewlet.getId() };
-			};
-			this.titleDisposables.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
-			return false;
-		}
-		return false;
-	}
-
-	protected createCompisteBar(): PaneCompositeBar {
-		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompoisteBarOptions(), this.partId, this);
-	}
-
-	protected override onTitleAreaUpdate(compositeId: string): void {
-		super.onTitleAreaUpdate(compositeId);
-
-		// If title actions change, relayout the composite bar
-		this.layoutCompositeBar();
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
