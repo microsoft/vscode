@@ -686,6 +686,7 @@ export class InlineChatController implements IEditorContribution {
 			// show status message
 			status = localize('empty', "No results, please refine your input and try again");
 			this._zone.value.widget.updateStatus(status, { classes: ['warn'] });
+			this._chatAccessibilityService.acceptResponse(status);
 			return State.WAIT_FOR_INPUT;
 
 		} else if (response instanceof ErrorResponse) {
@@ -714,6 +715,7 @@ export class InlineChatController implements IEditorContribution {
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
+				this._chatAccessibilityService.acceptResponse();
 				return State.CANCEL;
 			}
 			status = this._configurationService.getValue('accessibility.verbosity.inlineChat') === true ? localize('editResponseMessage', "Use tab to navigate to the diff editor and review proposed changes.") : '';
