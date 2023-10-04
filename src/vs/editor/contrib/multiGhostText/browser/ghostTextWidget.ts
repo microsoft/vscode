@@ -159,10 +159,21 @@ export class GhostTextWidget extends Disposable {
 		if (uiState.removeRange) {
 			const className = this.isSelected.read(reader) ? 'ghost-text-remove-selected' : 'ghost-text-remove';
 
-			decorations.push({
-				range: uiState.removeRange,
-				options: { inlineClassName: className, description: 'ghost-text-remove', }
-			});
+			const liens = uiState.removeRange.endLineNumber - uiState.removeRange.startLineNumber;
+			const ranges = [];
+			for (let i = 0; i < liens; i++) {
+				const line = uiState.removeRange.startLineNumber + i;
+				const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
+				const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);
+				const range = new Range(line, firstNonWhitespace, line, lastNonWhitespace);
+				ranges.push(range);
+			}
+			for (const range of ranges) {
+				decorations.push({
+					range,
+					options: { inlineClassName: className, description: 'ghost-text-remove', }
+				});
+			}
 		}
 
 		for (const p of uiState.inlineTexts) {
