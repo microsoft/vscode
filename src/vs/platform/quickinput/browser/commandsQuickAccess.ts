@@ -330,7 +330,7 @@ export class CommandsHistory extends Disposable {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(e)));
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				CommandsHistory.saveState(this.storageService);
+				this.saveState();
 			}
 		}));
 	}
@@ -385,7 +385,7 @@ export class CommandsHistory extends Disposable {
 		return CommandsHistory.cache?.peek(commandId);
 	}
 
-	static saveState(storageService: IStorageService): void {
+	private saveState(): void {
 		if (!CommandsHistory.cache) {
 			return;
 		}
@@ -397,8 +397,8 @@ export class CommandsHistory extends Disposable {
 		const serializedCache: ISerializedCommandHistory = { usesLRU: true, entries: [] };
 		CommandsHistory.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
-		storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.PROFILE, StorageTarget.USER);
-		storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.PROFILE, StorageTarget.USER);
 		CommandsHistory.isDirty = false;
 	}
 
