@@ -33,12 +33,12 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { GestureEvent } from 'vs/base/browser/touch';
-import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
 import { PaneCompositeBar } from 'vs/workbench/browser/parts/paneCompositeBar';
 
-export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart {
+export class ActivitybarPart extends Part {
 
 	private static readonly ACTION_HEIGHT = 48;
 	private static readonly ACCOUNTS_ACTION_INDEX = 0;

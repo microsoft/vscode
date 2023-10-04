@@ -79,9 +79,6 @@ export interface IPaneCompositePart extends IView {
 	 * Return the last active viewlet id.
 	 */
 	getLastActivePaneCompositeId(): string;
-}
-
-export interface IPaneCompositeSelectorPart {
 
 	/**
 	 * Returns id of pinned view containers following the visual order.
@@ -94,12 +91,12 @@ export interface IPaneCompositeSelectorPart {
 	getVisiblePaneCompositeIds(): string[];
 
 	/**
-	 * Show an activity in a viewlet.
+	 * Show activity on the view pane
 	 */
 	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
 }
 
-export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart, IPaneCompositeSelectorPart {
+export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
 
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
@@ -128,7 +125,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	constructor(
 		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
 		partOptions: IPartOptions,
-		private readonly paneCompositeBarOptions: IPaneCompositeBarOptions,
 		activePaneCompositeSettingsKey: string,
 		private readonly activePaneContextKey: IContextKey<string>,
 		private paneFocusContextKey: IContextKey<boolean>,
@@ -403,7 +399,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.titleDisposables.clear();
 			this.titleLabelElement = undefined;
 			clearNode(this.titleContainer);
-			this.paneCompositeBar.value = this.instantiationService.createInstance(PaneCompositeBar, this.paneCompositeBarOptions, this.partId, this);
+			this.paneCompositeBar.value = this.createCompisteBar();
 			const titleArea = this.paneCompositeBar.value.create(this.titleContainer);
 			titleArea.classList.add('pane-composite-bar');
 			return true;
@@ -422,6 +418,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			return false;
 		}
 		return false;
+	}
+
+	protected createCompisteBar(): PaneCompositeBar {
+		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompoisteBarOptions(), this.partId, this);
 	}
 
 	protected override onTitleAreaUpdate(compositeId: string): void {
@@ -496,5 +496,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	protected abstract shouldShowCompositeBar(): boolean;
+	protected abstract getCompoisteBarOptions(): IPaneCompositeBarOptions;
 
 }

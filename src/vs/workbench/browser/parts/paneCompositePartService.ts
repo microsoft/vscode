@@ -17,7 +17,7 @@ import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/comm
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 
 export class PaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -27,7 +27,6 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 	readonly onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 
 	private readonly paneCompositeParts = new Map<ViewContainerLocation, IPaneCompositePart>();
-	private readonly paneCompositeSelectorParts = new Map<ViewContainerLocation, IPaneCompositeSelectorPart>();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -41,10 +40,6 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 		this.paneCompositeParts.set(ViewContainerLocation.Panel, panelPart);
 		this.paneCompositeParts.set(ViewContainerLocation.Sidebar, sideBarPart);
 		this.paneCompositeParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
-
-		this.paneCompositeSelectorParts.set(ViewContainerLocation.Panel, panelPart);
-		this.paneCompositeSelectorParts.set(ViewContainerLocation.Sidebar, sideBarPart);
-		this.paneCompositeSelectorParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
 
 		const eventDisposables = this._register(new DisposableStore());
 		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }, eventDisposables)));
@@ -68,11 +63,11 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 	}
 
 	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
-		return this.getSelectorPartByLocation(viewContainerLocation).getPinnedPaneCompositeIds();
+		return this.getPartByLocation(viewContainerLocation).getPinnedPaneCompositeIds();
 	}
 
 	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
-		return this.getSelectorPartByLocation(viewContainerLocation).getVisiblePaneCompositeIds();
+		return this.getPartByLocation(viewContainerLocation).getVisiblePaneCompositeIds();
 	}
 
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
@@ -88,16 +83,13 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 	}
 
 	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		return this.getSelectorPartByLocation(viewContainerLocation).showActivity(id, badge, clazz, priority);
+		return this.getPartByLocation(viewContainerLocation).showActivity(id, badge, clazz, priority);
 	}
 
 	private getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertIsDefined(this.paneCompositeParts.get(viewContainerLocation));
 	}
 
-	private getSelectorPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositeSelectorPart {
-		return assertIsDefined(this.paneCompositeSelectorParts.get(viewContainerLocation));
-	}
 }
 
 registerSingleton(IPaneCompositePartService, PaneCompositePartService, InstantiationType.Delayed);

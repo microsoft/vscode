@@ -27,6 +27,7 @@ import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layout
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
@@ -82,30 +83,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				hasTitle: true,
 				borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			},
-			{
-				partContainerClass: 'auxiliarybar',
-				pinnedViewContainersKey: AuxiliaryBarPart.pinnedPanelsKey,
-				placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
-				icon: true,
-				orientation: ActionsOrientation.HORIZONTAL,
-				recomputeSizes: true,
-				activityHoverOptions: {
-					position: () => this.getActivityHoverPosition(),
-				},
-				fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
-				compositeSize: 0,
-				overflowActionSize: 44,
-				colors: theme => ({
-					activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-					inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-					activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
-					activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
-					inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-					badgeBackground: theme.getColor(badgeBackground),
-					badgeForeground: theme.getColor(badgeForeground),
-					dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
-				})
-			},
 			AuxiliaryBarPart.activePanelSettingsKey,
 			ActiveAuxiliaryContext.bindTo(contextKeyService),
 			AuxiliaryBarFocusContext.bindTo(contextKeyService),
@@ -145,8 +122,31 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '0px';
 	}
 
-	private getActivityHoverPosition(): HoverPosition {
-		return HoverPosition.BELOW;
+	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
+		return {
+			partContainerClass: 'auxiliarybar',
+			pinnedViewContainersKey: AuxiliaryBarPart.pinnedPanelsKey,
+			placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
+			icon: true,
+			orientation: ActionsOrientation.HORIZONTAL,
+			recomputeSizes: true,
+			activityHoverOptions: {
+				position: () => HoverPosition.BELOW,
+			},
+			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
+			compositeSize: 0,
+			overflowActionSize: 44,
+			colors: theme => ({
+				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
+				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
+				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
+				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				badgeBackground: theme.getColor(badgeBackground),
+				badgeForeground: theme.getColor(badgeForeground),
+				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
+			})
+		};
 	}
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {

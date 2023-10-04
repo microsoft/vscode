@@ -25,10 +25,11 @@ import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompos
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
-import { IAction, Separator, toAction } from 'vs/base/common/actions';
+import { Separator, toAction } from 'vs/base/common/actions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -77,30 +78,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		super(
 			Parts.SIDEBAR_PART,
 			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
-			{
-				partContainerClass: 'activitybar',
-				pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
-				placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
-				icon: true,
-				orientation: ActionsOrientation.HORIZONTAL,
-				recomputeSizes: true,
-				activityHoverOptions: {
-					position: () => this.getActivityHoverPosition(),
-				},
-				fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
-				compositeSize: 0,
-				overflowActionSize: 44,
-				colors: theme => ({
-					activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-					inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-					activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
-					activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
-					inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-					badgeBackground: theme.getColor(badgeBackground),
-					badgeForeground: theme.getColor(badgeForeground),
-					dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
-				})
-			},
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -154,18 +131,47 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
 	}
 
-	private getActivityHoverPosition(): HoverPosition {
-		return HoverPosition.BELOW;
-	}
-
-	private fillExtraContextMenuActions(actions: IAction[]): void {
-		// Toggle Sidebar
-		actions.push(new Separator());
-		actions.push(toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }));
+	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
+		return {
+			partContainerClass: 'activitybar',
+			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
+			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
+			icon: true,
+			orientation: ActionsOrientation.HORIZONTAL,
+			recomputeSizes: true,
+			activityHoverOptions: {
+				position: () => HoverPosition.BELOW,
+			},
+			fillExtraContextMenuActions: actions => {
+				// Toggle Sidebar
+				actions.push(new Separator());
+				actions.push(toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }));
+			},
+			compositeSize: 0,
+			overflowActionSize: 44,
+			colors: theme => ({
+				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
+				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
+				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
+				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				badgeBackground: theme.getColor(badgeBackground),
+				badgeForeground: theme.getColor(badgeForeground),
+				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
+			})
+		};
 	}
 
 	protected shouldShowCompositeBar(): boolean {
 		return false;
+	}
+
+	override getPinnedPaneCompositeIds(): string[] {
+		return this.shouldShowCompositeBar() ? super.getPinnedPaneCompositeIds() : this.acitivityBarPart.getPinnedPaneCompositeIds();
+	}
+
+	override getVisiblePaneCompositeIds(): string[] {
+		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.acitivityBarPart.getVisiblePaneCompositeIds();
 	}
 
 	override showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {

@@ -29,6 +29,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 
 export class PanelPart extends AbstractPaneCompositePart {
 
@@ -81,30 +82,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 		super(
 			Parts.PANEL_PART,
 			{ hasTitle: true },
-			{
-				partContainerClass: 'panel',
-				pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
-				placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
-				icon: false,
-				orientation: ActionsOrientation.HORIZONTAL,
-				recomputeSizes: true,
-				activityHoverOptions: {
-					position: () => this.getActivityHoverPosition(),
-				},
-				fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
-				compositeSize: 0,
-				overflowActionSize: 44,
-				colors: theme => ({
-					activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
-					inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
-					activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
-					activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
-					inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-					badgeBackground: theme.getColor(badgeBackground),
-					badgeForeground: theme.getColor(badgeForeground),
-					dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
-				})
-			},
 			PanelPart.activePanelSettingsKey,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
@@ -139,8 +116,31 @@ export class PanelPart extends AbstractPaneCompositePart {
 		}
 	}
 
-	private getActivityHoverPosition(): HoverPosition {
-		return this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW;
+	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
+		return {
+			partContainerClass: 'panel',
+			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
+			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
+			icon: false,
+			orientation: ActionsOrientation.HORIZONTAL,
+			recomputeSizes: true,
+			activityHoverOptions: {
+				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+			},
+			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
+			compositeSize: 0,
+			overflowActionSize: 44,
+			colors: theme => ({
+				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
+				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
+				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
+				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
+				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
+				badgeBackground: theme.getColor(badgeBackground),
+				badgeForeground: theme.getColor(badgeForeground),
+				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
+			})
+		};
 	}
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
