@@ -48,7 +48,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 		tasks.push(
 			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
 			() => util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')),
-			() => confirmPdbsExist(destinationPdb)
+			() => confirmPdbsExist(destinationExe, destinationPdb)
 		);
 	}
 
@@ -109,8 +109,8 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 	return exe;
 }
 
-function confirmPdbsExist(destinationPdb) {
-	readdirSync(destinationPdb).forEach(file => {
+function confirmPdbsExist(destinationExe, destinationPdb) {
+	readdirSync(destinationExe).forEach(file => {
 		if (file.endsWith('.dll')) {
 			const pdb = file.replace(/\.dll$/, '.pdb');
 			if (!existsSync(path.join(destinationPdb, pdb))) {
