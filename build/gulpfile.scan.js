@@ -47,7 +47,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 	if (platform === 'win32') {
 		tasks.push(
 			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
-			() => util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')),
+			util.rimraf(path.join(destinationExe, 'd3dcompiler_47.dll')),
 			() => confirmPdbsExist(destinationExe, destinationPdb)
 		);
 	}
