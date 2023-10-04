@@ -728,6 +728,7 @@ impl DevTunnels {
 	fn get_placeholder_name() -> String {
 		let mut n = clean_hostname_for_tunnel(&gethostname::gethostname().to_string_lossy());
 		n.make_ascii_lowercase();
+		n.truncate(MAX_TUNNEL_NAME_LENGTH);
 		n
 	}
 
