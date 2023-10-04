@@ -183,7 +183,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this._register(this.onDidPaneCompositeClose(this.onDidClose, this));
 		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
 
-		// TODO: @sandy081 Is this needed?
 		this._register(this.registry.onDidDeregister(async (viewletDescriptor: PaneCompositeDescriptor) => {
 
 			const activeContainers = this.viewDescriptorService.getViewContainersByLocation(this.location)
