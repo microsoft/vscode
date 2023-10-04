@@ -91,9 +91,9 @@ export class EditorPanes extends Disposable {
 	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
-		private editorGroupParent: HTMLElement,
-		private editorPanesParent: HTMLElement,
-		private groupView: IEditorGroupView,
+		private readonly editorGroupParent: HTMLElement,
+		private readonly editorPanesParent: HTMLElement,
+		private readonly groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
