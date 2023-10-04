@@ -310,7 +310,7 @@ export class CommandsHistory extends Disposable {
 
 	private static cache: LRUCache<string, number> | undefined;
 	private static counter = 1;
-	private static isDirty = false;
+	private static hasChanges = false;
 
 	private configuredCommandsHistoryLength = 0;
 
@@ -378,7 +378,7 @@ export class CommandsHistory extends Disposable {
 		}
 
 		CommandsHistory.cache.set(commandId, CommandsHistory.counter++); // set counter to command
-		CommandsHistory.isDirty = true;
+		CommandsHistory.hasChanges = true;
 	}
 
 	peek(commandId: string): number | undefined {
@@ -390,7 +390,7 @@ export class CommandsHistory extends Disposable {
 			return;
 		}
 
-		if (!CommandsHistory.isDirty) {
+		if (!CommandsHistory.hasChanges) {
 			return;
 		}
 
@@ -399,7 +399,7 @@ export class CommandsHistory extends Disposable {
 
 		this.storageService.store(CommandsHistory.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.PROFILE, StorageTarget.USER);
 		this.storageService.store(CommandsHistory.PREF_KEY_COUNTER, CommandsHistory.counter, StorageScope.PROFILE, StorageTarget.USER);
-		CommandsHistory.isDirty = false;
+		CommandsHistory.hasChanges = false;
 	}
 
 	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
@@ -418,6 +418,6 @@ export class CommandsHistory extends Disposable {
 		CommandsHistory.cache = new LRUCache<string, number>(commandHistoryLength);
 		CommandsHistory.counter = 1;
 
-		CommandsHistory.isDirty = true;
+		CommandsHistory.hasChanges = true;
 	}
 }
