@@ -8,7 +8,7 @@ import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
 import { ViewQuickAccessProvider, OpenViewPickerAction, QuickAccessViewPickerAction } from 'vs/workbench/contrib/quickaccess/browser/viewQuickAccess';
-import { CommandsQuickAccessProvider, ShowAllCommandsAction, ClearCommandHistoryAction, WorkbenchCommandsHistoryService } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
+import { CommandsQuickAccessProvider, ShowAllCommandsAction, ClearCommandHistoryAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -16,7 +16,7 @@ import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ICommandsHistoryService } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { CommandsHistoryService, ICommandsHistoryService } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 
 //#region Quick Access Proviers
 
@@ -149,4 +149,4 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 //#endregion
 
-registerSingleton(ICommandsHistoryService, WorkbenchCommandsHistoryService, InstantiationType.Delayed);
+registerSingleton(ICommandsHistoryService, CommandsHistoryService, InstantiationType.Delayed);

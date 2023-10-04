@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { CommandsHistoryService, ICommandQuickPick, ICommandsHistoryService } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { ICommandQuickPick, ICommandsHistoryService } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -36,8 +36,6 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -307,17 +305,4 @@ export class ClearCommandHistoryAction extends Action2 {
 			commandsHistoryService.clear();
 		}
 	}
-}
-
-export class WorkbenchCommandsHistoryService extends CommandsHistoryService {
-
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-	) {
-		super(storageService, configurationService);
-		this._register(lifecycleService.onBeforeShutdown(e => this.save()));
-	}
-
 }

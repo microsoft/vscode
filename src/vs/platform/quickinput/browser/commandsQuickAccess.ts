@@ -21,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
@@ -316,8 +316,8 @@ export class CommandsHistoryService extends Disposable implements ICommandsHisto
 
 	private static readonly PREF_KEY_CACHE = 'commandPalette.mru.cache';
 	private static readonly PREF_KEY_COUNTER = 'commandPalette.mru.counter';
-	private static counter = 1;
 
+	private counter = 1;
 	private cache: LRUCache<string, number> | undefined;
 
 	private configuredCommandsHistoryLength = 0;
@@ -337,6 +337,11 @@ export class CommandsHistoryService extends Disposable implements ICommandsHisto
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.updateConfiguration(e)));
+		this._register(this.storageService.onWillSaveState(e => {
+			if (e.reason === WillSaveStateReason.SHUTDOWN) {
+				this.save();
+			}
+		}));
 	}
 
 	private updateConfiguration(e?: IConfigurationChangeEvent): void {
@@ -373,7 +378,7 @@ export class CommandsHistoryService extends Disposable implements ICommandsHisto
 			entries.forEach(entry => cache.set(entry.key, entry.value));
 		}
 
-		CommandsHistoryService.counter = this.storageService.getNumber(CommandsHistoryService.PREF_KEY_COUNTER, StorageScope.PROFILE, CommandsHistoryService.counter);
+		this.counter = this.storageService.getNumber(CommandsHistoryService.PREF_KEY_COUNTER, StorageScope.PROFILE, this.counter);
 	}
 
 	push(commandId: string): void {
@@ -381,7 +386,7 @@ export class CommandsHistoryService extends Disposable implements ICommandsHisto
 			return;
 		}
 
-		this.cache.set(commandId, CommandsHistoryService.counter++); // set counter to command
+		this.cache.set(commandId, this.counter++); // set counter to command
 		this.isDirty = true;
 	}
 
@@ -403,11 +408,11 @@ export class CommandsHistoryService extends Disposable implements ICommandsHisto
 	clear(): void {
 		const commandHistoryLength = this.getConfiguredLength();
 		this.cache = new LRUCache<string, number>(commandHistoryLength);
-		CommandsHistoryService.counter = 1;
+		this.counter = 1;
 		this.isDirty = true;
 	}
 
-	protected save(): void {
+	private save(): void {
 		if (!this.cache) {
 			return;
 		}
@@ -420,7 +425,7 @@ export class CommandsHistoryService extends Disposable implements ICommandsHisto
 		this.cache.forEach((value, key) => serializedCache.entries.push({ key, value }));
 
 		this.storageService.store(CommandsHistoryService.PREF_KEY_CACHE, JSON.stringify(serializedCache), StorageScope.PROFILE, StorageTarget.USER);
-		this.storageService.store(CommandsHistoryService.PREF_KEY_COUNTER, CommandsHistoryService.counter, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(CommandsHistoryService.PREF_KEY_COUNTER, this.counter, StorageScope.PROFILE, StorageTarget.USER);
 
 		this.isDirty = false;
 	}
