@@ -344,6 +344,7 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.ADDED
 		}]);
@@ -359,6 +360,7 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.UPDATED
 		}]);
@@ -374,6 +376,7 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);
@@ -389,6 +392,7 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.ADDED
 		}]);
@@ -404,6 +408,7 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.UPDATED
 		}]);
@@ -419,6 +424,7 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);
@@ -429,6 +435,7 @@ suite('FileUserDataProvider - Watching', () => {
 		let triggered = false;
 		testObject.onDidChangeFile(() => triggered = true);
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);
@@ -443,6 +450,7 @@ suite('FileUserDataProvider - Watching', () => {
 		let triggered = false;
 		testObject.onDidChangeFile(() => triggered = true);
 		fileEventEmitter.fire([{
+			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);

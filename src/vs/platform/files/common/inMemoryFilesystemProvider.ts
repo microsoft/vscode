@@ -127,13 +127,13 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		if (!entry) {
 			entry = new File(basename);
 			parent.entries.set(basename, entry);
-			this._fireSoon({ type: FileChangeType.ADDED, resource });
+			this._fireSoon({ correlationId: -1, type: FileChangeType.ADDED, resource });
 		}
 		entry.mtime = Date.now();
 		entry.size = content.byteLength;
 		entry.data = content;
 
-		this._fireSoon({ type: FileChangeType.UPDATED, resource });
+		this._fireSoon({ correlationId: -1, type: FileChangeType.UPDATED, resource });
 	}
 
 	// file open/read/write/close
@@ -192,8 +192,8 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		newParent.entries.set(newName, entry);
 
 		this._fireSoon(
-			{ type: FileChangeType.DELETED, resource: from },
-			{ type: FileChangeType.ADDED, resource: to }
+			{ correlationId: -1, type: FileChangeType.DELETED, resource: from },
+			{ correlationId: -1, type: FileChangeType.ADDED, resource: to }
 		);
 	}
 
@@ -205,7 +205,7 @@ export class InMemoryFileSystemProvider extends Disposable implements
 			parent.entries.delete(basename);
 			parent.mtime = Date.now();
 			parent.size -= 1;
-			this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { resource, type: FileChangeType.DELETED });
+			this._fireSoon({ correlationId: -1, type: FileChangeType.UPDATED, resource: dirname }, { resource, correlationId: -1, type: FileChangeType.DELETED });
 		}
 	}
 
@@ -222,7 +222,7 @@ export class InMemoryFileSystemProvider extends Disposable implements
 		parent.entries.set(entry.name, entry);
 		parent.mtime = Date.now();
 		parent.size += 1;
-		this._fireSoon({ type: FileChangeType.UPDATED, resource: dirname }, { type: FileChangeType.ADDED, resource });
+		this._fireSoon({ correlationId: -1, type: FileChangeType.UPDATED, resource: dirname }, { correlationId: -1, type: FileChangeType.ADDED, resource });
 	}
 
 	// --- lookup

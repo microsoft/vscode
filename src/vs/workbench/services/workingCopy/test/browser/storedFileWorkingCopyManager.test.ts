@@ -329,8 +329,8 @@ suite('StoredFileWorkingCopyManager', () => {
 		assert.strictEqual(resolvedCounter, 1);
 		assert.strictEqual(createdCounter, 1);
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }], false));
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource: resource1, type: FileChangeType.DELETED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource: resource1, type: FileChangeType.ADDED }], false));
 
 		const workingCopy2 = disposables.add(await manager.resolve(resource2));
 		assert.strictEqual(resolvedCounter, 2);
@@ -485,7 +485,7 @@ suite('StoredFileWorkingCopyManager', () => {
 			}));
 		});
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.UPDATED }], false));
 
 		await onDidResolve;
 
@@ -511,7 +511,7 @@ suite('StoredFileWorkingCopyManager', () => {
 			}));
 		});
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.UPDATED }], false));
 
 		await onDidResolve;
 

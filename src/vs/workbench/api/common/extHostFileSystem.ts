@@ -205,7 +205,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 					default:
 						throw new Error('Unknown FileChangeType');
 				}
-				mapped.push({ resource, type: newType });
+				mapped.push({ correlationId: -1, resource, type: newType });
 			}
 			this._proxy.$onFileSystemChange(handle, mapped);
 		});

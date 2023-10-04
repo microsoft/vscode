@@ -1292,6 +1292,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 }
 
 export interface IFileChangeDto {
+	correlationId: number;
 	resource: UriComponents;
 	type: files.FileChangeType;
 }

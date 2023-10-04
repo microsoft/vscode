@@ -309,8 +309,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model1 = await manager.resolve(resource1, { encoding: 'utf8' });
 		assert.strictEqual(resolvedCounter, 1);
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }], false));
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource: resource1, type: FileChangeType.DELETED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource: resource1, type: FileChangeType.ADDED }], false));
 
 		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
 		assert.strictEqual(resolvedCounter, 2);
@@ -411,7 +411,7 @@ suite('Files - TextFileEditorModelManager', () => {
 			}));
 		});
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.UPDATED }], false));
 
 		await onDidResolve;
 		assert.strictEqual(didResolve, true);
@@ -438,7 +438,7 @@ suite('Files - TextFileEditorModelManager', () => {
 			}));
 		});
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.UPDATED }], false));
 
 		await onDidResolve;
 		assert.strictEqual(didResolve, true);

@@ -457,7 +457,7 @@ suite('HistoryService', function () {
 
 		// Remove (via external event)
 		assert.strictEqual(stack.canGoBack(), true);
-		stack.remove(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], !isLinux));
+		stack.remove(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.DELETED }], !isLinux));
 		assert.strictEqual(stack.canGoBack(), false);
 		stack.clear();
 

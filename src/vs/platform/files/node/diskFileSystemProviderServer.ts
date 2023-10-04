@@ -291,6 +291,7 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 		this._register(localChangeEmitter.event((events) => {
 			sessionEmitter.fire(
 				events.map(e => ({
+					correlationId: e.correlationId,
 					resource: this.uriTransformer.transformOutgoingURI(e.resource),
 					type: e.type
 				}))

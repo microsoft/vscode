@@ -194,7 +194,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		if (watchCrossWindowChanges) {
 			this.changesBroadcastChannel = this._register(new BroadcastDataChannel<UriDto<IFileChange>[]>(`vscode.indexedDB.${scheme}.changes`));
 			this._register(this.changesBroadcastChannel.onDidReceiveData(changes => {
-				this._onDidChangeFile.fire(changes.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
+				this._onDidChangeFile.fire(changes.map(c => ({ correlationId: c.correlationId, type: c.type, resource: URI.revive(c.resource) })));
 			}));
 		}
 	}
@@ -366,7 +366,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		await this.deleteKeys(toDelete);
 		(await this.getFiletree()).delete(resource.path);
 		toDelete.forEach(key => this.mtimes.delete(key));
-		this.triggerChanges(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
+		this.triggerChanges(toDelete.map(path => ({ correlationId: -1, resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
 
 	private async tree(resource: URI): Promise<DirEntry[]> {
@@ -421,7 +421,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			this.mtimes.set(resource.toString(), Date.now());
 		}
 
-		this.triggerChanges(files.map(([resource]) => ({ resource, type: FileChangeType.UPDATED })));
+		this.triggerChanges(files.map(([resource]) => ({ correlationId: -1, resource, type: FileChangeType.UPDATED })));
 	}
 
 	private fileWriteBatch: { resource: URI; content: Uint8Array }[] = [];
