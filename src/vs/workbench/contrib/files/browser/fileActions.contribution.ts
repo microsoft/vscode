@@ -264,9 +264,7 @@ appendToCommandPalette({
 	id: NEW_FOLDER_COMMAND_ID,
 	title: { value: NEW_FOLDER_LABEL, original: 'New Folder' },
 	category: Categories.File,
-	metadata: {
-		description: { value: nls.localize('newFolderDescription', "Create a new folder or directory"), original: 'Create a new folder or directory' }
-	}
+	metadata: { description: nls.localize2('newFolderDescription', "Create a new folder or directory") }
 }, WorkspaceFolderCountContext.notEqualsTo('0'));
 
 appendToCommandPalette({
