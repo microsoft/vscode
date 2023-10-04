@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -592,11 +593,43 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderUsedContextListData(data: IUsedContext, element: ChatTreeItem, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
-		const ref = this._usedContextListPool.get();
-		const list = ref.object;
-
+	private renderUsedContextListData(data: IUsedContext, element: IChatResponseViewModel, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
 		const listDisposables = new DisposableStore();
+		const referencesLabel = data.documents.length > 1 ?
+			localize('usedReferencesPlural', "Used {0} references", data.documents.length) :
+			localize('usedReferencesSingular', "Used {0} reference", 1);
+		const iconElement = $('.chat-used-context-icon');
+		const icon = (element: IChatResponseViewModel) => element.usedReferencesCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
+		const buttonElement = $('.chat-used-context-label', undefined);
+
+		const collapseButton = new Button(buttonElement, {
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined,
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSeparator: undefined
+		});
+		const container = $('.chat-used-context', undefined, buttonElement);
+		collapseButton.label = referencesLabel;
+		collapseButton.element.prepend(iconElement);
+
+		container.classList.toggle('chat-used-context-collapsed', !!element.usedReferencesCollapsed);
+		listDisposables.add(collapseButton.onDidClick(() => {
+			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
+			element.usedReferencesCollapsed = !element.usedReferencesCollapsed;
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
+			container.classList.toggle('chat-used-context-collapsed', !!element.usedReferencesCollapsed);
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+		}));
+
+		const ref = listDisposables.add(this._usedContextListPool.get());
+		const list = ref.object;
+		container.appendChild(list.getHTMLElement().parentElement!);
+
 		listDisposables.add(list.onDidOpen((e) => {
 			if (e.element) {
 				this.editorService.openEditor({
@@ -610,10 +643,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				});
 			}
 		}));
-		// The section itself needs a collapse button
-		// treeDisposables.add(list.onDidChangeCollapseState(() => {
-		// 	this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-		// }));
 		listDisposables.add(list.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
@@ -626,10 +655,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		return {
-			element: list.getHTMLElement().parentElement!,
+			element: container,
 			dispose: () => {
 				listDisposables.dispose();
-				ref.dispose();
 			}
 		};
 	}

@@ -95,27 +95,27 @@
 	width: 100%;
 }
 
-.interactive-item-container .value table {
+.interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
 	margin-bottom: 16px;
 }
 
-.interactive-item-container .value table,
-.interactive-item-container .value table td,
-.interactive-item-container .value table th {
+.interactive-item-container .value .rendered-markdown table,
+.interactive-item-container .value .rendered-markdown table td,
+.interactive-item-container .value .rendered-markdown table th {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value a,
-.interactive-item-container .value a code {
+.interactive-item-container .value .rendered-markdown a,
+.interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
 }
 
-.interactive-item-container .value a:hover,
-.interactive-item-container .value a:active {
+.interactive-item-container .value .rendered-markdown a:hover,
+.interactive-item-container .value .rendered-markdown a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
@@ -144,31 +144,31 @@
 	margin-bottom: 8px;
 }
 
-.interactive-item-container .value h1 {
+.interactive-item-container .value .rendered-markdown h1 {
 	font-size: 20px;
 	font-weight: 600;
 	margin: 16px 0;
 
 }
 
-.interactive-item-container .value h2 {
+.interactive-item-container .value .rendered-markdown h2 {
 	font-size: 16px;
 	font-weight: 600;
 	margin: 16px 0;
 }
 
-.interactive-item-container .value h3 {
+.interactive-item-container .value .rendered-markdown h3 {
 	font-size: 14px;
 	font-weight: 600;
 	margin: 16px 0;
 }
 
-.interactive-item-container .value p {
+.interactive-item-container .value .rendered-markdown p {
 	margin: 0 0 16px 0;
 	line-height: 1.6em;
 }
 
-.interactive-item-container .value li {
+.interactive-item-container .value .rendered-markdown li {
 	line-height: 1.5rem;
 }
 
@@ -200,24 +200,24 @@
 	min-height: 0;
 }
 
-.interactive-item-container.interactive-item-compact .value p {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value h1 {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown h1 {
 	margin: 8px 0;
 
 }
 
-.interactive-item-container.interactive-item-compact .value h2 {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown h2 {
 	margin: 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value h3 {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown h3 {
 	margin: 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value p {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
@@ -477,4 +477,24 @@
 	border-radius: 3px;
 	white-space: nowrap;
 	padding: 1px;
+}
+
+.interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
+	display: none;
+}
+
+.interactive-session .chat-used-context-label {
+	font-size: 0.9em;
+}
+
+.interactive-session .chat-used-context-label .monaco-button {
+	/* unset Button styles */
+	display: inline-flex;
+	width: initial;
+	border: none;
+	padding: 0;
+	text-align: initial;
+	padding-left: 4px;
+	justify-content: initial;
+	margin-bottom: 3px;
 }
