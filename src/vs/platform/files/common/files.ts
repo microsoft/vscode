@@ -486,6 +486,8 @@ export interface IStat {
 
 export interface IWatchOptions {
 
+	correlationId: number;
+
 	/**
 	 * Set to `true` to watch for changes recursively in a folder
 	 * and all of its children.

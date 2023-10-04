@@ -13,7 +13,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { normalizeWatcherPattern } from 'vs/platform/files/common/watcher';
 import { GLOBSTAR } from 'vs/base/common/glob';
 import { rtrim } from 'vs/base/common/strings';
@@ -29,7 +28,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWorkbenchFileService private readonly _fileService: IWorkbenchFileService,
+		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService

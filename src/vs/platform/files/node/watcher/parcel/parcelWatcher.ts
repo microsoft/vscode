@@ -315,7 +315,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
 		// Check for includes
-		const includedEvents = this.handleIncludes(parcelEvents, includes);
+		const includedEvents = this.handleIncludes(watcher, parcelEvents, includes);
 
 		// Add to event aggregator for later processing
 		for (const includedEvent of includedEvents) {
@@ -323,7 +323,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private handleIncludes(parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IDiskFileChange[] {
+	private handleIncludes(watcher: IParcelWatcherInstance, parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IDiskFileChange[] {
 		const events: IDiskFileChange[] = [];
 
 		for (const { path, type: parcelEventType } of parcelEvents) {
@@ -338,7 +338,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
-				events.push({ type, resource: URI.file(path) });
+				events.push({ correlationId: watcher.request.correlationId, type, resource: URI.file(path) });
 			}
 		}
 
@@ -467,7 +467,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false }, changes => {
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ correlationId: watcher.request.correlationId, path: parentPath, excludes: [], recursive: false }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}

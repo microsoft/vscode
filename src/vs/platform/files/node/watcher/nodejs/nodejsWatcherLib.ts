@@ -261,7 +261,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 								type = FileChangeType.DELETED;
 							}
 
-							this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type });
+							this.onFileChange({ correlationId: this.request.correlationId, resource: URI.file(join(this.request.path, changedFileName)), type });
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
 						mapPathToStatDisposable.set(changedFileName, toDisposable(() => clearTimeout(timeoutHandle)));
@@ -280,7 +280,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							folderChildren.add(changedFileName);
 						}
 
-						this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type });
+						this.onFileChange({ correlationId: this.request.correlationId, resource: URI.file(join(this.request.path, changedFileName)), type });
 					}
 				}
 
@@ -319,14 +319,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 							// File still exists, so emit as change event and reapply the watcher
 							if (fileExists) {
-								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
+								this.onFileChange({ correlationId: this.request.correlationId, resource: URI.file(this.request.path), type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								disposables.add(await this.doWatch(path, false));
 							}
 
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
-								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
+								this.onFileChange({ correlationId: this.request.correlationId, resource: URI.file(this.request.path), type: FileChangeType.DELETED }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								// Important to flush the event delivery
 								// before disposing the watcher, otherwise
@@ -345,7 +345,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 					// File changed
 					else {
-						this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
+						this.onFileChange({ correlationId: this.request.correlationId, resource: URI.file(this.request.path), type: FileChangeType.UPDATED }, true /* skip excludes/includes (file is explicitly watched) */);
 					}
 				}
 			});
@@ -473,7 +473,7 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 	let error: Error | undefined = undefined;
 	let isReading = false;
 
-	const request: INonRecursiveWatchRequest = { path, excludes: [], recursive: false };
+	const request: INonRecursiveWatchRequest = { correlationId: 0, path, excludes: [], recursive: false };
 	const watcher = new NodeJSFileWatcherLibrary(request, changes => {
 		(async () => {
 			for (const { type } of changes) {

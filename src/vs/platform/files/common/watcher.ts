@@ -13,6 +13,8 @@ import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/
 
 interface IWatchRequest {
 
+	readonly correlationId: number;
+
 	/**
 	 * The path to watch.
 	 */
@@ -258,6 +260,7 @@ export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClie
 }
 
 export interface IDiskFileChange {
+	readonly correlationId: number;
 	type: FileChangeType;
 	readonly resource: URI;
 }

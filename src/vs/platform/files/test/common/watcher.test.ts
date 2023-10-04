@@ -127,9 +127,9 @@ suite('Watcher Events Normalizer', () => {
 		const deleted = URI.file('/users/data/src/deleted.txt');
 
 		const raw: IDiskFileChange[] = [
-			{ resource: added, type: FileChangeType.ADDED },
-			{ resource: updated, type: FileChangeType.UPDATED },
-			{ resource: deleted, type: FileChangeType.DELETED },
+			{ correlationId: -1, resource: added, type: FileChangeType.ADDED },
+			{ correlationId: -1, resource: updated, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: deleted, type: FileChangeType.DELETED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -160,14 +160,14 @@ suite('Watcher Events Normalizer', () => {
 			const updatedFile = URI.file(path === Path.UNIX ? '/users/data/src/updated.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\updated.txt' : '\\\\localhost\\users\\data\\src\\updated.txt');
 
 			const raw: IDiskFileChange[] = [
-				{ resource: deletedFolderA, type: FileChangeType.DELETED },
-				{ resource: deletedFolderB, type: FileChangeType.DELETED },
-				{ resource: deletedFolderBF1, type: FileChangeType.DELETED },
-				{ resource: deletedFolderBF2, type: FileChangeType.DELETED },
-				{ resource: deletedFolderBF3, type: FileChangeType.DELETED },
-				{ resource: deletedFileA, type: FileChangeType.DELETED },
-				{ resource: addedFile, type: FileChangeType.ADDED },
-				{ resource: updatedFile, type: FileChangeType.UPDATED }
+				{ correlationId: -1, resource: deletedFolderA, type: FileChangeType.DELETED },
+				{ correlationId: -1, resource: deletedFolderB, type: FileChangeType.DELETED },
+				{ correlationId: -1, resource: deletedFolderBF1, type: FileChangeType.DELETED },
+				{ correlationId: -1, resource: deletedFolderBF2, type: FileChangeType.DELETED },
+				{ correlationId: -1, resource: deletedFolderBF3, type: FileChangeType.DELETED },
+				{ correlationId: -1, resource: deletedFileA, type: FileChangeType.DELETED },
+				{ correlationId: -1, resource: addedFile, type: FileChangeType.ADDED },
+				{ correlationId: -1, resource: updatedFile, type: FileChangeType.UPDATED }
 			];
 
 			disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -195,9 +195,9 @@ suite('Watcher Events Normalizer', () => {
 		const unrelated = URI.file('/users/data/src/unrelated');
 
 		const raw: IDiskFileChange[] = [
-			{ resource: created, type: FileChangeType.ADDED },
-			{ resource: deleted, type: FileChangeType.DELETED },
-			{ resource: unrelated, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: created, type: FileChangeType.ADDED },
+			{ correlationId: -1, resource: deleted, type: FileChangeType.DELETED },
+			{ correlationId: -1, resource: unrelated, type: FileChangeType.UPDATED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -220,9 +220,9 @@ suite('Watcher Events Normalizer', () => {
 		const unrelated = URI.file('/users/data/src/unrelated');
 
 		const raw: IDiskFileChange[] = [
-			{ resource: deleted, type: FileChangeType.DELETED },
-			{ resource: created, type: FileChangeType.ADDED },
-			{ resource: unrelated, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: deleted, type: FileChangeType.DELETED },
+			{ correlationId: -1, resource: created, type: FileChangeType.ADDED },
+			{ correlationId: -1, resource: unrelated, type: FileChangeType.UPDATED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -246,9 +246,9 @@ suite('Watcher Events Normalizer', () => {
 		const unrelated = URI.file('/users/data/src/unrelated');
 
 		const raw: IDiskFileChange[] = [
-			{ resource: created, type: FileChangeType.ADDED },
-			{ resource: updated, type: FileChangeType.UPDATED },
-			{ resource: unrelated, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: created, type: FileChangeType.ADDED },
+			{ correlationId: -1, resource: updated, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: unrelated, type: FileChangeType.UPDATED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -274,10 +274,10 @@ suite('Watcher Events Normalizer', () => {
 		const unrelated = URI.file('/users/data/src/unrelated');
 
 		const raw: IDiskFileChange[] = [
-			{ resource: updated, type: FileChangeType.UPDATED },
-			{ resource: updated2, type: FileChangeType.UPDATED },
-			{ resource: unrelated, type: FileChangeType.UPDATED },
-			{ resource: updated, type: FileChangeType.DELETED }
+			{ correlationId: -1, resource: updated, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: updated2, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: unrelated, type: FileChangeType.UPDATED },
+			{ correlationId: -1, resource: updated, type: FileChangeType.DELETED }
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -301,8 +301,8 @@ suite('Watcher Events Normalizer', () => {
 		const newPath = URI.file('/users/data/src/ADDED');
 
 		const raw: IDiskFileChange[] = [
-			{ resource: newPath, type: FileChangeType.ADDED },
-			{ resource: oldPath, type: FileChangeType.DELETED }
+			{ correlationId: -1, resource: newPath, type: FileChangeType.ADDED },
+			{ correlationId: -1, resource: oldPath, type: FileChangeType.DELETED }
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {

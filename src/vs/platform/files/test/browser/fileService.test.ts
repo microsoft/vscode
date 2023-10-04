@@ -127,8 +127,8 @@ suite('File Service', () => {
 		disposeCounter = 0;
 		const resource3 = URI.parse('test://foo/bar3');
 		const watcher3Disposable1 = service.watch(resource3);
-		const watcher3Disposable2 = service.watch(resource3, { recursive: true, excludes: [] });
-		const watcher3Disposable3 = service.watch(resource3, { recursive: false, excludes: [], includes: [] });
+		const watcher3Disposable2 = service.watch(resource3, { correlationId: -1, recursive: true, excludes: [] });
+		const watcher3Disposable3 = service.watch(resource3, { correlationId: -1, recursive: false, excludes: [], includes: [] });
 
 		await timeout(0); // service.watch() is async
 		assert.strictEqual(disposeCounter, 0);

@@ -1102,7 +1102,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private readonly activeWatchers = new Map<number /* watch request hash */, { disposable: IDisposable; count: number }>();
 
-	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
+	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [], correlationId: 0 }): IDisposable {
 		const disposables = new DisposableStore();
 
 		// Forward watch request to provider and wire in disposables
