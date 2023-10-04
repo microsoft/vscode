@@ -84,8 +84,8 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable, IWindowSettings, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
@@ -118,6 +118,7 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
+import { AuxiliarWindow } from 'vs/platform/windows/electron-main/auxiliaryWindow';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -392,16 +393,7 @@ export class CodeApplication extends Disposable {
 			// Child Window: apply zoom after loading finished and handle --open-devtools
 			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 			if (isChildWindow) {
-				contents.on('dom-ready', () => {
-					const windowZoomLevel = this.configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0;
-
-					contents.setZoomLevel(windowZoomLevel);
-					contents.setZoomFactor(zoomLevelToZoomFactor(windowZoomLevel));
-				});
-
-				if (this.environmentMainService.args['open-devtools'] === true) {
-					contents.openDevTools({ mode: 'bottom' });
-				}
+				this.mainInstantiationService.createInstance(AuxiliarWindow, contents);
 			}
 
 			// All Windows: only allow about:blank child windows to open
@@ -414,7 +406,7 @@ export class CodeApplication extends Disposable {
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.mainInstantiationService.invokeFunction(defaultBrowserWindowOptions)
+						overrideBrowserWindowOptions: AuxiliarWindow.open(this.mainInstantiationService)
 					};
 				}
 
