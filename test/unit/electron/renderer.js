@@ -89,6 +89,7 @@ Object.assign(globalThis, {
 	__mkdirPInTests: path => fs.promises.mkdir(path, { recursive: true }),
 });
 
+const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
 const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
@@ -172,14 +173,20 @@ function loadTests(opts) {
 
 	//#region Unexpected Output
 
-	const _allowedTestOutput = new Set([
-		'The vm module of Node.js is deprecated in the renderer process and will be removed.',
-	]);
+	const _allowedTestOutput = [
+		/The vm module of Node\.js is deprecated in the renderer process and will be removed./,
+	];
+
+	// allow snapshot mutation messages locally
+	if (!IS_CI) {
+		_allowedTestOutput.push(/Creating new snapshot in/);
+		_allowedTestOutput.push(/Deleting [0-9]+ old snapshots/);
+	}
 
 	const _allowedTestsWithOutput = new Set([
-		'creates a snapshot', // https://github.com/microsoft/vscode/issues/192439
-		'validates a snapshot', // https://github.com/microsoft/vscode/issues/192439
-		'cleans up old snapshots', // https://github.com/microsoft/vscode/issues/192439
+		'creates a snapshot', // self-testing
+		'validates a snapshot', // self-testing
+		'cleans up old snapshots', // self-testing
 		'issue #149412: VS Code hangs when bad semantic token data is received', // https://github.com/microsoft/vscode/issues/192440
 		'issue #134973: invalid semantic tokens should be handled better', // https://github.com/microsoft/vscode/issues/192440
 		'issue #148651: VSCode UI process can hang if a semantic token with negative values is returned by language service', // https://github.com/microsoft/vscode/issues/192440
@@ -194,7 +201,7 @@ function loadTests(opts) {
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
-			if (!_allowedTestOutput.has(msg) && !_allowedTestsWithOutput.has(currentTestTitle)) {
+			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTestTitle)) {
 				_testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}
@@ -242,7 +249,7 @@ function loadTests(opts) {
 		process.on('uncaughtException', error => onUnexpectedError(error));
 		process.on('unhandledRejection', (reason, promise) => {
 			onUnexpectedError(reason);
-			promise.catch(() => {});
+			promise.catch(() => { });
 		});
 		window.addEventListener('unhandledrejection', event => {
 			event.preventDefault(); // Do not log to test output, we show an error later when test ends

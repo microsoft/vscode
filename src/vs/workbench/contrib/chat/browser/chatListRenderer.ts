@@ -6,8 +6,9 @@
 import * as dom from 'vs/base/browser/dom';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -51,7 +52,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -66,7 +67,7 @@ import { convertParsedRequestToMarkdown, walkTreeAndAnnotateResourceLinks } from
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, IDocumentContext, ISlashCommand, IUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
@@ -74,6 +75,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
@@ -123,6 +125,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly _editorPool: EditorPool;
 	private readonly _treePool: TreePool;
+	private readonly _usedContextListPool: UsedContextListPool;
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
@@ -139,11 +142,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
+		this._usedContextListPool = this._register(this.instantiationService.createInstance(UsedContextListPool, this._onDidChangeVisibility.event));
 	}
 
 	get templateId(): string {
@@ -330,10 +335,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let fileTreeIndex = 0;
 		for (const data of value) {
 			const result = 'value' in data
-				? this.renderMarkdown(data, element, templateData.elementDisposables, templateData, fillInIncompleteTokens)
-				: this.renderTreeData(data, element, templateData.elementDisposables, templateData, fileTreeIndex++);
+				? this.renderMarkdown(data, element, templateData, fillInIncompleteTokens)
+				: this.renderTreeData(data, element, templateData, fileTreeIndex++);
 			templateData.value.appendChild(result.element);
 			templateData.elementDisposables.add(result);
+		}
+
+		if (isResponseVM(element) && element.response.usedContext?.documents.length) {
+			const usedContextListResult = this.renderUsedContextListData(element.response.usedContext, element, templateData);
+			templateData.value.appendChild(usedContextListResult.element);
+			templateData.elementDisposables.add(usedContextListResult);
 		}
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
@@ -365,7 +376,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
 			}));
@@ -385,7 +396,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					followup => this._onDidClickFollowup.fire(followup),
 					templateData.contextKeyService));
 			} else {
-				const result = this.renderMarkdown(item as IMarkdownString, element, templateData.elementDisposables, templateData);
+				const result = this.renderMarkdown(item as IMarkdownString, element, templateData);
 				for (const codeElement of result.element.querySelectorAll('code')) {
 					if (codeElement.textContent && slashCommands.find(command => codeElement.textContent === `/${command.command}`)) {
 						codeElement.classList.add('interactive-slash-command');
@@ -400,7 +411,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = this._register(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
 			}));
@@ -487,7 +498,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					let result;
 					if (isInteractiveProgressTreeData(partToRender)) {
-						result = this.renderTreeData(partToRender, element, disposables, templateData, index);
+						result = this.renderTreeData(partToRender, element, templateData, index);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -496,7 +507,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						const isPlaceholder = isPlaceholderMarkdown(currentResponseData[index]);
 						result = isPlaceholder
 							? this.renderPlaceholder(new MarkdownString(value), templateData)
-							: this.renderMarkdown(new MarkdownString(value), element, disposables, templateData, true);
+							: this.renderMarkdown(new MarkdownString(value), element, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
 					}
 
@@ -530,11 +541,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return isFullyRendered;
 	}
 
-	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, treeDataIndex: number): { element: HTMLElement; dispose: () => void } {
-		const ref = this._treePool.get();
+	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, templateData: IChatListItemTemplate, treeDataIndex: number): { element: HTMLElement; dispose: () => void } {
+		const treeDisposables = new DisposableStore();
+		const ref = treeDisposables.add(this._treePool.get());
 		const tree = ref.object;
 
-		const treeDisposables = new DisposableStore();
 		treeDisposables.add(tree.onDidOpen((e) => {
 			if (e.element && !('children' in e.element)) {
 				this.openerService.open(e.element.uri);
@@ -571,14 +582,82 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const fileTrees = this.fileTreesByResponseId.get(element.id) ?? [];
 			fileTrees.push(fileTreeFocusInfo);
 			this.fileTreesByResponseId.set(element.id, distinct(fileTrees, (v) => v.treeDataId));
-			disposables.add(toDisposable(() => this.fileTreesByResponseId.set(element.id, fileTrees.filter(v => v.treeDataId !== data.uri.toString()))));
+			treeDisposables.add(toDisposable(() => this.fileTreesByResponseId.set(element.id, fileTrees.filter(v => v.treeDataId !== data.uri.toString()))));
 		}
 
 		return {
 			element: tree.getHTMLElement().parentElement!,
 			dispose: () => {
 				treeDisposables.dispose();
-				ref.dispose();
+			}
+		};
+	}
+
+	private renderUsedContextListData(data: IUsedContext, element: IChatResponseViewModel, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
+		const listDisposables = new DisposableStore();
+		const referencesLabel = data.documents.length > 1 ?
+			localize('usedReferencesPlural', "Used {0} references", data.documents.length) :
+			localize('usedReferencesSingular', "Used {0} reference", 1);
+		const iconElement = $('.chat-used-context-icon');
+		const icon = (element: IChatResponseViewModel) => element.usedReferencesExpanded ? Codicon.chevronDown : Codicon.chevronRight;
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
+		const buttonElement = $('.chat-used-context-label', undefined);
+
+		const collapseButton = new Button(buttonElement, {
+			buttonBackground: undefined,
+			buttonBorder: undefined,
+			buttonForeground: undefined,
+			buttonHoverBackground: undefined,
+			buttonSecondaryBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryHoverBackground: undefined,
+			buttonSeparator: undefined
+		});
+		const container = $('.chat-used-context', undefined, buttonElement);
+		collapseButton.label = referencesLabel;
+		collapseButton.element.prepend(iconElement);
+
+		container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+		listDisposables.add(collapseButton.onDidClick(() => {
+			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
+			element.usedReferencesExpanded = !element.usedReferencesExpanded;
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
+			container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+		}));
+
+		const ref = listDisposables.add(this._usedContextListPool.get());
+		const list = ref.object;
+		container.appendChild(list.getHTMLElement().parentElement!);
+
+		listDisposables.add(list.onDidOpen((e) => {
+			if (e.element) {
+				this.editorService.openEditor({
+					resource: e.element.uri,
+					options: {
+						...e.editorOptions,
+						...{
+							selection: e.element.ranges[0]
+						}
+					}
+				});
+			}
+		}));
+		listDisposables.add(list.onContextMenu((e) => {
+			e.browserEvent.preventDefault();
+			e.browserEvent.stopPropagation();
+		}));
+
+		list.layout(data.documents.length * 22);
+		list.splice(0, list.length, data.documents);
+		dom.scheduleAtNextAnimationFrame(() => {
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+		});
+
+		return {
+			element: container,
+			dispose: () => {
+				listDisposables.dispose();
 			}
 		};
 	}
@@ -595,8 +674,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return { element: result, dispose: () => content.dispose() };
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
-		const disposablesList: IDisposable[] = [];
+	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
 
 		// TODO if the slash commands stay completely dynamic, this isn't quite right
@@ -610,6 +689,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		});
 
+		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
+		const orderedDisposablesList: IDisposable[] = [];
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
@@ -636,7 +717,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					this.codeBlocksByEditorUri.set(ref.object.textModel.uri, info);
 					disposables.add(toDisposable(() => this.codeBlocksByEditorUri.delete(ref.object.textModel.uri)));
 				}
-				disposablesList.push(ref);
+				orderedDisposablesList.push(ref);
 				return ref.object.element;
 			}
 		});
@@ -659,8 +740,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		disposablesList.reverse().forEach(d => disposables.add(d));
-		return result;
+		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
+		return {
+			element: result.element,
+			dispose() {
+				result.dispose();
+				disposables.dispose();
+			}
+		};
 	}
 
 	private renderCodeBlock(data: IChatResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IChatResultCodeBlockPart> {
@@ -1126,7 +1213,93 @@ class TreePool extends Disposable {
 	}
 }
 
-// TODO does something in lifecycle.ts cover this?
+class UsedContextListPool extends Disposable {
+	private _pool: ResourcePool<WorkbenchList<IDocumentContext>>;
+
+	public get inUse(): ReadonlySet<WorkbenchList<IDocumentContext>> {
+		return this._pool.inUse;
+	}
+
+	constructor(
+		private _onDidChangeVisibility: Event<boolean>,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configService: IConfigurationService,
+		@IThemeService private readonly themeService: IThemeService,
+	) {
+		super();
+		this._pool = this._register(new ResourcePool(() => this.listFactory()));
+	}
+
+	private listFactory(): WorkbenchList<IDocumentContext> {
+		const resourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility });
+
+		const container = $('.chat-used-context-list');
+		createFileIconThemableTreeContainerScope(container, this.themeService);
+
+		const list = <WorkbenchList<IDocumentContext>>this.instantiationService.createInstance(
+			WorkbenchList,
+			'ChatListRenderer',
+			container,
+			new UsedContextListDelegate(),
+			[new UsedContextListRenderer(resourceLabels, this.configService.getValue('explorer.decorations'))],
+			{});
+
+		return list;
+	}
+
+	get(): IDisposableReference<WorkbenchList<IDocumentContext>> {
+		const object = this._pool.get();
+		let stale = false;
+		return {
+			object,
+			isStale: () => stale,
+			dispose: () => {
+				stale = true;
+				this._pool.release(object);
+			}
+		};
+	}
+}
+
+class UsedContextListDelegate implements IListVirtualDelegate<IDocumentContext> {
+	getHeight(element: IDocumentContext): number {
+		return 22;
+	}
+
+	getTemplateId(element: IDocumentContext): string {
+		return UsedContextListRenderer.TEMPLATE_ID;
+	}
+}
+
+interface IUsedContextListTemplate {
+	label: IResourceLabel;
+	templateDisposables: IDisposable;
+}
+
+class UsedContextListRenderer implements IListRenderer<IDocumentContext, IUsedContextListTemplate> {
+	static TEMPLATE_ID = 'usedContextListRenderer';
+	readonly templateId: string = UsedContextListRenderer.TEMPLATE_ID;
+
+	constructor(private labels: ResourceLabels, private decorations: IFilesConfiguration['explorer']['decorations']) { }
+
+	renderTemplate(container: HTMLElement): IUsedContextListTemplate {
+		const templateDisposables = new DisposableStore();
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
+		return { templateDisposables, label };
+	}
+
+	renderElement(element: IDocumentContext, index: number, templateData: IUsedContextListTemplate, height: number | undefined): void {
+		templateData.label.element.style.display = 'flex';
+		templateData.label.setFile(element.uri, {
+			fileKind: FileKind.FILE,
+			fileDecorations: this.decorations,
+		});
+	}
+
+	disposeTemplate(templateData: IUsedContextListTemplate): void {
+		templateData.templateDisposables.dispose();
+	}
+}
 
 class ResourcePool<T extends IDisposable> extends Disposable {
 	private readonly pool: T[] = [];

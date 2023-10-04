@@ -369,13 +369,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 						return '';
 					}
 				},
-				expandOnlyOnTwistieClick: (element: any) => {
-					if (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) {
-						return false;
-					}
-
-					return true;
-				},
+				expandOnlyOnTwistieClick: true,
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,

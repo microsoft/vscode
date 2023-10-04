@@ -742,6 +742,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			const contents = window.win.webContents;
 			contents.toggleDevTools();
 		}
+
+		for (const browserWindow of BrowserWindow.getAllWindows()) {
+			if (browserWindow.webContents.getURL() === 'about:blank') {
+				browserWindow.webContents.toggleDevTools();
+			}
+		}
 	}
 
 	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {

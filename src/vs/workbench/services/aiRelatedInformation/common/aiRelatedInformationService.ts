@@ -91,8 +91,7 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 			}
 			const result = results
 				.filter(r => r.status === 'fulfilled')
-				.map(r => (r as PromiseFulfilledResult<RelatedInformationResult[]>).value)
-				.flat();
+				.flatMap(r => (r as PromiseFulfilledResult<RelatedInformationResult[]>).value);
 			return result;
 		} finally {
 			stopwatch.stop();
