@@ -334,14 +334,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let fileTreeIndex = 0;
 		for (const data of value) {
 			const result = 'value' in data
-				? this.renderMarkdown(data, element, templateData.elementDisposables, templateData, fillInIncompleteTokens)
-				: this.renderTreeData(data, element, templateData.elementDisposables, templateData, fileTreeIndex++);
+				? this.renderMarkdown(data, element, templateData, fillInIncompleteTokens)
+				: this.renderTreeData(data, element, templateData, fileTreeIndex++);
 			templateData.value.appendChild(result.element);
 			templateData.elementDisposables.add(result);
 		}
 
 		if (isResponseVM(element) && element.response.usedContext?.documents.length) {
-			const usedContextListResult = this.renderUsedContextListData(element.response.usedContext, element, templateData.elementDisposables, templateData);
+			const usedContextListResult = this.renderUsedContextListData(element.response.usedContext, element, templateData);
 			templateData.value.appendChild(usedContextListResult.element);
 			templateData.elementDisposables.add(usedContextListResult);
 		}
@@ -395,7 +395,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					followup => this._onDidClickFollowup.fire(followup),
 					templateData.contextKeyService));
 			} else {
-				const result = this.renderMarkdown(item as IMarkdownString, element, templateData.elementDisposables, templateData);
+				const result = this.renderMarkdown(item as IMarkdownString, element, templateData);
 				for (const codeElement of result.element.querySelectorAll('code')) {
 					if (codeElement.textContent && slashCommands.find(command => codeElement.textContent === `/${command.command}`)) {
 						codeElement.classList.add('interactive-slash-command');
@@ -497,7 +497,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					let result;
 					if (isInteractiveProgressTreeData(partToRender)) {
-						result = this.renderTreeData(partToRender, element, disposables, templateData, index);
+						result = this.renderTreeData(partToRender, element, templateData, index);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -506,7 +506,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						const isPlaceholder = isPlaceholderMarkdown(currentResponseData[index]);
 						result = isPlaceholder
 							? this.renderPlaceholder(new MarkdownString(value), templateData)
-							: this.renderMarkdown(new MarkdownString(value), element, disposables, templateData, true);
+							: this.renderMarkdown(new MarkdownString(value), element, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
 					}
 
@@ -540,11 +540,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return isFullyRendered;
 	}
 
-	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, treeDataIndex: number): { element: HTMLElement; dispose: () => void } {
-		const ref = this._treePool.get();
+	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, templateData: IChatListItemTemplate, treeDataIndex: number): { element: HTMLElement; dispose: () => void } {
+		const treeDisposables = new DisposableStore();
+		const ref = treeDisposables.add(this._treePool.get());
 		const tree = ref.object;
 
-		const treeDisposables = new DisposableStore();
 		treeDisposables.add(tree.onDidOpen((e) => {
 			if (e.element && !('children' in e.element)) {
 				this.openerService.open(e.element.uri);
@@ -581,19 +581,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const fileTrees = this.fileTreesByResponseId.get(element.id) ?? [];
 			fileTrees.push(fileTreeFocusInfo);
 			this.fileTreesByResponseId.set(element.id, distinct(fileTrees, (v) => v.treeDataId));
-			disposables.add(toDisposable(() => this.fileTreesByResponseId.set(element.id, fileTrees.filter(v => v.treeDataId !== data.uri.toString()))));
+			treeDisposables.add(toDisposable(() => this.fileTreesByResponseId.set(element.id, fileTrees.filter(v => v.treeDataId !== data.uri.toString()))));
 		}
 
 		return {
 			element: tree.getHTMLElement().parentElement!,
 			dispose: () => {
 				treeDisposables.dispose();
-				ref.dispose();
 			}
 		};
 	}
 
-	private renderUsedContextListData(data: IUsedContext, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
+	private renderUsedContextListData(data: IUsedContext, element: ChatTreeItem, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
 		const ref = this._usedContextListPool.get();
 		const list = ref.object;
 
@@ -647,8 +646,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return { element: result, dispose: () => content.dispose() };
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, disposables: DisposableStore, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
-		const disposablesList: IDisposable[] = [];
+	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
 
 		// TODO if the slash commands stay completely dynamic, this isn't quite right
@@ -662,6 +661,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		});
 
+		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
+		const orderedDisposablesList: IDisposable[] = [];
 		const codeblocks: IChatCodeBlockInfo[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
@@ -688,7 +689,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					this.codeBlocksByEditorUri.set(ref.object.textModel.uri, info);
 					disposables.add(toDisposable(() => this.codeBlocksByEditorUri.delete(ref.object.textModel.uri)));
 				}
-				disposablesList.push(ref);
+				orderedDisposablesList.push(ref);
 				return ref.object.element;
 			}
 		});
@@ -711,8 +712,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		disposablesList.reverse().forEach(d => disposables.add(d));
-		return result;
+		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
+		return {
+			element: result.element,
+			dispose() {
+				result.dispose();
+				disposables.dispose();
+			}
+		};
 	}
 
 	private renderCodeBlock(data: IChatResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IChatResultCodeBlockPart> {
