@@ -112,9 +112,9 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 function confirmPdbsExist(destinationExe, destinationPdb) {
 	readdirSync(destinationExe).forEach(file => {
 		if (file.endsWith('.dll')) {
-			const pdb = file.replace(/\.dll$/, '.pdb');
+			const pdb = `${file}.pdb`;
 			if (!existsSync(path.join(destinationPdb, pdb))) {
-				throw new Error(`Missing pdb file for ${file}`);
+				throw new Error(`Missing pdb file for ${file}. Tried searching for ${pdb} in ${destinationPdb}.`);
 			}
 		}
 	});
