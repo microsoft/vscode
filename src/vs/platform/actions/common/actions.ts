@@ -8,7 +8,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
+import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -436,7 +436,6 @@ export class MenuItemAction implements IAction {
 	readonly id: string;
 	readonly label: string;
 	readonly tooltip: string;
-	readonly description?: ILocalizedString | undefined;
 	readonly class: string | undefined;
 	readonly enabled: boolean;
 	readonly checked?: boolean;
@@ -454,10 +453,6 @@ export class MenuItemAction implements IAction {
 		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
-
-		if (item.metadata) {
-			this.description = isLocalizedString(item.metadata.description) ? item.metadata.description : { value: item.metadata.description, original: item.metadata.description };
-		}
 
 		let icon: ThemeIcon | undefined;
 
