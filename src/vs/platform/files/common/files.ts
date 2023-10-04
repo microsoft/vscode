@@ -486,7 +486,7 @@ export interface IStat {
 
 export interface IWatchOptions {
 
-	correlationId: number;
+	readonly correlationId: number;
 
 	/**
 	 * Set to `true` to watch for changes recursively in a folder
@@ -880,6 +880,8 @@ export const enum FileChangeType {
  * Identifies a single change in a file.
  */
 export interface IFileChange {
+
+	readonly correlationId: number;
 
 	/**
 	 * The type of change that occurred to the file.

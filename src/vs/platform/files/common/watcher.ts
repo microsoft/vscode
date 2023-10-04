@@ -272,6 +272,7 @@ export interface ILogMessage {
 
 export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
 	return changes.map(change => ({
+		correlationId: change.correlationId,
 		type: change.type,
 		resource: URI.revive(change.resource)
 	}));
