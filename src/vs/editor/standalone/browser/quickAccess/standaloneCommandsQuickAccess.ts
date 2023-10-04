@@ -6,11 +6,11 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { QuickCommandNLS } from 'vs/editor/common/standaloneStrings';
-import { ICommandQuickPick, ICommandsHistoryService } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,14 +26,14 @@ export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommand
 	protected get activeTextEditorControl(): IEditor | undefined { return this.codeEditorService.getFocusedCodeEditor() ?? undefined; }
 
 	constructor(
-		@ICommandsHistoryService commandsHistoryService: ICommandsHistoryService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IDialogService dialogService: IDialogService
 	) {
-		super({ showAlias: false }, commandsHistoryService, keybindingService, commandService, telemetryService, dialogService);
+		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 	}
 
 	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {

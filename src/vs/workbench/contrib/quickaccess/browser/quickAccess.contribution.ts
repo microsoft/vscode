@@ -15,8 +15,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { CommandsHistoryService, ICommandsHistoryService } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 
 //#region Quick Access Proviers
 
@@ -148,5 +146,3 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 //#endregion
-
-registerSingleton(ICommandsHistoryService, CommandsHistoryService, InstantiationType.Delayed);
