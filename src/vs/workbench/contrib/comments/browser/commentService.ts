@@ -19,6 +19,7 @@ import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/c
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -164,7 +165,8 @@ export class CommentService extends Disposable implements ICommentService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._handleConfiguration();
@@ -183,6 +185,7 @@ export class CommentService extends Disposable implements ICommentService {
 			if (!commentsToRestore) {
 				return;
 			}
+			this.logService.debug(`Comments: URIs of continue on comments from storage ${commentsToRestore.map(thread => thread.uri.toString()).join(', ')}.`);
 			const changedOwners = this._addContinueOnComments(commentsToRestore);
 			for (const owner of changedOwners) {
 				const evt: ICommentThreadChangedEvent = {
@@ -417,6 +420,7 @@ export class CommentService extends Disposable implements ICommentService {
 		for (const pendingComments of this._continueOnComments.values()) {
 			commentsToSave.push(...pendingComments);
 		}
+		this.logService.debug(`Comments: URIs of continue on comments to add to storage ${commentsToSave.map(thread => thread.uri.toString()).join(', ')}.`);
 		this.storageService.store(CONTINUE_ON_COMMENTS, commentsToSave, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
