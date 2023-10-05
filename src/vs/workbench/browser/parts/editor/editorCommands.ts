@@ -80,7 +80,7 @@ export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
 export const MAXIMIZE_EDITOR_GROUP = 'workbench.action.maximizeEditorGroup';
-export const EXIT_MAXIMIZE_EDITOR_GROUP = 'workbench.action.exitMaximizeEditorGroup';
+export const EXIT_MAXIMIZE_EDITOR_GROUP = 'workbench.action.unmaximizeEditorGroup';
 export const TOGGLE_MAXIMIZE_EDITOR_GROUP = 'workbench.action.toggleMaximizeEditorGroup';
 
 export const SPLIT_EDITOR_IN_GROUP = 'workbench.action.splitEditorInGroup';

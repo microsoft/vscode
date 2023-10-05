@@ -376,7 +376,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			if (arrangement === GroupsArrangement.MAXIMIZE) {
 				return; // already maximized
 			}
-			this.exitMaximizeGroup();
+			this.unmaximizeGroup();
 		}
 
 		switch (arrangement) {
@@ -401,7 +401,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	toggleGroupArrangement(): void {
 		if (this.isGroupMaximized(this.activeGroup)) {
-			this.exitMaximizeGroup();
+			this.unmaximizeGroup();
 		} else if (this.isGroupExpanded(this.activeGroup)) {
 			this.arrangeGroups(GroupsArrangement.EVEN);
 		} else {
@@ -409,7 +409,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 	}
 
-	private exitMaximizeGroup(): void {
+	private unmaximizeGroup(): void {
 		this.maximizedEditorGroupContext.set(false);
 		this.gridWidget.setViewsVisible(true);
 	}
@@ -748,7 +748,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private onWillGroupsChange() {
 		// If editor group is maximized, restore all views before a change occurs to the groups
 		if (this.isGroupMaximized(this.activeGroup)) {
-			this.exitMaximizeGroup();
+			this.unmaximizeGroup();
 		}
 	}
 

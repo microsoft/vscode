@@ -1114,12 +1114,12 @@ export class MaximizeGroupHideSidebarAction extends Action2 {
 	}
 }
 
-export class ExitMaximizeEditorGroupAction extends Action2 {
+export class UnmaximizeEditorGroupAction extends Action2 {
 
 	constructor() {
 		super({
 			id: EXIT_MAXIMIZE_EDITOR_GROUP,
-			title: { value: localize('exitMaximizedEditorGroup', "Exit Maximize Editor Group"), original: 'Exit Maximized Editor Group' },
+			title: { value: localize('UnmaximizeEditorGroup', "Unmaximize Editor Group"), original: 'Unmaximize Editor Group' },
 			f1: true,
 			category: Categories.View,
 			precondition: MaximizedEditorGroupContext,
