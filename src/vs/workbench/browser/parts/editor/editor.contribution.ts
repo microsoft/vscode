@@ -384,7 +384,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: MAXIMIZE_EDITOR
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: EXIT_MAXIMIZE_EDITOR_GROUP, title: localize('unmaximizeGroup', "Unmaximize Group") }, group: '8_group_operations', order: 5, when: MaximizedEditorGroupContext });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('lockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '8_group_operations', order: 10, when: MultipleEditorGroupsContext });
 
-interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI } | ThemeIcon; toggled?: ContextKeyExpression }
+interface IEditorToolItem { id: string; title: string; icon?: { dark?: URI; light?: URI } | ThemeIcon }
 
 function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpression | undefined, order: number, alternative?: IEditorToolItem, precondition?: ContextKeyExpression | undefined): void {
 	const item: IMenuItem = {
@@ -392,7 +392,6 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpressi
 			id: primary.id,
 			title: primary.title,
 			icon: primary.icon,
-			toggled: primary.toggled,
 			precondition
 		},
 		group: 'navigation',

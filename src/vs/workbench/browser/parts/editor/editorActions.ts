@@ -1129,7 +1129,7 @@ export class UnmaximizeEditorGroupAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.EditorTitle,
-				order: 1, // towards the front
+				order: -10000, // towards the front
 				group: 'navigation',
 				when: MaximizedEditorGroupContext
 			},

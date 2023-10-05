@@ -630,7 +630,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		this.splitview.setViewVisible(index, visible);
 
-		// If all children are hidden then the parent should hide the entire ssplitview
+		// If all children are hidden then the parent should hide the entire splitview
+		// If the entire splitview is hidden then the parent should show the splitview when a child is shown
 		const childrenVisible = this.visibleChildrenCount();
 		if ((visible && childrenVisible === 1) || (!visible && childrenVisible === 0)) {
 			this._onDidVisibilityChange.fire(visible);
@@ -1066,8 +1067,6 @@ export class GridView implements IDisposable {
 	private layoutController: LayoutController;
 	private disposable2x2: IDisposable = Disposable.None;
 
-	private rootVisibilityDisposable: IDisposable = Disposable.None;
-
 	private get root(): BranchNode { return this._root; }
 
 	private set root(root: BranchNode) {
@@ -1083,13 +1082,6 @@ export class GridView implements IDisposable {
 		this.onDidSashResetRelay.input = root.onDidSashReset;
 		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
 		this._onDidScroll.input = root.onDidScroll;
-		// The root should never be hidden
-		this.rootVisibilityDisposable.dispose();
-		this.rootVisibilityDisposable = root.onDidVisibilityChange(visible => {
-			if (!visible && this.root.children.length) {
-				this.root.setChildVisible(0, true);
-			}
-		});
 	}
 
 	/**
@@ -1727,7 +1719,6 @@ export class GridView implements IDisposable {
 
 	dispose(): void {
 		this.onDidSashResetRelay.dispose();
-		this.rootVisibilityDisposable.dispose();
 		this.root.dispose();
 		this.element.parentElement?.removeChild(this.element);
 	}
