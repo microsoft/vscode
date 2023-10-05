@@ -43,6 +43,7 @@ import 'vs/editor/contrib/longLinesHelper/browser/longLinesHelper';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/rename/browser/rename';
+import 'vs/editor/contrib/sectionHeaders/browser/sectionHeaders';
 import 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
 import 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';

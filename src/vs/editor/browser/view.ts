@@ -202,7 +202,7 @@ export class View extends ViewEventHandler {
 		const blockOutline = new BlockDecorations(this._context);
 		this._viewParts.push(blockOutline);
 
-		const minimap = this._instantiationService.createInstance(Minimap, this._context);
+		const minimap = new Minimap(this._context);
 		this._viewParts.push(minimap);
 
 		// -------------- Wire dom nodes up

@@ -29,6 +29,7 @@ import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/di
 import { ILinesDiffComputerOptions, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/services/findSectionHeaders';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -187,6 +188,10 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
 		return this._workerManager.withWorker().then(client => client.computeWordRanges(resource, range));
+	}
+
+	public findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
+		return this._workerManager.withWorker().then(client => client.findSectionHeaders(uri, options));
 	}
 }
 
@@ -609,6 +614,12 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			const wordDef = wordDefRegExp.source;
 			const wordDefFlags = wordDefRegExp.flags;
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
+		});
+	}
+
+	public findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
+		return this._withSyncedResources([uri]).then(proxy => {
+			return proxy.findSectionHeaders(uri.toString(), options);
 		});
 	}
 

@@ -50,6 +50,14 @@ export enum MinimapPosition {
 	Gutter = 2
 }
 
+/**
+ * Section header style.
+ */
+export enum MinimapSectionHeaderStyle {
+	Normal = 1,
+	Underlined = 2
+}
+
 export interface IDecorationOptions {
 	/**
 	 * CSS color to render.
@@ -88,6 +96,14 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 	 * The position in the minimap.
 	 */
 	position: MinimapPosition;
+	/**
+	 * If the decoration is for a section header, which header style.
+	 */
+	sectionHeaderStyle?: MinimapSectionHeaderStyle | null;
+	/**
+	 * If the decoration is for a section header, the header text.
+	 */
+	sectionHeaderText?: string | null;
 }
 
 /**

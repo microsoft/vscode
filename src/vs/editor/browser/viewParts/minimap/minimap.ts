@@ -33,10 +33,9 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Color } from 'vs/base/common/color';
 import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
-import { MinimapPosition, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { MinimapPosition, MinimapSectionHeaderStyle, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { createSingleCallFunction } from 'vs/base/common/functional';
-import { SectionHeader, SectionHeaderLocationProvider } from 'vs/editor/browser/viewParts/minimap/sectionHeaderLocationProvider';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { LRUCache } from 'vs/base/common/map';
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
@@ -563,7 +562,6 @@ class MinimapBuffers {
 export interface IMinimapModel {
 	readonly tokensColorTracker: MinimapTokensColorTracker;
 	readonly options: MinimapOptions;
-	readonly sectionHeaders: SectionHeader[];
 
 	getLineCount(): number;
 	getRealLineCount(): number;
@@ -572,6 +570,8 @@ export interface IMinimapModel {
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
 	getSelections(): Selection[];
 	getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
+	getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
+	getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null;
 	getOptions(): TextModelResolvedOptions;
 	revealLineNumber(lineNumber: number): void;
 	setScrollTop(scrollTop: number): void;
@@ -809,7 +809,6 @@ class MinimapSamplingState {
 export class Minimap extends ViewPart implements IMinimapModel {
 
 	public readonly tokensColorTracker: MinimapTokensColorTracker;
-	public sectionHeaders: SectionHeader[];
 
 	private _selections: Selection[];
 	private _minimapSelections: Selection[] | null;
@@ -819,13 +818,11 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	private _samplingState: MinimapSamplingState | null;
 	private _shouldCheckSampling: boolean;
 
-	private readonly _headerLocationProvider: SectionHeaderLocationProvider;
+	private _sectionHeaderCache = new LRUCache<string, string>(10, 1.5);
 
 	private _actual: InnerMinimap;
 
-	constructor(context: ViewContext,
-		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService
-	) {
+	constructor(context: ViewContext) {
 		super(context);
 
 		this.tokensColorTracker = MinimapTokensColorTracker.getInstance();
@@ -837,14 +834,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		const [samplingState,] = MinimapSamplingState.compute(this.options, this._context.viewModel.getLineCount(), null);
 		this._samplingState = samplingState;
 		this._shouldCheckSampling = false;
-
-		this._headerLocationProvider = new SectionHeaderLocationProvider(
-			context.viewModel.model,
-			this.languageConfigurationService);
-
-		this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount(),
-			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
-		this.sectionHeaders?.sort((a, b) => a.lineNumber - b.lineNumber);
 
 		this._actual = new InnerMinimap(context.theme, this);
 	}
@@ -865,9 +854,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 		this.options = opts;
 		this._recreateLineSampling();
-		this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount(),
-			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
-		this.sectionHeaders?.sort((a, b) => a.lineNumber - b.lineNumber);
 		this._actual.onDidChangeOptions();
 		return true;
 	}
@@ -895,7 +881,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return this._actual.onFlushed();
 	}
 	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		this._maybeChangeSectionHeaders(e.fromLineNumber, e.fromLineNumber + e.count - 1);
 		if (this._samplingState) {
 			const minimapLineRange = this._samplingState.modelLineRangeToMinimapLineRange(e.fromLineNumber, e.fromLineNumber + e.count - 1);
 			if (minimapLineRange) {
@@ -908,7 +893,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 	}
 	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		this._maybeDeleteSectionHeaders(e.fromLineNumber, e.toLineNumber);
 		if (this._samplingState) {
 			const [changeStartIndex, changeEndIndex] = this._samplingState.onLinesDeleted(e);
 			if (changeStartIndex <= changeEndIndex) {
@@ -921,7 +905,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 	}
 	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		this._maybeInsertSectionHeaders(e.fromLineNumber, e.toLineNumber);
 		if (this._samplingState) {
 			this._samplingState.onLinesInserted(e);
 			this._shouldCheckSampling = true;
@@ -957,11 +940,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 	}
 	public override onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
-		if (!this._onOptionsMaybeChanged()) {
-			this.sectionHeaders = this._headerLocationProvider.compute(1, this._context.viewModel.getLineCount(),
-				this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
-			this.sectionHeaders?.sort((a, b) => a.lineNumber - b.lineNumber);
-		}
+		this._onOptionsMaybeChanged();
 		return this._actual.onTokensColorsChanged();
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
@@ -1032,60 +1011,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		}
 	}
 
-	private _maybeChangeSectionHeaders(startLineNumber: number, endLineNumber: number): void {
-		let changed = this._removeSectionHeaders(startLineNumber, endLineNumber);
-
-		const sectionHeaders = this._headerLocationProvider.compute(startLineNumber, endLineNumber,
-			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
-		sectionHeaders.forEach(sectionHeader => {
-			changed = true;
-			this.sectionHeaders.push(sectionHeader);
-		});
-
-		if (changed) {
-			this.sectionHeaders.sort((a, b) => a.lineNumber - b.lineNumber);
-			this._actual.onSectionHeadersChanged();
-		}
-	}
-
-	private _maybeInsertSectionHeaders(startLineNumber: number, endLineNumber: number): void {
-		let changed = this._adjustSectionHeaders(startLineNumber, endLineNumber - startLineNumber + 1);
-
-		const sectionHeaders = this._headerLocationProvider.compute(startLineNumber, endLineNumber,
-			this.options.showRegionSectionHeaders, this.options.showMarkSectionHeaders);
-		sectionHeaders.forEach(sectionHeader => {
-			changed = true;
-			this.sectionHeaders.push(sectionHeader);
-		});
-
-		if (changed) {
-			this.sectionHeaders.sort((a, b) => a.lineNumber - b.lineNumber);
-			this._actual.onSectionHeadersChanged();
-		}
-	}
-
-	private _maybeDeleteSectionHeaders(startLineNumber: number, endLineNumber: number): void {
-		let changed = this._removeSectionHeaders(startLineNumber, endLineNumber);
-		changed ||= this._adjustSectionHeaders(startLineNumber, startLineNumber - endLineNumber - 1);
-
-		if (changed) {
-			this._actual.onSectionHeadersChanged();
-		}
-	}
-
-	private _removeSectionHeaders(startLineNumber: number, endLineNumber: number): boolean {
-		const originalLength = this.sectionHeaders.length;
-		this.sectionHeaders = this.sectionHeaders.filter(sectionHeader =>
-			sectionHeader.lineNumber < startLineNumber || sectionHeader.lineNumber > endLineNumber);
-		return this.sectionHeaders.length !== originalLength;
-	}
-
-	private _adjustSectionHeaders(startLineNumber: number, offset: number): boolean {
-		const toShift = this.sectionHeaders.filter(sectionHeader => sectionHeader.lineNumber >= startLineNumber);
-		toShift.forEach(sectionHeader => sectionHeader.lineNumber += offset);
-		return toShift.length > 0;
-	}
-
 	public getLineCount(): number {
 		if (this._samplingState) {
 			return this._samplingState.minimapLines.length;
@@ -1142,15 +1067,8 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
-		let visibleRange: Range;
-		if (this._samplingState) {
-			const modelStartLineNumber = this._samplingState.minimapLines[startLineNumber - 1];
-			const modelEndLineNumber = this._samplingState.minimapLines[endLineNumber - 1];
-			visibleRange = new Range(modelStartLineNumber, 1, modelEndLineNumber, this._context.viewModel.getLineMaxColumn(modelEndLineNumber));
-		} else {
-			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.viewModel.getLineMaxColumn(endLineNumber));
-		}
-		const decorations = this._context.viewModel.getMinimapDecorationsInRange(visibleRange);
+		const decorations = this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
+			.filter(decoration => !decoration.options.minimap?.sectionHeaderStyle);
 
 		if (this._samplingState) {
 			const result: ViewModelDecoration[] = [];
@@ -1166,6 +1084,41 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			return result;
 		}
 		return decorations;
+	}
+
+	public getSectionHeaderDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[] {
+		const minimapLineHeight = this.options.minimapLineHeight;
+		const sectionHeaderFontSize = this.options.sectionHeaderFontSize * this.options.pixelRatio;
+		const headerHeightInMinimapLines = sectionHeaderFontSize / minimapLineHeight;
+		startLineNumber = Math.floor(Math.max(1, startLineNumber - headerHeightInMinimapLines));
+		return this._getMinimapDecorationsInViewport(startLineNumber, endLineNumber)
+			.filter(decoration => !!decoration.options.minimap?.sectionHeaderStyle);
+	}
+
+	private _getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number) {
+		let visibleRange: Range;
+		if (this._samplingState) {
+			const modelStartLineNumber = this._samplingState.minimapLines[startLineNumber - 1];
+			const modelEndLineNumber = this._samplingState.minimapLines[endLineNumber - 1];
+			visibleRange = new Range(modelStartLineNumber, 1, modelEndLineNumber, this._context.viewModel.getLineMaxColumn(modelEndLineNumber));
+		} else {
+			visibleRange = new Range(startLineNumber, 1, endLineNumber, this._context.viewModel.getLineMaxColumn(endLineNumber));
+		}
+		return this._context.viewModel.getMinimapDecorationsInRange(visibleRange);
+	}
+
+	public getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null {
+		const headerText = decoration.options.minimap?.sectionHeaderText;
+		if (!headerText) {
+			return null;
+		}
+		const cachedText = this._sectionHeaderCache.get(headerText);
+		if (cachedText) {
+			return cachedText;
+		}
+		const fittedText = fitWidth(headerText);
+		this._sectionHeaderCache.set(headerText, fittedText);
+		return fittedText;
 	}
 
 	public getOptions(): TextModelResolvedOptions {
@@ -1216,7 +1169,6 @@ class InnerMinimap extends Disposable {
 	private _lastRenderData: RenderData | null;
 	private _selectionColor: Color | undefined;
 	private _renderDecorations: boolean = false;
-	private _renderSectionHeaders: boolean = true;
 	private _gestureInProgress: boolean = false;
 	private _buffers: MinimapBuffers | null;
 
@@ -1449,22 +1401,15 @@ class InnerMinimap extends Disposable {
 	public onDidChangeOptions(): void {
 		this._lastRenderData = null;
 		this._buffers = null;
-		this._renderSectionHeaders = true;
 		this._applyLayout();
 		this._domNode.setClassName(this._getMinimapDomNodeClassName());
 	}
 	public onSelectionChanged(): boolean {
 		this._renderDecorations = true;
-		this._renderSectionHeaders = true;
 		return true;
 	}
 	public onDecorationsChanged(): boolean {
 		this._renderDecorations = true;
-		this._renderSectionHeaders = true;
-		return true;
-	}
-	public onSectionHeadersChanged(): boolean {
-		this._renderSectionHeaders = true;
 		return true;
 	}
 	public onFlushed(): boolean {
@@ -1487,13 +1432,11 @@ class InnerMinimap extends Disposable {
 	}
 	public onScrollChanged(): boolean {
 		this._renderDecorations = true;
-		this._renderSectionHeaders = true;
 		return true;
 	}
 	public onThemeChanged(): boolean {
 		this._selectionColor = this._theme.getColor(minimapSelection);
 		this._renderDecorations = true;
-		this._renderSectionHeaders = true;
 		return true;
 	}
 	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number }[]): boolean {
@@ -1505,7 +1448,6 @@ class InnerMinimap extends Disposable {
 	public onTokensColorsChanged(): boolean {
 		this._lastRenderData = null;
 		this._buffers = null;
-		this._renderSectionHeaders = true;
 		return true;
 	}
 	public onZonesChanged(): boolean {
@@ -1553,7 +1495,6 @@ class InnerMinimap extends Disposable {
 		this._sliderHorizontal.setHeight(layout.sliderHeight);
 
 		this.renderDecorations(layout);
-		this.renderSectionHeaders(layout);
 		this._lastRenderData = this.renderLines(layout);
 	}
 
@@ -1586,6 +1527,7 @@ class InnerMinimap extends Disposable {
 			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
 			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
 			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, minimapLineHeight, tabSize, minimapCharWidth, canvasInnerWidth);
+			this._renderSectionHeaders(layout);
 		}
 	}
 
@@ -1852,6 +1794,110 @@ class InnerMinimap extends Disposable {
 		canvasContext.fillRect(x, y, width, height);
 	}
 
+	private _renderSectionHeaders(layout: MinimapLayout) {
+		const minimapLineHeight = this._model.options.minimapLineHeight;
+		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize * this._model.options.pixelRatio;
+		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
+		const { canvasInnerWidth } = this._model.options;
+
+		const backgroundColor = this._model.options.backgroundColor;
+		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b} / .7)`;
+		const foregroundColor = this._model.options.sectionHeaderFontColor;
+		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
+		const separatorStroke = foregroundFill;
+
+		const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
+		canvasContext.font = sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
+		canvasContext.strokeStyle = separatorStroke;
+		canvasContext.lineWidth = 0.2;
+
+		const decorations = this._model.getSectionHeaderDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
+		decorations.sort((a, b) => a.range.startLineNumber - b.range.startLineNumber);
+
+		const fitWidth = InnerMinimap._fitSectionHeader.bind(null, canvasContext,
+			canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
+
+		for (const decoration of decorations) {
+			const y = layout.getYForLineNumber(decoration.range.startLineNumber, minimapLineHeight) + sectionHeaderFontSize;
+			const backgroundFillY = y - sectionHeaderFontSize;
+			const separatorY = backgroundFillY + 2;
+			const headerText = this._model.getSectionHeaderText(decoration, fitWidth);
+
+			InnerMinimap._renderSectionLabel(
+				canvasContext,
+				headerText,
+				decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined,
+				backgroundFill,
+				foregroundFill,
+				canvasInnerWidth,
+				backgroundFillY,
+				backgroundFillHeight,
+				y,
+				separatorY);
+		}
+	}
+
+	private static _fitSectionHeader(
+		target: CanvasRenderingContext2D,
+		maxWidth: number,
+		headerText: string,
+	): string {
+		if (!headerText) {
+			return headerText;
+		}
+
+		const ellipsis = '…';
+		const width = target.measureText(headerText).width;
+		const ellipsisWidth = target.measureText(ellipsis).width;
+
+		if (width <= maxWidth || width <= ellipsisWidth) {
+			return headerText;
+		}
+
+		const len = headerText.length;
+		const averageCharWidth = width / headerText.length;
+		const maxCharCount = Math.floor((maxWidth - ellipsisWidth) / averageCharWidth) - 1;
+
+		// Find a halfway point that isn't after whitespace
+		let halfCharCount = Math.ceil(maxCharCount / 2);
+		while (halfCharCount > 0 && /\s/.test(headerText[halfCharCount - 1])) {
+			--halfCharCount;
+		}
+
+		// Split with ellipsis
+		return headerText.substring(0, halfCharCount)
+			+ ellipsis + headerText.substring(len - (maxCharCount - halfCharCount));
+	}
+
+	private static _renderSectionLabel(
+		target: CanvasRenderingContext2D,
+		headerText: string | null,
+		hasSeparatorLine: boolean,
+		backgroundFill: string,
+		foregroundFill: string,
+		minimapWidth: number,
+		backgroundFillY: number,
+		backgroundFillHeight: number,
+		textY: number,
+		separatorY: number
+	): void {
+		if (headerText) {
+			target.fillStyle = backgroundFill;
+			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
+
+			target.fillStyle = foregroundFill;
+			target.fillText(headerText, MINIMAP_GUTTER_WIDTH, textY);
+		}
+
+		if (hasSeparatorLine) {
+			target.beginPath();
+			target.moveTo(0, separatorY);
+			target.lineTo(minimapWidth, separatorY);
+			target.closePath();
+			target.stroke();
+		}
+	}
+
 	private renderLines(layout: MinimapLayout): RenderData | null {
 		const startLineNumber = layout.startLineNumber;
 		const endLineNumber = layout.endLineNumber;
@@ -2108,123 +2154,6 @@ class InnerMinimap extends Disposable {
 					}
 				}
 			}
-		}
-	}
-
-	private renderSectionHeaders(layout: MinimapLayout) {
-		if (!this._renderSectionHeaders) {
-			return;
-		}
-		this._renderSectionHeaders = false;
-
-		const minimapLineHeight = this._model.options.minimapLineHeight;
-		const sectionHeaderFontSize = this._model.options.sectionHeaderFontSize * this._model.options.pixelRatio;
-		const backgroundFillHeight = sectionHeaderFontSize * 1.5;
-		const startY = layout.getYForLineNumber(layout.startLineNumber, minimapLineHeight);
-		const endY = layout.getYForLineNumber(layout.endLineNumber, minimapLineHeight) + sectionHeaderFontSize;
-		const { canvasInnerWidth } = this._model.options;
-
-		const backgroundColor = this._model.options.backgroundColor;
-		const backgroundFill = `rgb(${backgroundColor.r} ${backgroundColor.g} ${backgroundColor.b} / .7)`;
-		const foregroundColor = this._model.options.sectionHeaderFontColor;
-		const foregroundFill = `rgb(${foregroundColor.r} ${foregroundColor.g} ${foregroundColor.b})`;
-		const separatorStroke = foregroundFill;
-
-		const canvasContext = this._decorationsCanvas.domNode.getContext('2d')!;
-		canvasContext.font = sectionHeaderFontSize + 'px ' + this._model.options.sectionHeaderFontFamily;
-		canvasContext.strokeStyle = separatorStroke;
-		canvasContext.lineWidth = 0.2;
-
-		// Render section headers
-		for (const sectionHeader of this._model.sectionHeaders) {
-			const y = layout.getYForLineNumber(sectionHeader.lineNumber, minimapLineHeight) + sectionHeaderFontSize;
-			if (y < startY) {
-				continue;
-			}
-			if (y > endY) {
-				break;
-			}
-
-			const backgroundFillY = y - sectionHeaderFontSize;
-			const separatorY = backgroundFillY + 2;
-
-			InnerMinimap._fitSectionHeader(canvasContext,
-				sectionHeader,
-				canvasInnerWidth - MINIMAP_GUTTER_WIDTH);
-
-			InnerMinimap._renderSectionLabel(
-				canvasContext,
-				sectionHeader,
-				backgroundFill,
-				foregroundFill,
-				canvasInnerWidth,
-				backgroundFillY,
-				backgroundFillHeight,
-				y,
-				separatorY);
-		}
-	}
-
-	private static _fitSectionHeader(
-		target: CanvasRenderingContext2D,
-		sectionHeader: SectionHeader,
-		maxWidth: number
-	): void {
-		if (sectionHeader.fittedHeader !== undefined) {
-			return;
-		}
-
-		const ellipsis = '…';
-		const width = target.measureText(sectionHeader.header).width;
-		const ellipsisWidth = target.measureText(ellipsis).width;
-
-		if (width <= maxWidth || width <= ellipsisWidth) {
-			sectionHeader.fittedHeader = sectionHeader.header;
-			return;
-		}
-
-		const len = sectionHeader.header.length;
-		const averageCharWidth = width / sectionHeader.header.length;
-		const maxCharCount = Math.floor((maxWidth - ellipsisWidth) / averageCharWidth) - 1;
-
-		// Find a halfway point that isn't after whitespace
-		let halfCharCount = Math.ceil(maxCharCount / 2);
-		while (halfCharCount > 0 && /\s/.test(sectionHeader.header[halfCharCount - 1])) {
-			--halfCharCount;
-		}
-
-		// Split with ellipsis
-		sectionHeader.fittedHeader = sectionHeader.header.substring(0, halfCharCount)
-			+ ellipsis + sectionHeader.header.substring(len - (maxCharCount - halfCharCount));
-	}
-
-	private static _renderSectionLabel(
-		target: CanvasRenderingContext2D,
-		sectionHeader: SectionHeader,
-		backgroundFill: string,
-		foregroundFill: string,
-		minimapWidth: number,
-		backgroundFillY: number,
-		backgroundFillHeight: number,
-		textY: number,
-		separatorY: number
-	): void {
-		const content = sectionHeader.fittedHeader!;
-
-		if (content) {
-			target.fillStyle = backgroundFill;
-			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
-
-			target.fillStyle = foregroundFill;
-			target.fillText(content, MINIMAP_GUTTER_WIDTH, textY);
-		}
-
-		if (sectionHeader.hasSeparatorLine) {
-			target.beginPath();
-			target.moveTo(0, separatorY);
-			target.lineTo(minimapWidth, separatorY);
-			target.closePath();
-			target.stroke();
 		}
 	}
 }

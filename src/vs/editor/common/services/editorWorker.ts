@@ -11,6 +11,7 @@ import { IInplaceReplaceSupportResult, TextEdit } from 'vs/editor/common/languag
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import type { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { SectionHeader, FindSectionHeaderOptions } from 'vs/editor/common/services/findSectionHeaders';
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
@@ -36,6 +37,8 @@ export interface IEditorWorkerService {
 
 	canNavigateValueSet(resource: URI): boolean;
 	navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null>;
+
+	findSectionHeaders(uri: URI, options: FindSectionHeaderOptions): Promise<SectionHeader[]>;
 }
 
 export interface IDiffComputationResult {
