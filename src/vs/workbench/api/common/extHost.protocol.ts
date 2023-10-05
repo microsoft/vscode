@@ -27,6 +27,7 @@ import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/langua
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -1229,7 +1230,6 @@ export type IChatResponseProgressDto =
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
 	$acceptChatState(sessionId: number, state: any): Promise<void>;
-	$addRequest(context: any): void;
 	$sendRequestToProvider(providerId: string, message: IChatDynamicRequest): void;
 	$unregisterChatProvider(handle: number): Promise<void>;
 	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void>;
@@ -1238,7 +1238,6 @@ export interface MainThreadChatShape extends IDisposable {
 
 export interface ExtHostChatShape {
 	$prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined>;
-	$resolveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IChatRequestDto, 'id'> | undefined>;
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined>;
@@ -1542,9 +1541,16 @@ export interface MainThreadTimelineShape extends IDisposable {
 
 // -- extension host
 
-export interface ICommandHandlerDescriptionDto {
-	readonly description: string;
-	readonly args: ReadonlyArray<{
+export interface ICommandMetadataDto {
+	/**
+	 * NOTE: Please use an ILocalizedString. string is in the type for backcompat for now.
+	 * A short summary of what the command does. This will be used in:
+	 * - API commands
+	 * - when showing keybindings that have no other UX
+	 * - when searching for commands in the Command Palette
+	 */
+	readonly description: ILocalizedString | string;
+	readonly args?: ReadonlyArray<{
 		readonly name: string;
 		readonly isOptional?: boolean;
 		readonly description?: string;
@@ -1554,7 +1560,7 @@ export interface ICommandHandlerDescriptionDto {
 
 export interface ExtHostCommandsShape {
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown>;
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto }>;
+	$getContributedCommandMetadata(): Promise<{ [id: string]: string | ICommandMetadataDto }>;
 }
 
 export interface ExtHostConfigurationShape {
