@@ -329,7 +329,8 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 		if (context.reason === SaveReason.AUTO) {
 			// currently this won't happen, as vs/editor/contrib/codeAction/browser/codeAction.ts L#104 filters out codeactions on autosave. Just future-proofing
 			// ? notebook CodeActions on autosave seems dangerous (perf-wise)
-			saveTrigger = 'always';
+			// saveTrigger = 'always'; // TODO@Yoyokrazy, support during debt
+			return undefined;
 		} else if (context.reason === SaveReason.EXPLICIT) {
 			saveTrigger = 'explicit';
 		} else {

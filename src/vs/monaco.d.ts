@@ -6986,6 +6986,7 @@ declare namespace monaco.languages {
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
 		isPreferred?: boolean;
+		isAI?: boolean;
 		disabled?: string;
 	}
 

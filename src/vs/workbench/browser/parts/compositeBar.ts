@@ -59,11 +59,6 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			}
 			// ... on a different composite bar
 			else {
-				const viewsToMove = this.viewDescriptorService.getViewContainerModel(currentContainer)!.allViewDescriptors;
-				if (viewsToMove.some(v => !v.canMoveView)) {
-					return;
-				}
-
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
 			}
 		}
@@ -118,11 +113,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				return dragData.id !== targetCompositeId;
 			}
 
-			// ... to another composite location
-			const draggedViews = this.viewDescriptorService.getViewContainerModel(currentContainer)!.allViewDescriptors;
-
-			// ... all views must be movable
-			return !draggedViews.some(view => !view.canMoveView);
+			return true;
 		} else {
 
 			// Dragging an individual view
@@ -159,8 +150,6 @@ export interface ICompositeBarOptions {
 
 	readonly openComposite: (compositeId: string, preserveFocus?: boolean) => Promise<IComposite | null>;
 	readonly getDefaultCompositeId: () => string | undefined;
-
-	readonly hidePart: () => void;
 }
 
 export class CompositeBar extends Widget implements ICompositeBar {
@@ -312,6 +301,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	recomputeSizes(): void {
 		this.computeSizes(this.model.visibleItems);
+		this.updateCompositeSwitcher();
 	}
 
 	layout(dimension: Dimension): void {

@@ -167,10 +167,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private readonly conflictsDisposables = new Map<string, IDisposable>();
 	private onDidChangeConflicts(conflicts: IUserDataSyncResourceConflicts[]) {
+		this.updateGlobalActivityBadge();
+		this.registerShowConflictsAction();
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return;
 		}
-		this.updateGlobalActivityBadge();
 		if (conflicts.length) {
 			// Clear and dispose conflicts those were cleared
 			for (const [key, disposable] of this.conflictsDisposables.entries()) {
@@ -836,9 +837,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return { value: localize('resolveConflicts_global', "Show Conflicts ({0})", this.getConflictsCount()), original: `Show Conflicts (${this.getConflictsCount()})` };
 	}
 
+	private conflictsActionDisposable = this._register(new MutableDisposable());
 	private registerShowConflictsAction(): void {
 		const that = this;
-		this._register(registerAction2(class TurningOnSyncAction extends Action2 {
+		this.conflictsActionDisposable.value = registerAction2(class TurningOnSyncAction extends Action2 {
 			constructor() {
 				super({
 					id: showConflictsCommandId,
@@ -862,7 +864,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			async run(): Promise<any> {
 				return that.userDataSyncWorkbenchService.showConflicts();
 			}
-		}));
+		});
 	}
 
 	private registerManageSyncAction(): void {
