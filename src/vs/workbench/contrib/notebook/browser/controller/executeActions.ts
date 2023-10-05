@@ -130,7 +130,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.executeNotebook', "Run All"),
 			icon: icons.executeAllIcon,
-			description: {
+			metadata: {
 				description: localize('notebookActions.executeNotebook', "Run All"),
 				args: [
 					{
@@ -209,7 +209,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 				when: executeThisCellCondition,
 				group: 'inline'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.execute', "Execute Cell"),
 				args: cellExecutionArgs
 			},
@@ -332,7 +332,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 			id: EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID,
 			precondition: executeThisCellCondition,
 			title: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
-			description: {
+			metadata: {
 				description: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
 				args: cellExecutionArgs
 			},
@@ -378,7 +378,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 				when: cellCancelCondition,
 				group: 'inline'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.cancel', "Stop Cell Execution"),
 				args: [
 					{

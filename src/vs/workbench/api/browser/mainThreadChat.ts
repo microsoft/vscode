@@ -13,7 +13,7 @@ import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgres
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatDynamicRequest, IChatProgress, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -87,13 +87,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 						this._stateEmitters.delete(session.id);
 						this._proxy.$releaseSession(session.id);
 					}
-				};
-			},
-			resolveRequest: async (session, context, token) => {
-				const dto = await this._proxy.$resolveRequest(handle, session.id, context, token);
-				return <IChatRequest>{
-					session,
-					...dto
 				};
 			},
 			provideReply: async (request, progress, token) => {
@@ -180,10 +173,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 	async $acceptChatState(sessionId: number, state: any): Promise<void> {
 		this._stateEmitters.get(sessionId)?.fire(state);
-	}
-
-	$addRequest(context: any): void {
-		this._chatService.addRequest(context);
 	}
 
 	async $sendRequestToProvider(providerId: string, message: IChatDynamicRequest): Promise<void> {

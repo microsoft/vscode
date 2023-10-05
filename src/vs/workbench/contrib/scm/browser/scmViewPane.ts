@@ -86,7 +86,6 @@ import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewS
 import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
@@ -2601,8 +2600,6 @@ export class SCMViewPane extends ViewPane {
 		super.dispose();
 	}
 }
-
-export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
 
 export class SCMActionButton implements IDisposable {
 	private button: Button | ButtonWithDescription | ButtonWithDropdown | undefined;
