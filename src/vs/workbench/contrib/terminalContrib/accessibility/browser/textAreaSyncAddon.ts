@@ -10,7 +10,6 @@ import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 export interface ITextAreaData {
 	content: string;
@@ -104,6 +103,9 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		const lineNumber = currentCommand.commandStartMarker?.line;
 		if (!lineNumber) {
 			return;
+		}
+		if (this.isInputting()) {
+			this._cursorX = buffer.cursorX;
 		}
 		const commandLine = buffer.getLine(lineNumber)?.translateToString(true);
 		if (!commandLine) {
