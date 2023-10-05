@@ -576,6 +576,17 @@ export class Grid<T extends IView = IView> extends Disposable {
 		return this.gridview.getViewCachedVisibleSize(location);
 	}
 
+	setViewsVisible(visible: boolean, exclude?: T): void {
+		// When hiding a view, it's previous size is cached.
+		// To restore the sizes of all views, they need to be made visible in reverse order.
+		const viewOrder = visible ? [...this.views.keys()] : [...this.views.keys()].reverse();
+		for (const view of viewOrder) {
+			if (view !== exclude && this.isViewVisible(view) !== visible) {
+				this.setViewVisible(view, visible);
+			}
+		}
+	}
+
 	/**
 	 * Maximize the size of a {@link IView view} by collapsing all other views
 	 * to their minimum sizes.

@@ -113,6 +113,7 @@ export interface IEditorGroupsView {
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void;
 
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
+	toggleGroupArrangement(): void;
 }
 
 export interface IEditorGroupTitleHeight {

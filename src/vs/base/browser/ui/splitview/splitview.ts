@@ -844,7 +844,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 				const item = this.viewItems[i];
 				const proportion = this.proportions[i];
 
-				if (typeof proportion === 'number') {
+				if (typeof proportion === 'number' && total > 0) {
 					item.size = clamp(Math.round(proportion * size / total), item.minimumSize, item.maximumSize);
 				}
 			}
@@ -856,7 +856,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 	private saveProportions(): void {
 		if (this.proportionalLayout && this.contentSize > 0) {
-			this.proportions = this.viewItems.map(i => i.proportionalLayout ? i.size / this.contentSize : undefined);
+			this.proportions = this.viewItems.map((v, i) => v.proportionalLayout && this.isViewVisible(i) ? v.size / this.contentSize : undefined);
 		}
 	}
 

@@ -1683,7 +1683,7 @@ suite('EditorService', () => {
 		editor = await service.openEditor(input2, { pinned: true, activation: EditorActivation.ACTIVATE }, sideGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
 
-		part.arrangeGroups(GroupsArrangement.MAXIMIZE);
+		part.arrangeGroups(GroupsArrangement.EXPAND);
 		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
 	});
@@ -1703,13 +1703,13 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup, sideGroup);
 		assert.notStrictEqual(rootGroup, sideGroup);
 
-		part.arrangeGroups(GroupsArrangement.MAXIMIZE, part.activeGroup);
+		part.arrangeGroups(GroupsArrangement.EXPAND, part.activeGroup);
 
 		await rootGroup.closeEditor(input2);
 		assert.strictEqual(part.activeGroup, sideGroup);
 
-		assert(!part.isGroupMaximized(rootGroup));
-		assert(part.isGroupMaximized(part.activeGroup));
+		assert(!part.isGroupExpanded(rootGroup));
+		assert(part.isGroupExpanded(part.activeGroup));
 	});
 
 	test('active editor change / visible editor change events', async function () {

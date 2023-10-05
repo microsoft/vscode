@@ -284,11 +284,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	get minimumSize(): number {
-		return this.children.length === 0 ? 0 : Math.max(...this.children.map(c => c.minimumOrthogonalSize));
+		return this.children.length === 0 ? 0 : Math.max(...this.children.map((c, index) => this.splitview.isViewVisible(index) ? c.minimumOrthogonalSize : 0));
 	}
 
 	get maximumSize(): number {
-		return Math.min(...this.children.map(c => c.maximumOrthogonalSize));
+		return Math.min(...this.children.map((c, index) => this.splitview.isViewVisible(index) ? c.maximumOrthogonalSize : Number.POSITIVE_INFINITY));
 	}
 
 	get priority(): LayoutPriority {
@@ -341,6 +341,10 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
+	private readonly _onDidVisibilityChange = new Emitter<boolean>();
+	readonly onDidVisibilityChange: Event<boolean> = this._onDidVisibilityChange.event;
+	private readonly childrenVisibilityChangeDisposable: DisposableStore = new DisposableStore();
 
 	private _onDidScroll = new Emitter<void>();
 	private onDidScrollDisposable: IDisposable = Disposable.None;
@@ -509,6 +513,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		this.updateBoundarySashes();
 		this.onDidChildrenChange();
+
+		// If the splitview is hidden and a child is added, show the splitview
+		if (this.visibleChildrenCount() === 1 && this.children.length > 1) {
+			this._onDidVisibilityChange.fire(true);
+		}
 	}
 
 	removeChild(index: number, sizing?: Sizing): Node {
@@ -519,6 +528,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		this.updateBoundarySashes();
 		this.onDidChildrenChange();
+
+		// If the splitview is visible and the only visible child is removed, hide the splitview
+		if (this.visibleChildrenCount() === 0 && this.children.length > 0) {
+			this._onDidVisibilityChange.fire(false);
+		}
 
 		return result;
 	}
@@ -615,6 +629,16 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 
 		this.splitview.setViewVisible(index, visible);
+
+		// If all children are hidden then the parent should hide the entire ssplitview
+		const childrenVisible = this.visibleChildrenCount();
+		if ((visible && childrenVisible === 1) || (!visible && childrenVisible === 0)) {
+			this._onDidVisibilityChange.fire(visible);
+		}
+	}
+
+	private visibleChildrenCount(): number {
+		return this.children.filter((c, index) => this.splitview.getViewSize(index) > 0).length;
 	}
 
 	getChildCachedVisibleSize(index: number): number | undefined {
@@ -651,6 +675,15 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		const onDidScroll = Event.any(Event.signal(this.splitview.onDidScroll), ...this.children.map(c => c.onDidScroll));
 		this.onDidScrollDisposable.dispose();
 		this.onDidScrollDisposable = onDidScroll(this._onDidScroll.fire, this._onDidScroll);
+
+		this.childrenVisibilityChangeDisposable.clear();
+		this.children.forEach((child, index) => {
+			if (child instanceof BranchNode) {
+				this.childrenVisibilityChangeDisposable.add(child.onDidVisibilityChange((visible) => {
+					this.setChildVisible(index, visible);
+				}));
+			}
+		});
 	}
 
 	trySet2x2(other: BranchNode): IDisposable {
@@ -714,7 +747,9 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 		this._onDidChange.dispose();
 		this._onDidSashReset.dispose();
+		this._onDidVisibilityChange.dispose();
 
+		this.childrenVisibilityChangeDisposable.dispose();
 		this.splitviewSashResetDisposable.dispose();
 		this.childrenSashResetDisposable.dispose();
 		this.childrenChangeDisposable.dispose();
@@ -1031,6 +1066,8 @@ export class GridView implements IDisposable {
 	private layoutController: LayoutController;
 	private disposable2x2: IDisposable = Disposable.None;
 
+	private rootVisibilityDisposable: IDisposable = Disposable.None;
+
 	private get root(): BranchNode { return this._root; }
 
 	private set root(root: BranchNode) {
@@ -1046,6 +1083,13 @@ export class GridView implements IDisposable {
 		this.onDidSashResetRelay.input = root.onDidSashReset;
 		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
 		this._onDidScroll.input = root.onDidScroll;
+		// The root should never be hidden
+		this.rootVisibilityDisposable.dispose();
+		this.rootVisibilityDisposable = root.onDidVisibilityChange(visible => {
+			if (!visible && this.root.children.length) {
+				this.root.setChildVisible(0, true);
+			}
+		});
 	}
 
 	/**
@@ -1683,6 +1727,7 @@ export class GridView implements IDisposable {
 
 	dispose(): void {
 		this.onDidSashResetRelay.dispose();
+		this.rootVisibilityDisposable.dispose();
 		this.root.dispose();
 		this.element.parentElement?.removeChild(this.element);
 	}
