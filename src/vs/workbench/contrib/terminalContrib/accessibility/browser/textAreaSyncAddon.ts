@@ -103,14 +103,11 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
-		this._logService.info('commandLine', commandLine);
-		this._logService.info('match ', commandLine.match((/.*PS.*|[A-Z]:\\*>/)));
 		let isGuessForPrompt = false;
 		if (this._currentPartialCommand.isInvalid || !commandLine.match((/.*PS.*>|[A-Z]:\\*>/)) && this._capabilities.get(TerminalCapability.CommandDetection)?.commands.length) {
 			const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 			const command = commands?.slice().reverse().find(c => c.marker?.line && this._currentPartialCommand?.commandStartMarker?.line && c.marker.line < this._currentPartialCommand?.commandStartMarker?.line);
 			isGuessForPrompt = true;
-			this._logService.info('reassigned command from {0} to {1}', this._currentPartialCommand, command);
 			this._currentPartialCommand = command;
 			const buffer = this._terminal.buffer.active;
 			const lineNumber = this._currentPartialCommand?.commandStartMarker?.line;
@@ -123,14 +120,12 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 				return;
 			}
 		}
-		this._logService.info('guess', isGuessForPrompt);
 		if (this._currentPartialCommand?.commandStartX !== undefined) {
-			const start = this._currentPartialCommand.commandStartX;
 			this._currentCommand = commandLine.substring(this._currentPartialCommand.commandStartX) || commandLine;
 			if (isGuessForPrompt) {
 				this._currentCommand = this._currentCommand.match(/.*PS.*>|[A-Z]:\\*>/)?.[0];
+				this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: guessed prompt `, this._currentCommand);
 			}
-			this._logService.info('start, end, commandline', start, commandLine, this._currentCommand);
 			this._cursorX = buffer.cursorX - this._currentPartialCommand.commandStartX;
 		} else {
 			this._currentCommand = undefined;

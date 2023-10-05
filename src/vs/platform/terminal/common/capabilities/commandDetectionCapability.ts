@@ -386,11 +386,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				if (line) {
 					this._currentCommand.commandStartLineContent = line.translateToString(true);
 				}
-				this._logService.info('start line content is', this._currentCommand.commandStartLineContent);
-				this._logService.info('is not match', !this._currentCommand.commandStartLineContent?.match((/.*PS.*|[A-Z]:\\*>/)));
 				if (!this._currentCommand.commandStartLineContent?.match((/.*PS.*|[A-Z]:\\*>/))) {
 					this._currentCommand.isInvalid = true;
 					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
+					this._logService.debug('CommandDetectionCapability#_commandInvalidatedNotPrompt', this._currentCommand.commandStartLineContent);
 				}
 			}
 			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
