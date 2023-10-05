@@ -293,7 +293,7 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 				events.map(e => ({
 					resource: this.uriTransformer.transformOutgoingURI(e.resource),
 					type: e.type,
-					correlationId: e.correlationId
+					cId: e.cId
 				}))
 			);
 		}));

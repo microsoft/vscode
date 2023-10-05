@@ -63,7 +63,6 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
 		const subscription = dispatcher(events => {
-			console.log(events);
 			if (!ignoreCreateEvents) {
 				for (const created of events.created) {
 					const uri = URI.revive(created);

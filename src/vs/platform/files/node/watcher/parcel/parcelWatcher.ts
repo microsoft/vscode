@@ -338,7 +338,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
-				events.push({ type, resource: URI.file(path), correlationId: watcher.request.correlationId });
+				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
 			}
 		}
 

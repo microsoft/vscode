@@ -897,11 +897,12 @@ export interface IFileChange {
 	readonly resource: URI;
 
 	/**
-	 * If provided when starting the file watcher, the identifier
-	 * will match the original file watching request as a way to
-	 * identify the original component that is interested in the change.
+	 * If provided when starting the file watcher, the correlation
+	 * identifier will match the original file watching request as
+	 * a way to identify the original component that is interested
+	 * in the change.
 	 */
-	readonly correlationId?: number;
+	readonly cId?: number;
 }
 
 export class FileChangesEvent {
@@ -910,11 +911,17 @@ export class FileChangesEvent {
 	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
+	private readonly correlationId: number | undefined = undefined;
+
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
 
 		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
 
 		for (const change of changes) {
+			if (typeof change.cId === 'number' && this.correlationId === undefined) {
+				this.correlationId = change.cId;
+			}
+
 			const array = entriesByType.get(change.type);
 			if (array) {
 				array.push([change.resource, change]);
@@ -1033,6 +1040,20 @@ export class FileChangesEvent {
 	 */
 	gotUpdated(): boolean {
 		return !!this.updated;
+	}
+
+	/**
+	 * Returns if this event contains changes that correlate to the
+	 * provided `correlationId`. Use `undefined` to find out if the
+	 * change is not correlated at all.
+	 *
+	 * File change event correlation is an advanced watch feature that
+	 * allows to  identify from which watch request the events originate
+	 * from. This correlation allows to route events specifically
+	 * only to the requestor and not emit them to all listeners.
+	 */
+	correlates(correlationId: number | undefined): boolean {
+		return this.correlationId === correlationId;
 	}
 
 	/**

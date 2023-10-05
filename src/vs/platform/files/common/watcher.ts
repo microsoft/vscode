@@ -269,11 +269,12 @@ export interface IDiskFileChange {
 	readonly resource: URI;
 
 	/**
-	 * If provided when starting the file watcher, the identifier
-	 * will match the original file watching request as a way to
-	 * identify the original component that is interested in the change.
+	 * If provided when starting the file watcher, the correlation
+	 * identifier will match the original file watching request as
+	 * a way to identify the original component that is interested
+	 * in the change.
 	 */
-	readonly correlationId?: number;
+	readonly cId?: number;
 }
 
 export interface ILogMessage {
@@ -285,7 +286,7 @@ export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
 	return changes.map(change => ({
 		type: change.type,
 		resource: URI.revive(change.resource),
-		correlationId: change.correlationId
+		cId: change.cId
 	}));
 }
 

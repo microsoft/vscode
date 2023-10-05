@@ -157,7 +157,7 @@ export class FileUserDataProvider extends Disposable implements
 				userDataChanges.push({
 					resource: userDataResource,
 					type: change.type,
-					correlationId: change.correlationId
+					cId: change.cId
 				});
 			}
 		}

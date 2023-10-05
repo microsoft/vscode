@@ -261,7 +261,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 								type = FileChangeType.DELETED;
 							}
 
-							this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type, correlationId: this.request.correlationId });
+							this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type, cId: this.request.correlationId });
 						}, NodeJSFileWatcherLibrary.FILE_DELETE_HANDLER_DELAY);
 
 						mapPathToStatDisposable.set(changedFileName, toDisposable(() => clearTimeout(timeoutHandle)));
@@ -280,7 +280,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							folderChildren.add(changedFileName);
 						}
 
-						this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type, correlationId: this.request.correlationId });
+						this.onFileChange({ resource: URI.file(join(this.request.path, changedFileName)), type, cId: this.request.correlationId });
 					}
 				}
 
@@ -319,14 +319,14 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 							// File still exists, so emit as change event and reapply the watcher
 							if (fileExists) {
-								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED, correlationId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
+								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								disposables.add(await this.doWatch(path, false));
 							}
 
 							// File seems to be really gone, so emit a deleted event and dispose
 							else {
-								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.DELETED, correlationId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
+								this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.DELETED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 
 								// Important to flush the event delivery
 								// before disposing the watcher, otherwise
@@ -345,7 +345,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 					// File changed
 					else {
-						this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED, correlationId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
+						this.onFileChange({ resource: URI.file(this.request.path), type: FileChangeType.UPDATED, cId: this.request.correlationId }, true /* skip excludes/includes (file is explicitly watched) */);
 					}
 				}
 			});
