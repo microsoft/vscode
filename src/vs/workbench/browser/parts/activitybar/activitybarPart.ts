@@ -79,6 +79,7 @@ export class ActivitybarPart extends Part {
 			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
 			orientation: ActionsOrientation.VERTICAL,
 			icon: true,
+			iconSize: 24,
 			activityHoverOptions: this.getActivityHoverOptions(),
 			preventLoopNavigation: true,
 			recomputeSizes: false,

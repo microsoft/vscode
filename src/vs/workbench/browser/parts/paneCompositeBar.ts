@@ -64,6 +64,7 @@ export interface IPaneCompositeBarOptions {
 	readonly pinnedViewContainersKey: string;
 	readonly placeholderViewContainersKey: string;
 	readonly icon: boolean;
+	readonly iconSize: number;
 	readonly recomputeSizes: boolean;
 	readonly orientation: ActionsOrientation;
 	readonly compositeSize: number;
@@ -357,9 +358,11 @@ export class PaneCompositeBar extends Disposable {
 				classNames = [iconId, 'uri-icon'];
 				createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
-				mask-size: 24px;
+				mask-size: ${this.options.iconSize}px;
 				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-				-webkit-mask-size: 24px;
+				-webkit-mask-size: ${this.options.iconSize}px;
+				mask-origin: padding;
+				-webkit-mask-origin: padding;
 			`);
 			} else if (ThemeIcon.isThemeIcon(icon)) {
 				classNames = ThemeIcon.asClassNameArray(icon);

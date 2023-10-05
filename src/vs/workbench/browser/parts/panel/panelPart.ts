@@ -128,6 +128,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			},
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
+			iconSize: 16,
 			overflowActionSize: 44,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
