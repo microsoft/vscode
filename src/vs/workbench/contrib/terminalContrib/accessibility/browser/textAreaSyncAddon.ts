@@ -10,7 +10,7 @@ import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { ICurrentPartialCommand, WINDOWS_PROMPT_REGEX } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 export interface ITextAreaData {
 	content: string;
@@ -104,7 +104,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		let isGuessForPrompt = false;
-		if (this._currentPartialCommand.isInvalid || !commandLine.match((/.*PS.*>|[A-Z]:\\*>/)) && this._capabilities.get(TerminalCapability.CommandDetection)?.commands.length) {
+		if (this._currentPartialCommand.isInvalid || !commandLine.match(WINDOWS_PROMPT_REGEX) && this._capabilities.get(TerminalCapability.CommandDetection)?.commands.length) {
 			const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 			const command = commands?.slice().reverse().find(c => c.marker?.line && this._currentPartialCommand?.commandStartMarker?.line && c.marker.line < this._currentPartialCommand?.commandStartMarker?.line);
 			isGuessForPrompt = true;
@@ -123,7 +123,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		if (this._currentPartialCommand?.commandStartX !== undefined) {
 			this._currentCommand = commandLine.substring(this._currentPartialCommand.commandStartX) || commandLine;
 			if (isGuessForPrompt) {
-				this._currentCommand = this._currentCommand.match(/.*PS.*>|[A-Z]:\\*>/)?.[0];
+				this._currentCommand = this._currentCommand.match(WINDOWS_PROMPT_REGEX)?.[0];
 				this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: guessed prompt `, this._currentCommand);
 			}
 			this._cursorX = buffer.cursorX - this._currentPartialCommand.commandStartX;

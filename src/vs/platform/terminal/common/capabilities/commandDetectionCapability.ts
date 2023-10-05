@@ -56,6 +56,8 @@ interface ITerminalDimensions {
 	rows: number;
 }
 
+export const WINDOWS_PROMPT_REGEX = /.*PS.*>|[A-Z]:\\*>/;
+
 export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
@@ -386,7 +388,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				if (line) {
 					this._currentCommand.commandStartLineContent = line.translateToString(true);
 				}
-				if (!this._currentCommand.commandStartLineContent?.match((/.*PS.*|[A-Z]:\\*>/))) {
+				if (!this._currentCommand.commandStartLineContent?.match(WINDOWS_PROMPT_REGEX)) {
 					this._currentCommand.isInvalid = true;
 					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 					this._logService.debug('CommandDetectionCapability#_commandInvalidatedNotPrompt', this._currentCommand.commandStartLineContent);
