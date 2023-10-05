@@ -87,7 +87,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		});
 
 		// Filter
-		const filteredCommandPicks: ICommandQuickPick[] = [];
+		let filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
 			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label) ?? undefined;
 			const aliasHighlights = commandPick.commandAlias ? AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined : undefined;
@@ -102,9 +102,11 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				filteredCommandPicks.push(commandPick);
 			}
 
-			// Also add if we have a 100% command ID match
+			// If we have a 100% command ID match then have that be
+			// the only result to pick from.
 			else if (filter === commandPick.commandId) {
-				filteredCommandPicks.push(commandPick);
+				filteredCommandPicks = [commandPick];
+				break;
 			}
 
 			// Handle tf-idf scoring for the rest if there's a filter
