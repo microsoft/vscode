@@ -93,7 +93,6 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: SHOW_NOTIFICATIONS_CENTER,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: NotificationsCenterVisibleContext.negate(),
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN),
 		handler: () => {
 			toasts.hide();

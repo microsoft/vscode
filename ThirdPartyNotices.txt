@@ -1563,7 +1563,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/vscode-latex-basics 1.5.3 - MIT
+jlelong/vscode-latex-basics 1.5.2 - MIT
 https://github.com/jlelong/vscode-latex-basics
 
 Copyright (c) vscode-latex-basics authors
@@ -2246,7 +2246,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-redhat-developer/vscode-java 1.21.0 - MIT
+redhat-developer/vscode-java 1.22.0 - MIT
 https://github.com/redhat-developer/vscode-java
 
 The MIT License (MIT)

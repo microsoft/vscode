@@ -13,7 +13,7 @@ import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgres
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatDynamicRequest, IChatProgress, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -89,13 +89,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					}
 				};
 			},
-			resolveRequest: async (session, context, token) => {
-				const dto = await this._proxy.$resolveRequest(handle, session.id, context, token);
-				return <IChatRequest>{
-					session,
-					...dto
-				};
-			},
 			provideReply: async (request, progress, token) => {
 				const id = `${handle}_${request.session.id}`;
 				this._activeRequestProgressCallbacks.set(id, progress);
@@ -159,15 +152,23 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
+		if ('documents' in progress) {
+			const usedContext = {
+				documents: progress.documents.map(({ uri, version, ranges }) => ({
+					uri: URI.revive(uri),
+					version,
+					ranges,
+				})),
+			};
+			this._activeRequestProgressCallbacks.get(id)?.(usedContext); // FIXME@ulugbekna: is this a correct thing to do?
+			return;
+		}
+
 		this._activeRequestProgressCallbacks.get(id)?.(progress);
 	}
 
 	async $acceptChatState(sessionId: number, state: any): Promise<void> {
 		this._stateEmitters.get(sessionId)?.fire(state);
-	}
-
-	$addRequest(context: any): void {
-		this._chatService.addRequest(context);
 	}
 
 	async $sendRequestToProvider(providerId: string, message: IChatDynamicRequest): Promise<void> {

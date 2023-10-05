@@ -5,20 +5,14 @@
 
 declare module 'vscode' {
 
-	export interface RelatedContextItem {
+	export interface DocumentContextItem {
 		readonly uri: Uri;
-		readonly range: Range;
+		readonly version: number;
+		readonly ranges: Range[];
 	}
 
 	export interface MappedEditsContext {
-		selections: Selection[];
-
-		/**
-		 * If there's no context, the array should be empty. It's also empty until we figure out how to compute this or retrieve from an extension (eg, copilot chat)
-		 *
-		 * TODO: it was suggested initially to be sorted from highest priority to lowest. How would it look like?
-		 */
-		related: RelatedContextItem[];
+		documents: DocumentContextItem[][];
 	}
 
 	/**

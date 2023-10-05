@@ -36,7 +36,7 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
-	test('_plain text with newlines', async () => {
+	test('plain text with newlines', async () => {
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'line 1\nline 2\r\nline 3';
 		const result = await parser.parseChatRequest('1', text);
@@ -82,7 +82,18 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatVariablesService, variablesService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const text = 'What does @selection mean?';
+		const text = 'What does #selection mean?';
+		const result = await parser.parseChatRequest('1', text);
+		await assertSnapshot(result);
+	});
+
+	test('variable with question mark', async () => {
+		const variablesService = mockObject<IChatVariablesService>()({});
+		variablesService.hasVariable.returns(true);
+		instantiationService.stub(IChatVariablesService, variablesService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const text = 'What is #selection?';
 		const result = await parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
@@ -93,7 +104,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatVariablesService, variablesService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const text = 'What does @selection mean?';
+		const text = 'What does #selection mean?';
 		const result = await parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
@@ -108,6 +119,16 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('agent with question mark', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgent.returns(<IChatAgentData>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = await parser.parseChatRequest('1', 'Are you there @agent?');
+		await assertSnapshot(result);
+	});
+
 	test('agent not first', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
 		agentsService.getAgent.returns(<IChatAgentData>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
@@ -118,7 +139,7 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
-	test('_agents and variables and multiline', async () => {
+	test('agents and variables and multiline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
 		agentsService.getAgent.returns(<IChatAgentData>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
 		instantiationService.stub(IChatAgentService, agentsService as any);
@@ -128,7 +149,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatVariablesService, variablesService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '@agent Please \ndo /subCommand with @selection\nand @debugConsole');
+		const result = await parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
 		await assertSnapshot(result);
 	});
 });

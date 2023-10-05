@@ -34,6 +34,8 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 const $ = dom.$;
 
@@ -213,7 +215,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
 		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
-		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
+		const editorOptions = getSimpleCodeEditorWidgetOptions();
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ModesHoverController.ID]));
+		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);

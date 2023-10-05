@@ -35,7 +35,7 @@ import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/te
 import { IEditableData } from 'vs/workbench/common/views';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
@@ -112,9 +112,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
 			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
-			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
+			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
+			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
+			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
 			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
 			this._themeService.onDidColorThemeChange(() => this.refresh()),
 			this._terminalGroupService.onDidChangeActiveInstance(e => {
@@ -417,7 +417,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		inputBox.focus();
 		inputBox.select({ start: 0, end: value.length });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			inputBox.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -749,7 +749,7 @@ class TabDecorationsProvider extends Disposable implements IDecorationsProvider 
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
-		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource])));
+		this._register(this._terminalService.onAnyInstancePrimaryStatusChange(e => this._onDidChange.fire([e.resource])));
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
