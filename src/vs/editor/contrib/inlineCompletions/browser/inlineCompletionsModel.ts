@@ -179,9 +179,8 @@ export class InlineCompletionsModel extends Disposable {
 		return filteredCompletions[idx];
 	});
 
-	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined> = this._source.inlineCompletions.map(
-		v => /** @description lastTriggerKind */ v?.request.context.triggerKind
-	);
+	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined>
+		= this._source.inlineCompletions.map(this, v => v?.request.context.triggerKind);
 
 	public readonly inlineCompletionsCount = derived<number | undefined>(this, reader => {
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {

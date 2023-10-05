@@ -78,7 +78,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				this.position,
 				model.selectedInlineCompletionIndex,
 				model.inlineCompletionsCount,
-				model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+				model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
 			));
 			editor.addContentWidget(contentWidget);
 			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
