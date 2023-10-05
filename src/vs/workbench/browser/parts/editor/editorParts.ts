@@ -231,6 +231,14 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		return this.activePart.arrangeGroups(arrangement);
 	}
 
+	toggleGroupArrangement(): void {
+		return this.activePart.toggleGroupArrangement();
+	}
+
+	isGroupMaximized(group: IEditorGroupView): boolean {
+		return this.getPart(group).isGroupMaximized(group);
+	}
+
 	restoreGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		return this.getPart(group).restoreGroup(group);
 	}

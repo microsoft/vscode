@@ -1333,9 +1333,10 @@ export class MainEditorPart extends EditorPart {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
 	}
 }
 
@@ -1352,10 +1353,11 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
 	}
 
 	protected override saveState(): void {
