@@ -54,8 +54,6 @@ import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { Color } from 'vs/base/common/color';
 import { ResourceMap } from 'vs/base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
@@ -1178,7 +1176,7 @@ class DirtyDiffDecorator extends Disposable {
 		});
 
 		if (!this.decorationsCollection) {
-			this.codeEditor.createDecorationsCollection(decorations);
+			this.decorationsCollection = this.codeEditor.createDecorationsCollection(decorations);
 		} else {
 			this.decorationsCollection.set(decorations);
 		}
@@ -1674,9 +1672,11 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		}
 
 		for (const [uri, item] of this.items) {
-			if (!this.editorService.isOpened({ resource: uri, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
-				dispose(item.values());
-				this.items.delete(uri);
+			for (const editorId of item.keys()) {
+				if (!this.editorService.visibleTextEditorControls.find(editor => isCodeEditor(editor) && editor.getModel()?.uri.toString() === uri.toString() && editor.getId() === editorId)) {
+					dispose(item.values());
+					this.items.delete(uri);
+				}
 			}
 		}
 	}

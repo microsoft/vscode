@@ -17,7 +17,8 @@
           description: "",
           subCommands: [ { name: "subCommand" } ]
         }
-      }
+      },
+      kind: "agent"
     },
     {
       range: {
@@ -30,7 +31,8 @@
         endLineNumber: 1,
         endColumn: 18
       },
-      text: " Please do "
+      text: " Please do ",
+      kind: "text"
     },
     {
       range: {
@@ -43,7 +45,8 @@
         endLineNumber: 1,
         endColumn: 29
       },
-      command: { name: "subCommand" }
+      command: { name: "subCommand" },
+      kind: "subcommand"
     },
     {
       range: {
@@ -56,7 +59,8 @@
         endLineNumber: 1,
         endColumn: 36
       },
-      text: " thanks"
+      text: " thanks",
+      kind: "text"
     }
   ],
   text: "@agent Please do /subCommand thanks"

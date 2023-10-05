@@ -277,6 +277,10 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		.filter(p => !!p) as CheckoutProcessor[];
 
 	for (const ref of refs) {
+		if (!detached && ref.name === 'origin/HEAD') {
+			continue;
+		}
+
 		for (const processor of processors) {
 			processor.onRef(ref);
 		}

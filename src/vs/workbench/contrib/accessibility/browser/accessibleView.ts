@@ -9,6 +9,7 @@ import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
@@ -37,7 +38,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { AccessibilityVerbositySettingId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
@@ -46,6 +47,7 @@ const enum DIMENSIONS {
 }
 
 export interface IAccessibleContentProvider {
+	id: AccessibleViewProviderId;
 	verbositySettingKey: AccessibilityVerbositySettingId;
 	options: IAccessibleViewOptions;
 	/**
@@ -62,6 +64,10 @@ export interface IAccessibleContentProvider {
 	 * When the language is markdown, this is provided by default.
 	 */
 	getSymbols?(): IAccessibleViewSymbol[];
+	/**
+	 * Note that this will only take effect if the provider has an ID.
+	 */
+	onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>;
 }
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
@@ -69,6 +75,7 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(provider: IAccessibleContentProvider): void;
+	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
 	next(): void;
 	previous(): void;
@@ -101,8 +108,19 @@ export interface IAccessibleViewOptions {
 	 */
 	language?: string;
 	type: AccessibleViewType;
+	/**
+	 * By default, places the cursor on the last line of the accessible view.
+	 */
 	positionBottom?: boolean;
+	/**
+	 * @returns a string that will be used as the content of the help dialog
+	 * instead of the one provided by default.
+	 */
 	customHelp?: () => string;
+	/**
+	 * If this provider might want to request to be shown again, provide an ID.
+	 */
+	id?: AccessibleViewProviderId;
 }
 
 export class AccessibleView extends Disposable {
@@ -123,6 +141,8 @@ export class AccessibleView extends Disposable {
 
 	private _currentProvider: IAccessibleContentProvider | undefined;
 	private _currentContent: string | undefined;
+
+	private _lastProvider: IAccessibleContentProvider | undefined;
 
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -209,6 +229,13 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewCurrentProviderId.reset();
 	}
 
+	showLastProvider(id: AccessibleViewProviderId): void {
+		if (!this._lastProvider || this._lastProvider.options.id !== id) {
+			return;
+		}
+		this.show(this._lastProvider);
+	}
+
 	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, lineNumber?: number): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
@@ -222,6 +249,7 @@ export class AccessibleView extends Disposable {
 			},
 			onHide: () => {
 				if (!showAccessibleViewHelp) {
+					this._updateLastProvider();
 					this._currentProvider = undefined;
 					this._resetContextKeys();
 				}
@@ -239,6 +267,17 @@ export class AccessibleView extends Disposable {
 
 		if (symbol && this._currentProvider) {
 			this.showSymbol(this._currentProvider, symbol);
+		}
+		if (provider.onDidRequestClearLastProvider) {
+			this._register(provider.onDidRequestClearLastProvider((id) => {
+				if (this._lastProvider?.options.id === id) {
+					this._lastProvider = undefined;
+				}
+			}));
+		}
+		if (provider.options.id) {
+			// only cache a provider with an ID so that it will eventually be cleared.
+			this._lastProvider = provider;
 		}
 	}
 
@@ -368,7 +407,7 @@ export class AccessibleView extends Disposable {
 		if (!showAccessibleViewHelp) {
 			// don't overwrite the current provider
 			this._currentProvider = provider;
-			this._accessibleViewCurrentProviderId.set(provider.verbositySettingKey.replaceAll('accessibility.verbosity.', ''));
+			this._accessibleViewCurrentProviderId.set(provider.id);
 		}
 		const value = this._configurationService.getValue(provider.verbositySettingKey);
 		const readMoreLink = provider.options.readMoreUrl ? localize("openDoc", "\n\nOpen a browser window with more information related to accessibility (H).") : '';
@@ -509,19 +548,29 @@ export class AccessibleView extends Disposable {
 		return this._currentProvider.options.type === AccessibleViewType.Help || this._currentProvider.options.language === 'markdown' || this._currentProvider.options.language === undefined || !!this._currentProvider.getSymbols?.();
 	}
 
-	public showAccessibleViewHelp(): void {
+	private _updateLastProvider(): IAccessibleContentProvider | undefined {
 		if (!this._currentProvider) {
 			return;
-
 		}
-		const currentProvider = Object.assign({}, this._currentProvider);
-		currentProvider.provideContent = this._currentProvider.provideContent.bind(currentProvider);
-		currentProvider.options = Object.assign({}, currentProvider.options);
+		const lastProvider = Object.assign({}, this._currentProvider);
+		lastProvider.provideContent = this._currentProvider.provideContent.bind(lastProvider);
+		lastProvider.options = Object.assign({}, this._currentProvider.options);
+		lastProvider.verbositySettingKey = this._currentProvider.verbositySettingKey;
+		return lastProvider;
+	}
+
+	public showAccessibleViewHelp(): void {
+		const lastProvider = this._updateLastProvider();
+		if (!lastProvider) {
+			return;
+		}
+
 		const accessibleViewHelpProvider: IAccessibleContentProvider = {
-			provideContent: () => currentProvider.options.customHelp ? currentProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
-			onClose: () => this.show(currentProvider),
+			id: lastProvider.id,
+			provideContent: () => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._getAccessibleViewHelpDialogContent(this._goToSymbolsSupported()),
+			onClose: () => this.show(lastProvider),
 			options: { type: AccessibleViewType.Help },
-			verbositySettingKey: this._currentProvider.verbositySettingKey
+			verbositySettingKey: lastProvider.verbositySettingKey
 		};
 		this._contextViewService.hideContextView();
 		// HACK: Delay to allow the context view to hide #186514
@@ -602,6 +651,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
 		this._accessibleView.show(provider);
+	}
+	showLastProvider(id: AccessibleViewProviderId): void {
+		this._accessibleView?.showLastProvider(id);
 	}
 	next(): void {
 		this._accessibleView?.next();
