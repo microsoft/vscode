@@ -326,7 +326,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 
-		const filteredSaveList = Array.isArray(setting) ? codeActionsOnSave : codeActionsOnSave.filter(x => setting[x.value] === 'always' || ((setting[x.value] === 'explicit') && env.reason === SaveReason.EXPLICIT) || (setting[x.value] === true && env.reason === SaveReason.EXPLICIT));
+		const filteredSaveList = Array.isArray(setting) ? codeActionsOnSave : codeActionsOnSave.filter(x => setting[x.value] === 'always' || ((setting[x.value] === 'explicit' || true) && env.reason === SaveReason.EXPLICIT));
 
 		await this.applyOnSaveActions(textEditorModel, filteredSaveList, excludedActions, progress, token);
 	}
