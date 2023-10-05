@@ -65,10 +65,10 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 
 		this._updateCommandAndCursor();
 
-		if (this._currentCommand) {
+		if (this._currentCommand !== textArea.value) {
 			textArea.value = this._currentCommand || '';
 			this._logService.debug(`TextAreaSyncAddon#syncTextArea: text changed to "${this._currentCommand}"`);
-		} else {
+		} else if (!this._currentCommand) {
 			textArea.value = '';
 			this._logService.debug(`TextAreaSyncAddon#syncTextArea: text cleared`);
 		}
