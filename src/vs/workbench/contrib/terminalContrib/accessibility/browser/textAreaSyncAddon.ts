@@ -93,10 +93,12 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no current command`);
 			return;
 		} else if (currentCommand.isInvalid && this._capabilities.get(TerminalCapability.CommandDetection)?.commands.length) {
-			const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			const command = commands?.slice().reverse().find(c => c.marker?.line && currentCommand?.commandStartMarker?.line && c.marker.line < currentCommand.commandStartMarker?.line);
+			const commandAbove = this._capabilities.get(TerminalCapability.CommandDetection)?.commands?.slice().reverse().find(c => {
+				return c.command.match(WINDOWS_PROMPT_REGEX) &&
+					c.marker?.line && currentCommand?.commandStartMarker?.line && c.marker.line < currentCommand.commandStartMarker?.line;
+			});
 			isGuessForPrompt = true;
-			currentCommand = command;
+			currentCommand = commandAbove;
 		}
 		const buffer = this._terminal.buffer.active;
 		const lineNumber = currentCommand?.commandStartMarker?.line;
