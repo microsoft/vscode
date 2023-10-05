@@ -657,35 +657,6 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	async addRequest(context: any): Promise<void> {
-		// This and resolveRequest are not currently used by any scenario, but leave for future use
-
-		// TODO How to decide which session this goes to?
-		const model = Iterable.first(this._sessionModels.values());
-		if (!model) {
-			// If no session, create one- how and is the service the right place to decide this?
-			this.trace('addRequest', 'No session available');
-			return;
-		}
-
-		const provider = this._providers.get(model.providerId);
-		if (!provider || !provider.resolveRequest) {
-			this.trace('addRequest', 'No provider available');
-			return undefined;
-		}
-
-		this.trace('addRequest', `Calling resolveRequest for session ${model.sessionId}`);
-		const request = await provider.resolveRequest(model.session!, context, CancellationToken.None);
-		if (!request) {
-			this.trace('addRequest', `Provider returned no request for session ${model.sessionId}`);
-			return;
-		}
-
-		// Maybe this API should queue a request after the current one?
-		this.trace('addRequest', `Sending resolved request for session ${model.sessionId}`);
-		this.sendRequest(model.sessionId, request.message);
-	}
-
 	async sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): Promise<void> {
 		this.trace('sendRequestToProvider', `sessionId: ${sessionId}`);
 		await this.sendRequest(sessionId, message.message);
