@@ -332,11 +332,11 @@ export class ViewLine implements IVisibleLine {
 		return null;
 	}
 
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
+	public getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number {
 		if (!this._renderedViewLine) {
 			return 1;
 		}
-		return this._renderedViewLine.getColumnOfNodeOffset(lineNumber, spanNode, offset);
+		return this._renderedViewLine.getColumnOfNodeOffset(spanNode, offset);
 	}
 }
 
@@ -346,7 +346,7 @@ interface IRenderedViewLine {
 	getWidth(context: DomReadingContext | null): number;
 	getWidthIsFast(): boolean;
 	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
-	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
+	getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number;
 }
 
 const enum Constants {
@@ -476,16 +476,8 @@ class FastRenderedViewLine implements IRenderedViewLine {
 		return r[0].left;
 	}
 
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		const spanNodeTextContentLength = spanNode.textContent!.length;
-
-		let spanIndex = -1;
-		while (spanNode) {
-			spanNode = <HTMLElement>spanNode.previousSibling;
-			spanIndex++;
-		}
-
-		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
+	public getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number {
+		return getColumnOfNodeOffset(this._characterMapping, spanNode, offset);
 	}
 }
 
@@ -679,16 +671,8 @@ class RenderedViewLine implements IRenderedViewLine {
 	/**
 	 * Returns the column for the text found at a specific offset inside a rendered dom node
 	 */
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		const spanNodeTextContentLength = spanNode.textContent!.length;
-
-		let spanIndex = -1;
-		while (spanNode) {
-			spanNode = <HTMLElement>spanNode.previousSibling;
-			spanIndex++;
-		}
-
-		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
+	public getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number {
+		return getColumnOfNodeOffset(this._characterMapping, spanNode, offset);
 	}
 }
 
@@ -732,4 +716,16 @@ function createWebKitRenderedLine(domNode: FastDomNode<HTMLElement> | null, rend
 
 function createNormalRenderedLine(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType): RenderedViewLine {
 	return new RenderedViewLine(domNode, renderLineInput, characterMapping, containsRTL, containsForeignElements);
+}
+
+export function getColumnOfNodeOffset(characterMapping: CharacterMapping, spanNode: HTMLElement, offset: number): number {
+	const spanNodeTextContentLength = spanNode.textContent!.length;
+
+	let spanIndex = -1;
+	while (spanNode) {
+		spanNode = <HTMLElement>spanNode.previousSibling;
+		spanIndex++;
+	}
+
+	return characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
 }

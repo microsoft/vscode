@@ -47,7 +47,7 @@ export class ContributedStatusBarItemController extends Disposable implements IN
 		added: ICellViewModel[];
 		removed: { handle: number }[];
 	}): void {
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditor.getViewModel();
 		if (!vm) {
 			return;
 		}

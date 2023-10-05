@@ -20,6 +20,7 @@ import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRend
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class ColorHover implements IHoverPart {
 
@@ -180,6 +181,10 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext) {
 	if (hoverParts.length === 0 || !editor.hasModel()) {
 		return Disposable.None;
+	}
+	if (context.setMinimumDimensions) {
+		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
+		context.setMinimumDimensions(new Dimension(302, minimumHeight));
 	}
 
 	const disposables = new DisposableStore();

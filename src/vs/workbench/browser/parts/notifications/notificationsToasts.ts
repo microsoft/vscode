@@ -187,10 +187,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
+
 				if (!item.source) {
 					return localize('notificationAriaLabel', "{0}, notification", item.message.raw);
 				}
-
 				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source);
 			})()
 		});

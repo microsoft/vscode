@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Actions
 (function registerActions(): void {
@@ -220,14 +220,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'enum': ['native', 'custom'],
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
-			},
-			'window.experimental.windowControlsOverlay.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
-				'included': isWindows
+				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -298,6 +291,25 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'default': [],
 				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`).'),
 				'included': isMacintosh
+			}
+		}
+	});
+
+	// Security
+	registry.registerConfiguration({
+		...securityConfigurationNodeBase,
+		'properties': {
+			'security.promptForLocalFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForLocalFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a local file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
+			},
+			'security.promptForRemoteFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForRemoteFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a remote file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
 			}
 		}
 	});

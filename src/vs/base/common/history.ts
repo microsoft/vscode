@@ -120,14 +120,15 @@ export class HistoryNavigator2<T> {
 	private head: HistoryNode<T>;
 	private tail: HistoryNode<T>;
 	private cursor: HistoryNode<T>;
-	private size: number;
+	private _size: number;
+	get size(): number { return this._size; }
 
 	constructor(history: readonly T[], private capacity: number = 10) {
 		if (history.length < 1) {
 			throw new Error('not supported');
 		}
 
-		this.size = 1;
+		this._size = 1;
 		this.head = this.tail = this.cursor = {
 			value: history[0],
 			previous: undefined,
@@ -150,7 +151,7 @@ export class HistoryNavigator2<T> {
 		this.tail.next = node;
 		this.tail = node;
 		this.cursor = this.tail;
-		this.size++;
+		this._size++;
 
 		if (this.valueSet.has(value)) {
 			this._deleteFromList(value);
@@ -158,12 +159,12 @@ export class HistoryNavigator2<T> {
 			this.valueSet.add(value);
 		}
 
-		while (this.size > this.capacity) {
+		while (this._size > this.capacity) {
 			this.valueSet.delete(this.head.value);
 
 			this.head = this.head.next!;
 			this.head.previous = undefined;
-			this.size--;
+			this._size--;
 		}
 	}
 
@@ -186,6 +187,24 @@ export class HistoryNavigator2<T> {
 		}
 
 		return oldValue;
+	}
+
+	prepend(value: T): void {
+		if (this._size === this.capacity || this.valueSet.has(value)) {
+			return;
+		}
+
+		const node: HistoryNode<T> = {
+			value,
+			previous: undefined,
+			next: this.head
+		};
+
+		this.head.previous = node;
+		this.head = node;
+		this._size++;
+
+		this.valueSet.add(value);
 	}
 
 	isAtEnd(): boolean {
@@ -243,7 +262,7 @@ export class HistoryNavigator2<T> {
 					temp.next!.previous = temp.previous;
 				}
 
-				this.size--;
+				this._size--;
 			}
 
 			temp = temp.next!;

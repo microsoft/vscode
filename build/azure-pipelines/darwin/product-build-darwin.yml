@@ -18,7 +18,8 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -60,7 +61,10 @@ steps:
   - script: |
       set -e
       npm config set registry "$NPM_REGISTRY" --location=project
-      npm config set always-auth=true --location=project
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      echo "always-auth=true" >> .npmrc
       yarn config set registry "$NPM_REGISTRY"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM & Yarn
@@ -74,7 +78,7 @@ steps:
   - script: |
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
+      npm i -g node-gyp@9.4.0
 
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break

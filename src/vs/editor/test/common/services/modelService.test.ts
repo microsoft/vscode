@@ -11,7 +11,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextBuffer, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -20,6 +20,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const GENERATE_TESTS = false;
 
@@ -45,6 +46,8 @@ suite('ModelService', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('EOL setting respected depending on root', () => {
 		const model1 = modelService.createModel('farboo', null);
 		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
@@ -53,6 +56,10 @@ suite('ModelService', () => {
 		assert.strictEqual(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
 		assert.strictEqual(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
 		assert.strictEqual(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+
+		model1.dispose();
+		model2.dispose();
+		model3.dispose();
 	});
 
 	test('_computeEdits no change', function () {
@@ -66,7 +73,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -74,7 +82,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -92,7 +100,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -100,7 +109,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -120,7 +129,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line one', //16
 				'and this is line number two', //27
@@ -128,7 +138,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -146,7 +156,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'This is line One', //16
 				'and this is line number two', //27
@@ -154,7 +165,7 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -181,7 +192,8 @@ suite('ModelService', () => {
 			].join('\n')
 		));
 
-		const textBuffer = createTextBuffer(
+		const textBuffer = createAndRegisterTextBuffer(
+			disposables,
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
@@ -189,7 +201,7 @@ suite('ModelService', () => {
 				''
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		).textBuffer;
+		);
 
 		const actual = ModelService._computeEdits(model, textBuffer);
 
@@ -391,7 +403,7 @@ suite('ModelService', () => {
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	const model = createTextModel(lines1.join('\n'));
-	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF).textBuffer;
+	const { disposable, textBuffer } = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF);
 
 	// compute required edits
 	// let start = Date.now();
@@ -402,6 +414,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	model.pushEditOperations([], edits, null);
 
 	assert.strictEqual(model.getValue(), lines2.join('\n'));
+	disposable.dispose();
 	model.dispose();
 }
 
@@ -450,4 +463,10 @@ assertComputeEdits(file1, file2);
 			break;
 		}
 	}
+}
+
+function createAndRegisterTextBuffer(store: DisposableStore, value: string | ITextBufferFactory | ITextSnapshot, defaultEOL: DefaultEndOfLine): ITextBuffer {
+	const { disposable, textBuffer } = createTextBuffer(value, defaultEOL);
+	store.add(disposable);
+	return textBuffer;
 }

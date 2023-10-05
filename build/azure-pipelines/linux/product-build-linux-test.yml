@@ -13,17 +13,7 @@ steps:
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
-
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        sudo apt-get update
-        sudo apt-get install -y libxkbfile-dev pkg-config libsecret-1-dev libxss1 dbus xvfb libgtk-3-0 libgbm1
-        sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
-        sudo chmod +x /etc/init.d/xvfb
-        sudo update-rc.d xvfb defaults
-        sudo service xvfb start
-      displayName: Setup build environment
+    retryCountOnTaskFailure: 3
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |

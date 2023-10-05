@@ -7,7 +7,6 @@ import { addDisposableListener, Dimension, EventType, findParentWithClass } from
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -301,6 +300,6 @@ export class WebviewViewPane extends ViewPane {
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {
-		return withNullAsUndefined(findParentWithClass(container, 'monaco-scrollable-element'));
+		return findParentWithClass(container, 'monaco-scrollable-element') ?? undefined;
 	}
 }

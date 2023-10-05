@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/71b1ead8c99715f6c994115ebab7ee4a14cf0c59",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/8740e610a367c5e3f15be716acc7207655ced4cf",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -314,7 +314,7 @@
 				},
 				{
 					"match": "(?!when|and|or\\b)\\b([\\w0-9'`^._]+)",
-					"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
+					"comments": "Here we need the \\w modifier in order to check that the words are allowed",
 					"captures": {
 						"1": {
 							"name": "entity.name.type.fsharp"

@@ -132,17 +132,27 @@ pre code {
 }
 
 .vscode-light h1,
-.vscode-light h2,
 .vscode-light hr,
 .vscode-light td {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
 .vscode-dark h1,
-.vscode-dark h2,
 .vscode-dark hr,
 .vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
+}
+
+@media (forced-colors: active) and (prefers-color-scheme: light){
+	body {
+		forced-color-adjust: none;
+	}
+}
+
+@media (forced-colors: active) and (prefers-color-scheme: dark){
+	body {
+		forced-color-adjust: none;
+	}
 }
 `;
 

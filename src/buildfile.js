@@ -53,7 +53,7 @@ exports.workerProfileAnalysis = [createEditorWorkerModuleDescription('vs/platfor
 
 exports.workbenchDesktop = [
 	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/worker/textMate.worker'),
+	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -62,7 +62,7 @@ exports.workbenchDesktop = [
 
 exports.workbenchWeb = [
 	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/worker/textMate.worker'),
+	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 ];
 

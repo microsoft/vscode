@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { runWhenIdle } from 'vs/base/common/async';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { LRUCache } from 'vs/base/common/map';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -60,7 +60,7 @@ export class CodeLensCache implements ICodeLensCache {
 		this._deserialize(raw);
 
 		// store lens data on shutdown
-		once(storageService.onWillSaveState)(e => {
+		Event.once(storageService.onWillSaveState)(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				storageService.store(key, this._serialize(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}

@@ -40,24 +40,23 @@ import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
-import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
+import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
-import { HelpQuickAccessProvider } from 'vs/platform/quickinput/browser/helpQuickAccess';
-import { CommandsQuickAccessProvider } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
-import { DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 import { Lazy } from 'vs/base/common/lazy';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
+import { IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -113,7 +112,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			// Picker for this run
 			this.picker = picker;
-			once(picker.onDispose)(() => {
+			Event.once(picker.onDispose)(() => {
 				if (picker === this.picker) {
 					this.picker = undefined; // clear the picker when disposed to not keep it in memory for too long
 				}
@@ -145,7 +144,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				this.editorViewState = {
 					group: activeEditorPane.group,
 					editor: activeEditorPane.input,
-					state: withNullAsUndefined(getIEditor(activeEditorPane.getControl())?.saveViewState())
+					state: getIEditor(activeEditorPane.getControl())?.saveViewState() ?? undefined,
 				};
 			}
 		}
@@ -188,6 +187,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IQuickChatService private readonly quickChatService: IQuickChatService,
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -235,7 +236,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// but only when the picker was closed via explicit user
 		// gesture and not e.g. when focus was lost because that
 		// could mean the user clicked into the editor directly.
-		disposables.add(once(picker.onDidHide)(({ reason }) => {
+		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
 			if (reason === QuickInputHideReason.Gesture) {
 				this.pickState.restoreEditorViewState();
 			}
@@ -757,68 +758,54 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#endregion
 
-	//#region Help (if enabled)
+	//#region Command Center (if enabled)
 
-	private helpQuickAccess = this.instantiationService.createInstance(HelpQuickAccessProvider);
+	private readonly lazyRegistry = new Lazy(() => Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
 
 	private getHelpPicks(query: IPreparedQuery, token: CancellationToken, runOptions?: AnythingQuickAccessProviderRunOptions): IAnythingQuickPickItem[] {
 		if (query.normalized) {
 			return []; // If there's a filter, we don't show the help
 		}
 
-		type IHelpAnythingQuickPickItem = IAnythingQuickPickItem & { prefix: string };
-		const providers: Array<IHelpAnythingQuickPickItem> = this.helpQuickAccess.getQuickAccessProviders();
-		const mapOfProviders = new Map<string, IHelpAnythingQuickPickItem>();
-		for (const provider of providers) {
-			mapOfProviders.set(provider.prefix, provider);
+		type IHelpAnythingQuickPickItem = IAnythingQuickPickItem & { commandCenterOrder: number };
+		const providers: IHelpAnythingQuickPickItem[] = this.lazyRegistry.value.getQuickAccessProviders()
+			.filter(p => p.helpEntries.some(h => h.commandCenterOrder !== undefined))
+			.flatMap(provider => provider.helpEntries
+				.filter(h => h.commandCenterOrder !== undefined)
+				.map(helpEntry => {
+					const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = {
+						...runOptions,
+						includeHelp: provider.prefix === AnythingQuickAccessProvider.PREFIX ? false : runOptions?.includeHelp
+					};
+
+					const label = helpEntry.commandCenterLabel ?? helpEntry.description!;
+					return {
+						label,
+						description: helpEntry.prefix ?? provider.prefix,
+						commandCenterOrder: helpEntry.commandCenterOrder!,
+						keybinding: helpEntry.commandId ? this.keybindingService.lookupKeybinding(helpEntry.commandId) : undefined,
+						ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
+						accept: () => {
+							this.quickInputService.quickAccess.show(provider.prefix, {
+								preserveValue: true,
+								providerOptions: providerSpecificOptions
+							});
+						}
+					};
+				}));
+
+		// TODO: There has to be a better place for this, but it's the first time we are adding a non-quick access provider
+		// to the command center, so for now, let's do this.
+		if (this.quickChatService.enabled) {
+			providers.push({
+				label: localize('chat', "Open Quick Chat"),
+				commandCenterOrder: 30,
+				keybinding: this.keybindingService.lookupKeybinding(ASK_QUICK_QUESTION_ACTION_ID),
+				accept: () => this.quickChatService.toggle()
+			});
 		}
 
-		const importantProviders: Array<IHelpAnythingQuickPickItem> = [];
-		const AddProvider = (prefix: string, modifications: Partial<IAnythingQuickPickItem> = {}) => {
-			if (mapOfProviders.has(prefix)) {
-				const provider = mapOfProviders.get(prefix)!;
-
-				// We swap the label and description in this to emphasize the ability
-				// not the prefix.
-				provider.label = provider.description!;
-				provider.description = provider.prefix;
-
-				// If the user chooses 'Go to File' the help should go away as if they were
-				// entering a new mode
-				const providerSpecificOptions: AnythingQuickAccessProviderRunOptions | undefined = {
-					...runOptions,
-					includeHelp: provider.prefix === AnythingQuickAccessProvider.PREFIX ? false : runOptions?.includeHelp
-				};
-
-				importantProviders.push({
-					...mapOfProviders.get(prefix)!,
-					...modifications,
-					accept: () => {
-						this.quickInputService.quickAccess.show(provider.prefix, {
-							preserveValue: true,
-							providerOptions: providerSpecificOptions
-						});
-					}
-				});
-			}
-		};
-
-		// TODO@TylerLeonhardt ideally this hardcoded list and hardcoded dependency moves
-		// into a provider model where when I register a quick access provider I can enlist
-		// for showing up in command center
-
-		// Acts as the ordering too
-		AddProvider(AnythingQuickAccessProvider.PREFIX);
-		AddProvider(CommandsQuickAccessProvider.PREFIX);
-		AddProvider(GotoSymbolQuickAccessProvider.PREFIX);
-		AddProvider(DEBUG_QUICK_ACCESS_PREFIX);
-		AddProvider(TasksQuickAccessProvider.PREFIX);
-		AddProvider(HelpQuickAccessProvider.PREFIX, {
-			// More concise
-			label: localize('more', 'More')
-		});
-
-		return importantProviders;
+		return providers.sort((a, b) => a.commandCenterOrder - b.commandCenterOrder);
 	}
 
 	//#endregion

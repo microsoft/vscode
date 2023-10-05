@@ -15,6 +15,8 @@ import { Event } from 'vs/base/common/event';
 import type { ISearchOptions } from 'xterm-addon-search';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 
+const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
+
 export class TerminalFindWidget extends SimpleFindWidget {
 	private _findInputFocused: IContextKey<boolean>;
 	private _findWidgetFocused: IContextKey<boolean>;
@@ -32,6 +34,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			showCommonFindToggles: true,
 			checkImeCompletionState: true,
 			showResultCount: true,
+			initialWidth: TERMINAL_FIND_WIDGET_INITIAL_WIDTH,
+			enableSash: true,
 			appendCaseSensitiveActionId: TerminalCommandId.ToggleFindCaseSensitive,
 			appendRegexActionId: TerminalCommandId.ToggleFindRegex,
 			appendWholeWordsActionId: TerminalCommandId.ToggleFindWholeWord,
@@ -58,6 +62,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 				this.find(true, true);
 			}
 		}));
+
+		this.updateResultCount();
 	}
 
 	find(previous: boolean, update?: boolean) {
@@ -74,17 +80,18 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	override reveal(): void {
 		const initialInput = this._instance.hasSelection() && !this._instance.selection!.includes('\n') ? this._instance.selection : undefined;
+		const inputValue = initialInput ?? this.inputValue;
 		const xterm = this._instance.xterm;
-		if (xterm && this.inputValue && this.inputValue !== '') {
+		if (xterm && inputValue && inputValue !== '') {
 			// trigger highlight all matches
-			this._findPreviousWithEvent(xterm, this.inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
+			this._findPreviousWithEvent(xterm, inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
 				this.updateButtons(foundMatch);
 				this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
 			});
 		}
 		this.updateButtons(false);
 
-		super.reveal(initialInput);
+		super.reveal(inputValue);
 		this._findWidgetVisible.set(true);
 	}
 

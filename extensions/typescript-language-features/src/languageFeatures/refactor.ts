@@ -20,6 +20,7 @@ import { coalesce } from '../utils/arrays';
 import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
+import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -33,17 +34,6 @@ function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto
 	return workspaceEdit;
 }
 
-
-class CompositeCommand implements Command {
-	public static readonly ID = '_typescript.compositeCommand';
-	public readonly id = CompositeCommand.ID;
-
-	public async execute(...commands: vscode.Command[]): Promise<void> {
-		for (const command of commands) {
-			await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
-		}
-	}
-}
 
 namespace DidApplyRefactoringCommand {
 	export interface Args {
@@ -175,47 +165,80 @@ class MoveToFileRefactorCommand implements Command {
 		if (response.type !== 'response' || !response.body) {
 			return;
 		}
+		const body = response.body;
 
-		const selectExistingFileItem: vscode.QuickPickItem = {
-			label: vscode.l10n.t("Select existing file..."),
-		};
-		const selectNewFileItem: vscode.QuickPickItem = {
-			label: vscode.l10n.t("Enter new file path..."),
-		};
-
-		type DestinationItem = vscode.QuickPickItem & { readonly file: string };
+		type DestinationItem = vscode.QuickPickItem & { readonly file?: string };
+		const selectExistingFileItem: vscode.QuickPickItem = { label: vscode.l10n.t("Select existing file...") };
+		const selectNewFileItem: vscode.QuickPickItem = { label: vscode.l10n.t("Enter new file path...") };
 
 		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-		const destinationItems = response.body.files.map((file): DestinationItem => {
-			const uri = this.client.toResource(file);
-			const parentDir = Utils.dirname(uri);
+		const quickPick = vscode.window.createQuickPick<DestinationItem>();
+		quickPick.ignoreFocusOut = true;
 
-			let description;
-			if (workspaceFolder) {
-				if (uri.scheme === Schemes.file) {
-					description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
-				} else {
-					description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
-				}
-			} else {
-				description = parentDir.fsPath;
+		// true so we don't skip computing in the first call
+		let quickPickInRelativeMode = true;
+		const updateItems = () => {
+			const relativeQuery = ['./', '../'].find(str => quickPick.value.startsWith(str));
+			if (quickPickInRelativeMode === false && !!relativeQuery === false) {
+				return;
 			}
+			quickPickInRelativeMode = !!relativeQuery;
+			const destinationItems = body.files.map((file): DestinationItem | undefined => {
+				const uri = this.client.toResource(file);
+				const parentDir = Utils.dirname(uri);
+				const filename = Utils.basename(uri);
 
-			return {
-				file,
-				label: Utils.basename(uri),
-				description,
-			};
-		});
+				let description: string | undefined;
+				if (workspaceFolder) {
+					if (uri.scheme === Schemes.file) {
+						description = path.relative(workspaceFolder.uri.fsPath, parentDir.fsPath);
+					} else {
+						description = path.posix.relative(workspaceFolder.uri.path, parentDir.path);
+					}
+					if (relativeQuery) {
+						const convertRelativePath = (str: string) => {
+							return !str.startsWith('../') ? `./${str}` : str;
+						};
 
-		const picked = await vscode.window.showQuickPick([
-			selectExistingFileItem,
-			selectNewFileItem,
-			{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
-			...destinationItems
-		], {
-			title: vscode.l10n.t("Move to File"),
-			placeHolder: vscode.l10n.t("Select move destination"),
+						const relativePath = convertRelativePath(path.relative(path.dirname(document.uri.fsPath), uri.fsPath));
+						if (!relativePath.startsWith(relativeQuery)) {
+							return;
+						}
+						description = relativePath;
+					}
+				} else {
+					description = parentDir.fsPath;
+				}
+
+				return {
+					file,
+					label: Utils.basename(uri),
+					description: relativeQuery ? description : path.join(description, filename),
+				};
+			});
+			quickPick.items = [
+				selectExistingFileItem,
+				selectNewFileItem,
+				{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
+				...coalesce(destinationItems)
+			];
+		};
+		quickPick.title = vscode.l10n.t("Move to File");
+		quickPick.placeholder = vscode.l10n.t("Enter file path");
+		quickPick.matchOnDescription = true;
+		quickPick.onDidChangeValue(updateItems);
+		updateItems();
+
+		const picked = await new Promise<DestinationItem | undefined>(resolve => {
+			quickPick.onDidAccept(() => {
+				resolve(quickPick.selectedItems[0]);
+				quickPick.dispose();
+			});
+			quickPick.onDidHide(() => {
+				resolve(undefined);
+				quickPick.dispose();
+			});
+			quickPick.show();
 		});
 		if (!picked) {
 			return;
@@ -236,7 +259,7 @@ class MoveToFileRefactorCommand implements Command {
 			});
 			return picked ? this.client.toTsFilePath(picked) : undefined;
 		} else {
-			return (picked as DestinationItem).file;
+			return picked.file;
 		}
 	}
 }
@@ -322,15 +345,17 @@ class InlinedCodeAction extends vscode.CodeAction {
 		public readonly refactor: Proto.ApplicableRefactorInfo,
 		public readonly action: Proto.RefactorActionInfo,
 		public readonly range: vscode.Range,
+		public readonly copilotRename?: (info: Proto.RefactorEditInfo) => vscode.Command,
 	) {
-		super(action.description, InlinedCodeAction.getKind(action));
+		const title = copilotRename ? action.description + ' and suggest a name with Copilot.' : action.description;
+		super(title, InlinedCodeAction.getKind(action));
 
 		if (action.notApplicableReason) {
 			this.disabled = { reason: action.notApplicableReason };
 		}
 
 		this.command = {
-			title: action.description,
+			title,
 			command: DidApplyRefactoringCommand.ID,
 			arguments: [<DidApplyRefactoringCommand.Args>{ action: action.name }],
 		};
@@ -362,18 +387,21 @@ class InlinedCodeAction extends vscode.CodeAction {
 		if (response.body.renameLocation) {
 			// Disable renames in interactive playground https://github.com/microsoft/vscode/issues/75137
 			if (this.document.uri.scheme !== fileSchemes.walkThroughSnippet) {
+				if (this.copilotRename && this.command) {
+					this.command.title = 'Copilot: ' + this.command.title;
+				}
 				this.command = {
 					command: CompositeCommand.ID,
 					title: '',
 					arguments: coalesce([
 						this.command,
-						{
+						this.copilotRename ? this.copilotRename(response.body) : {
 							command: 'editor.action.rename',
 							arguments: [[
 								this.document.uri,
 								typeConverters.Position.fromLocation(response.body.renameLocation)
 							]]
-						}
+						},
 					])
 				};
 			}
@@ -423,7 +451,6 @@ class SelectCodeAction extends vscode.CodeAction {
 		};
 	}
 }
-
 type TsCodeAction = InlinedCodeAction | MoveToFileCodeAction | SelectCodeAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
@@ -438,6 +465,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new SelectRefactorCommand(this.client));
 		commandManager.register(new MoveToFileRefactorCommand(this.client, didApplyRefactoringCommand));
+		commandManager.register(new EditorChatFollowUp(this.client));
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
@@ -549,7 +577,36 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (action.name === 'Move to file') {
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
-			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection);
+			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
+			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiCodeActions')) {
+				if (Extract_Constant.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractConstant')
+					|| Extract_Function.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractFunction')
+					|| Extract_Type.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractType')
+					|| Extract_Interface.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractInterface')) {
+					const newName = Extract_Constant.matches(action) ? 'newLocal'
+						: Extract_Function.matches(action) ? 'newFunction'
+							: Extract_Type.matches(action) ? 'NewType'
+								: Extract_Interface.matches(action) ? 'NewInterface'
+									: '';
+					copilotRename = info => ({
+						title: '',
+						command: EditorChatFollowUp.ID,
+						arguments: [<EditorChatFollowUp_Args>{
+							message: `Rename ${newName} to a better name based on usage.`,
+							expand: Extract_Constant.matches(action) ? {
+								kind: 'navtree-function',
+								pos: typeConverters.Position.fromLocation(info.renameLocation!),
+							} : {
+								kind: 'refactor-info',
+								refactor: info,
+							},
+							document,
+						}]
+					});
+				}
+
+			}
+			codeAction = new InlinedCodeAction(this.client, document, refactor, action, rangeOrSelection, copilotRename);
 		}
 
 		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);

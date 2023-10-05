@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { HistoryNavigator2 } from 'vs/base/common/history';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
@@ -26,21 +24,21 @@ export interface IInteractiveHistoryService {
 
 export class InteractiveHistoryService extends Disposable implements IInteractiveHistoryService {
 	declare readonly _serviceBrand: undefined;
-	#history: ResourceMap<HistoryNavigator2<string>>;
+	_history: ResourceMap<HistoryNavigator2<string>>;
 
 	constructor() {
 		super();
 
-		this.#history = new ResourceMap<HistoryNavigator2<string>>();
+		this._history = new ResourceMap<HistoryNavigator2<string>>();
 	}
 
 	addToHistory(uri: URI, value: string): void {
-		if (!this.#history.has(uri)) {
-			this.#history.set(uri, new HistoryNavigator2<string>([value], 50));
+		if (!this._history.has(uri)) {
+			this._history.set(uri, new HistoryNavigator2<string>([value], 50));
 			return;
 		}
 
-		const history = this.#history.get(uri)!;
+		const history = this._history.get(uri)!;
 
 		history.resetCursor();
 		if (history?.current() !== value) {
@@ -48,22 +46,22 @@ export class InteractiveHistoryService extends Disposable implements IInteractiv
 		}
 	}
 	getPreviousValue(uri: URI): string | null {
-		const history = this.#history.get(uri);
+		const history = this._history.get(uri);
 		return history?.previous() ?? null;
 	}
 
 	getNextValue(uri: URI): string | null {
-		const history = this.#history.get(uri);
+		const history = this._history.get(uri);
 
 		return history?.next() ?? null;
 	}
 
 	replaceLast(uri: URI, value: string) {
-		if (!this.#history.has(uri)) {
-			this.#history.set(uri, new HistoryNavigator2<string>([value], 50));
+		if (!this._history.has(uri)) {
+			this._history.set(uri, new HistoryNavigator2<string>([value], 50));
 			return;
 		} else {
-			const history = this.#history.get(uri);
+			const history = this._history.get(uri);
 			if (history?.current() !== value) {
 				history?.replaceLast(value);
 			}
@@ -72,11 +70,11 @@ export class InteractiveHistoryService extends Disposable implements IInteractiv
 	}
 
 	clearHistory(uri: URI) {
-		this.#history.delete(uri);
+		this._history.delete(uri);
 	}
 
 	has(uri: URI) {
-		return this.#history.has(uri) ? true : false;
+		return this._history.has(uri) ? true : false;
 	}
 
 }

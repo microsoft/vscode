@@ -19,6 +19,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	private _responsePendingAudioCue: IDisposable | undefined;
 	private _hasReceivedRequest: boolean = false;
 	private _runOnceScheduler: RunOnceScheduler;
+	private _lastResponse: string | undefined;
 
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
@@ -29,7 +30,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}, CHAT_RESPONSE_PENDING_ALLOWANCE_MS));
 	}
 	acceptRequest(): void {
-		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, true);
+		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, { allowManyInParallel: true });
 		this._runOnceScheduler.schedule();
 	}
 	acceptResponse(response?: IChatResponseViewModel | string): void {
@@ -37,13 +38,17 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const isPanelChat = typeof response !== 'string';
 		this._responsePendingAudioCue?.dispose();
 		this._runOnceScheduler?.cancel();
-		this._audioCueService.playAudioCue(AudioCue.chatResponseReceived, true);
+		const responseContent = typeof response === 'string' ? response : response?.response.asString();
+		if (this._lastResponse === responseContent) {
+			return;
+		}
+		this._audioCueService.playAudioCue(AudioCue.chatResponseReceived, { allowManyInParallel: true });
 		this._hasReceivedRequest = false;
 		if (!response) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		const content = isPanelChat ? response.response.value : response;
-		status(content + errorDetails);
+		this._lastResponse = responseContent;
+		status(responseContent + errorDetails);
 	}
 }

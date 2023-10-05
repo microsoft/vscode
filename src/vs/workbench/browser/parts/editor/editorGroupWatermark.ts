@@ -90,7 +90,7 @@ export class EditorGroupWatermark extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.tips.enabled')) {
@@ -141,12 +141,16 @@ export class EditorGroupWatermark extends Disposable {
 		const update = () => {
 			clearNode(box);
 			selected.map(entry => {
+				const keys = this.keybindingService.lookupKeybinding(entry.id);
+				if (!keys) {
+					return;
+				}
 				const dl = append(box, $('dl'));
 				const dt = append(dl, $('dt'));
 				dt.textContent = entry.text;
 				const dd = append(dl, $('dd'));
 				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles });
-				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
+				keybinding.set(keys);
 			});
 		};
 

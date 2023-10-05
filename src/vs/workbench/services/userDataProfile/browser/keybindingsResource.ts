@@ -13,6 +13,7 @@ import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfi
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 interface IKeybindingsResourceContent {
 	platform: Platform;
@@ -91,6 +92,7 @@ export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 
 	constructor(
 		private readonly profile: IUserDataProfile,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
@@ -104,6 +106,9 @@ export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 			resourceUri: this.profile.keybindingsResource,
 			collapsibleState: TreeItemCollapsibleState.None,
 			parent: this,
+			accessibilityInformation: {
+				label: this.uriIdentityService.extUri.basename(this.profile.settingsResource)
+			},
 			command: {
 				id: API_OPEN_EDITOR_COMMAND_ID,
 				title: '',

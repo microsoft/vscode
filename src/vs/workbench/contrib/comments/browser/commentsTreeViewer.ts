@@ -33,6 +33,7 @@ import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
+export const COMMENTS_VIEW_ORIGINAL_TITLE = 'Comments';
 export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
 
 interface IResourceTemplateData {
@@ -368,13 +369,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 						return '';
 					}
 				},
-				expandOnlyOnTwistieClick: (element: any) => {
-					if (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) {
-						return false;
-					}
-
-					return true;
-				},
+				expandOnlyOnTwistieClick: true,
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,

@@ -11,7 +11,7 @@ import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import * as pfs from 'vs/base/node/pfs';
 import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalMainService, IExternalTerminalSettings, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings, ITerminalForPlatform } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
@@ -28,7 +28,7 @@ abstract class ExternalTerminalService {
 	}
 }
 
-export class WindowsExternalTerminalService extends ExternalTerminalService implements IExternalTerminalMainService {
+export class WindowsExternalTerminalService extends ExternalTerminalService implements IExternalTerminalService {
 	private static readonly CMD = 'cmd.exe';
 	private static _DEFAULT_TERMINAL_WINDOWS: string;
 
@@ -125,7 +125,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	}
 }
 
-export class MacExternalTerminalService extends ExternalTerminalService implements IExternalTerminalMainService {
+export class MacExternalTerminalService extends ExternalTerminalService implements IExternalTerminalService {
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
 	public openTerminal(configuration: IExternalTerminalSettings, cwd?: string): Promise<void> {
@@ -215,7 +215,7 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 	}
 }
 
-export class LinuxExternalTerminalService extends ExternalTerminalService implements IExternalTerminalMainService {
+export class LinuxExternalTerminalService extends ExternalTerminalService implements IExternalTerminalService {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 

@@ -12,7 +12,7 @@ import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -214,7 +214,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 		inputBox.focus();
 		inputBox.select();
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			nameElement.style.display = '';
 			valueElement.style.display = '';
 			inputBoxContainer.style.display = 'none';

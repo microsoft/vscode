@@ -176,39 +176,42 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		hr {
 			border: 0;
-			height: 1px;
-			border-bottom: 1px solid;
+			height: 2px;
+			border-bottom: 2px solid;
+		}
+
+		h2, h3, h4, h5, h6 {
+			font-weight: normal;
 		}
 
 		h1 {
-			font-size: 2em;
-			margin-top: 0;
-			padding-bottom: 0.3em;
-			border-bottom-width: 1px;
-			border-bottom-style: solid;
+			font-size: 2.3em;
 		}
 
 		h2 {
-			font-size: 1.5em;
-			padding-bottom: 0.3em;
-			border-bottom-width: 1px;
-			border-bottom-style: solid;
+			font-size: 2em;
 		}
 
 		h3 {
-			font-size: 1.25em;
+			font-size: 1.7em;
+		}
+
+		h3 {
+			font-size: 1.5em;
 		}
 
 		h4 {
-			font-size: 1em;
+			font-size: 1.3em;
 		}
 
 		h5 {
-			font-size: 0.875em;
+			font-size: 1.2em;
 		}
 
-		h6 {
-			font-size: 0.85em;
+		h1,
+		h2,
+		h3 {
+			font-weight: normal;
 		}
 
 		div {
@@ -226,36 +229,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		}
 
 		/* Removes bottom margin when only one item exists in markdown cell */
-		#preview > *:not(h1):not(h2):only-child,
-		#preview > *:not(h1):not(h2):last-child {
+		#preview > *:only-child,
+		#preview > *:last-child {
 			margin-bottom: 0;
 			padding-bottom: 0;
-		}
-
-		h1,
-		h2,
-		h3,
-		h4,
-		h5,
-		h6 {
-			font-weight: 600;
-			margin-top: 24px;
-			margin-bottom: 16px;
-			line-height: 1.25;
-		}
-
-		.vscode-light h1,
-		.vscode-light h2,
-		.vscode-light hr,
-		.vscode-light td {
-			border-color: rgba(0, 0, 0, 0.18);
-		}
-
-		.vscode-dark h1,
-		.vscode-dark h2,
-		.vscode-dark hr,
-		.vscode-dark td {
-			border-color: rgba(255, 255, 255, 0.18);
 		}
 
 		/* makes all markdown cells consistent */

@@ -9,7 +9,7 @@ import { CancelablePromise, createCancelablePromise, Promises, raceCancellablePr
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, isDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -50,12 +50,12 @@ type RecommendationsNotificationActions = {
 	onDidNeverShowRecommendedExtensionsAgain(extensions: IExtension[]): void;
 };
 
-class RecommendationsNotification {
+class RecommendationsNotification extends Disposable {
 
-	private _onDidClose = new Emitter<void>();
+	private _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
-	private _onDidChangeVisibility = new Emitter<boolean>();
+	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private notificationHandle: INotificationHandle | undefined;
@@ -66,7 +66,9 @@ class RecommendationsNotification {
 		private readonly message: string,
 		private readonly choices: IPromptChoice[],
 		private readonly notificationService: INotificationService
-	) { }
+	) {
+		super();
+	}
 
 	show(): void {
 		if (!this.notificationHandle) {
@@ -87,8 +89,8 @@ class RecommendationsNotification {
 		return this.cancelled;
 	}
 
-	private onDidCloseDisposable = new MutableDisposable();
-	private onDidChangeVisibilityDisposable = new MutableDisposable();
+	private onDidCloseDisposable = this._register(new MutableDisposable());
+	private onDidChangeVisibilityDisposable = this._register(new MutableDisposable());
 	private updateNotificationHandle(notificationHandle: INotificationHandle) {
 		this.onDidCloseDisposable.clear();
 		this.onDidChangeVisibilityDisposable.clear();
@@ -110,7 +112,7 @@ class RecommendationsNotification {
 type PendingRecommendationsNotification = { recommendationsNotification: RecommendationsNotification; source: RecommendationSource; token: CancellationToken };
 type VisibleRecommendationsNotification = { recommendationsNotification: RecommendationsNotification; source: RecommendationSource; from: number };
 
-export class ExtensionRecommendationNotificationService implements IExtensionRecommendationNotificationService {
+export class ExtensionRecommendationNotificationService extends Disposable implements IExtensionRecommendationNotificationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -138,7 +140,9 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-	) { }
+	) {
+		super();
+	}
 
 	hasToIgnoreRecommendationNotifications(): boolean {
 		const config = this.configurationService.getValue<{ ignoreRecommendations: boolean; showRecommendationsOnlyOnDemand?: boolean }>('extensions');
@@ -255,8 +259,8 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		}
 
 		return raceCancellablePromises([
-			this.showRecommendationsNotification(extensions, message, searchValue, source, recommendationsNotificationActions),
-			this.waitUntilRecommendationsAreInstalled(extensions)
+			this._registerP(this.showRecommendationsNotification(extensions, message, searchValue, source, recommendationsNotificationActions)),
+			this._registerP(this.waitUntilRecommendationsAreInstalled(extensions))
 		]);
 
 	}
@@ -344,11 +348,11 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	private async doShowRecommendationsNotification(severity: Severity, message: string, choices: IPromptChoice[], source: RecommendationSource, token: CancellationToken): Promise<boolean> {
 		const disposables = new DisposableStore();
 		try {
-			const recommendationsNotification = new RecommendationsNotification(severity, message, choices, this.notificationService);
-			Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
+			const recommendationsNotification = disposables.add(new RecommendationsNotification(severity, message, choices, this.notificationService));
+			disposables.add(Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification()));
 			if (this.visibleNotification) {
 				const index = this.pendingNotificaitons.length;
-				token.onCancellationRequested(() => this.pendingNotificaitons.splice(index, 1), disposables);
+				disposables.add(token.onCancellationRequested(() => this.pendingNotificaitons.splice(index, 1)));
 				this.pendingNotificaitons.push({ recommendationsNotification, source, token });
 				if (source !== RecommendationSource.EXE && source <= this.visibleNotification!.source) {
 					this.hideVisibleNotification(3000);
@@ -357,7 +361,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 				this.visibleNotification = { recommendationsNotification, source, from: Date.now() };
 				recommendationsNotification.show();
 			}
-			await raceCancellation(Event.toPromise(recommendationsNotification.onDidClose), token);
+			await raceCancellation(new Promise(c => disposables.add(Event.once(recommendationsNotification.onDidClose)(c))), token);
 			return !recommendationsNotification.isCancelled();
 		} finally {
 			disposables.dispose();
@@ -441,5 +445,10 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
 		this.configurationService.updateValue('extensions.ignoreRecommendations', configVal);
+	}
+
+	private _registerP<T>(o: CancelablePromise<T>): CancelablePromise<T> {
+		this._register(toDisposable(() => o.cancel()));
+		return o;
 	}
 }

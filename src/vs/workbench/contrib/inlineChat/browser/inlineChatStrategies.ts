@@ -66,7 +66,9 @@ export class PreviewStrategy extends EditModeStrategy {
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
-			this._ctxDocumentChanged.set(!_session.textModelN.equalsTextBuffer(_session.textModel0.getTextBuffer()));
+			if (!_session.textModelN.isDisposed() && !_session.textModel0.isDisposed()) {
+				this._ctxDocumentChanged.set(_session.hasChangedText);
+			}
 		});
 	}
 
@@ -352,7 +354,7 @@ export class LiveStrategy extends EditModeStrategy {
 		const lastTextModelChanges = this._session.lastTextModelChanges;
 		let lastLineOfLocalEdits: number | undefined;
 		for (const change of lastTextModelChanges) {
-			const changeEndLineNumber = change.modifiedRange.endLineNumberExclusive - 1;
+			const changeEndLineNumber = change.modified.endLineNumberExclusive - 1;
 			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
 				lastLineOfLocalEdits = changeEndLineNumber;
 			}
@@ -407,7 +409,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.value.hide();
 		}

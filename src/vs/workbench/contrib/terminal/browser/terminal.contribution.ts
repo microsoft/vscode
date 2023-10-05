@@ -5,9 +5,9 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/terminal';
 import 'vs/css!./media/widgets';
 import 'vs/css!./media/xterm';
+import 'vs/css!./media/terminal';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -123,7 +123,7 @@ Registry.as<IDragAndDropContributionRegistry>(DragAndDropExtensions.DragAndDropC
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
-	title: nls.localize('terminal', "Terminal"),
+	title: { value: nls.localize('terminal', "Terminal"), original: 'Terminal' },
 	icon: terminalViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: TERMINAL_VIEW_ID,

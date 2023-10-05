@@ -5,6 +5,7 @@
 	"publisher": "vscode",
 	"version": "1.0.0",
 	"license": "MIT",
+  "icon": "media/icon.png",
 	"engines": {
 		"vscode": "^1.57.0"
 	},
@@ -56,7 +57,11 @@
 			{
 				"command": "ipynb.cleanInvalidImageAttachment",
 				"title": "%cleanInvalidImageAttachment.title%"
-			}
+			},
+      {
+        "command": "notebook.cellOutput.copy",
+        "title": "%copyCellOutput.title%"
+      }
 		],
 		"notebooks": [
 			{
@@ -99,7 +104,13 @@
 					"command": "ipynb.cleanInvalidImageAttachment",
 					"when": "false"
 				}
-			]
+			],
+      "webview/context": [
+        {
+          "command": "notebook.cellOutput.copy",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+        }
+      ]
 		}
 	},
 	"scripts": {

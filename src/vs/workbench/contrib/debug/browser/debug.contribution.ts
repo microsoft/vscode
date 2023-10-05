@@ -77,7 +77,11 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	prefix: DEBUG_QUICK_ACCESS_PREFIX,
 	contextKey: 'inLaunchConfigurationsPicker',
 	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
-	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), commandId: SELECT_AND_START_ID }]
+	helpEntries: [{
+		description: nls.localize('startDebuggingHelp', "Start Debugging"),
+		commandId: SELECT_AND_START_ID,
+		commandCenterOrder: 50
+	}]
 });
 
 // Register quick access for debug console
@@ -361,7 +365,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: DEBUG_PANEL_ID,
-	title: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"),
+	title: { value: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, "Debug Console"), original: 'Debug Console' },
 	icon: icons.debugConsoleViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: DEBUG_PANEL_ID,
@@ -447,9 +451,15 @@ configurationRegistry.registerConfiguration({
 			default: 'auto'
 		},
 		'debug.toolBarLocation': {
-			enum: ['floating', 'docked', 'hidden'],
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, or `hidden`."),
-			default: 'floating'
+			enum: ['floating', 'docked', 'commandCenter', 'hidden'],
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, `commandCenter` (requires `{0}`), or `hidden`.", '#window.commandCenter#', '#window.titleBarStyle#'),
+			default: 'floating',
+			markdownEnumDescriptions: [
+				nls.localize('debugToolBar.floating', "Show debug toolbar in all views."),
+				nls.localize('debugToolBar.docked', "Show debug toolbar only in debug views."),
+				nls.localize('debugToolBar.commandCenter', "`(Experimental)` Show debug toolbar in the command center."),
+				nls.localize('debugToolBar.hidden', "Do not show debug toolbar."),
+			]
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],

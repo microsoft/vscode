@@ -151,5 +151,12 @@
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
-	"diffEditor.experimental.useVersion2": true,
+	"typescript.preferences.autoImportFileExcludePatterns": [
+		"xterm",
+		"xterm-headless",
+		"node-pty",
+		"vscode-notebook-renderer",
+		"src/vs/workbench/workbench.web.main.ts",
+		"src/vs/workbench/api/common/extHostTypes.ts"
+	]
 }

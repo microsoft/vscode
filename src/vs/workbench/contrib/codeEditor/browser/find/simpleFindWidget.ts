@@ -17,11 +17,14 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as strings from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find (\u21C5 for history)");
@@ -41,12 +44,14 @@ interface IFindOptions {
 	closeWidgetActionId?: string;
 	matchesLimit?: number;
 	type?: 'Terminal' | 'Webview';
+	initialWidth?: number;
+	enableSash?: boolean;
 }
 
 const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
 const MATCHES_COUNT_WIDTH = 73;
 
-export abstract class SimpleFindWidget extends Widget {
+export abstract class SimpleFindWidget extends Widget implements IVerticalSashLayoutProvider {
 	private readonly _findInput: FindInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerDomNode: HTMLElement;
@@ -203,6 +208,44 @@ export abstract class SimpleFindWidget extends Widget {
 				this._delayedUpdateHistory();
 			}));
 		}
+
+		let initialMinWidth = options?.initialWidth;
+		if (initialMinWidth) {
+			initialMinWidth = initialMinWidth < SIMPLE_FIND_WIDGET_INITIAL_WIDTH ? SIMPLE_FIND_WIDGET_INITIAL_WIDTH : initialMinWidth;
+			this._domNode.style.width = `${initialMinWidth}px`;
+		}
+
+		if (options?.enableSash) {
+			const _initialMinWidth = initialMinWidth ?? SIMPLE_FIND_WIDGET_INITIAL_WIDTH;
+			let originalWidth = _initialMinWidth;
+
+			// sash
+			const resizeSash = new Sash(this._innerDomNode, this, { orientation: Orientation.VERTICAL, size: 1 });
+			this._register(resizeSash.onDidStart(() => {
+				originalWidth = parseFloat(dom.getComputedStyle(this._domNode).width);
+			}));
+
+			this._register(resizeSash.onDidChange((e: ISashEvent) => {
+				const width = originalWidth + e.startX - e.currentX;
+				if (width < _initialMinWidth) {
+					return;
+				}
+				this._domNode.style.width = `${width}px`;
+			}));
+
+			this._register(resizeSash.onDidReset(e => {
+				const currentWidth = parseFloat(dom.getComputedStyle(this._domNode).width);
+				if (currentWidth === _initialMinWidth) {
+					this._domNode.style.width = '100%';
+				} else {
+					this._domNode.style.width = `${_initialMinWidth}px`;
+				}
+			}));
+		}
+	}
+
+	public getVerticalSashLeft(_sash: Sash): number {
+		return 0;
 	}
 
 	public abstract find(previous: boolean): void;
@@ -399,3 +442,10 @@ export abstract class SimpleFindWidget extends Widget {
 		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 	}
 }
+
+export const simpleFindWidgetSashBorder = registerColor('simpleFindWidget.sashBorder', { dark: '#454545', light: '#C8C8C8', hcDark: '#6FC3DF', hcLight: '#0F4A85' }, nls.localize('simpleFindWidget.sashBorder', 'Border color of the sash border.'));
+
+registerThemingParticipant((theme, collector) => {
+	const resizeBorderBackground = theme.getColor(simpleFindWidgetSashBorder);
+	collector.addRule(`.monaco-workbench .simple-find-part .monaco-sash { background-color: ${resizeBorderBackground}; border-color: ${resizeBorderBackground} }`);
+});
