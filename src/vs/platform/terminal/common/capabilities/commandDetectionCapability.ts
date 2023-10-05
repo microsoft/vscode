@@ -369,7 +369,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// HACK: Fire command started on the following frame on Windows to allow the cursor
 		// position to update as conpty often prints the sequence on a different line to the
 		// actual line the command started on.
-		timeout(0).then(() => {
+		timeout(20).then(() => {
 			if (!this._currentCommand.commandExecutedMarker) {
 				this._onCursorMoveListener = this._terminal.onCursorMove(() => {
 					if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
