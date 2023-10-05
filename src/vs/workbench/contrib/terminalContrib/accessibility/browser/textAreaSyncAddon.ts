@@ -10,7 +10,7 @@ import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { ICurrentPartialCommand, WINDOWS_PROMPT_REGEX } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { WINDOWS_PROMPT_REGEX } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 export interface ITextAreaData {
 	content: string;
@@ -86,14 +86,20 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		if (!this._terminal) {
 			return;
 		}
+		let isGuessForPrompt = false;
 		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
-		currentCommand = commandCapability?.currentCommand;
+		let currentCommand = commandCapability?.currentCommand;
 		if (!currentCommand) {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no current command`);
 			return;
+		} else if (currentCommand.isInvalid && this._capabilities.get(TerminalCapability.CommandDetection)?.commands.length) {
+			const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			const command = commands?.slice().reverse().find(c => c.marker?.line && currentCommand?.commandStartMarker?.line && c.marker.line < currentCommand.commandStartMarker?.line);
+			isGuessForPrompt = true;
+			currentCommand = command;
 		}
 		const buffer = this._terminal.buffer.active;
-		const lineNumber = currentCommand.commandStartMarker?.line;
+		const lineNumber = currentCommand?.commandStartMarker?.line;
 		if (!lineNumber) {
 			return;
 		}
@@ -102,24 +108,8 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
 			return;
 		}
-		let isGuessForPrompt = false;
-		if (currentCommand.isInvalid || !commandLine.match(WINDOWS_PROMPT_REGEX) && this._capabilities.get(TerminalCapability.CommandDetection)?.commands.length) {
-			const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			const command = commands?.slice().reverse().find(c => c.marker?.line && currentCommand.commandStartMarker?.line && c.marker.line < currentCommand.commandStartMarker?.line);
-			isGuessForPrompt = true;
-			currentCommand = command;
-			const buffer = this._terminal.buffer.active;
-			const lineNumber = currentCommand.commandStartMarker?.line;
-			if (!lineNumber) {
-				return;
-			}
-			const commandLine = buffer.getLine(lineNumber)?.translateToString(true);
-			if (!commandLine) {
-				this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
-				return;
-			}
-		}
-		if (currentCommand.commandStartX !== undefined) {
+
+		if (currentCommand?.commandStartX !== undefined) {
 			this._currentCommand = commandLine.substring(currentCommand.commandStartX) || commandLine;
 			if (isGuessForPrompt) {
 				this._currentCommand = this._currentCommand.match(WINDOWS_PROMPT_REGEX)?.[0];
