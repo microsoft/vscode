@@ -84,7 +84,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					resource: uri
 				};
 			},
-			searchInNotebooks: async (textQuery, token): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
+			searchInNotebooks: async (textQuery, token, allPriorityInfo): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
+				// TODO: do something with priority info
 				const contributedType = this._notebookService.getContributedNotebookType(viewType);
 				if (!contributedType) {
 					return { results: [], limitHit: false };
