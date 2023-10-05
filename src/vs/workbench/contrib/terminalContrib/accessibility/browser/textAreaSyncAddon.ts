@@ -10,6 +10,7 @@ import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import type { Terminal, ITerminalAddon } from 'xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 export interface ITextAreaData {
 	content: string;
@@ -68,17 +69,25 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		if (this._currentCommand !== textArea.value) {
 			textArea.value = this._currentCommand || '';
 			this._logService.debug(`TextAreaSyncAddon#syncTextArea: text changed to "${this._currentCommand}"`);
-		} else if (!this._currentCommand) {
+		} else if (!this._currentCommand && !this.isInputting()) {
 			textArea.value = '';
 			this._logService.debug(`TextAreaSyncAddon#syncTextArea: text cleared`);
 		}
 
-		if (this._cursorX !== textArea.selectionStart) {
+		if (this._cursorX !== textArea.selectionStart && !this.isInputting()) {
 			const selection = !this._cursorX || this._cursorX < 0 ? 0 : this._cursorX;
 			textArea.selectionStart = selection;
 			textArea.selectionEnd = selection;
 			this._logService.debug(`TextAreaSyncAddon#syncTextArea: selection start/end changed to ${selection}`);
 		}
+	}
+
+	isInputting(): boolean {
+		const command = this._capabilities.get(TerminalCapability.CommandDetection)?.currentCommand;
+		if (!command) {
+			return false;
+		}
+		return !command.commandStartMarker && !command.commandExecutedMarker;
 	}
 
 	private _updateCommandAndCursor(): void {
