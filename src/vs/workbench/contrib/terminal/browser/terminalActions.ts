@@ -765,7 +765,8 @@ export function registerTerminalActions() {
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
 		run: async (c, accessor) => {
 			const notificationService = accessor.get(INotificationService);
-			const instance = getSelectedInstances(accessor)?.[0];
+			const instances = getSelectedInstances(accessor);
+			const instance = instances?.[0];
 			if (!instance) {
 				return;
 			}
@@ -778,7 +779,9 @@ export function registerTerminalActions() {
 					c.service.setEditingTerminal(undefined);
 					if (success) {
 						try {
-							await instance.rename(value);
+							instances.forEach(async _instance => {
+								await _instance.rename(value);
+							});
 						} catch (e) {
 							notificationService.error(e);
 						}
