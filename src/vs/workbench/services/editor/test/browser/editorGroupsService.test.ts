@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, createEditorPart, ITestInstantiationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -1712,6 +1712,50 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rootGroup.isLocked, false);
 		part.removeGroup(leftGroup);
 		assert.strictEqual(rootGroup.isLocked, false);
+	});
+
+	test('maximize editor group', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const [part] = await createPart(instantiationService);
+
+		const rootGroup = part.activeGroup;
+		const editorPartSize = part.getSize(rootGroup);
+
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const rightBottomGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
+
+		const sizeRootGroup = part.getSize(rootGroup);
+		const sizeRightGroup = part.getSize(rightGroup);
+		const sizeRightBottomGroup = part.getSize(rightBottomGroup);
+
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rootGroup);
+
+		// getSize()
+		assert.deepStrictEqual(part.getSize(rootGroup), editorPartSize);
+		assert.deepStrictEqual(part.getSize(rightGroup), { width: 0, height: 0 });
+		assert.deepStrictEqual(part.getSize(rightBottomGroup), { width: 0, height: 0 });
+
+		// isGroupMaximized() - root group is maximized
+		assert.deepStrictEqual(part.isGroupMaximized(rootGroup), true);
+		assert.deepStrictEqual(part.isGroupMaximized(rightGroup), false);
+		assert.deepStrictEqual(part.isGroupMaximized(rightBottomGroup), false);
+
+		// When maximizing a group, no group can be expanded
+		assert.deepStrictEqual(part.isGroupExpanded(rootGroup), false);
+		assert.deepStrictEqual(part.isGroupExpanded(rightGroup), false);
+		assert.deepStrictEqual(part.isGroupExpanded(rightBottomGroup), false);
+
+		part.toggleGroupArrangement();
+
+		// Size is restored
+		assert.deepStrictEqual(part.getSize(rootGroup), sizeRootGroup);
+		assert.deepStrictEqual(part.getSize(rightGroup), sizeRightGroup);
+		assert.deepStrictEqual(part.getSize(rightBottomGroup), sizeRightBottomGroup);
+
+		// isGroupMaximized() - none is maximized
+		assert.deepStrictEqual(part.isGroupMaximized(rootGroup), false);
+		assert.deepStrictEqual(part.isGroupMaximized(rightGroup), false);
+		assert.deepStrictEqual(part.isGroupMaximized(rightBottomGroup), false);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

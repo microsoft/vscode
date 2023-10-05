@@ -464,6 +464,60 @@ suite('Grid', function () {
 
 		assert.deepStrictEqual(grid.getNeighborViews(view1, Direction.Right), [view2, view3]);
 	});
+
+	test('hiding splitviews and restoring sizes', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+
+		const size1 = view1.size;
+		const size2 = view2.size;
+		const size3 = view3.size;
+		const size4 = view4.size;
+
+		grid.setViewsVisible(false, view1);
+
+		// Views 2, 3, 4 are hidden
+		// Splitview (2,4) and ((2,4),3) are hidden
+		assert.deepStrictEqual(view1.size, [800, 600]);
+		assert.deepStrictEqual(view2.size, [0, 0]);
+		assert.deepStrictEqual(view3.size, [0, 0]);
+		assert.deepStrictEqual(view4.size, [0, 0]);
+
+		grid.setViewsVisible(true);
+
+		assert.deepStrictEqual(view1.size, size1);
+		assert.deepStrictEqual(view2.size, size2);
+		assert.deepStrictEqual(view3.size, size3);
+		assert.deepStrictEqual(view4.size, size4);
+
+		// Views 1, 3, 4 are hidden
+		// All splitviews are still visible => only orthogonalsize is 0
+		grid.setViewsVisible(false, view2);
+
+		assert.deepStrictEqual(view1.size, [0, 600]);
+		assert.deepStrictEqual(view2.size, [800, 600]);
+		assert.deepStrictEqual(view3.size, [800, 0]);
+		assert.deepStrictEqual(view4.size, [0, 600]);
+
+		grid.setViewsVisible(true);
+
+		assert.deepStrictEqual(view1.size, size1);
+		assert.deepStrictEqual(view2.size, size2);
+		assert.deepStrictEqual(view3.size, size3);
+		assert.deepStrictEqual(view4.size, size4);
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {
