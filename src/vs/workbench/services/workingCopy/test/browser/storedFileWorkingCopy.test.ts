@@ -239,14 +239,14 @@ suite('StoredFileWorkingCopy', function () {
 
 			let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 			accessor.fileService.notExistsSet.set(resource, true);
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.DELETED }], false));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 			await onDidChangeOrphanedPromise;
 			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
 
 			onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 			accessor.fileService.notExistsSet.delete(resource);
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.ADDED }], false));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.ADDED }], false));
 
 			await onDidChangeOrphanedPromise;
 			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);
@@ -417,7 +417,7 @@ suite('StoredFileWorkingCopy', function () {
 			const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 
 			accessor.fileService.notExistsSet.set(resource, true);
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.DELETED }], false));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 			await orphanedPromise;
 			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
@@ -446,7 +446,7 @@ suite('StoredFileWorkingCopy', function () {
 			const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 
 			accessor.fileService.notExistsSet.set(resource, true);
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.DELETED }], false));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 			await orphanedPromise;
 			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);
@@ -711,7 +711,7 @@ suite('StoredFileWorkingCopy', function () {
 			const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
 
 			accessor.fileService.notExistsSet.set(resource, true);
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.DELETED }], false));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 			await orphanedPromise;
 			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), true);

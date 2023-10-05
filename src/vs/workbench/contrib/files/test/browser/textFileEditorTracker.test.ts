@@ -105,7 +105,7 @@ suite('Files - TextFileEditorTracker', () => {
 		await model.save();
 
 		// change event (watcher)
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ correlationId: -1, resource, type: FileChangeType.UPDATED }], false));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
 
 		await timeout(0); // due to event updating model async
 

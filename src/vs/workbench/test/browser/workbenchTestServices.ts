@@ -1377,7 +1377,6 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.map(this.wrappedFsp.onDidChangeFile, changes => changes.map(c => {
 		return {
-			correlationId: c.correlationId,
 			type: c.type,
 			resource: c.resource.with({ scheme: Schemas.vscodeRemote, authority: this.remoteAuthority }),
 		};

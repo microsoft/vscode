@@ -335,7 +335,7 @@ suite('FileUserDataProvider - Watching', () => {
 	teardown(() => disposables.clear());
 
 	test('file added change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { correlationId: -1, excludes: [], recursive: false }));
+		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const expected = joinPath(rootUserDataResource, 'settings.json');
 		const target = joinPath(rootFileResource, 'settings.json');
 		disposables.add(testObject.onDidChangeFile(e => {
@@ -344,14 +344,13 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.ADDED
 		}]);
 	});
 
 	test('file updated change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { correlationId: -1, excludes: [], recursive: false }));
+		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const expected = joinPath(rootUserDataResource, 'settings.json');
 		const target = joinPath(rootFileResource, 'settings.json');
 		disposables.add(testObject.onDidChangeFile(e => {
@@ -360,14 +359,13 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.UPDATED
 		}]);
 	});
 
 	test('file deleted change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { correlationId: -1, excludes: [], recursive: false }));
+		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const expected = joinPath(rootUserDataResource, 'settings.json');
 		const target = joinPath(rootFileResource, 'settings.json');
 		disposables.add(testObject.onDidChangeFile(e => {
@@ -376,14 +374,13 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);
 	});
 
 	test('file under folder created change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { correlationId: -1, excludes: [], recursive: false }));
+		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const expected = joinPath(rootUserDataResource, 'snippets', 'settings.json');
 		const target = joinPath(rootFileResource, 'snippets', 'settings.json');
 		disposables.add(testObject.onDidChangeFile(e => {
@@ -392,14 +389,13 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.ADDED
 		}]);
 	});
 
 	test('file under folder updated change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { correlationId: -1, excludes: [], recursive: false }));
+		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const expected = joinPath(rootUserDataResource, 'snippets', 'settings.json');
 		const target = joinPath(rootFileResource, 'snippets', 'settings.json');
 		disposables.add(testObject.onDidChangeFile(e => {
@@ -408,14 +404,13 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.UPDATED
 		}]);
 	});
 
 	test('file under folder deleted change event', done => {
-		disposables.add(testObject.watch(rootUserDataResource, { correlationId: -1, excludes: [], recursive: false }));
+		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const expected = joinPath(rootUserDataResource, 'snippets', 'settings.json');
 		const target = joinPath(rootFileResource, 'snippets', 'settings.json');
 		disposables.add(testObject.onDidChangeFile(e => {
@@ -424,7 +419,6 @@ suite('FileUserDataProvider - Watching', () => {
 			}
 		}));
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);
@@ -435,7 +429,6 @@ suite('FileUserDataProvider - Watching', () => {
 		let triggered = false;
 		testObject.onDidChangeFile(() => triggered = true);
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);
@@ -445,12 +438,11 @@ suite('FileUserDataProvider - Watching', () => {
 	});
 
 	test('event is not triggered if not watched 2', async () => {
-		disposables.add(testObject.watch(rootUserDataResource, { correlationId: -1, excludes: [], recursive: false }));
+		disposables.add(testObject.watch(rootUserDataResource, { excludes: [], recursive: false }));
 		const target = joinPath(dirname(rootFileResource), 'settings.json');
 		let triggered = false;
 		testObject.onDidChangeFile(() => triggered = true);
 		fileEventEmitter.fire([{
-			correlationId: -1,
 			resource: target,
 			type: FileChangeType.DELETED
 		}]);

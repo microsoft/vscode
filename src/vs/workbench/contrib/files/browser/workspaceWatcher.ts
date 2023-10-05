@@ -146,7 +146,7 @@ export class WorkspaceWatcher extends Disposable {
 		// Watch all paths as instructed
 		const disposables = new DisposableStore();
 		for (const [, pathToWatch] of pathsToWatch) {
-			disposables.add(this.fileService.watch(pathToWatch, { recursive: true, excludes, correlationId: -1 }));
+			disposables.add(this.fileService.watch(pathToWatch, { recursive: true, excludes }));
 		}
 		this.watchedWorkspaces.set(workspace.uri, disposables);
 	}

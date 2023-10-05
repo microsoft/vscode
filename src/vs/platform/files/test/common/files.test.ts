@@ -14,12 +14,12 @@ suite('Files', () => {
 
 	test('FileChangesEvent - basics', function () {
 		const changes = [
-			{ correlationId: -1, resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED },
-			{ correlationId: -1, resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
-			{ correlationId: -1, resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED },
-			{ correlationId: -1, resource: toResource.call(this, '/bar/deleted.txt'), type: FileChangeType.DELETED },
-			{ correlationId: -1, resource: toResource.call(this, '/bar/folder'), type: FileChangeType.DELETED },
-			{ correlationId: -1, resource: toResource.call(this, '/BAR/FOLDER'), type: FileChangeType.DELETED }
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED },
+			{ resource: toResource.call(this, '/bar/deleted.txt'), type: FileChangeType.DELETED },
+			{ resource: toResource.call(this, '/bar/folder'), type: FileChangeType.DELETED },
+			{ resource: toResource.call(this, '/BAR/FOLDER'), type: FileChangeType.DELETED }
 		];
 
 		for (const ignorePathCasing of [false, true]) {
@@ -69,14 +69,14 @@ suite('Files', () => {
 	test('FileChangesEvent - supports multiple changes on file tree', function () {
 		for (const type of [FileChangeType.ADDED, FileChangeType.UPDATED, FileChangeType.DELETED]) {
 			const changes = [
-				{ correlationId: -1, resource: toResource.call(this, '/foo/bar/updated.txt'), type },
-				{ correlationId: -1, resource: toResource.call(this, '/foo/bar/otherupdated.txt'), type },
-				{ correlationId: -1, resource: toResource.call(this, '/foo/bar'), type },
-				{ correlationId: -1, resource: toResource.call(this, '/foo'), type },
-				{ correlationId: -1, resource: toResource.call(this, '/bar'), type },
-				{ correlationId: -1, resource: toResource.call(this, '/bar/foo'), type },
-				{ correlationId: -1, resource: toResource.call(this, '/bar/foo/updated.txt'), type },
-				{ correlationId: -1, resource: toResource.call(this, '/bar/foo/otherupdated.txt'), type }
+				{ resource: toResource.call(this, '/foo/bar/updated.txt'), type },
+				{ resource: toResource.call(this, '/foo/bar/otherupdated.txt'), type },
+				{ resource: toResource.call(this, '/foo/bar'), type },
+				{ resource: toResource.call(this, '/foo'), type },
+				{ resource: toResource.call(this, '/bar'), type },
+				{ resource: toResource.call(this, '/bar/foo'), type },
+				{ resource: toResource.call(this, '/bar/foo/updated.txt'), type },
+				{ resource: toResource.call(this, '/bar/foo/otherupdated.txt'), type }
 			];
 
 			for (const ignorePathCasing of [false, true]) {

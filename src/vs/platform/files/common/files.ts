@@ -486,8 +486,6 @@ export interface IStat {
 
 export interface IWatchOptions {
 
-	readonly correlationId: number;
-
 	/**
 	 * Set to `true` to watch for changes recursively in a folder
 	 * and all of its children.
@@ -511,6 +509,13 @@ export interface IWatchOptions {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, file change events from the watcher that
+	 * are a result of this watch request will carry the same
+	 * id.
+	 */
+	readonly correlationId?: number;
 }
 
 export const enum FileSystemProviderCapabilities {
@@ -881,8 +886,6 @@ export const enum FileChangeType {
  */
 export interface IFileChange {
 
-	readonly correlationId: number;
-
 	/**
 	 * The type of change that occurred to the file.
 	 */
@@ -892,6 +895,13 @@ export interface IFileChange {
 	 * The unified resource identifier of the file that changed.
 	 */
 	readonly resource: URI;
+
+	/**
+	 * If provided when starting the file watcher, the identifier
+	 * will match the original file watching request as a way to
+	 * identify the original component that is interested in the change.
+	 */
+	readonly correlationId?: number;
 }
 
 export class FileChangesEvent {

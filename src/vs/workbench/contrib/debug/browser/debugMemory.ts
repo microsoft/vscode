@@ -50,7 +50,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 
 		disposable.add(session.onDidChangeState(() => {
 			if (session.state === State.Running || session.state === State.Inactive) {
-				this.changeEmitter.fire([{ correlationId: -1, type: FileChangeType.DELETED, resource }]);
+				this.changeEmitter.fire([{ type: FileChangeType.DELETED, resource }]);
 			}
 		}));
 
@@ -63,7 +63,7 @@ export class DebugMemoryFileSystemProvider implements IFileSystemProvider {
 				return;
 			}
 
-			this.changeEmitter.fire([{ correlationId: -1, resource, type: FileChangeType.UPDATED }]);
+			this.changeEmitter.fire([{ resource, type: FileChangeType.UPDATED }]);
 		}));
 
 		return disposable;
