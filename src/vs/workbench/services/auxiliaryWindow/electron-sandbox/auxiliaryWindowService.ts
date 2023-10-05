@@ -9,10 +9,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
-type AuxiliaryWindow = Window & typeof globalThis & {
+export type AuxiliaryWindow = Window & typeof globalThis & {
 	vscode: {
 		ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send'>;
 	};
+	moveTop: () => void;
 };
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -24,6 +25,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	) {
 		super(layoutService, environmentService, lifecycleService);
 	}
+
 	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
 		super.patchMethods(auxiliaryWindow);
 
@@ -33,8 +35,18 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			auxiliaryWindow.vscode.ipcRenderer.send('vscode:windowFocus');
+			auxiliaryWindow.vscode.ipcRenderer.send('vscode:focusAuxiliaryWindow');
 		};
+
+		// Add a method to move window to the top (TODO@bpasero better to go entirely through native host service)
+		Object.defineProperty(auxiliaryWindow, 'moveTop', {
+			value: () => {
+				auxiliaryWindow.vscode.ipcRenderer.send('vscode:moveAuxiliaryWindowTop');
+			},
+			writable: false,
+			enumerable: false,
+			configurable: false
+		});
 	}
 }
 

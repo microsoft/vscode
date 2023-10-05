@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { FileAccess } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWindowSettings, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { defaultBrowserWindowOptions } from 'vs/platform/windows/electron-main/windows';
 
-export class AuxiliarWindow {
+export class AuxiliaryWindow {
 
 	static open(instantiationService: IInstantiationService): BrowserWindowConstructorOptions {
 		return instantiationService.invokeFunction(defaultBrowserWindowOptions, undefined, {
@@ -45,6 +45,25 @@ export class AuxiliarWindow {
 		});
 
 		// Support a small set of IPC calls
-		this.contents.ipc.on('vscode:windowFocus', () => this.contents.focus());
+		this.contents.ipc.on('vscode:focusAuxiliaryWindow', () => {
+			this.withWindow(window => window.focus(), true /* restore */);
+		});
+
+		this.contents.ipc.on('vscode:moveAuxiliaryWindowTop', () => {
+			this.withWindow(window => window.moveTop(), true /* restore */);
+		});
+	}
+
+	private withWindow(callback: (window: BrowserWindow) => void, restore?: boolean): void {
+		const window = BrowserWindow.fromWebContents(this.contents);
+		if (window) {
+			if (restore) {
+				if (window.isMinimized()) {
+					window.restore();
+				}
+			}
+
+			callback(window);
+		}
 	}
 }

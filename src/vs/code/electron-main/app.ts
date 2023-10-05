@@ -118,7 +118,7 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
-import { AuxiliarWindow } from 'vs/platform/windows/electron-main/auxiliaryWindow';
+import { AuxiliaryWindow } from 'vs/platform/windows/electron-main/auxiliaryWindow';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -383,10 +383,10 @@ export class CodeApplication extends Disposable {
 		//
 		app.on('web-contents-created', (event, contents) => {
 
-			// Child Window: delegate to `AuxiliarWindow` class
+			// Child Window: delegate to `AuxiliaryWindow` class
 			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 			if (isChildWindow) {
-				this.mainInstantiationService.createInstance(AuxiliarWindow, contents);
+				this.mainInstantiationService.createInstance(AuxiliaryWindow, contents);
 			}
 
 			// Block any in-page navigation
@@ -406,7 +406,7 @@ export class CodeApplication extends Disposable {
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: AuxiliarWindow.open(this.mainInstantiationService)
+						overrideBrowserWindowOptions: AuxiliaryWindow.open(this.mainInstantiationService)
 					};
 				}
 
