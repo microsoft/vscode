@@ -24,9 +24,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
-
-
-
 suite('Sticky Scroll Tests', () => {
 
 	const disposables = new DisposableStore();
