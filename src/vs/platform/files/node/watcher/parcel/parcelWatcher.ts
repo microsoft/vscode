@@ -338,7 +338,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
-				events.push({ correlationId: watcher.request.correlationId, type, resource: URI.file(path) });
+				events.push({ type, resource: URI.file(path), correlationId: watcher.request.correlationId });
 			}
 		}
 
@@ -467,7 +467,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const nodeWatcher = new NodeJSFileWatcherLibrary({ correlationId: watcher.request.correlationId, path: parentPath, excludes: [], recursive: false }, changes => {
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false, correlationId: watcher.request.correlationId }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}
