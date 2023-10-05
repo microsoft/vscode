@@ -32,7 +32,9 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly container: HTMLElement;
 }
 
-export class AuxiliaryWindowService implements IAuxiliaryWindowService {
+type AuxiliaryWindow = Window & typeof globalThis;
+
+export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -45,11 +47,11 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 	open(): IAuxiliaryWindow {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = assertIsDefined(window.open('about:blank')?.window);
+		const auxiliaryWindow = assertIsDefined(window.open('about:blank')?.window) as AuxiliaryWindow;
 		disposables.add(registerWindow(auxiliaryWindow));
 		disposables.add(toDisposable(() => auxiliaryWindow.close()));
 
-		this.blockMethods(auxiliaryWindow);
+		this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
 		this.applyCSS(auxiliaryWindow, disposables);
@@ -69,7 +71,7 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		};
 	}
 
-	private applyMeta(auxiliaryWindow: Window): void {
+	private applyMeta(auxiliaryWindow: AuxiliaryWindow): void {
 		const metaCharset = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
 		metaCharset.setAttribute('charset', 'utf-8');
 
@@ -80,7 +82,7 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		}
 	}
 
-	private applyCSS(auxiliaryWindow: Window, disposables: DisposableStore): void {
+	private applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
 
 		// Clone all style elements and stylesheet links from the window to the child window
 		for (const element of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
@@ -107,7 +109,7 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		}
 	}
 
-	private applyHTML(auxiliaryWindow: Window, disposables: DisposableStore): HTMLElement {
+	private applyHTML(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): HTMLElement {
 
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
@@ -121,7 +123,7 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		return container;
 	}
 
-	private registerListeners(auxiliaryWindow: Window & typeof globalThis, container: HTMLElement, disposables: DisposableStore) {
+	private registerListeners(auxiliaryWindow: AuxiliaryWindow, container: HTMLElement, disposables: DisposableStore) {
 		const onDidClose = disposables.add(new Emitter<void>());
 		disposables.add(addDisposableListener(auxiliaryWindow, 'unload', () => {
 			onDidClose.fire();
@@ -153,11 +155,15 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		return { onDidResize, onDidClose };
 	}
 
-	private blockMethods(auxiliaryWindow: Window): void {
+	protected patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
+
+		// Disallow `createElement` because it would create
+		// HTML Elements in the "wrong" context and break
+		// code that does "instanceof HTMLElement" etc.
 		auxiliaryWindow.document.createElement = function () {
 			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
 		};
 	}
 }
 
-registerSingleton(IAuxiliaryWindowService, AuxiliaryWindowService, InstantiationType.Delayed);
+registerSingleton(IAuxiliaryWindowService, BrowserAuxiliaryWindowService, InstantiationType.Delayed);

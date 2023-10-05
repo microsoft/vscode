@@ -192,6 +192,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		} else if (!isIOS) {
 			this.searchWidget.focus();
 		}
+
+		super.focus();
 	}
 
 	get activeKeybindingEntry(): IKeybindingItemEntry | null {
