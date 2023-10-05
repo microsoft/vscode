@@ -22,7 +22,7 @@ import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { Delayer, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { SetMap } from 'vs/base/common/collections';
+import { SetMap } from 'vs/base/common/map';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';

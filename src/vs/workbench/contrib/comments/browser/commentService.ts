@@ -19,6 +19,7 @@ import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/c
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -164,7 +165,8 @@ export class CommentService extends Disposable implements ICommentService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._handleConfiguration();
@@ -173,6 +175,9 @@ export class CommentService extends Disposable implements ICommentService {
 		const storageListener = this._register(new DisposableStore());
 
 		storageListener.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, CONTINUE_ON_COMMENTS, storageListener)((v) => {
+			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
+				return;
+			}
 			if (!v.external) {
 				return;
 			}
@@ -180,6 +185,7 @@ export class CommentService extends Disposable implements ICommentService {
 			if (!commentsToRestore) {
 				return;
 			}
+			this.logService.debug(`Comments: URIs of continue on comments from storage ${commentsToRestore.map(thread => thread.uri.toString()).join(', ')}.`);
 			const changedOwners = this._addContinueOnComments(commentsToRestore);
 			for (const owner of changedOwners) {
 				const evt: ICommentThreadChangedEvent = {
@@ -193,6 +199,9 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}));
 		this._register(storageService.onWillSaveState(() => {
+			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
+				return;
+			}
 			for (const provider of this._continueOnCommentProviders) {
 				const pendingComments = provider.provideContinueOnComments();
 				this._addContinueOnComments(pendingComments);
@@ -411,13 +420,17 @@ export class CommentService extends Disposable implements ICommentService {
 		for (const pendingComments of this._continueOnComments.values()) {
 			commentsToSave.push(...pendingComments);
 		}
+		this.logService.debug(`Comments: URIs of continue on comments to add to storage ${commentsToSave.map(thread => thread.uri.toString()).join(', ')}.`);
 		this.storageService.store(CONTINUE_ON_COMMENTS, commentsToSave, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string }): PendingCommentThread | undefined {
 		const pendingComments = this._continueOnComments.get(pendingComment.owner);
 		if (pendingComments) {
-			return pendingComments.splice(pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range)), 1)[0];
+			const commentIndex = pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range));
+			if (commentIndex > -1) {
+				return pendingComments.splice(commentIndex, 1)[0];
+			}
 		}
 		return undefined;
 	}

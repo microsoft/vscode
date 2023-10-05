@@ -624,6 +624,8 @@ export class ExtensionEditor extends EditorPane {
 
 	override focus(): void {
 		this.activeElement?.focus();
+
+		super.focus();
 	}
 
 	showFind(): void {
@@ -946,7 +948,7 @@ export class ExtensionEditor extends EditorPane {
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
-		const toDateString = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
+		const toDateString = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,

@@ -23,7 +23,7 @@ import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/file
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
@@ -559,7 +559,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);

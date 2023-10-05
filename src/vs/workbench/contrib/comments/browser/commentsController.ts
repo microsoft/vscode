@@ -43,6 +43,7 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export const ID = 'editor.contrib.review';
 
@@ -343,7 +344,7 @@ class CommentingRangeDecorator {
 
 			return range;
 		}
-		return decorations[0].getActiveRange() ?? undefined;
+		return (decorations.length > 0 ? (decorations[0].getActiveRange() ?? undefined) : undefined);
 	}
 
 	public dispose(): void {
@@ -384,7 +385,8 @@ export class CommentController implements IEditorContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -725,6 +727,14 @@ export class CommentController implements IEditorContribution {
 			this.editor.setPosition(position);
 			this.editor.revealLineInCenterIfOutsideViewport(position.lineNumber);
 		}
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			const commentRangeStart = range?.getStartPosition().lineNumber;
+			const commentRangeEnd = range?.getEndPosition().lineNumber;
+			if (commentRangeStart && commentRangeEnd) {
+				const oneLine = commentRangeStart === commentRangeEnd;
+				oneLine ? status(nls.localize('commentRange', "Line {0}", commentRangeStart)) : status(nls.localize('commentRangeStart', "Lines {0} to {1}", commentRangeStart, commentRangeEnd));
+			}
+		}
 	}
 
 	public nextCommentingRange(): void {
@@ -851,7 +861,6 @@ export class CommentController implements IEditorContribution {
 			if (!this._hasRespondedToEditorChange) {
 				if (this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
 					this._hasRespondedToEditorChange = true;
-					this._activeEditorHasCommentingRange.set(true);
 					const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Comments);
 					if (verbose) {
 						const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
@@ -863,8 +872,6 @@ export class CommentController implements IEditorContribution {
 					} else {
 						status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
 					}
-				} else {
-					this._activeEditorHasCommentingRange.set(false);
 				}
 			}
 		});
@@ -1129,7 +1136,12 @@ export class CommentController implements IEditorContribution {
 		// create viewzones
 		this.removeCommentWidgetsAndStoreCache();
 
+		let hasCommentingRanges = false;
 		this._commentInfos.forEach(info => {
+			if (!hasCommentingRanges && (info.commentingRanges.ranges.length > 0 || info.commentingRanges.fileComments)) {
+				hasCommentingRanges = true;
+			}
+
 			const providerCacheStore = this._pendingNewCommentCache[info.owner];
 			const providerEditsCacheStore = this._pendingEditsCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
@@ -1157,6 +1169,12 @@ export class CommentController implements IEditorContribution {
 
 		this._commentingRangeDecorator.update(this.editor, this._commentInfos);
 		this._commentThreadRangeDecorator.update(this.editor, this._commentInfos);
+
+		if (hasCommentingRanges) {
+			this._activeEditorHasCommentingRange.set(true);
+		} else {
+			this._activeEditorHasCommentingRange.set(false);
+		}
 	}
 
 	public closeWidget(): void {

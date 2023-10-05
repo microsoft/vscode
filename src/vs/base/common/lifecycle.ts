@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { SetMap, groupBy } from 'vs/base/common/collections';
-import { once } from 'vs/base/common/functional';
+import { groupBy } from 'vs/base/common/collections';
+import { SetMap } from './map';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { Iterable } from 'vs/base/common/iterator';
 
 // #region Disposable Tracking
@@ -102,8 +103,7 @@ export class DisposableTracker implements IDisposableTracker {
 
 		const leaking = [...this.livingDisposables.entries()]
 			.filter(([, v]) => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton)
-			.map(([k]) => k)
-			.flat();
+			.flatMap(([k]) => k);
 
 		return leaking;
 	}
@@ -345,7 +345,7 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
  */
 export function toDisposable(fn: () => void): IDisposable {
 	const self = trackDisposable({
-		dispose: once(() => {
+		dispose: createSingleCallFunction(() => {
 			markAsDisposed(self);
 			fn();
 		})
@@ -623,7 +623,7 @@ export abstract class ReferenceCollection<T> {
 		}
 
 		const { object } = reference;
-		const dispose = once(() => {
+		const dispose = createSingleCallFunction(() => {
 			if (--reference!.counter === 0) {
 				this.destroyReferencedObject(key, reference!.object);
 				this.references.delete(key);

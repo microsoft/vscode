@@ -6986,6 +6986,7 @@ declare namespace monaco.languages {
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
 		isPreferred?: boolean;
+		isAI?: boolean;
 		disabled?: string;
 	}
 
@@ -7713,14 +7714,15 @@ declare namespace monaco.languages {
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 	}
 
-	export interface RelatedContextItem {
+	export interface DocumentContextItem {
 		readonly uri: Uri;
-		readonly range: IRange;
+		readonly version: number;
+		readonly ranges: IRange[];
 	}
 
 	export interface MappedEditsContext {
-		selections: ISelection[];
-		related: RelatedContextItem[];
+		/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
+		documents: DocumentContextItem[][];
 	}
 
 	export interface MappedEditsProvider {

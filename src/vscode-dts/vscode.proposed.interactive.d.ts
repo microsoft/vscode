@@ -138,7 +138,22 @@ declare module 'vscode' {
 		treeData: FileTreeData;
 	}
 
-	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId | InteractiveProgressTask | InteractiveProgressFileTree;
+	export interface DocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	export interface InteractiveProgressUsedContext {
+		documents: DocumentContext[];
+	}
+
+	export type InteractiveProgress =
+		| InteractiveProgressContent
+		| InteractiveProgressId
+		| InteractiveProgressTask
+		| InteractiveProgressFileTree
+		| InteractiveProgressUsedContext;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
@@ -176,7 +191,6 @@ declare module 'vscode' {
 		provideSlashCommands?(session: S, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
 
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
-		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
@@ -201,7 +215,6 @@ declare module 'vscode' {
 		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
-		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;
 
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
