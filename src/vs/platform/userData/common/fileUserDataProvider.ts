@@ -155,9 +155,9 @@ export class FileUserDataProvider extends Disposable implements
 			const userDataResource = this.toUserDataResource(change.resource);
 			if (this.watchResources.findSubstr(userDataResource)) {
 				userDataChanges.push({
-					correlationId: change.correlationId,
 					resource: userDataResource,
-					type: change.type
+					type: change.type,
+					correlationId: change.correlationId
 				});
 			}
 		}

@@ -13,8 +13,6 @@ import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/
 
 interface IWatchRequest {
 
-	readonly correlationId: number;
-
 	/**
 	 * The path to watch.
 	 */
@@ -36,6 +34,13 @@ interface IWatchRequest {
 	 * events.
 	 */
 	readonly includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, file change events from the watcher that
+	 * are a result of this watch request will carry the same
+	 * id.
+	 */
+	readonly correlationId?: number;
 }
 
 export interface INonRecursiveWatchRequest extends IWatchRequest {
