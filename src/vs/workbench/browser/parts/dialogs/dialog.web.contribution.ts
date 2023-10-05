@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IDialogHandler, IDialogResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmationResult, IDialogHandler, IDialogResult, IDialogService, IInputResult, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -52,7 +52,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		while (this.model.dialogs.length) {
 			this.currentDialog = this.model.dialogs[0];
 
-			let result: IDialogResult | Error | undefined = undefined;
+			let result: IDialogResult<IConfirmationResult | IInputResult | IPromptResult<unknown>> | Error | undefined = undefined;
 			try {
 				if (this.currentDialog.args.confirmArgs) {
 					const args = this.currentDialog.args.confirmArgs;

@@ -152,7 +152,7 @@ export interface IPromptResultWithCancel<T> extends IPromptResult<T> {
 	readonly result: T;
 }
 
-export type IDialogResult = IConfirmationResult | IInputResult | IPromptResult<unknown>;
+export type IDialogResult<T> = { result: Promise<T> };
 
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
 
@@ -281,17 +281,17 @@ export interface IDialogHandler {
 	/**
 	 * Ask the user for confirmation with a modal dialog.
 	 */
-	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+	confirm(confirmation: IConfirmation): Promise<IDialogResult<IConfirmationResult>>;
 
 	/**
 	 * Prompt the user with a modal dialog.
 	 */
-	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	prompt<T>(prompt: IPrompt<T>): Promise<IDialogResult<IPromptResult<T>>>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
 	 */
-	input(input: IInput): Promise<IInputResult>;
+	input(input: IInput): Promise<IDialogResult<IInputResult>>;
 
 	/**
 	 * Present the about dialog to the user.
@@ -420,9 +420,9 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 		return { result, checkboxChecked };
 	}
 
-	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
-	abstract input(input: IInput): Promise<IInputResult>;
-	abstract prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
+	abstract confirm(confirmation: IConfirmation): Promise<IDialogResult<IConfirmationResult>>;
+	abstract input(input: IInput): Promise<IDialogResult<IInputResult>>;
+	abstract prompt<T>(prompt: IPrompt<T>): Promise<IDialogResult<IPromptResult<T>>>;
 	abstract about(): Promise<void>;
 }
 

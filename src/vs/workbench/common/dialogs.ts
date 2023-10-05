@@ -6,17 +6,17 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IDialogArgs, IDialogResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmationResult, IDialogArgs, IDialogResult, IInputResult, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IDialogViewItem {
 	readonly args: IDialogArgs;
 
-	close(result?: IDialogResult | Error): void;
+	close(result: IDialogResult<IConfirmationResult | IInputResult | IPromptResult<unknown>> | Error | undefined): void;
 }
 
 export interface IDialogHandle {
 	readonly item: IDialogViewItem;
-	readonly result: Promise<IDialogResult | undefined>;
+	readonly result: Promise<IDialogResult<IConfirmationResult | IInputResult | IPromptResult<unknown>> | undefined>;
 }
 
 export interface IDialogsModel {
@@ -40,7 +40,7 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 	readonly onDidShowDialog = this._onDidShowDialog.event;
 
 	show(dialog: IDialogArgs): IDialogHandle {
-		const promise = new DeferredPromise<IDialogResult | undefined>();
+		const promise = new DeferredPromise<IDialogResult<IConfirmationResult | IInputResult | IPromptResult<unknown>> | undefined>();
 
 		const item: IDialogViewItem = {
 			args: dialog,
@@ -48,6 +48,8 @@ export class DialogsModel extends Disposable implements IDialogsModel {
 				this.dialogs.splice(0, 1);
 				if (result instanceof Error) {
 					promise.error(result);
+				} else if (result) {
+					result.result.then(result => promise.complete(result as any), error => promise.error(error));
 				} else {
 					promise.complete(result);
 				}
