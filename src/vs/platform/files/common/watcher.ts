@@ -265,9 +265,15 @@ export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClie
 }
 
 export interface IDiskFileChange {
-	readonly correlationId: number;
 	type: FileChangeType;
 	readonly resource: URI;
+
+	/**
+	 * If provided when starting the file watcher, the identifier
+	 * will match the original file watching request as a way to
+	 * identify the original component that is interested in the change.
+	 */
+	readonly correlationId?: number;
 }
 
 export interface ILogMessage {
@@ -277,9 +283,9 @@ export interface ILogMessage {
 
 export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
 	return changes.map(change => ({
-		correlationId: change.correlationId,
 		type: change.type,
-		resource: URI.revive(change.resource)
+		resource: URI.revive(change.resource),
+		correlationId: change.correlationId
 	}));
 }
 
