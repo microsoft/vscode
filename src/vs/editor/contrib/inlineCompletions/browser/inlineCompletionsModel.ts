@@ -117,7 +117,7 @@ export class InlineCompletionsModel extends Disposable {
 			const inlineCompletions = this._source.inlineCompletions.get();
 			transaction(tx => {
 				/** @description Seed inline completions with (newer) suggest widget inline completions */
-				if (inlineCompletions && suggestWidgetInlineCompletions.request.versionId > inlineCompletions.request.versionId) {
+				if (!inlineCompletions || suggestWidgetInlineCompletions.request.versionId > inlineCompletions.request.versionId) {
 					this._source.inlineCompletions.set(suggestWidgetInlineCompletions.clone(), tx);
 				}
 				this._source.clearSuggestWidgetInlineCompletions(tx);
