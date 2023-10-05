@@ -766,22 +766,22 @@ export function registerTerminalActions() {
 		run: async (c, accessor) => {
 			const notificationService = accessor.get(INotificationService);
 			const instances = getSelectedInstances(accessor);
-			const instance = instances?.[0];
-			if (!instance) {
+			const firstInstance = instances?.[0];
+			if (!firstInstance) {
 				return;
 			}
-			c.service.setEditingTerminal(instance);
-			c.service.setEditable(instance, {
+			c.service.setEditingTerminal(firstInstance);
+			c.service.setEditable(firstInstance, {
 				validationMessage: value => validateTerminalName(value),
 				onFinish: async (value, success) => {
 					// Cancel editing first as instance.rename will trigger a rerender automatically
-					c.service.setEditable(instance, null);
+					c.service.setEditable(firstInstance, null);
 					c.service.setEditingTerminal(undefined);
 					if (success) {
 						try {
-							instances.forEach(async _instance => {
-								await _instance.rename(value);
-							});
+							for (const instance of instances) {
+								await instance.rename(value);
+							}
 						} catch (e) {
 							notificationService.error(e);
 						}
