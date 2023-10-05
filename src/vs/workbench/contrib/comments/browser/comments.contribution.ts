@@ -11,7 +11,7 @@ import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/b
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import * as strings from 'vs/base/common/strings';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -101,6 +101,7 @@ export class CommentsAccessibilityHelpContribution extends Disposable {
 	}
 }
 export class CommentsAccessibilityHelpProvider implements IAccessibleContentProvider {
+	id = AccessibleViewProviderId.Comments;
 	verbositySettingKey: AccessibilityVerbositySettingId = AccessibilityVerbositySettingId.Comments;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 	private _element: HTMLElement | undefined;

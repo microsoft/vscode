@@ -168,6 +168,7 @@ suite('EditorGroupsService', () => {
 
 		part.removeGroup(downGroup);
 		assert.ok(!part.getGroup(downGroup.id));
+		assert.ok(!part.hasGroup(downGroup.id));
 		assert.strictEqual(didDispose, true);
 		assert.strictEqual(groupRemovedCounter, 1);
 		assert.strictEqual(part.groups.length, 2);
@@ -250,8 +251,11 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(restoredPart.groups.length, 3);
 		assert.ok(restoredPart.getGroup(rootGroup.id));
+		assert.ok(restoredPart.hasGroup(rootGroup.id));
 		assert.ok(restoredPart.getGroup(rightGroup.id));
+		assert.ok(restoredPart.hasGroup(rightGroup.id));
 		assert.ok(restoredPart.getGroup(downGroup.id));
+		assert.ok(restoredPart.hasGroup(downGroup.id));
 
 		restoredPart.clearState();
 	});

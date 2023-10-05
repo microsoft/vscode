@@ -1,0 +1,10 @@
+{
+  requesterUsername: "",
+  requesterAvatarIconUri: undefined,
+  responderUsername: "",
+  responderAvatarIconUri: undefined,
+  welcomeMessage: undefined,
+  requests: [  ],
+  providerId: "ChatProviderWithUsedContext",
+  providerState: undefined
+}

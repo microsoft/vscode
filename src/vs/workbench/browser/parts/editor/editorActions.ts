@@ -33,7 +33,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorGroupEmptyContext, MaximizedEditorGroupContext, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, MaximizedEditorGroupContext, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { URI } from 'vs/base/common/uri';
 
 class ExecuteCommandAction extends Action2 {
@@ -2480,5 +2480,40 @@ export class ReOpenInTextEditorAction extends Action2 {
 				}
 			}
 		], activeEditorPane.group);
+	}
+}
+
+export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.experimentalMoveEditorIntoNewWindowAction',
+			title: {
+				value: localize('popEditorOut', "Move Active Editor into a New Window (Experimental)"),
+				mnemonicTitle: localize({ key: 'miPopEditorOut', comment: ['&& denotes a mnemonic'] }, "&&Move Active Editor into a New Window (Experimental)"),
+				original: 'Move Active Editor into a New Window (Experimental)'
+			},
+			category: Categories.View,
+			precondition: ActiveEditorContext,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const activeEditor = editorService.activeEditor;
+		if (!activeEditor) {
+			return;
+		}
+
+		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
+
+		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, {
+			pinned: true,
+			viewState: activeEditor.toUntyped({ preserveViewState: editorGroupService.activeGroup.id })?.options?.viewState,
+		});
+		await editorGroupService.activeGroup.closeEditor(activeEditor);
 	}
 }
