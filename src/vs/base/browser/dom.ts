@@ -748,6 +748,13 @@ export function getWindow(e: unknown): Window & typeof globalThis {
 	return window;
 }
 
+export function focusWindow(element: Node): void {
+	const window = getWindow(element);
+	if (window !== getActiveWindow()) {
+		window.focus();
+	}
+}
+
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';

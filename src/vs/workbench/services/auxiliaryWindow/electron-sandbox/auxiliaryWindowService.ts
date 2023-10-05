@@ -9,12 +9,18 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
-export type AuxiliaryWindow = Window & typeof globalThis & {
+type AuxiliaryWindow = Window & typeof globalThis & {
 	vscode: {
 		ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send'>;
 	};
 	moveTop: () => void;
 };
+
+export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
+	const candidate = obj as AuxiliaryWindow | undefined;
+
+	return typeof candidate?.vscode?.ipcRenderer?.send === 'function';
+}
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
 

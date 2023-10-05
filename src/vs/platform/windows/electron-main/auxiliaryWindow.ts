@@ -24,17 +24,14 @@ export class AuxiliaryWindow {
 	constructor(
 		private readonly contents: WebContents,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
-		this.registerListeners();
 
-		// Handle devtools argument
-		if (environmentMainService.args['open-devtools'] === true) {
-			this.contents.openDevTools({ mode: 'bottom' });
-		}
+		this.create();
+		this.registerListeners();
 	}
 
-	private registerListeners(): void {
+	private create(): void {
 
 		// Apply zoom level when DOM is ready
 		this.contents.on('dom-ready', () => {
@@ -43,6 +40,14 @@ export class AuxiliaryWindow {
 			this.contents.setZoomLevel(windowZoomLevel);
 			this.contents.setZoomFactor(zoomLevelToZoomFactor(windowZoomLevel));
 		});
+
+		// Handle devtools argument
+		if (this.environmentMainService.args['open-devtools'] === true) {
+			this.contents.openDevTools({ mode: 'bottom' });
+		}
+	}
+
+	private registerListeners(): void {
 
 		// Support a small set of IPC calls
 		this.contents.ipc.on('vscode:focusAuxiliaryWindow', () => {

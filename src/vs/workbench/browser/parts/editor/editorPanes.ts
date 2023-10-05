@@ -279,7 +279,7 @@ export class EditorPanes extends Disposable {
 			return true; // restore focus if nothing was focused
 		}
 
-		const activeElement = document.activeElement;//
+		const activeElement = document.activeElement;
 
 		if (!activeElement || activeElement === document.body) {
 			return true; // restore focus if nothing is focused currently
