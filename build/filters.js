@@ -160,6 +160,7 @@ module.exports.copyrightFilter = [
 	'!**/*.js.map',
 	'!**/*.wasm',
 	'!build/**/*.init',
+	'!build/bin/**',
 	'!build/linux/libcxx-fetcher.*',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
