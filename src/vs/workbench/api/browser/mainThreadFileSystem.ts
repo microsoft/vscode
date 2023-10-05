@@ -299,7 +299,7 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 	}
 
 	private static _createFileChange(dto: IFileChangeDto): IFileChange {
-		return { correlationId: dto.correlationId, resource: URI.revive(dto.resource), type: dto.type };
+		return { resource: URI.revive(dto.resource), type: dto.type };
 	}
 
 	// --- forwarding calls
