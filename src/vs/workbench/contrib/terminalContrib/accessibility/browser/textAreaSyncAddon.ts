@@ -112,12 +112,13 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 
 		if (currentCommand?.commandStartX !== undefined) {
+			const defined = commandLine.substring(currentCommand.commandStartX);
 			this._currentCommand = commandLine.substring(currentCommand.commandStartX) || commandLine;
 			if (isGuessForPrompt) {
 				this._currentCommand = this._currentCommand.match(WINDOWS_PROMPT_REGEX)?.[0];
 				this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: guessed prompt `, this._currentCommand);
 			}
-			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
+			this._cursorX = defined !== '' ? buffer.cursorX - currentCommand.commandStartX : commandLine.length;
 		} else {
 			this._currentCommand = undefined;
 			this._cursorX = undefined;
