@@ -79,6 +79,11 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		if (originalCSPMetaTag) {
 			const csp = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
 			copyAttributes(originalCSPMetaTag, csp);
+
+			const content = csp.getAttribute('content');
+			if (content) {
+				csp.setAttribute('content', content.replace(/(script-src[^\;]*)/, `script-src 'none'`));
+			}
 		}
 	}
 
