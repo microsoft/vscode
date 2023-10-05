@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+#
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for license information.
+
+if [ "x$npm_config_node_gyp" = "x" ]; then
+	node "`dirname "$0"`/../../node_modules/node-gyp/bin/node-gyp.js" "$@"
+else
+	"$npm_config_node_gyp" "$@"
+fi

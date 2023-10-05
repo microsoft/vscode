@@ -115,13 +115,14 @@ steps:
       $env:npm_config_node_gyp="$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
       $env:npm_config_arch="$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
+      $env:PATH = "$(Build.SourcesDirectory)/build/bin;" + $env:PATH
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    # condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: node build/azure-pipelines/distro/mixin-npm
