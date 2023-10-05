@@ -61,8 +61,8 @@ export class DialogService extends Disposable implements IDialogService {
 		const dialogResult = await handle.result as IAsyncPromptResult<T> | IAsyncPromptResultWithCancel<T>;
 
 		return {
-			checkboxChecked: dialogResult.checkboxChecked,
-			result: await dialogResult.result
+			result: await dialogResult.result,
+			checkboxChecked: dialogResult.checkboxChecked
 		};
 	}
 
