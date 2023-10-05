@@ -10,7 +10,8 @@ steps:
   - task: NodeTool@0
     displayName: "Use Node.js"
     inputs:
-      versionSpec: "18.15"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY build
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
