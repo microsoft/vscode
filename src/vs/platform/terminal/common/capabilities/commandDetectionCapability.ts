@@ -369,7 +369,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// HACK: Fire command started on the following frame on Windows to allow the cursor
 		// position to update as conpty often prints the sequence on a different line to the
 		// actual line the command started on.
-		timeout(0).then(() => {
+		timeout(20).then(() => {
 			if (!this._currentCommand.commandExecutedMarker) {
 				this._onCursorMoveListener = this._terminal.onCursorMove(() => {
 					if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
@@ -385,6 +385,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
 				if (line) {
 					this._currentCommand.commandStartLineContent = line.translateToString(true);
+				}
+				this._logService.info('start line content is', this._currentCommand.commandStartLineContent);
+				this._logService.info('is not match', !this._currentCommand.commandStartLineContent?.match((/.*PS.*|[A-Z]:\\*>/)));
+				if (!this._currentCommand.commandStartLineContent?.match((/.*PS.*|[A-Z]:\\*>/))) {
+					this._currentCommand.isInvalid = true;
+					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
 				}
 			}
 			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
