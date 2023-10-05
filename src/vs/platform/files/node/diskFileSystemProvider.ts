@@ -243,11 +243,25 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		if (opts?.atomic !== false && opts?.atomic?.postfix) {
+		if (opts?.atomic !== false && opts?.atomic?.postfix && await this.canWriteFileAtomic(resource)) {
 			return this.doWriteFileAtomic(resource, joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}${opts.atomic.postfix}`), content, opts);
 		} else {
 			return this.doWriteFile(resource, content, opts);
 		}
+	}
+
+	private async canWriteFileAtomic(resource: URI): Promise<boolean> {
+		try {
+			const filePath = this.toFilePath(resource);
+			const { symbolicLink } = await SymlinkSupport.stat(filePath);
+			if (symbolicLink) {
+				return false; // atomic write not supported for symbolic links
+			}
+		} catch (error) {
+			// ignore stat errors here and just proceed trying to write
+		}
+
+		return true;
 	}
 
 	private async doWriteFileAtomic(resource: URI, tempResource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
