@@ -153,7 +153,7 @@ export class NotebookSearchService implements INotebookSearchService {
 		let limitHit = false;
 
 		for (const widget of widgets) {
-			if (!widget.viewModel) {
+			if (!widget.hasModel()) {
 				continue;
 			}
 			const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
@@ -168,6 +168,7 @@ export class NotebookSearchService implements INotebookSearchService {
 					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput ?? true,
 				}, token, false, true, searchID);
 
+			const uri = widget.viewModel!.uri;
 
 			if (matches.length) {
 				if (askMax && matches.length >= askMax) {
@@ -186,11 +187,11 @@ export class NotebookSearchService implements INotebookSearchService {
 				});
 
 				const fileMatch: INotebookFileMatchWithModel = {
-					resource: widget.viewModel.uri, cellResults: cellResults
+					resource: uri, cellResults: cellResults
 				};
-				localResults.set(widget.viewModel.uri, fileMatch);
+				localResults.set(uri, fileMatch);
 			} else {
-				localResults.set(widget.viewModel.uri, null);
+				localResults.set(uri, null);
 			}
 		}
 
@@ -205,7 +206,7 @@ export class NotebookSearchService implements INotebookSearchService {
 		const notebookWidgets = this.notebookEditorService.retrieveAllExistingWidgets();
 		return notebookWidgets
 			.map(widget => widget.value)
-			.filter((val): val is NotebookEditorWidget => !!val && !!(val.viewModel));
+			.filter((val): val is NotebookEditorWidget => !!val && val.hasModel());
 	}
 }
 

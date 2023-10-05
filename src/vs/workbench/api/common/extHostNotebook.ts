@@ -443,6 +443,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					const fileContent = await this._extHostFileSystem.value.readFile(uri);
 					const bytes = VSBuffer.fromString(fileContent.toString());
 					const notebook = await serializer.deserializeNotebook(bytes.buffer, token);
+					if (token.isCancellationRequested) {
+						return;
+					}
 					const data = typeConverters.NotebookData.from(notebook);
 
 					data.cells.forEach(cell => simpleCells.push(
