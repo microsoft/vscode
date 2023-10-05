@@ -9,7 +9,7 @@ import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
 import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel';
 
 export class CursorMoveCommands {
@@ -596,7 +596,7 @@ export namespace CursorMove {
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata = <ICommandMetadata>{
 		description: 'Move cursor to a logical position in the view',
 		args: [
 			{
