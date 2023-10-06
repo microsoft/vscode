@@ -42,47 +42,5 @@
 				}
 			]
 		}
-	],
-	"moves": [
-		{
-			"originalRange": "[26,33)",
-			"modifiedRange": "[35,42)",
-			"changes": [
-				{
-					"originalRange": "[26,33)",
-					"modifiedRange": "[35,42)",
-					"innerChanges": [
-						{
-							"originalRange": "[26,3 -> 26,10]",
-							"modifiedRange": "[35,3 -> 35,4]"
-						},
-						{
-							"originalRange": "[27,1 -> 27,1]",
-							"modifiedRange": "[36,1 -> 36,2]"
-						},
-						{
-							"originalRange": "[28,1 -> 28,1]",
-							"modifiedRange": "[37,1 -> 37,2]"
-						},
-						{
-							"originalRange": "[29,1 -> 29,1]",
-							"modifiedRange": "[38,1 -> 38,2]"
-						},
-						{
-							"originalRange": "[30,1 -> 30,1]",
-							"modifiedRange": "[39,1 -> 39,2]"
-						},
-						{
-							"originalRange": "[31,1 -> 31,1]",
-							"modifiedRange": "[40,1 -> 40,2]"
-						},
-						{
-							"originalRange": "[32,1 -> 32,1]",
-							"modifiedRange": "[41,1 -> 41,2]"
-						}
-					]
-				}
-			]
-		}
 	]
 }
