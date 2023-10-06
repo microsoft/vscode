@@ -237,13 +237,13 @@ export class InlineChatController implements IEditorContribution {
 
 		let widgetPosition: Position;
 		if (initialRender) {
-			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getEndPosition();
+			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getEndPosition().delta(-1);
 			this._zone.value.setContainerMargins();
 			this._zone.value.setWidgetMargins(widgetPosition);
 		} else {
 			assertType(this._activeSession);
 			assertType(this._strategy);
-			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getEndPosition();
+			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getStartPosition();
 			const needsMargin = this._strategy.needsMargin();
 			if (!needsMargin) {
 				this._zone.value.setWidgetMargins(widgetPosition, 0);
@@ -538,14 +538,14 @@ export class InlineChatController implements IEditorContribution {
 		const progressEdits: TextEdit[][] = [];
 		const progress = new Progress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
-			if (!request.live) {
-				throw new Error('Progress in NOT supported in non-live mode');
-			}
 			if (data.message) {
 				this._zone.value.widget.updateToolbar(false);
 				this._zone.value.widget.updateInfo(data.message);
 			}
 			if (data.edits) {
+				if (!request.live) {
+					throw new Error('Progress in NOT supported in non-live mode');
+				}
 				progressEdits.push(data.edits);
 				await this._makeChanges(progressEdits, false);
 			}
