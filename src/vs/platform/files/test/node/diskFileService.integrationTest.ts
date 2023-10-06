@@ -1831,6 +1831,18 @@ flakySuite('Disk File Service', function () {
 		return testWriteFile(true);
 	});
 
+	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('writeFile - atomic writing does not break symlinks', async () => {
+		const link = URI.file(join(testDir, 'lorem.txt-linked'));
+		await Promises.symlink(join(testDir, 'lorem.txt'), link.fsPath);
+
+		const content = 'Updates to the lorem file';
+		await service.writeFile(link, VSBuffer.fromString(content), { atomic: { postfix: '.vsctmp' } });
+		assert.strictEqual(readFileSync(link.fsPath).toString(), content);
+
+		const resolved = await service.resolve(link);
+		assert.strictEqual(resolved.isSymbolicLink, true);
+	});
+
 	async function testWriteFile(atomic: boolean) {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
