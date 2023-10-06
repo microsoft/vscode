@@ -241,20 +241,22 @@ suite('Replace Pattern test', () => {
 		actual = testObject.getReplaceString('this is a bla text');
 		assert.strictEqual(actual, 'blaah');
 
+		const preserveCaseRegExp = /([^-_\r\n]*[-_]|[^-_\r\n]+$)/g;
+
 		testObject = new ReplacePattern('newrege$1', true, /Testrege(\w*)/);
-		actual = testObject.getReplaceString('Testregex', true);
+		actual = testObject.getReplaceString('Testregex', preserveCaseRegExp);
 		assert.strictEqual(actual, 'Newregex');
 
 		testObject = new ReplacePattern('newrege$1', true, /TESTREGE(\w*)/);
-		actual = testObject.getReplaceString('TESTREGEX', true);
+		actual = testObject.getReplaceString('TESTREGEX', preserveCaseRegExp);
 		assert.strictEqual(actual, 'NEWREGEX');
 
 		testObject = new ReplacePattern('new_rege$1', true, /Test_Rege(\w*)/);
-		actual = testObject.getReplaceString('Test_Regex', true);
+		actual = testObject.getReplaceString('Test_Regex', preserveCaseRegExp);
 		assert.strictEqual(actual, 'New_Regex');
 
 		testObject = new ReplacePattern('new-rege$1', true, /Test-Rege(\w*)/);
-		actual = testObject.getReplaceString('Test-Regex', true);
+		actual = testObject.getReplaceString('Test-Regex', preserveCaseRegExp);
 		assert.strictEqual(actual, 'New-Regex');
 	});
 });

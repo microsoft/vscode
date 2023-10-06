@@ -10,6 +10,8 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
 import { MATCHES_LIMIT } from 'vs/editor/contrib/find/browser/findModel';
@@ -185,7 +187,8 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			this._progressBar.infinite().show(PROGRESS_BAR_DELAY);
 
 			const replacePattern = this.replacePattern;
-			const replaceString = replacePattern.buildReplaceString(match.matches, this._state.preserveCase);
+			const preserveCaseRegExp = this._state.preserveCase ? new RegExp(this._configurationService.getValue<IEditorOptions>('editor').find!.preserveCaseRegExp, 'g') : undefined;
+			const replaceString = replacePattern.buildReplaceString(match.matches, preserveCaseRegExp);
 
 			const viewModel = this._notebookEditor.getViewModel();
 			viewModel.replaceOne(cell, match.range, replaceString).then(() => {
@@ -208,10 +211,11 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		const cellFindMatches = this._findModel.findMatches;
 		const replaceStrings: string[] = [];
+		const preserveCaseRegExp = this._state.preserveCase ? new RegExp(this._configurationService.getValue<IEditorOptions>('editor').find!.preserveCaseRegExp, 'g') : undefined;
 		cellFindMatches.forEach(cellFindMatch => {
 			cellFindMatch.contentMatches.forEach(match => {
 				const matches = match.matches;
-				replaceStrings.push(replacePattern.buildReplaceString(matches, this._state.preserveCase));
+				replaceStrings.push(replacePattern.buildReplaceString(matches, preserveCaseRegExp));
 			});
 		});
 

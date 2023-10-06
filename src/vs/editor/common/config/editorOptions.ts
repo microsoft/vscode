@@ -1585,6 +1585,10 @@ export interface IEditorFindOptions {
 	 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
 	 */
 	loop?: boolean;
+	/**
+	 * Controls how the Preserve Case option determines word delimiters.
+	 */
+	preserveCaseRegExp: string;
 }
 
 /**
@@ -1601,7 +1605,21 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
-			loop: true
+			loop: true,
+			//					Upper case followed by 1 or more lower alpha-numeric with optional non-alphanumerics
+			//					e.g. Ab, Ab-, A1, A1_, Abc, Abc-, Abc_, Abc1, Abc1-
+			//													Or
+			//													2 or more upper case with optional non-alphanumerics but not followed by lower alpha-numeric
+			//													e.g. AB, AB-, AB_. The "but not" rule ensures DBName is split DB and Name instead of DBN and ame
+			//																							Or
+			//																							Lower case followed by zero or more lower alpha-numeric with optional non-alphanumerics
+			//																							e.g. a, a-, a1, a1_, abc, abc-, abc_, abc1, abc1-
+			//																															Or
+			//																															Upper case with optional non-alphanumerics
+			//																															e.g. A, A-, A_
+			preserveCaseRegExp: '([A-Z][a-z0-9]+[^A-Za-z0-9\r\n]*|[A-Z][A-Z]+[^A-Za-z0-9\r\n]*(?![a-z1-9])|[a-z][a-z0-9]*[^A-Za-z0-9\r\n]*|[A-Z][^A-Za-z0-9\r\n]*)',
+			// This is the equivalent to the legacy preserve case behavior.
+			//preserveCaseRegExp: '([^-_\r\n]*[-_]|[^-_\r\n]+$)',
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1649,7 +1667,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 					default: defaults.loop,
 					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
 				},
-
+				'editor.find.preserveCaseRegExp': {
+					type: 'string',
+					default: defaults.preserveCaseRegExp,
+					description: nls.localize('find.preserveCaseRegExp', "Controls how the Preserve Case option determines word delimiters.")
+				},
 			}
 		);
 	}
@@ -1670,6 +1692,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, IEditorFindOptions,
 			globalFindClipboard: boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
 			addExtraSpaceOnTop: boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
 			loop: boolean(input.loop, this.defaultValue.loop),
+			preserveCaseRegExp: input.preserveCaseRegExp || this.defaultValue.preserveCaseRegExp,
 		};
 	}
 }

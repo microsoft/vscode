@@ -568,7 +568,7 @@ export class SearchView extends ViewPane {
 		}));
 
 		this._register(this.searchWidget.onPreserveCaseChange((state) => {
-			this.viewModel.preserveCase = state;
+			this.viewModel.preserveCaseRegExp = state ? new RegExp(this.configurationService.getValue<IEditorOptions>('editor').find!.preserveCaseRegExp, 'g') : undefined;
 			this.refreshTree();
 		}));
 

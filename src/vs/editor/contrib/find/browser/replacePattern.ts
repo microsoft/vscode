@@ -49,10 +49,10 @@ export class ReplacePattern {
 		}
 	}
 
-	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
+	public buildReplaceString(matches: string[] | null, preserveCaseRegExp?: RegExp): string {
 		if (this._state.kind === ReplacePatternKind.StaticValue) {
-			if (preserveCase) {
-				return buildReplaceStringWithCasePreserved(matches, this._state.staticValue);
+			if (preserveCaseRegExp !== undefined) {
+				return buildReplaceStringWithCasePreserved(preserveCaseRegExp, matches, this._state.staticValue);
 			} else {
 				return this._state.staticValue;
 			}

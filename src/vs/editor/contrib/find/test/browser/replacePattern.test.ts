@@ -191,42 +191,35 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('buildReplaceStringWithCasePreserved test', () => {
-		function assertReplace(target: string[], replaceString: string, expected: string): void {
-			let actual: string = '';
-			actual = buildReplaceStringWithCasePreserved(target, replaceString);
+		function assertReplace(regExp: RegExp, target: string[], replaceString: string, expected: string): void {
+			const actual: string = buildReplaceStringWithCasePreserved(regExp, target, replaceString);
 			assert.strictEqual(actual, expected);
 		}
-
-		assertReplace(['abc'], 'Def', 'def');
-		assertReplace(['Abc'], 'Def', 'Def');
-		assertReplace(['ABC'], 'Def', 'DEF');
-		assertReplace(['abc', 'Abc'], 'Def', 'def');
-		assertReplace(['Abc', 'abc'], 'Def', 'Def');
-		assertReplace(['ABC', 'abc'], 'Def', 'DEF');
-		assertReplace(['aBc', 'abc'], 'Def', 'def');
-		assertReplace(['AbC'], 'Def', 'Def');
-		assertReplace(['aBC'], 'Def', 'def');
-		assertReplace(['aBc'], 'DeF', 'deF');
-		assertReplace(['Foo-Bar'], 'newfoo-newbar', 'Newfoo-Newbar');
-		assertReplace(['Foo-Bar-Abc'], 'newfoo-newbar-newabc', 'Newfoo-Newbar-Newabc');
-		assertReplace(['Foo-Bar-abc'], 'newfoo-newbar', 'Newfoo-newbar');
-		assertReplace(['foo-Bar'], 'newfoo-newbar', 'newfoo-Newbar');
-		assertReplace(['foo-BAR'], 'newfoo-newbar', 'newfoo-NEWBAR');
-		assertReplace(['foO-BAR'], 'NewFoo-NewBar', 'newFoo-NEWBAR');
-		assertReplace(['Foo_Bar'], 'newfoo_newbar', 'Newfoo_Newbar');
-		assertReplace(['Foo_Bar_Abc'], 'newfoo_newbar_newabc', 'Newfoo_Newbar_Newabc');
-		assertReplace(['Foo_Bar_abc'], 'newfoo_newbar', 'Newfoo_newbar');
-		assertReplace(['Foo_Bar-abc'], 'newfoo_newbar-abc', 'Newfoo_newbar-abc');
-		assertReplace(['foo_Bar'], 'newfoo_newbar', 'newfoo_Newbar');
-		assertReplace(['Foo_BAR'], 'newfoo_newbar', 'Newfoo_NEWBAR');
+		testAssetReplace(assertReplace);
 	});
 
 	test('preserve case', () => {
-		function assertReplace(target: string[], replaceString: string, expected: string): void {
+		function assertReplace(regExp: RegExp, target: string[], replaceString: string, expected: string): void {
 			const replacePattern = parseReplaceString(replaceString);
-			const actual = replacePattern.buildReplaceString(target, true);
+			const actual = replacePattern.buildReplaceString(target, regExp);
 			assert.strictEqual(actual, expected);
 		}
+
+		testAssetReplace(assertReplace);
+	});
+
+	function testAssetReplace(assertReplaceSingle: (regExp: RegExp, target: string[], replaceString: string, expected: string) => void) {
+		function assertReplace(target: string[], replaceString: string, expected: string, expectedNew?: string): void {
+			let preserveCaseRegExp = '([^-_\r\n]*[-_]|[^-_\r\n]+$)';
+			let regExp = new RegExp(preserveCaseRegExp, 'g');
+			assertReplaceSingle(regExp, target, replaceString, expected);
+
+			preserveCaseRegExp = "([A-Z][a-z0-9]+[^A-Za-z0-9\r\n]*|[A-Z][A-Z]+[^A-Za-z0-9\r\n]*(?![a-z1-9])|[a-z][a-z0-9]*[^A-Za-z0-9\r\n]*|[A-Z][^A-Za-z0-9\r\n]*)";
+			regExp = new RegExp(preserveCaseRegExp, 'g');
+			assertReplaceSingle(regExp, target, replaceString, expectedNew || expected);
+		}
+
+		assertReplace(['DatabaseName'], 'DBName', 'y', 'x');
 
 		assertReplace(['abc'], 'Def', 'def');
 		assertReplace(['Abc'], 'Def', 'Def');
@@ -240,15 +233,49 @@ suite('Replace Pattern test', () => {
 		assertReplace(['aBc'], 'DeF', 'deF');
 		assertReplace(['Foo-Bar'], 'newfoo-newbar', 'Newfoo-Newbar');
 		assertReplace(['Foo-Bar-Abc'], 'newfoo-newbar-newabc', 'Newfoo-Newbar-Newabc');
-		assertReplace(['Foo-Bar-abc'], 'newfoo-newbar', 'Newfoo-newbar');
+		assertReplace(['Foo-Bar-abc'], 'newfoo-newbar', 'Newfoo-newbar', 'Newfoo-Newbar');
 		assertReplace(['foo-Bar'], 'newfoo-newbar', 'newfoo-Newbar');
 		assertReplace(['foo-BAR'], 'newfoo-newbar', 'newfoo-NEWBAR');
 		assertReplace(['foO-BAR'], 'NewFoo-NewBar', 'newFoo-NEWBAR');
 		assertReplace(['Foo_Bar'], 'newfoo_newbar', 'Newfoo_Newbar');
 		assertReplace(['Foo_Bar_Abc'], 'newfoo_newbar_newabc', 'Newfoo_Newbar_Newabc');
-		assertReplace(['Foo_Bar_abc'], 'newfoo_newbar', 'Newfoo_newbar');
-		assertReplace(['Foo_Bar-abc'], 'newfoo_newbar-abc', 'Newfoo_newbar-abc');
+		assertReplace(['Foo_Bar_abc'], 'newfoo_newbar', 'Newfoo_newbar', 'Newfoo_Newbar');
+		assertReplace(['Foo_Bar-abc'], 'newfoo_newbar-abc', 'Newfoo_newbar-abc', 'Newfoo_Newbar-abc');
 		assertReplace(['foo_Bar'], 'newfoo_newbar', 'newfoo_Newbar');
 		assertReplace(['foo_BAR'], 'newfoo_newbar', 'newfoo_NEWBAR');
-	});
+		assertReplace(['fooBar'], 'newfooBar', 'newfooBar');
+		assertReplace(['fooBAR'], 'newfooBar', 'newfooBAR');
+		assertReplace(['FooBar'], 'newfooBar', 'NewfooBar');
+		assertReplace(['FOOBar'], 'newfooBar', 'NEWFOOBar');
+		assertReplace(['FOOBAR'], 'newfooBar', 'NEWFOOBAR');
+		assertReplace(['foo'], 'newfooBar', 'newfoobar');
+		assertReplace(['foo'], 'newfooBar', 'newfoobar');
+		assertReplace(['Foo'], 'newfooBar', 'NewfooBar');
+		assertReplace(['FOO'], 'newfooBar', 'NEWFOOBAR');
+		assertReplace(['FOO'], 'newfooBar', 'NEWFOOBAR');
+		assertReplace(['fooBar'], 'newfoo', 'newfoo');
+		assertReplace(['fooBAR'], 'newfoo', 'newfoo');
+		assertReplace(['FooBar'], 'newfoo', 'Newfoo');
+		assertReplace(['FOOBar'], 'newfoo', 'NEWFOO');
+		assertReplace(['FOOBAR'], 'newfoo', 'NEWFOO');
+		assertReplace(['Foo?%&Bar'], 'newfoo?%&newbar', 'Newfoo?%&Newbar');
+		assertReplace(['Foo?%&Bar?%&Abc'], 'newfoo?%&newbar?%&newabc', 'Newfoo?%&Newbar?%&Newabc');
+		assertReplace(['Foo?%&Bar?%&abc'], 'newfoo?%&newbar', 'Newfoo?%&Newbar');
+		assertReplace(['foo?%&Bar'], 'newfoo?%&newbar', 'newfoo?%&Newbar');
+		assertReplace(['foo?%&BAR'], 'newfoo?%&newbar', 'newfoo?%&NEWBAR');
+		assertReplace(['foO?%&BAR'], 'NewFoo?%&NewBar', 'newFOO?%&NEWBAR');
+		assertReplace(['Foo_Bar?%&abc'], 'newfoo_newbar?%&abc', 'Newfoo_Newbar?%&abc');
+		assertReplace(['DatabaseName'], 'DBName', 'DBName');
+		assertReplace(['databaseName'], 'DBName', 'dbName');
+		assertReplace(['DATABASENAME'], 'DBName', 'DBNAME');
+		assertReplace(['DBName'], 'DatabaseName', 'DatabaseName');
+		assertReplace(['dbName'], 'DatabaseName', 'databaseName');
+		assertReplace(['DBNAME'], 'DatabaseName', 'DATABASENAME');
+		assertReplace(['CPlus'], 'JavaScript', 'JavaScript');
+		assertReplace(['cPlus'], 'JavaScript', 'javaScript');
+		assertReplace(['CPLUS'], 'JavaScript', 'JAVASCRIPT');
+		assertReplace(['JavaScript'], 'CPlus', 'CPlus');
+		assertReplace(['javaScript'], 'CPlus', 'cPlus');
+		assertReplace(['JAVASCRIPT'], 'CPlus', 'CPLUS');
+	}
 });

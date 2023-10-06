@@ -58,18 +58,18 @@ export class ReplacePattern {
 	* Returns the replace string for the first match in the given text.
 	* If text has no matches then returns null.
 	*/
-	getReplaceString(text: string, preserveCase?: boolean): string | null {
+	getReplaceString(text: string, preserveCaseRegExp?: RegExp): string | null {
 		this._regExp.lastIndex = 0;
 		const match = this._regExp.exec(text);
 		if (match) {
 			if (this.hasParameters) {
-				const replaceString = this.replaceWithCaseOperations(text, this._regExp, this.buildReplaceString(match, preserveCase));
+				const replaceString = this.replaceWithCaseOperations(text, this._regExp, this.buildReplaceString(match, preserveCaseRegExp));
 				if (match[0] === text) {
 					return replaceString;
 				}
 				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
 			}
-			return this.buildReplaceString(match, preserveCase);
+			return this.buildReplaceString(match, preserveCaseRegExp);
 		}
 
 		return null;
@@ -153,9 +153,9 @@ export class ReplacePattern {
 		return text.replace(regex, newReplaceString);
 	}
 
-	public buildReplaceString(matches: string[] | null, preserveCase?: boolean): string {
-		if (preserveCase) {
-			return buildReplaceStringWithCasePreserved(matches, this._replacePattern);
+	public buildReplaceString(matches: string[] | null, preserveCaseRegExp?: RegExp): string {
+		if (preserveCaseRegExp !== undefined) {
+			return buildReplaceStringWithCasePreserved(preserveCaseRegExp, matches, this._replacePattern);
 		} else {
 			return this._replacePattern;
 		}

@@ -17,6 +17,7 @@ import { Schemas } from 'vs/base/common/network';
 import { lcut } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -113,9 +114,8 @@ export class Match {
 		if (!searchModel.replacePattern) {
 			throw new Error('searchModel.replacePattern must be set before accessing replaceString');
 		}
-
 		const fullMatchText = this.fullMatchText();
-		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText, searchModel.preserveCase);
+		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText, searchModel.preserveCaseRegExp);
 		if (replaceString !== null) {
 			return replaceString;
 		}
@@ -123,7 +123,7 @@ export class Match {
 		// Search/find normalize line endings - check whether \r prevents regex from matching
 		const fullMatchTextWithoutCR = fullMatchText.replace(/\r\n/g, '\n');
 		if (fullMatchTextWithoutCR !== fullMatchText) {
-			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
+			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCaseRegExp);
 			if (replaceString !== null) {
 				return replaceString;
 			}
@@ -131,7 +131,7 @@ export class Match {
 
 		// If match string is not matching then regex pattern has a lookahead expression
 		const contextMatchTextWithSurroundingContent = this.fullMatchText(true);
-		replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithSurroundingContent, searchModel.preserveCase);
+		replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithSurroundingContent, searchModel.preserveCaseRegExp);
 		if (replaceString !== null) {
 			return replaceString;
 		}
@@ -139,7 +139,7 @@ export class Match {
 		// Search/find normalize line endings, this time in full context
 		const contextMatchTextWithoutCR = contextMatchTextWithSurroundingContent.replace(/\r\n/g, '\n');
 		if (contextMatchTextWithoutCR !== contextMatchTextWithSurroundingContent) {
-			replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithoutCR, searchModel.preserveCase);
+			replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithoutCR, searchModel.preserveCaseRegExp);
 			if (replaceString !== null) {
 				return replaceString;
 			}
@@ -1931,7 +1931,7 @@ export class SearchModel extends Disposable {
 	private _replaceActive: boolean = false;
 	private _replaceString: string | null = null;
 	private _replacePattern: ReplacePattern | null = null;
-	private _preserveCase: boolean = false;
+	private _preserveCaseRegExp?: RegExp = undefined;
 	private _startStreamDelay: Promise<void> = Promise.resolve();
 	private readonly _resultQueue: IFileMatch[] = [];
 
@@ -1976,12 +1976,16 @@ export class SearchModel extends Disposable {
 		return this._replaceString || '';
 	}
 
-	set preserveCase(value: boolean) {
-		this._preserveCase = value;
+	set preserveCaseRegExp(value: RegExp | undefined) {
+		this._preserveCaseRegExp = value;
+	}
+
+	get preserveCaseRegExp(): RegExp | undefined {
+		return this._preserveCaseRegExp;
 	}
 
 	get preserveCase(): boolean {
-		return this._preserveCase;
+		return this._preserveCaseRegExp !== undefined;
 	}
 
 	set replaceString(replaceString: string) {
