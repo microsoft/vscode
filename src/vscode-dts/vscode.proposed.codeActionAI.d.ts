@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+declare module 'vscode' {
 
-export const IExtensionUrlTrustService = createDecorator<IExtensionUrlTrustService>('extensionUrlTrustService');
-
-export interface IExtensionUrlTrustService {
-	readonly _serviceBrand: undefined;
-	isExtensionUrlTrusted(extensionId: string, url: string): Promise<boolean>;
+	export interface CodeAction {
+		/**
+		 * Marks this as an AI action.
+		 *
+		 * Ex: A quick fix should be marked AI if it invokes AI.
+		 */
+		isAI?: boolean;
+	}
 }

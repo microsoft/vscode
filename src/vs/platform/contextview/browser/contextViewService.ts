@@ -41,8 +41,8 @@ export class ContextViewService extends Disposable implements IContextViewServic
 				this.setContainer(container, shadowRoot ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED);
 			}
 		} else {
-			if (this.layoutService.hasContainer && this.container !== this.layoutService.container) {
-				this.container = this.layoutService.container;
+			if (this.layoutService.hasContainer && this.container !== this.layoutService.activeContainer) {
+				this.container = this.layoutService.activeContainer;
 				this.setContainer(this.container, ContextViewDOMPosition.ABSOLUTE);
 			}
 		}

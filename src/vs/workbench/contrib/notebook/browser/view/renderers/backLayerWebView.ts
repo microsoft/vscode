@@ -58,7 +58,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
-
+const FRAGMENT_REGEX = /^(.*)#([^#]*)$/;
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -933,6 +933,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 	private _handleResourceOpening(href: string) {
 		let linkToOpen: URI | undefined = undefined;
+		let fragment: string | undefined = undefined;
+
+		// Separate out the fragment so that the subsequent calls
+		// to URI.joinPath() don't URL encode it. This allows opening
+		// links with both paths and fragments.
+		const hrefWithFragment = FRAGMENT_REGEX.exec(href);
+		if (hrefWithFragment) {
+			href = hrefWithFragment[1];
+			fragment = hrefWithFragment[2];
+		}
+
 		if (href.startsWith('/')) {
 			linkToOpen = URI.parse(href);
 		} else if (href.startsWith('~')) {
@@ -954,6 +965,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (linkToOpen) {
+			// Re-attach fragment now that we have the full file path.
+			if (fragment) {
+				linkToOpen = linkToOpen.with({ fragment });
+			}
 			this._openUri(linkToOpen);
 		}
 	}

@@ -336,12 +336,14 @@ MenuRegistry.onDidChangeMenu(e => {
 });
 
 
+const CONTEXT_TOOLBAR_COMMAND_CENTER = ContextKeyExpr.equals('config.debug.toolBarLocation', 'commandCenter');
+
 MenuRegistry.appendMenuItem(MenuId.CommandCenterCenter, {
 	submenu: MenuId.DebugToolBar,
 	title: 'Debug',
 	icon: Codicon.debug,
 	order: 1,
-	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.equals('config.debug.toolBarLocation', 'commandCenter'))
+	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_TOOLBAR_COMMAND_CENTER)
 });
 
 registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
@@ -354,7 +356,7 @@ registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, icons.debugStepOut, un
 registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, icons.debugRestart);
 registerDebugToolBarItem(STEP_BACK_ID, localize('stepBackDebug', "Step Back"), 50, icons.debugStepBack, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(REVERSE_CONTINUE_ID, localize('reverseContinue', "Reverse"), 55, icons.debugReverseContinue, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, Codicon.listTree, CONTEXT_MULTI_SESSION_DEBUG);
+registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, Codicon.listTree, ContextKeyExpr.and(CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_TOOLBAR_COMMAND_CENTER.negate()));
 
 MenuRegistry.appendMenuItem(MenuId.DebugToolBarStop, {
 	group: 'navigation',

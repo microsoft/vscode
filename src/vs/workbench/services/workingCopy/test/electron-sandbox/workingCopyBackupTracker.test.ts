@@ -74,7 +74,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		waitForReady(): Promise<void> {
-			return super.whenReady;
+			return this.whenReady;
 		}
 
 		get pendingBackupOperationCount(): number { return this.pendingBackupOperations.size; }

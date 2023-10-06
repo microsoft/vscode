@@ -248,6 +248,8 @@ export class InlineChatController implements IEditorContribution {
 			if (!needsMargin) {
 				this._zone.value.setWidgetMargins(widgetPosition, 0);
 			}
+		}
+		if (this._activeSession) {
 			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
 		this._zone.value.show(widgetPosition);
@@ -371,10 +373,12 @@ export class InlineChatController implements IEditorContribution {
 			this._messages.fire(msg);
 		}));
 
+		const altVersionNow = this._editor.getModel()?.getAlternativeVersionId();
+
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
 			if (!this._ignoreModelContentChanged && this._strategy?.hasFocus()) {
-				this._ctxUserDidEdit.set(true);
+				this._ctxUserDidEdit.set(altVersionNow !== this._editor.getModel()?.getAlternativeVersionId());
 			}
 
 			if (this._ignoreModelContentChanged || this._strategy?.hasFocus()) {
@@ -465,7 +469,12 @@ export class InlineChatController implements IEditorContribution {
 			const { lastExchange } = this._activeSession;
 			this._activeSession.addInput(lastExchange.prompt.retry());
 			if (lastExchange.response instanceof EditResponse) {
-				await this._strategy.undoChanges(lastExchange.response);
+				try {
+					this._ignoreModelContentChanged = true;
+					await this._strategy.undoChanges(lastExchange.response);
+				} finally {
+					this._ignoreModelContentChanged = false;
+				}
 			}
 			return State.MAKE_REQUEST;
 		}
@@ -538,7 +547,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 			if (data.edits) {
 				progressEdits.push(data.edits);
-				await this._makeChanges(progressEdits);
+				await this._makeChanges(progressEdits, false);
 			}
 		}, { async: true });
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
@@ -552,12 +561,15 @@ export class InlineChatController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
+			// we must wait for all edits that came in via progress to complete
+			await progress.drain();
+
 			if (reply?.type === InlineChatResponseType.Message) {
 				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply);
 			} else if (reply) {
 				const editResponse = new EditResponse(this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), reply, progressEdits);
 				if (editResponse.allLocalEdits.length > progressEdits.length) {
-					await this._makeChanges(editResponse.allLocalEdits);
+					await this._makeChanges(editResponse.allLocalEdits, true);
 				}
 				response = editResponse;
 			} else {
@@ -610,7 +622,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.SHOW_RESPONSE;
 	}
 
-	private async _makeChanges(allEdits: TextEdit[][]) {
+	private async _makeChanges(allEdits: TextEdit[][], computeMoreMinimalEdits: boolean) {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -619,9 +631,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 
 		// diff-changes from model0 -> modelN+1
-		for (const edits of allEdits) {
+		{
+			const lastEdits = allEdits[allEdits.length - 1];
 			const textModelNplus1 = this._modelService.createModel(createTextBufferFactoryFromSnapshot(this._activeSession.textModelN.createSnapshot()), null, undefined, true);
-			textModelNplus1.applyEdits(edits.map(TextEdit.asEditOperation));
+			textModelNplus1.applyEdits(lastEdits.map(TextEdit.asEditOperation));
 			const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, textModelNplus1.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 			this._activeSession.lastTextModelChanges = diff?.changes ?? [];
 			textModelNplus1.dispose();
@@ -629,7 +642,7 @@ export class InlineChatController implements IEditorContribution {
 
 		// make changes from modelN -> modelN+1
 		const lastEdits = allEdits[allEdits.length - 1];
-		const moreMinimalEdits = await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, lastEdits);
+		const moreMinimalEdits = computeMoreMinimalEdits ? await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, lastEdits) : undefined;
 		const editOperations = (moreMinimalEdits ?? lastEdits).map(TextEdit.asEditOperation);
 		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, lastEdits, moreMinimalEdits);
 
@@ -677,6 +690,7 @@ export class InlineChatController implements IEditorContribution {
 			// show status message
 			status = localize('empty', "No results, please refine your input and try again");
 			this._zone.value.widget.updateStatus(status, { classes: ['warn'] });
+			this._chatAccessibilityService.acceptResponse(status);
 			return State.WAIT_FOR_INPUT;
 
 		} else if (response instanceof ErrorResponse) {
@@ -705,6 +719,7 @@ export class InlineChatController implements IEditorContribution {
 
 			const canContinue = this._strategy.checkChanges(response);
 			if (!canContinue) {
+				this._chatAccessibilityService.acceptResponse();
 				return State.CANCEL;
 			}
 			status = this._configurationService.getValue('accessibility.verbosity.inlineChat') === true ? localize('editResponseMessage', "Use tab to navigate to the diff editor and review proposed changes.") : '';
