@@ -17,7 +17,31 @@ steps:
       toolchainFeed: https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json
       default: true
       addToPath: true
-    displayName: Install Rust
+    displayName: Install MSFT Rust
+    condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], 'none'))
+
+  - script: |
+      set -e
+      curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $RUSTUP_TOOLCHAIN
+      echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
+    env:
+      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
+    displayName: Install OSS Rust
+    condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
+
+  - script: |
+      set -e
+      rustup default $RUSTUP_TOOLCHAIN
+      rustup update $RUSTUP_TOOLCHAIN
+    env:
+      RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
+    displayName: "Set Rust version"
+    condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
+
+  - ${{ each target in parameters.targets }}:
+    - script: rustup target add ${{ target }}
+      displayName: "Adding Rust target '${{ target }}'"
+      condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 
   - script: |
       set -e
