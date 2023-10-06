@@ -224,15 +224,15 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number; height: number }): void {
-		return this.getPart(group).setSize(group, size);
+		this.getPart(group).setSize(group, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement): void {
-		return this.activePart.arrangeGroups(arrangement);
+	arrangeGroups(arrangement: GroupsArrangement, group?: IEditorGroupView | GroupIdentifier): void {
+		(group !== undefined ? this.getPart(group) : this.activePart).arrangeGroups(arrangement);
 	}
 
 	toggleGroupArrangement(): void {
-		return this.activePart.toggleGroupArrangement();
+		this.activePart.toggleGroupArrangement();
 	}
 
 	isGroupMaximized(group: IEditorGroupView): boolean {
@@ -244,7 +244,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	applyLayout(layout: EditorGroupLayout): void {
-		return this.activePart.applyLayout(layout);
+		this.activePart.applyLayout(layout);
 	}
 
 	getLayout(): EditorGroupLayout {
@@ -252,7 +252,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	centerLayout(active: boolean): void {
-		return this.activePart.centerLayout(active);
+		this.activePart.centerLayout(active);
 	}
 
 	isLayoutCentered(): boolean {
@@ -264,7 +264,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
-		return this.activePart.setGroupOrientation(orientation);
+		this.activePart.setGroupOrientation(orientation);
 	}
 
 	findGroup(scope: IFindGroupScope, source?: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
@@ -280,7 +280,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
-		return this.getPart(group).removeGroup(group);
+		this.getPart(group).removeGroup(group);
 	}
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
