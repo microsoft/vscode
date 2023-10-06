@@ -13,7 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IInstantiationService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -24,6 +24,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
 export type EditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
@@ -95,7 +96,7 @@ export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpression | undefined;
 	kbOpts?: ICommandKeybindingsOptions | ICommandKeybindingsOptions[];
-	description?: ICommandHandlerDescription;
+	metadata?: ICommandMetadata;
 	menuOpts?: ICommandMenuOptions | ICommandMenuOptions[];
 }
 export abstract class Command {
@@ -103,14 +104,14 @@ export abstract class Command {
 	public readonly precondition: ContextKeyExpression | undefined;
 	private readonly _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
 	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
-	private readonly _description: ICommandHandlerDescription | undefined;
+	private readonly _metadata: ICommandMetadata | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
 		this._menuOpts = opts.menuOpts;
-		this._description = opts.description;
+		this._metadata = opts.metadata;
 	}
 
 	public register(): void {
@@ -152,7 +153,7 @@ export abstract class Command {
 		CommandsRegistry.registerCommand({
 			id: this.id,
 			handler: (accessor, args) => this.runCommand(accessor, args),
-			description: this._description
+			metadata: this._metadata
 		});
 	}
 
@@ -219,7 +220,7 @@ export class MultiCommand extends Command {
 		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
 		for (const impl of this._implementations) {
 			if (impl.when) {
-				const context = contextKeyService.getContext(document.activeElement);
+				const context = contextKeyService.getContext(getActiveElement());
 				const value = impl.when.evaluate(context);
 				if (!value) {
 					continue;

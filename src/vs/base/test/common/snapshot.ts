@@ -47,7 +47,7 @@ export class SnapshotContext {
 		const src = FileAccess.asFileUri('');
 		const parts = test.file.split(/[/\\]/g);
 
-		this.namePrefix = sanitizeName(test.fullTitle()) + '_';
+		this.namePrefix = sanitizeName(test.fullTitle()) + '.';
 		this.snapshotsDir = URI.joinPath(src, ...[...parts.slice(0, -1), '__snapshots__']);
 	}
 

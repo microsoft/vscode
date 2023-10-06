@@ -168,7 +168,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		if (dependencyExtension) {
 			this._notificationService.notify({
 				severity: Severity.Error,
-				message: localize('uninstalledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName),
+				message: localize('uninstalledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension from '{2}', which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName, dependencyExtension.publisherDisplayName),
 				actions: {
 					primary: [new Action('install', localize('install missing dep', "Install and Reload"), '', true,
 						() => this._extensionsWorkbenchService.install(dependencyExtension!)

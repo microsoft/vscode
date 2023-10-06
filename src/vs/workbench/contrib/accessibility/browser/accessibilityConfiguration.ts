@@ -43,11 +43,13 @@ export const enum AccessibilityVerbositySettingId {
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
-	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint'
+	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
+	Comments = 'accessibility.verbosity.comments'
 }
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
 	InlineChat = 'inlineChat',
@@ -57,7 +59,8 @@ export const enum AccessibleViewProviderId {
 	Editor = 'editor',
 	Hover = 'hover',
 	Notification = 'notification',
-	EmptyEditorHint = 'emptyEditorHint'
+	EmptyEditorHint = 'emptyEditorHint',
+	Comments = 'comments'
 }
 
 const baseProperty: object = {
@@ -109,6 +112,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseProperty
+		},
+		[AccessibilityVerbositySettingId.Comments]: {
+			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
 			...baseProperty
 		}
 	}

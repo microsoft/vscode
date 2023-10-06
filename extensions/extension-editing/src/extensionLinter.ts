@@ -127,7 +127,7 @@ export class ExtensionLinter {
 
 			const tree = parseTree(document.getText());
 			const info = this.readPackageJsonInfo(this.getUriFolder(document.uri), tree);
-			if (info.isExtension) {
+			if (tree && info.isExtension) {
 
 				const icon = findNodeAtLocation(tree, ['icon']);
 				if (icon && icon.type === 'string') {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, FileType, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileOpenOptions, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
@@ -21,6 +21,8 @@ import product from 'vs/platform/product/common/product';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -55,9 +57,10 @@ suite('FileUserDataProvider', () => {
 		await testObject.createFolder(backupWorkspaceHomeOnDisk);
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
-		userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, testObject, disposables.add(new UriIdentityService(testObject)), logService));
+		const uriIdentityService = disposables.add(new UriIdentityService(testObject));
+		userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, testObject, uriIdentityService, logService));
 
-		fileUserDataProvider = disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService));
+		fileUserDataProvider = disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService));
 		disposables.add(fileUserDataProvider);
 		disposables.add(testObject.registerProvider(Schemas.vscodeUserData, fileUserDataProvider));
 	});
@@ -277,9 +280,10 @@ suite('FileUserDataProvider', () => {
 	});
 });
 
-class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
+class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability {
 
 	constructor(readonly onDidChangeFile: Event<readonly IFileChange[]>) { }
+
 
 	readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.FileReadWrite;
 
@@ -300,7 +304,12 @@ class TestFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapa
 	writeFile(): Promise<void> { throw new Error('Not Supported'); }
 
 	delete(): Promise<void> { throw new Error('Not Supported'); }
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> { throw new Error('Not Supported'); }
+	close(fd: number): Promise<void> { throw new Error('Not Supported'); }
+	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { throw new Error('Not Supported'); }
+	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { throw new Error('Not Supported'); }
 
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { throw new Error('Method not implemented.'); }
 }
 
 suite('FileUserDataProvider - Watching', () => {
@@ -313,8 +322,14 @@ suite('FileUserDataProvider - Watching', () => {
 	let fileEventEmitter: Emitter<readonly IFileChange[]>;
 
 	setup(() => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const environmentService = new TestEnvironmentService(rootFileResource);
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+
 		fileEventEmitter = disposables.add(new Emitter<readonly IFileChange[]>());
-		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, new NullLogService()));
+		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());

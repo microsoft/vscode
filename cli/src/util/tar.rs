@@ -10,6 +10,7 @@ use std::io::Seek;
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
+use super::errors::wrapdbg;
 use super::io::ReportCopyProgress;
 
 fn should_skip_first_segment(file: &fs::File) -> Result<bool, WrappedError> {
@@ -93,7 +94,7 @@ where
 
 			entry
 				.unpack(&path)
-				.map_err(|e| wrap(e, format!("error unpacking {}", path.display())))?;
+				.map_err(|e| wrapdbg(e, format!("error unpacking {}", path.display())))?;
 			Ok(path)
 		})
 		.collect::<Result<Vec<PathBuf>, WrappedError>>()?;

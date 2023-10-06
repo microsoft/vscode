@@ -143,7 +143,6 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		}
 
 		const apiRequest: vscode.InteractiveEditorRequest = {
-			session: sessionData.session,
 			prompt: request.prompt,
 			selection: typeConvert.Selection.to(request.selection),
 			wholeRange: typeConvert.Range.to(request.wholeRange),
@@ -154,7 +153,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 		let done = false;
 		const progress: vscode.Progress<{ message?: string; edits?: vscode.TextEdit[] }> = {
-			report: value => {
+			report: async value => {
 				if (!request.live) {
 					throw new Error('Progress reporting is only supported for live sessions');
 				}
@@ -164,16 +163,14 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 				if (!value.message && !value.edits) {
 					return;
 				}
-				this._proxy.$handleProgressChunk(request.requestId, {
+				await this._proxy.$handleProgressChunk(request.requestId, {
 					message: value.message,
 					edits: value.edits?.map(typeConvert.TextEdit.from)
 				});
 			}
 		};
 
-		const task = typeof entry.provider.provideInteractiveEditorResponse2 === 'function'
-			? entry.provider.provideInteractiveEditorResponse2(apiRequest, progress, token)
-			: entry.provider.provideInteractiveEditorResponse(apiRequest.session, apiRequest, progress, token);
+		const task = entry.provider.provideInteractiveEditorResponse(sessionData.session, apiRequest, progress, token);
 
 		Promise.resolve(task).finally(() => done = true);
 
@@ -230,12 +227,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 	}
 
 	$releaseSession(handle: number, sessionId: number) {
-		const sessionData = this._inputSessions.get(sessionId);
-		const entry = this._inputProvider.get(handle);
-		if (sessionData && entry) {
-			entry.provider.releaseInteractiveEditorSession?.(sessionData.session);
-		}
-		this._inputSessions.delete(sessionId);
+		// TODO@jrieken remove this
 	}
 
 	private static _isMessageResponse(thing: any): thing is vscode.InteractiveEditorMessageResponse {

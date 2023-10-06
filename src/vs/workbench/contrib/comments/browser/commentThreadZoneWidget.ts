@@ -195,6 +195,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
 				}
 				this.editor.setScrollTop(scrollTop);
+				if (focus) {
+					this._commentThreadWidget.focus();
+				}
 				return;
 			}
 		}
@@ -217,6 +220,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
 			CommentThreadWidget,
 			container,
+			this.editor,
 			this._owner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,

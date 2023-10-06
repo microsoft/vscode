@@ -343,7 +343,8 @@ export function createTestNotebookEditor(instantiationService: TestInstantiation
 	return _createTestNotebookEditor(instantiationService, disposables, cells);
 }
 
-export async function withTestNotebookDiffModel<R = any>(disposables: DisposableStore, originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+export async function withTestNotebookDiffModel<R = any>(originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+	const disposables = new DisposableStore();
 	const instantiationService = setupInstantiationService(disposables);
 	const originalNotebook = createTestNotebookEditor(instantiationService, disposables, originalCells);
 	const modifiedNotebook = createTestNotebookEditor(instantiationService, disposables, modifiedCells);
@@ -368,7 +369,7 @@ export async function withTestNotebookDiffModel<R = any>(disposables: Disposable
 		}
 	};
 
-	const res = await callback(model, instantiationService);
+	const res = await callback(model, disposables, instantiationService);
 	if (res instanceof Promise) {
 		res.finally(() => {
 			originalNotebook.editor.dispose();
@@ -415,7 +416,7 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 	});
 }
 
-export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: DisposableStore, viewContext?: ViewContext) {
+export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>, viewContext?: ViewContext) {
 	const delegate: IListVirtualDelegate<CellViewModel> = {
 		getHeight(element: CellViewModel) { return element.getHeight(17); },
 		getTemplateId() { return 'template'; }
@@ -428,11 +429,13 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		disposeTemplate() { }
 	};
 
+	const notebookOptions = !!viewContext ? viewContext.notebookOptions
+		: disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false));
 	const cellList: NotebookCellList = disposables.add(instantiationService.createInstance(
 		NotebookCellList,
 		'NotebookCellList',
 		DOM.$('container'),
-		viewContext ?? new ViewContext(disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false)), disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions)),
+		notebookOptions,
 		delegate,
 		[renderer],
 		instantiationService.get<IContextKeyService>(IContextKeyService),

@@ -181,8 +181,8 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 						return name;
 					}
 
-					// regexp to match `x => x.y` where x and y can be arbitrary identifiers (uses backref):
-					const regexp = /^\s*\(?\s*([a-zA-Z_$][a-zA-Z_$0-9]*)\s*\)?\s*=>\s*\1\.([a-zA-Z_$][a-zA-Z_$0-9]*)\s*$/;
+					// regexp to match `x => x.y` or `x => x?.y` where x and y can be arbitrary identifiers (uses backref):
+					const regexp = /^\s*\(?\s*([a-zA-Z_$][a-zA-Z_$0-9]*)\s*\)?\s*=>\s*\1(?:\??)\.([a-zA-Z_$][a-zA-Z_$0-9]*)\s*$/;
 					const match = regexp.exec(fn.toString());
 					if (match) {
 						return `${this.debugName}.${match[2]}`;
@@ -271,34 +271,87 @@ export class TransactionImpl implements ITransaction {
 
 export type DebugNameFn = string | (() => string | undefined);
 
-export function getDebugName(debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: object | undefined, self: object): string | undefined {
+const countPerName = new Map<string, number>();
+const cachedDebugName = new WeakMap<object, string>();
+
+export function getDebugName(obj: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: object | undefined, self: object): string | undefined {
+	const cached = cachedDebugName.get(obj);
+	if (cached) {
+		return cached;
+	}
+
+	const dbgName = computeDebugName(obj, debugNameFn, fn, owner, self);
+	if (dbgName) {
+		let count = countPerName.get(dbgName) ?? 0;
+		count++;
+		countPerName.set(dbgName, count);
+		const result = count === 1 ? dbgName : `${dbgName}#${count}`;
+		cachedDebugName.set(obj, result);
+		return result;
+	}
+	return undefined;
+}
+
+function computeDebugName(obj: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: object | undefined, self: object): string | undefined {
+	const cached = cachedDebugName.get(obj);
+	if (cached) {
+		return cached;
+	}
+
+	const ownerStr = owner ? formatOwner(owner) + `.` : '';
+
 	let result: string | undefined;
 	if (debugNameFn !== undefined) {
 		if (typeof debugNameFn === 'function') {
 			result = debugNameFn();
 			if (result !== undefined) {
-				return result;
+				return ownerStr + result;
 			}
 		} else {
-			return debugNameFn;
+			return ownerStr + debugNameFn;
 		}
 	}
 
 	if (fn !== undefined) {
 		result = getFunctionName(fn);
 		if (result !== undefined) {
-			return result;
+			return ownerStr + result;
 		}
 	}
 
 	if (owner !== undefined) {
 		for (const key in owner) {
 			if ((owner as any)[key] === self) {
-				return key;
+				return ownerStr + key;
 			}
 		}
 	}
 	return undefined;
+}
+
+const countPerClassName = new Map<string, number>();
+const ownerId = new WeakMap<object, string>();
+
+function formatOwner(owner: object): string {
+	const id = ownerId.get(owner);
+	if (id) {
+		return id;
+	}
+	const className = getClassName(owner);
+	let count = countPerClassName.get(className) ?? 0;
+	count++;
+	countPerClassName.set(className, count);
+	const result = count === 1 ? className : `${className}#${count}`;
+	ownerId.set(owner, result);
+	return result;
+}
+
+function getClassName(obj: object): string {
+	const ctor = obj.constructor;
+	if (ctor) {
+		return ctor.name;
+	}
+	return 'Object';
 }
 
 export function getFunctionName(fn: Function): string | undefined {
@@ -334,7 +387,7 @@ export class ObservableValue<T, TChange = void>
 	protected _value: T;
 
 	get debugName() {
-		return getDebugName(this._debugName, undefined, this._owner, this) ?? 'ObservableValue';
+		return getDebugName(this, this._debugName, undefined, this._owner, this) ?? 'ObservableValue';
 	}
 
 	constructor(
