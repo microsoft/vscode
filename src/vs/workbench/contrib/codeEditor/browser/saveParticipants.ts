@@ -294,18 +294,9 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			return undefined;
 		}
 
-		const convertedSetting: { [kind: string]: string | boolean } = {};
-		if (!Array.isArray(setting)) {
-			for (const key in setting) {
-				if (setting[key] && setting[key] !== 'never') {
-					convertedSetting[key] = setting[key];
-				}
-			}
-		}
-
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
-			: Object.keys(convertedSetting);
+			: Object.keys(setting).filter(x => setting[x] && setting[x] !== 'never');
 
 		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
