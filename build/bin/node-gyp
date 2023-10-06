@@ -4,7 +4,11 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
 if [ "x$npm_config_node_gyp" = "x" ]; then
-	nodeDir=`dirname \`which node\``
+	nodePath=`readlink -f \`which node\``
+	nodeDir=`dirname $nodePath`
+	ls -l `which node`
+	readlink -f `which node`
+	readlink `which node`
 	node "$nodeDir/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "$@"
 else
 	"$npm_config_node_gyp" "$@"
