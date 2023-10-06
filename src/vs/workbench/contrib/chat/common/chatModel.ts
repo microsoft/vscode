@@ -541,6 +541,10 @@ export class ChatModel extends Disposable implements IChatModel {
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.updateContent(raw.usedContext);
 					}
+
+					if (raw.contentReferences) {
+						raw.contentReferences.forEach(r => request.response!.updateContent(r));
+					}
 				}
 				return request;
 			});
@@ -721,6 +725,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						icon: r.response.agent.metadata.icon
 					} : undefined,
 					usedContext: r.response?.response.usedContext,
+					contentReferences: r.response?.response.contentReferences
 				};
 			}),
 			providerId: this.providerId,
