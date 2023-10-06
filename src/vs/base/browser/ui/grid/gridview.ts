@@ -431,7 +431,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 					return {
 						view: childDescriptor.node,
 						size: childDescriptor.node.size,
-						visible: childDescriptor.node instanceof LeafNode && childDescriptor.visible !== undefined ? childDescriptor.visible : true
+						visible: childDescriptor.node instanceof LeafNode && childDescriptor.visible !== undefined ? childDescriptor.visible : (childDescriptor.node instanceof BranchNode ? childDescriptor.node.size > 0 : true)
 					};
 				}),
 				size: this.orthogonalSize
