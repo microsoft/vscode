@@ -7,8 +7,7 @@ if [ "x$npm_config_node_gyp" = "x" ]; then
 	nodePath=`readlink -f \`which node\``
 	nodeDir=`dirname $nodePath`
 	ls -l `which node`
-	readlink -f `which node`
-	readlink `which node`
+	cat `which node`
 	node "$nodeDir/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "$@"
 else
 	"$npm_config_node_gyp" "$@"
