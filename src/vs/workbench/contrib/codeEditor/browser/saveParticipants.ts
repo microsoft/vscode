@@ -294,6 +294,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			return undefined;
 		}
 
+		const convertedSetting: { [kind: string]: string | boolean } = {};
 		if (!Array.isArray(setting)) {
 			for (const key in setting) {
 				if (setting[key] && setting[key] !== 'never') {
@@ -302,10 +303,9 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			}
 		}
 		
-		const convertedSetting: { [kind: string]: string | boolean } = {};
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
-			: Object.keys(setting).filter(x => setting[x]);
+			: Object.keys(convertedSetting);
 
 		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
