@@ -13,7 +13,7 @@ import { TEXT_SEARCH_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/search/bro
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getSelectionTextFromEditor } from 'vs/workbench/contrib/search/browser/searchView';
+import { getSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
 
 registerAction2(class TextSearchQuickAccessAction extends Action2 {
 

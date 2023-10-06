@@ -373,6 +373,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		}
 	}
 
+	public handleInitialized(): void {
+		this._editors.original.handleInitialized();
+		this._editors.modified.handleInitialized();
+	}
+
 	public createViewModel(model: IDiffEditorModel): IDiffEditorViewModel {
 		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options, this);
 	}

@@ -28,5 +28,23 @@
 				}
 			]
 		}
+	],
+	"moves": [
+		{
+			"originalRange": "[24,28)",
+			"modifiedRange": "[70,74)",
+			"changes": [
+				{
+					"originalRange": "[26,27)",
+					"modifiedRange": "[72,73)",
+					"innerChanges": [
+						{
+							"originalRange": "[26,36 -> 26,40 EOL]",
+							"modifiedRange": "[72,36 -> 72,40 EOL]"
+						}
+					]
+				}
+			]
+		}
 	]
 }

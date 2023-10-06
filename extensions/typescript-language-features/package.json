@@ -859,6 +859,19 @@
             "zh-CN",
             "zh-TW"
           ],
+          "enumDescriptions": [
+            "%typescript.locale.auto%",
+						"Deutsch",
+						"español",
+            "English",
+						"français",
+						"italiano",
+						"日本語",
+						"한국어",
+						"русский",
+						"中文(简体)",
+						"中文(繁體)"
+          ],
           "markdownDescription": "%typescript.locale%",
           "scope": "window"
         },
@@ -1052,6 +1065,12 @@
             "type": "string"
           },
           "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
+          "scope": "resource"
+        },
+        "typescript.preferences.preferTypeOnlyAutoImports": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%typescript.preferences.preferTypeOnlyAutoImports%",
           "scope": "resource"
         },
         "javascript.preferences.renameShorthandProperties": {

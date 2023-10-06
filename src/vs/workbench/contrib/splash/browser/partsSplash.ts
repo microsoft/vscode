@@ -37,13 +37,13 @@ export class PartsSplash {
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
 	) {
-		Event.once(_layoutService.onDidLayout)(() => {
+		Event.once(_layoutService.onDidLayoutMainContainer)(() => {
 			this._removePartsSplash();
 			perf.mark('code/didRemovePartsSplash');
 		}, undefined, this._disposables);
 
 		let lastIdleSchedule: IDisposable | undefined;
-		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout, _themeService.onDidColorThemeChange)(() => {
+		Event.any(onDidChangeFullscreen, editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(() => {
 			lastIdleSchedule?.dispose();
 			lastIdleSchedule = runWhenIdle(() => this._savePartsSplash(), 800);
 		}, undefined, this._disposables);

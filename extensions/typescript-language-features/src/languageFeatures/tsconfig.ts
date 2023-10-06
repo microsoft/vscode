@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
-import { posix } from 'path';
+import { isAbsolute, posix } from 'path';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { coalesce } from '../utils/arrays';
@@ -95,6 +95,10 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 
 	private getFileTarget(document: vscode.TextDocument, node: jsonc.Node): vscode.Uri {
+		if (isAbsolute(node.value)) {
+			return vscode.Uri.file(node.value);
+		}
+
 		return vscode.Uri.joinPath(Utils.dirname(document.uri), node.value);
 	}
 

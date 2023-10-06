@@ -36,8 +36,8 @@ export class TestGlobalStyleSheet extends GlobalStyleSheet {
 		super(null!);
 	}
 
-	public override insertRule(rule: string, index?: number): void {
-		this.rules.unshift(rule);
+	public override insertRule(selector: string, rule: string): void {
+		this.rules.unshift(`${selector} {${rule}}`);
 	}
 
 	public override removeRulesContainingSelector(ruleName: string): void {

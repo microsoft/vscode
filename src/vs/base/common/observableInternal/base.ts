@@ -231,6 +231,15 @@ export function transaction(fn: (tx: ITransaction) => void, getDebugName?: () =>
 	}
 }
 
+export async function asyncTransaction(fn: (tx: ITransaction) => Promise<void>, getDebugName?: () => string): Promise<void> {
+	const tx = new TransactionImpl(fn, getDebugName);
+	try {
+		await fn(tx);
+	} finally {
+		tx.finish();
+	}
+}
+
 export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransaction) => void, getDebugName?: () => string): void {
 	if (!tx) {
 		transaction(fn, getDebugName);
