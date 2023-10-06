@@ -5,7 +5,7 @@
 
 if [ "x$npm_config_node_gyp" = "x" ]; then
 	nodeDir=`dirname \`which node\``
-	node "`dirname $nodeDir`/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "$@"
+	node "$nodeDir/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "$@"
 else
 	"$npm_config_node_gyp" "$@"
 fi
