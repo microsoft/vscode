@@ -467,8 +467,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {
+		const glyphPosition = this._commentGlyph?.getPosition();
+		let range = Range.isIRange(rangeOrPos) ? rangeOrPos : (rangeOrPos ? Range.fromPositions(rangeOrPos) : undefined);
+		if (glyphPosition?.position && range && glyphPosition.position.lineNumber !== range.endLineNumber) {
+			// The widget could have moved as a result of editor changes.
+			// We need to try to calculate the new, more correct, range for the comment.
+			const distance = glyphPosition.position.lineNumber - range.endLineNumber;
+			range = new Range(range.startLineNumber + distance, range.startColumn, range.endLineNumber + distance, range.endColumn);
+		}
+
 		this._isExpanded = true;
-		super.show(rangeOrPos ?? new Range(0, 0, 0, 0), heightInLines);
+		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
 	}
