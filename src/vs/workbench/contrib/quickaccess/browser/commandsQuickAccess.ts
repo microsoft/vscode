@@ -220,6 +220,9 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
 			.filter(action => action instanceof MenuItemAction && action.enabled) as MenuItemAction[];
 
+		if (globalCommandsMenuActions.every(a => a.item.id !== 'workbench.extensions.action.focusExtensionsView')) {
+			this.logService?.info('GLOBAL COMMAND PICKS: workbench.extensions.action.focusExtensionsView not found');
+		}
 		for (const action of globalCommandsMenuActions) {
 
 			// Label

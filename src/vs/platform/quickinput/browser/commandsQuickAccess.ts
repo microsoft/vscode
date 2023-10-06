@@ -88,6 +88,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
 		});
 
+		this.logService?.info(`THE FILTER IS ${filter}`);
 		this.logService?.info(`Received ${allCommandPicks.length} command picks`);
 		if (allCommandPicks.every(pick => pick.commandId !== 'workbench.extensions.action.focusExtensionsView')) {
 			this.logService?.info('BEFORE NO workbench.extensions.action.focusExtensionsView FOUND!!');
@@ -236,6 +237,11 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 		if (commandPicks.every(pick => (pick as any).commandId !== 'workbench.extensions.action.focusExtensionsView')) {
 			this.logService?.info('END NO workbench.extensions.action.focusExtensionsView FOUND!!');
+			try {
+				await this.commandService.executeCommand('workbench.extensions.action.focusExtensionsView');
+			} catch (error) {
+				this.logService?.info('ERROR NO workbench.extensions.action.focusExtensionsView FOUND!!');
+			}
 		}
 
 		if (!this.hasAdditionalCommandPicks(filter, token)) {
