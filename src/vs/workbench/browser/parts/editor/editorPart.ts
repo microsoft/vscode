@@ -157,11 +157,6 @@ export class EditorPart extends Part implements IEditorPart {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
-
-		this.whenRestored.then(() => {
-			this._onDidChangeMaximizeGroup.fire({ group: this.activeGroup, maximized: this.isGroupMaximized(this.activeGroup) });
-
-		});
 	}
 
 	private registerListeners(): void {
