@@ -9,6 +9,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/
 import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IQuickAccessProvider, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { isFunction } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export enum TriggerAction {
 
@@ -110,7 +111,8 @@ function isFastAndSlowPicks<T>(obj: unknown): obj is FastAndSlowPicks<T> {
 
 export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem> extends Disposable implements IQuickAccessProvider {
 
-	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions<T>) {
+	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions<T>,
+		@ILogService protected readonly logService?: ILogService) {
 		super();
 	}
 
@@ -145,11 +147,18 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 				let items: readonly Pick<T>[];
 				let activeItem: T | undefined = undefined;
 
+
 				if (isPicksWithActive(picks)) {
+					this.logService?.trace(`[${this.prefix}] provide(picks: ${picks.items.length})`);
 					items = picks.items;
 					activeItem = picks.active;
 				} else {
+					this.logService?.trace(`[${this.prefix}] provide(picks: ${picks.length})`);
 					items = picks;
+				}
+
+				if (items.every(item => item.label !== 'Extensions: Focus on Extensions View')) {
+					this.logService?.info('NO WAY');
 				}
 
 				if (items.length === 0) {

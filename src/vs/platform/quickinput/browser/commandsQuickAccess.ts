@@ -59,9 +59,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ILogService private readonly logService: ILogService,
+		logService: ILogService,
 	) {
-		super(AbstractCommandsQuickAccessProvider.PREFIX, options);
+		super(AbstractCommandsQuickAccessProvider.PREFIX, options, logService);
 
 		this.options = options;
 	}
@@ -88,12 +88,9 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
 		});
 
-		this.logService.info(`Received ${allCommandPicks.length} command picks`);
+		this.logService?.info(`Received ${allCommandPicks.length} command picks`);
 		if (allCommandPicks.every(pick => pick.commandId !== 'workbench.extensions.action.focusExtensionsView')) {
-			this.logService.info('NO workbench.extensions.action.focusExtensionsView FOUND!!');
-		}
-		if (allCommandPicks.length < 610) {
-			this.logService.info(`Received command picks: ${allCommandPicks.map(pick => pick.commandId).join(', ')}`);
+			this.logService?.info('BEFORE NO workbench.extensions.action.focusExtensionsView FOUND!!');
 		}
 
 		// Filter
@@ -115,7 +112,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			// If we have a 100% command ID match then have that be
 			// the only result to pick from.
 			else if (filter === commandPick.commandId) {
-				this.logService.info(`100% match on command '${commandPick.commandId}'`);
+				this.logService?.info(`100% match on command '${commandPick.commandId}'`);
 				filteredCommandPicks = [commandPick];
 				break;
 			}
@@ -134,6 +131,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 					filteredCommandPicks.push(commandPick);
 				}
 			}
+		}
+
+		if (filteredCommandPicks.every(pick => pick.commandId !== 'workbench.extensions.action.focusExtensionsView')) {
+			this.logService?.info('AFTER NO workbench.extensions.action.focusExtensionsView FOUND!!');
 		}
 
 		// Add description to commands that have duplicate labels
@@ -233,9 +234,16 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPicks.push(this.toCommandPick(commandPick, runOptions));
 		}
 
+		if (commandPicks.every(pick => (pick as any).commandId !== 'workbench.extensions.action.focusExtensionsView')) {
+			this.logService?.info('END NO workbench.extensions.action.focusExtensionsView FOUND!!');
+		}
+
 		if (!this.hasAdditionalCommandPicks(filter, token)) {
+			this.logService?.info('NO hasAdditionalCommandPicks');
 			return commandPicks;
 		}
+
+		this.logService?.info('YES hasAdditionalCommandPicks');
 
 		return {
 			picks: commandPicks,
