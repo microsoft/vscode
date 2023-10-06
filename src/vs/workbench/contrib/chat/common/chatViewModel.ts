@@ -197,7 +197,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get dataId() {
-		return this.id + (this._model.session.initState ? '' : '_initializing');
+		return this.id + `_${ChatModelInitState[this._model.session.initState]}`;
 	}
 
 	get sessionId() {
@@ -236,7 +236,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get dataId() {
-		return this._model.id + `_${this._modelChangeCount}` + (this._model.session.initState ? '' : '_initializing');
+		return this._model.id + `_${this._modelChangeCount}` + `_${ChatModelInitState[this._model.session.initState]}`;
 	}
 
 	get providerId() {

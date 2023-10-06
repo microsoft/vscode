@@ -722,7 +722,8 @@ export class ChatService extends Disposable implements IChatService {
 
 		Array.from(this._sessionModels.values())
 			.filter(model => model.providerId === provider.id)
-			.filter(model => model.initState === ChatModelInitState.Created) // The provider may have been registered in the process of initializing this model
+			// The provider may have been registered in the process of initializing this model. Only grab models that were deinitialized when the provider was unregistered
+			.filter(model => model.initState === ChatModelInitState.Created)
 			.forEach(model => this.reinitializeModel(model));
 
 		return toDisposable(() => {
