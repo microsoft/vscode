@@ -557,9 +557,9 @@ import { FileAccess } from 'vs/base/common/network';
 
 	test('correlationId is supported', async function () {
 		const correlationId = Math.random();
-		await watcher.watch([{ correlationId, path: testDir, excludes: [], includes: ['**/deep/**'], recursive: true }]);
+		await watcher.watch([{ correlationId, path: testDir, excludes: [], recursive: true }]);
 
-		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'), correlationId);
+		return basicCrudTest(join(testDir, 'newFile.txt'), correlationId);
 	});
 
 	test('should not exclude roots that do not overlap', () => {

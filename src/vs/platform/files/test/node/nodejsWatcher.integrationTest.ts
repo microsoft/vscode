@@ -406,7 +406,7 @@ import { FileAccess } from 'vs/base/common/network';
 		return basicCrudTest(join(testDir, 'files-includes.txt'));
 	});
 
-	test('pasero correlationId is supported', async function () {
+	test('correlationId is supported', async function () {
 		const correlationId = Math.random();
 		await watcher.watch([{ correlationId, path: testDir, excludes: [], recursive: false }]);
 
