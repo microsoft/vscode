@@ -265,8 +265,16 @@ export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClie
 }
 
 export interface IDiskFileChange {
-	type: FileChangeType;
+
+	/**
+	 * The resource that changed according to `type`.
+	 */
 	readonly resource: URI;
+
+	/**
+	 * The kind of file change that occurred.
+	 */
+	type: FileChangeType;
 
 	/**
 	 * If provided when starting the file watcher, the correlation
