@@ -217,7 +217,13 @@ export class ExtHostChat implements ExtHostChatShape {
 						}))
 					});
 				} else if ('reference' in progress) {
-
+					this._proxy.$acceptResponseProgress(handle, sessionId, {
+						reference: 'uri' in progress.reference ?
+							{
+								uri: progress.reference.uri,
+								range: typeConvert.Range.from(progress.reference.range)
+							} : progress.reference
+					});
 				} else {
 					this._proxy.$acceptResponseProgress(handle, sessionId, progress);
 				}

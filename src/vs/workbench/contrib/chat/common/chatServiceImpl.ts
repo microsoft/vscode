@@ -469,6 +469,8 @@ export class ChatService extends Disposable implements IChatService {
 					this.trace('sendRequest', `Provider returned tree data for session ${model.sessionId}, ${progress.treeData.label}`);
 				} else if ('documents' in progress) {
 					this.trace('sendRequest', `Provider returned documents for session ${model.sessionId}:\n ${JSON.stringify(progress.documents, null, '\t')}`);
+				} else if ('reference' in progress) {
+					this.trace('sendRequest', `Provider returned a reference for session ${model.sessionId}:\n ${JSON.stringify(progress.reference, null, '\t')}`);
 				} else {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}

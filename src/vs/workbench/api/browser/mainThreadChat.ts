@@ -9,7 +9,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, ILocationDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -132,10 +132,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
 			this._activeRequestProgressCallbacks.get(id)?.({ ...progress, resolvedContent: deferredContentPromise.p });
 			return this._responsePartHandlePool;
-		} else if ('reference' in progress) {
-			// TODO@roblourens, jrieken
-			// this is a placeholder for references that have been considered
-			return;
 		} else if (responsePartHandle) {
 			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${id}_${responsePartHandle}`;
@@ -156,19 +152,17 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
+		// TS won't let us change the type of `progress`
+		let revivedProgress: IChatProgress;
 		if ('documents' in progress) {
-			const usedContext = {
-				documents: progress.documents.map(({ uri, version, ranges }) => ({
-					uri: URI.revive(uri),
-					version,
-					ranges,
-				})),
-			};
-			this._activeRequestProgressCallbacks.get(id)?.(usedContext); // FIXME@ulugbekna: is this a correct thing to do?
-			return;
+			revivedProgress = { documents: revive(progress.documents) };
+		} else if ('reference' in progress) {
+			revivedProgress = revive<{ reference: UriComponents | ILocationDto }>(progress);
+		} else {
+			revivedProgress = progress;
 		}
 
-		this._activeRequestProgressCallbacks.get(id)?.(progress);
+		this._activeRequestProgressCallbacks.get(id)?.(revivedProgress);
 	}
 
 	async $acceptChatState(sessionId: number, state: any): Promise<void> {
