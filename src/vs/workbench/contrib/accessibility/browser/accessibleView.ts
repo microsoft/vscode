@@ -38,7 +38,6 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -75,14 +74,14 @@ export const IAccessibleViewService = createDecorator<IAccessibleViewService>('a
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
-	show(provider: IAccessibleContentProvider): void;
+	show(provider: IAccessibleContentProvider, position?: Position): void;
 	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
 	next(): void;
 	previous(): void;
 	goToSymbol(): void;
 	disableHint(): void;
-	getPosition(): Position | undefined;
+	getPosition(id: AccessibleViewProviderId): Position | undefined;
 	setPosition(position: Position, reveal?: boolean): void;
 	getLastPosition(): Position | undefined;
 	/**
@@ -110,9 +109,11 @@ export interface IAccessibleViewOptions {
 	language?: string;
 	type: AccessibleViewType;
 	/**
-	 * By default, places the cursor on the last line of the accessible view.
+	 * By default, places the cursor on the top line of the accessible view.
+	 * If set to 'initial-bottom', places the cursor on the bottom line of the accessible view and preserves it henceforth.
+	 * If set to 'bottom', places the cursor on the bottom line of the accessible view.
 	 */
-	positionBottom?: boolean;
+	position?: 'bottom' | 'initial-bottom';
 	/**
 	 * @returns a string that will be used as the content of the help dialog
 	 * instead of the one provided by default.
@@ -230,6 +231,20 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewCurrentProviderId.reset();
 	}
 
+	getPosition(id?: AccessibleViewProviderId): Position | undefined {
+		if (!id || !this._lastProvider || this._lastProvider.id !== id) {
+			return undefined;
+		}
+		return this._editorWidget.getPosition() || undefined;
+	}
+
+	setPosition(position: Position, reveal?: boolean): void {
+		this._editorWidget.setPosition(position);
+		if (reveal) {
+			this._editorWidget.revealPosition(position);
+		}
+	}
+
 	showLastProvider(id: AccessibleViewProviderId): void {
 		if (!this._lastProvider || this._lastProvider.options.id !== id) {
 			return;
@@ -237,7 +252,7 @@ export class AccessibleView extends Disposable {
 		this.show(this._lastProvider);
 	}
 
-	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, lineNumber?: number): void {
+	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: Position): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
@@ -258,12 +273,12 @@ export class AccessibleView extends Disposable {
 		};
 		this._contextViewService.showContextView(delegate);
 
-		if (lineNumber) {
+		if (position) {
 			// Context view takes time to show up, so we need to wait for it to show up before we can set the position
 			setTimeout(() => {
-				this._editorWidget.revealLine(lineNumber);
-				this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-			}, 50);
+				this._editorWidget.revealLine(position.lineNumber);
+				this._editorWidget.setSelection({ startLineNumber: position.lineNumber, startColumn: position.column, endLineNumber: position.lineNumber, endColumn: position.column });
+			}, 10);
 		}
 
 		if (symbol && this._currentProvider) {
@@ -374,7 +389,7 @@ export class AccessibleView extends Disposable {
 		if (lineNumber === undefined) {
 			return;
 		}
-		this.show(provider, undefined, undefined, lineNumber);
+		this.show(provider, undefined, undefined, { lineNumber, column: 1 } as Position);
 		this._updateContextKeys(provider, true);
 	}
 
@@ -433,7 +448,7 @@ export class AccessibleView extends Disposable {
 			}
 		}
 		const verbose = this._configurationService.getValue(provider.verbositySettingKey);
-		const exitThisDialogHint = verbose && !provider.options.positionBottom ? localize('exit', '\n\nExit this dialog (Escape).') : '';
+		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
 		this._currentContent = message + provider.provideContent() + readMoreLink + disableHelpHint + exitThisDialogHint;
 		this._updateContextKeys(provider, true);
 
@@ -452,7 +467,7 @@ export class AccessibleView extends Disposable {
 			const verbose = this._configurationService.getValue(provider.verbositySettingKey);
 			const hasActions = this._accessibleViewSupportsNavigation.get() || this._accessibleViewVerbosityEnabled.get() || this._accessibleViewGoToSymbolSupported.get() || this._currentProvider?.actions;
 			if (verbose && !showAccessibleViewHelp && hasActions) {
-				actionsHint = provider.options.positionBottom ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
+				actionsHint = provider.options.position ? localize('ariaAccessibleViewActionsBottom', 'Explore actions such as disabling this hint (Shift+Tab), use Escape to exit this dialog.') : localize('ariaAccessibleViewActions', 'Explore actions such as disabling this hint (Shift+Tab).');
 			}
 			let ariaLabel = provider.options.type === AccessibleViewType.Help ? localize('accessibility-help', "Accessibility Help") : localize('accessible-view', "Accessible View");
 			this._title.textContent = ariaLabel;
@@ -463,12 +478,10 @@ export class AccessibleView extends Disposable {
 			}
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
-			if (this._currentProvider?.options.positionBottom) {
-				const currentPosition = this.editorWidget.getPosition();
-				const defaultPosition = currentPosition && currentPosition?.lineNumber === 1 && currentPosition?.column === 1;
-				if (currentPosition && this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) && !defaultPosition) {
-					this._editorWidget.setPosition(currentPosition);
-				} else {
+			if (this._currentProvider?.options.position) {
+				const position = this._editorWidget.getPosition();
+				const isDefaultPosition = position?.lineNumber === 1 && position.column === 1;
+				if (this._currentProvider.options.position === 'bottom' || this._currentProvider.options.position === 'initial-bottom' && isDefaultPosition) {
 					const lastLine = this.editorWidget.getModel()?.getLineCount();
 					const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
 					if (position) {
@@ -653,11 +666,11 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		super();
 	}
 
-	show(provider: IAccessibleContentProvider): void {
+	show(provider: IAccessibleContentProvider, position?: Position): void {
 		if (!this._accessibleView) {
 			this._accessibleView = this._register(this._instantiationService.createInstance(AccessibleView));
 		}
-		this._accessibleView.show(provider);
+		this._accessibleView.show(provider, undefined, undefined, position);
 	}
 	showLastProvider(id: AccessibleViewProviderId): void {
 		this._accessibleView?.showLastProvider(id);
@@ -690,8 +703,8 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	showAccessibleViewHelp(): void {
 		this._accessibleView?.showAccessibleViewHelp();
 	}
-	getPosition(): Position | undefined {
-		return this._accessibleView?.editorWidget.getPosition() ?? undefined;
+	getPosition(id: AccessibleViewProviderId): Position | undefined {
+		return this._accessibleView?.getPosition(id) ?? undefined;
 	}
 	getLastPosition(): Position | undefined {
 		const lastLine = this._accessibleView?.editorWidget.getModel()?.getLineCount();
