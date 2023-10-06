@@ -95,14 +95,16 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		this._xterm = xterm;
 		this._register(this._xterm.raw.onWriteParsed(async () => {
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
-				this.show();
+				const cached = this._accessibleViewService.getPosition();
+				this.show(cached);
 			}
 		}));
 
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._register(onRequestUpdateEditor(() => {
 			if (this._isTerminalAccessibleViewOpen()) {
-				this.show();
+				const cached = this._accessibleViewService.getPosition();
+				this.show(cached);
 			}
 		}));
 	}
@@ -111,7 +113,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		return accessibleViewCurrentProviderId.getValue(this._contextKeyService) === AccessibleViewProviderId.Terminal;
 	}
 
-	show(): void {
+	show(position?: Position): void {
 		if (!this._xterm) {
 			return;
 		}
@@ -123,7 +125,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._instance, this._xterm!)).provideContent();
 			}));
 		}
-		this._accessibleViewService.show(this._bufferProvider);
+		this._accessibleViewService.show(this._bufferProvider, position);
 	}
 	navigateToCommand(type: NavigationType): void {
 		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;

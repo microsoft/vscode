@@ -10,6 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -17,7 +18,7 @@ import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/acces
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
 	id = AccessibleViewProviderId.Terminal;
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true, id: AccessibleViewProviderId.Terminal };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', id: AccessibleViewProviderId.Terminal };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
@@ -32,11 +33,15 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	) {
 		super();
 		this.options.customHelp = customHelp;
+		this.options.position = _configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
 		this.add(this._instance.onDidRequestFocus(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
 		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this.add(_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
+				this.options.position = _configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+			}
+		}));
 	}
-
-
 
 	onClose() {
 		this._instance.focus();
